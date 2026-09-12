@@ -114,7 +114,4 @@
     word-spacing: normal;
     letter-spacing: normal;
   }
-  .lightbox:target {
-    display: flex;
-  }
 }

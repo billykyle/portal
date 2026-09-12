@@ -11,14 +11,17 @@ import { formatShootDate, resolveMediaUrl, shootFolderName } from "@/lib/media";
 
 export default async function ShootPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
     redirect("/");
   }
   const { id } = await params;
+  const { view } = await searchParams;
   await ensureDb();
   const [shoot] = await db
     .select()
@@ -42,6 +45,8 @@ export default async function ShootPage({
         </Link>
       </div>
       <ShootDetail
+        shootId={shoot.id}
+        viewId={view}
         address={shoot.address}
         dateLabel={formatShootDate(shoot.shotDate)}
         dropboxUrl={shoot.dropboxUrl}
