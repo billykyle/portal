@@ -1,33 +1,25 @@
-import { and, asc, eq } from "drizzle-orm";
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { asc, eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
+import { BkMark } from "@/components/logo";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
-import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
 import { formatShootDate, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { publicShootPath } from "@/lib/public-link";
 
-export default async function ShootPage({
+export default async function PublicShootPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ token: string }>;
   searchParams: Promise<{ view?: string }>;
 }) {
-  const session = await getSession();
-  if (!session) {
-    redirect("/");
-  }
-  const { id } = await params;
+  const { token } = await params;
   const { view } = await searchParams;
   await ensureDb();
-  const [shoot] = await db
-    .select()
-    .from(shoots)
-    .where(and(eq(shoots.id, id), eq(shoots.clientId, session.clientId)))
-    .limit(1);
+  const [shoot] = await db.select().from(shoots).where(eq(shoots.publicToken, token)).limit(1);
   if (!shoot) {
     notFound();
   }
@@ -39,20 +31,16 @@ export default async function ShootPage({
 
   return (
     <PhoneShell>
-      <div className="py-6">
-        <Link href="/library" className="text-sm text-[#8e8e93]">
-          Library
-        </Link>
-      </div>
+      <header className="flex justify-center py-6">
+        <BkMark className="h-7" />
+      </header>
       <ShootDetail
-        basePath={`/shoots/${shoot.id}`}
+        basePath={publicShootPath(shoot.publicToken)}
         viewId={view}
         address={shoot.address}
         dateLabel={formatShootDate(shoot.shotDate)}
-        dropboxUrl={shoot.dropboxUrl}
+        dropboxUrl={null}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
-        shareToken={shoot.publicToken}
-        showBackup
         media={files.map((item) => ({
           id: item.id,
           filename: item.filename,

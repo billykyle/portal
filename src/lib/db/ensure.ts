@@ -1,6 +1,7 @@
-import { count } from "drizzle-orm";
+import { count, eq, isNull } from "drizzle-orm";
+import { createPublicToken } from "../public-link";
 import { db, sql } from "./index";
-import { clients } from "./schema";
+import { clients, shoots } from "./schema";
 import { seedDemo } from "./seed";
 
 let ready: Promise<void> | null = null;
@@ -43,9 +44,12 @@ async function createTables() {
       address text NOT NULL,
       nas_relative_path text,
       dropbox_url text,
+      public_token text UNIQUE,
       created_at timestamptz NOT NULL DEFAULT now()
     )
   `;
+  await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS public_token text`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_public_token_uidx ON shoots (public_token)`;
   await sql`
     DO $$ BEGIN
       CREATE TYPE media_type AS ENUM ('photo', 'video', 'floor_plan');
@@ -70,6 +74,11 @@ export async function ensureDb() {
   if (!ready) {
     ready = (async () => {
       await createTables();
+      const missing = await db.select({ id: shoots.id }).from(shoots).where(isNull(shoots.publicToken));
+      for (const row of missing) {
+        await db.update(shoots).set({ publicToken: createPublicToken() }).where(eq(shoots.id, row.id));
+      }
+      await sql`ALTER TABLE shoots ALTER COLUMN public_token SET NOT NULL`;
       const [{ value }] = await db.select({ value: count() }).from(clients);
       if (value === 0) {
         await seedDemo();

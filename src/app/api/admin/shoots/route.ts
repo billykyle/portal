@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots, type MediaType } from "@/lib/db/schema";
 import { joinUrl } from "@/lib/media";
+import { createPublicToken } from "@/lib/public-link";
 import { mapleMedia } from "@/lib/sample-media";
 
 function guessType(filename: string): MediaType {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
     .insert(shoots)
     .values({
       clientId,
+      publicToken: createPublicToken(),
       shotDate,
       address,
       nasRelativePath,

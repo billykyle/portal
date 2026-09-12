@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BackupPanel } from "@/components/backup-panel";
+import { CopyPublicLink } from "@/components/copy-public-link";
 import { DownloadAllButton } from "@/components/download-controls";
 import { mediaLabel } from "@/lib/media";
 
@@ -11,21 +12,25 @@ export type ShootMedia = {
 };
 
 export function ShootDetail({
-  shootId,
+  basePath,
   viewId,
   address,
   dateLabel,
   dropboxUrl,
   folderName,
   media,
+  shareToken,
+  showBackup = false,
 }: {
-  shootId: string;
+  basePath: string;
   viewId?: string;
   address: string;
   dateLabel: string;
   dropboxUrl: string | null;
   folderName: string;
   media: ShootMedia[];
+  shareToken?: string;
+  showBackup?: boolean;
 }) {
   const photos = media.filter((item) => item.type === "photo");
   const videos = media.filter((item) => item.type === "video");
@@ -36,7 +41,7 @@ export function ShootDetail({
   const active = activeIndex >= 0 ? viewable[activeIndex] : null;
   const prev = active ? viewable[activeIndex - 1] : null;
   const next = active ? viewable[activeIndex + 1] : null;
-  const hrefFor = (id?: string) => (id ? `/shoots/${shootId}?view=${id}` : `/shoots/${shootId}`);
+  const hrefFor = (id?: string) => (id ? `${basePath}?view=${id}` : basePath);
 
   return (
     <div className="flex flex-col gap-8 pb-16">
@@ -44,6 +49,8 @@ export function ShootDetail({
         <p className="text-sm text-[#8e8e93]">{dateLabel}</p>
         <h1 className="text-xl font-medium leading-snug">{address}</h1>
       </header>
+
+      {shareToken ? <CopyPublicLink token={shareToken} /> : null}
 
       <DownloadAllButton files={files} folderName={folderName} />
 
@@ -115,7 +122,7 @@ export function ShootDetail({
         <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p>
       ) : null}
 
-      <BackupPanel dropboxUrl={dropboxUrl} />
+      {showBackup ? <BackupPanel dropboxUrl={dropboxUrl} /> : null}
 
       {active ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">

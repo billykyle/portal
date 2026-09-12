@@ -13,6 +13,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, type MediaType } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
 import { joinUrl } from "@/lib/media";
+import { createPublicToken } from "@/lib/public-link";
 import { mapleMedia } from "@/lib/sample-media";
 
 export type AdminState = {
@@ -102,6 +103,7 @@ export async function attachShoot(formData: FormData) {
     .insert(shoots)
     .values({
       clientId,
+      publicToken: createPublicToken(),
       shotDate,
       address,
       nasRelativePath,

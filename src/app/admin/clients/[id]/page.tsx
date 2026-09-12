@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { CopyPublicLink } from "@/components/copy-public-link";
 import { AttachShootForm } from "@/components/forms/attach-shoot-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -67,6 +68,9 @@ export default async function AdminClientPage({
                     {count} file{count === 1 ? "" : "s"}
                     {shoot.dropboxUrl ? " · Dropbox backup" : ""}
                   </p>
+                  <div className="mt-2">
+                    <CopyPublicLink token={shoot.publicToken} compact />
+                  </div>
                 </li>
               );
             })}

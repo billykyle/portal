@@ -2,7 +2,7 @@
 
 Private, phone-first file delivery for Atmos Imagery / Billy Kyle. Clients redeem a permanent invite code, create their own login, and open every shoot attached to that code.
 
-Black and white only. No favorites. No share links.
+Black and white only. No favorites. Every shoot has a stable public link.
 
 ## What it does
 
@@ -11,8 +11,9 @@ Black and white only. No favorites. No share links.
 3. Forgot password — email reset link (or an on-screen link when email is not configured).
 4. Library — every shoot for that invite code, labeled date + address, newest first.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
-6. Backup — collapsed control with the Dropbox view link.
-7. Admin — Billy mints the next BK code and attaches shoots by hand. Kold can automate this later.
+6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
+7. Backup — collapsed control with the Dropbox view link (logged-in shoot page only).
+8. Admin — Billy mints the next BK code and attaches shoots by hand. Kold can automate this later.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -48,6 +49,8 @@ Demo shoots:
 
 - Sep 4, 2026 — 1847 Maple Avenue, Austin, TX
 - Mar 18, 2026 — 412 West 12th Street, Unit 6B, Austin, TX
+
+Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
 
 Sample photos, walkthrough videos, and floor plans live in `public/samples/` so the UI works without the NAS.
 

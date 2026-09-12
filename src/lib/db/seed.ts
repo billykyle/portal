@@ -1,7 +1,8 @@
 import { hash } from "bcryptjs";
+import { createPublicToken } from "../public-link";
+import { mapleMedia, west12Media } from "../sample-media";
 import { db } from "./index";
 import { clients, media, shoots, users } from "./schema";
-import { mapleMedia, west12Media } from "../sample-media";
 
 export async function seedDemo() {
   const [client] = await db
@@ -28,6 +29,7 @@ export async function seedDemo() {
       clientId: client.id,
       shotDate: "2026-09-04",
       address: "1847 Maple Avenue, Austin, TX",
+      publicToken: createPublicToken(),
       nasRelativePath: "Whitfield/2026-09-04 - 1847 Maple Avenue, Austin, TX",
       dropboxUrl: "https://www.dropbox.com/scl/fo/demo-maple-avenue/placeholder?rlkey=demo&dl=0",
     })
@@ -39,6 +41,7 @@ export async function seedDemo() {
       clientId: client.id,
       shotDate: "2026-03-18",
       address: "412 West 12th Street, Unit 6B, Austin, TX",
+      publicToken: createPublicToken(),
       nasRelativePath: "Whitfield/2026-03-18 - 412 West 12th Street, Unit 6B, Austin, TX",
       dropboxUrl: "https://www.dropbox.com/scl/fo/demo-west-12th/placeholder?rlkey=demo&dl=0",
     })

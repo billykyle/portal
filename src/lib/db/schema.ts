@@ -37,6 +37,7 @@ export const shoots = pgTable("shoots", {
   clientId: uuid("client_id")
     .notNull()
     .references(() => clients.id, { onDelete: "cascade" }),
+  publicToken: text("public_token").notNull().unique(),
   shotDate: text("shot_date").notNull(),
   address: text("address").notNull(),
   nasRelativePath: text("nas_relative_path"),
