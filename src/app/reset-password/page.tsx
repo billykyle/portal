@@ -11,7 +11,7 @@ export default async function ResetPasswordPage({
   return (
     <PhoneShell>
       <div className="flex items-center justify-center py-6">
-        <BkMark className="h-7 w-10 text-white" />
+        <BkMark className="h-7" />
       </div>
       <h1 className="mb-6 text-2xl font-medium">Reset password</h1>
       <ResetPasswordForm token={token ?? ""} />

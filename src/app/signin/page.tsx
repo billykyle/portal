@@ -16,7 +16,7 @@ export default async function SigninPage() {
         <Link href="/" className="text-sm text-[#8e8e93]">
           Back
         </Link>
-        <BkMark className="h-7 w-10 text-white" />
+        <BkMark className="h-7" />
         <span className="w-10" />
       </div>
       <h1 className="mb-6 text-2xl font-medium">Sign in</h1>

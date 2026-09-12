@@ -8,7 +8,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { shoots } from "@/lib/db/schema";
+import { clients, shoots } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
 
 export default async function LibraryPage() {
@@ -17,6 +17,7 @@ export default async function LibraryPage() {
     redirect("/");
   }
   await ensureDb();
+  const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
   const rows = await db
     .select()
     .from(shoots)
@@ -26,12 +27,15 @@ export default async function LibraryPage() {
   return (
     <PhoneShell>
       <header className="flex items-center justify-between py-6">
-        <BkMark className="h-7 w-10 text-white" />
+        <BkMark className="h-7" />
         <SignOutButton />
       </header>
-      <div className="mb-6">
-        <h1 className="text-2xl font-medium">Your shoots</h1>
-        <p className="mt-1 text-sm text-[#8e8e93]">{session.inviteCode}</p>
+      <div className="mb-8">
+        <h1 className="text-[28px] font-bold leading-tight">{client?.displayName ?? "Your shoots"}</h1>
+        {client?.primaryEmail ? (
+          <p className="mt-1 text-sm text-[#8e8e93]">{client.primaryEmail}</p>
+        ) : null}
+        {client?.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-[#8e8e93]">

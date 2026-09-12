@@ -10,7 +10,7 @@ export default function ForgotPasswordPage() {
         <Link href="/signin" className="text-sm text-[#8e8e93]">
           Back
         </Link>
-        <BkMark className="h-7 w-10 text-white" />
+        <BkMark className="h-7" />
         <span className="w-10" />
       </div>
       <h1 className="mb-2 text-2xl font-medium">Forgot password</h1>
