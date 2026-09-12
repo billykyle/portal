@@ -10,11 +10,16 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients } from "@/lib/db/schema";
 
-export default async function AdminClientsPage() {
+export default async function AdminClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; minted?: string }>;
+}) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   await ensureDb();
+  const { error, minted } = await searchParams;
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
   return (
@@ -25,7 +30,7 @@ export default async function AdminClientsPage() {
       </header>
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Mint client</h2>
-        <MintClientForm />
+        <MintClientForm error={error} minted={minted} />
       </section>
       <section className="pb-16">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>

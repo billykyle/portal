@@ -33,18 +33,23 @@ export async function adminLogout() {
   redirect("/admin");
 }
 
-export async function mintClient(_prev: AdminState | undefined, formData: FormData) {
+function adminClientsUrl(params: Record<string, string>) {
+  const query = new URLSearchParams(params);
+  return `/admin/clients?${query.toString()}`;
+}
+
+export async function mintClient(formData: FormData) {
   if (!(await getAdminSession())) {
-    return { error: "Unauthorized." };
+    redirect("/admin");
   }
   await ensureDb();
   const displayName = String(formData.get("displayName") ?? "").trim();
   const primaryEmail = String(formData.get("primaryEmail") ?? "").trim().toLowerCase();
   if (!displayName) {
-    return { error: "Display name is required." };
+    redirect(adminClientsUrl({ error: "Display name is required." }));
   }
   if (!primaryEmail || !primaryEmail.includes("@")) {
-    return { error: "Primary contact email is required." };
+    redirect(adminClientsUrl({ error: "Primary contact email is required." }));
   }
 
   const existing = await db.select({ inviteCode: clients.inviteCode }).from(clients);
@@ -63,7 +68,7 @@ export async function mintClient(_prev: AdminState | undefined, formData: FormDa
     .returning();
 
   revalidatePath("/admin/clients");
-  return { minted: client.inviteCode };
+  redirect(adminClientsUrl({ minted: client.inviteCode }));
 }
 
 function guessType(filename: string): MediaType {
@@ -73,22 +78,23 @@ function guessType(filename: string): MediaType {
   return "photo";
 }
 
-export async function attachShoot(_prev: AdminState | undefined, formData: FormData) {
+export async function attachShoot(formData: FormData) {
   if (!(await getAdminSession())) {
-    return { error: "Unauthorized." };
+    redirect("/admin");
   }
   await ensureDb();
   const clientId = String(formData.get("clientId") ?? "");
   const shotDate = String(formData.get("shotDate") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
+  const clientPath = `/admin/clients/${clientId}`;
   if (!clientId) {
-    return { error: "Client is required." };
+    redirect("/admin/clients?error=Client%20is%20required.");
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(shotDate)) {
-    return { error: "Date must be YYYY-MM-DD." };
+    redirect(`${clientPath}?error=${encodeURIComponent("Date must be YYYY-MM-DD.")}`);
   }
   if (!address) {
-    return { error: "Address is required." };
+    redirect(`${clientPath}?error=${encodeURIComponent("Address is required.")}`);
   }
 
   const nasRelativePath = String(formData.get("nasRelativePath") ?? "").trim() || `${shotDate} - ${address}`;
@@ -136,6 +142,6 @@ export async function attachShoot(_prev: AdminState | undefined, formData: FormD
     }
   }
 
-  revalidatePath(`/admin/clients/${clientId}`);
-  return {};
+  revalidatePath(clientPath);
+  redirect(`${clientPath}?attached=1`);
 }

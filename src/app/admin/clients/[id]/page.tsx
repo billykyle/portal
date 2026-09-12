@@ -11,13 +11,16 @@ import { formatShootDate } from "@/lib/media";
 
 export default async function AdminClientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; attached?: string }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
+  const { error, attached } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -46,7 +49,7 @@ export default async function AdminClientPage({
       </header>
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
-        <AttachShootForm clientId={client.id} />
+        <AttachShootForm clientId={client.id} error={error} attached={attached === "1"} />
       </section>
       <section className="pb-16">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
