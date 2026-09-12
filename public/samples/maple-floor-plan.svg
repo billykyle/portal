@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" fill="none">
+  <rect width="1200" height="800" fill="#f7f7f7"/>
+  <g stroke="#111" stroke-width="6" stroke-linejoin="miter">
+    <path d="M80 80h1040v640H80z"/>
+    <path d="M80 80h420v300H80z"/>
+    <path d="M500 80h280v300H500z"/>
+    <path d="M780 80h340v300H780z"/>
+    <path d="M80 380h500v340H80z"/>
+    <path d="M580 380h250v340H580z"/>
+    <path d="M830 380h290v340H830z"/>
+  </g>
+  <g fill="#111" font-family="ui-sans-serif, system-ui, sans-serif" font-size="28" text-anchor="middle">
+    <text x="290" y="230">LIVING</text>
+    <text x="640" y="220">KITCHEN</text>
+    <text x="950" y="210">DINING</text>
+    <text x="330" y="560">PRIMARY SUITE</text>
+    <text x="705" y="540">BED 2</text>
+    <text x="975" y="520">BATH</text>
+    <text x="975" y="555" font-size="20">LAUNDRY</text>
+  </g>
+  <g stroke="#111" stroke-width="4">
+    <path d="M230 380v-70"/>
+    <path d="M580 620h-70"/>
+    <path d="M830 500h-60"/>
+    <path d="M780 230v-70"/>
+  </g>
+  <text x="600" y="760" fill="#111" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" text-anchor="middle">1847 Maple Avenue  Level 1</text>
+</svg>

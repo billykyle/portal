@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" fill="none">
+  <rect width="1000" height="800" fill="#f7f7f7"/>
+  <g stroke="#111" stroke-width="6">
+    <path d="M70 70h860v660H70z"/>
+    <path d="M70 70h520v360H70z"/>
+    <path d="M590 70h340v240H590z"/>
+    <path d="M590 310h340v200H590z"/>
+    <path d="M70 430h320v300H70z"/>
+    <path d="M390 430h200v300H390z"/>
+  </g>
+  <g fill="#111" font-family="ui-sans-serif, system-ui, sans-serif" font-size="26" text-anchor="middle">
+    <text x="330" y="250">OPEN LIVING</text>
+    <text x="760" y="190">KITCHEN</text>
+    <text x="760" y="420">BATH</text>
+    <text x="230" y="590">BEDROOM</text>
+    <text x="490" y="590">CLOSET</text>
+  </g>
+  <g stroke="#111" stroke-width="4">
+    <path d="M590 230h-70"/>
+    <path d="M390 580h-60"/>
+    <path d="M590 430v-50"/>
+  </g>
+  <text x="500" y="760" fill="#111" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" text-anchor="middle">412 West 12th Street, Unit 6B</text>
+</svg>
