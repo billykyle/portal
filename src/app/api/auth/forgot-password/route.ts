@@ -20,8 +20,13 @@ export async function POST(request: Request) {
       token,
       expiresAt,
     });
-    const origin = new URL(request.url).origin;
-    resetUrl = `${origin}/reset-password?token=${token}`;
+    const url = new URL(request.url);
+    const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || url.host).replace(
+      "0.0.0.0",
+      "127.0.0.1",
+    );
+    const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
+    resetUrl = `${proto}://${host}/reset-password?token=${token}`;
 
     const resendKey = process.env.RESEND_API_KEY;
     const from = process.env.EMAIL_FROM ?? "Billy Kyle Client Portal <noreply@localhost>";
