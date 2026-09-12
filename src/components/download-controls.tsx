@@ -2,7 +2,6 @@
 
 import { Download } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 
 export type DownloadFile = {
   url: string;
@@ -86,14 +85,14 @@ export function DownloadAllButton({
 
   return (
     <div className="flex flex-col gap-2">
-      <Button
+      <button
         type="button"
         onClick={onClick}
         disabled={pending || files.length === 0}
-        className="h-12 w-full rounded-xl border-0 bg-white text-base font-medium text-black hover:bg-white/90 disabled:bg-[#c7c7cc] disabled:text-black/45 disabled:opacity-100"
+        className="flex h-12 w-full appearance-none items-center justify-center rounded-xl border-0 bg-white text-base font-medium text-black disabled:bg-[#c7c7cc] disabled:text-black/45"
       >
         {pending ? "Downloading…" : "Download all"}
-      </Button>
+      </button>
       {status ? <p className="text-xs text-[#8e8e93]">{status}</p> : null}
     </div>
   );
