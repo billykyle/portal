@@ -43,19 +43,11 @@ export function ShootDetail({
         <Section title={mediaLabel("photo")}>
           <div className="grid grid-cols-2 gap-2">
             {photos.map((item) => (
-              <figure key={item.id} className="relative overflow-hidden rounded-xl bg-[#111]">
-                <button
-                  type="button"
-                  onClick={() => setViewerIndex(media.findIndex((entry) => entry.id === item.id))}
-                  className="block w-full"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.url} alt={item.filename} className="aspect-[4/3] w-full object-cover" />
-                </button>
-                <div className="absolute right-1 top-1">
-                  <FileDownloadButton file={{ url: item.url, filename: item.filename }} />
-                </div>
-              </figure>
+              <MediaTile
+                key={item.id}
+                item={item}
+                onOpen={() => setViewerIndex(media.indexOf(item))}
+              />
             ))}
           </div>
         </Section>
@@ -84,11 +76,15 @@ export function ShootDetail({
               <figure key={item.id} className="overflow-hidden rounded-xl bg-white">
                 <button
                   type="button"
-                  onClick={() => setViewerIndex(media.findIndex((entry) => entry.id === item.id))}
-                  className="block w-full"
+                  onClick={() => setViewerIndex(media.indexOf(item))}
+                  className="block w-full cursor-pointer"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.url} alt={item.filename} className="w-full bg-white object-contain" />
+                  <img
+                    src={item.url}
+                    alt={item.filename}
+                    className="min-h-[220px] w-full bg-white object-contain"
+                  />
                 </button>
                 <figcaption className="flex items-center justify-between bg-black px-3 py-2 text-sm text-[#c7c7cc]">
                   <span className="truncate">{item.filename}</span>
@@ -106,7 +102,7 @@ export function ShootDetail({
 
       <BackupPanel dropboxUrl={dropboxUrl} />
 
-      {viewerIndex != null ? (
+      {viewerIndex != null && media[viewerIndex] ? (
         <PhotoViewer
           items={media}
           index={viewerIndex}
@@ -115,6 +111,20 @@ export function ShootDetail({
         />
       ) : null}
     </div>
+  );
+}
+
+function MediaTile({ item, onOpen }: { item: Item; onOpen: () => void }) {
+  return (
+    <figure className="relative overflow-hidden rounded-xl bg-[#111]">
+      <button type="button" onClick={onOpen} className="block w-full cursor-pointer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.url} alt={item.filename} className="aspect-[4/3] w-full object-cover" />
+      </button>
+      <div className="absolute right-1 top-1">
+        <FileDownloadButton file={{ url: item.url, filename: item.filename }} />
+      </div>
+    </figure>
   );
 }
 

@@ -1,14 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { Field, FormError, SubmitButton } from "@/components/field";
 import { redeemInvite } from "@/lib/actions/auth";
-import { normalizeInviteCode } from "@/lib/invite";
 
 export function InviteForm() {
   const [state, action, pending] = useActionState(redeemInvite, undefined);
-  const [code, setCode] = useState("");
-  const ready = normalizeInviteCode(code).length > 0;
 
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -19,11 +16,11 @@ export function InviteForm() {
         autoCorrect="off"
         autoComplete="off"
         spellCheck={false}
-        value={code}
-        onChange={(event) => setCode(event.target.value.toUpperCase())}
+        required
+        className="uppercase"
       />
       <FormError message={state?.error} />
-      <SubmitButton disabled={!ready || pending}>{pending ? "Checking…" : "Continue"}</SubmitButton>
+      <SubmitButton disabled={pending}>{pending ? "Checking…" : "Continue"}</SubmitButton>
     </form>
   );
 }

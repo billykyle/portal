@@ -111,5 +111,7 @@
   body {
     @apply bg-black text-white;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    word-spacing: normal;
+    letter-spacing: normal;
   }
 }
