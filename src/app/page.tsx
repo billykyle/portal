@@ -13,22 +13,23 @@ export default async function SplashPage() {
 
   return (
     <PhoneShell className="px-6">
-      <div className="flex flex-1 flex-col items-center justify-center pt-[8vh]">
-        <BkMark className="w-[142px]" />
-        <p className="mt-4 text-[15px] font-normal tracking-normal text-[#c7c7cc]">
-          Client Portal
-        </p>
+      <div className="flex flex-1 flex-col items-center justify-center pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="flex w-full flex-col items-center">
+          <BkMark className="w-[142px]" />
+          <p className="mt-4 text-[15px] font-normal tracking-normal text-[#c7c7cc]">
+            Client Portal
+          </p>
+          <div className="mt-16 w-full">
+            <InviteForm />
+            <p className="mt-6 text-center text-[13px] tracking-normal text-[#8e8e93]">
+              Already have an account?{" "}
+              <Link href="/signin" className="text-[#8e8e93]">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
-      <div className="pb-6">
-        <InviteForm />
-        <p className="mt-6 text-center text-[13px] tracking-normal text-[#8e8e93]">
-          Already have an account?{" "}
-          <Link href="/signin" className="text-[#8e8e93]">
-            Sign in
-          </Link>
-        </p>
-      </div>
-      <div className="h-[8vh]" />
     </PhoneShell>
   );
 }
