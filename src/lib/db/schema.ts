@@ -58,8 +58,24 @@ export const media = pgTable("media", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const zipJobs = pgTable("zip_jobs", {
+  id: text("id").primaryKey(),
+  shootId: uuid("shoot_id")
+    .notNull()
+    .references(() => shoots.id, { onDelete: "cascade" }),
+  state: text("state").notNull(),
+  filesDone: integer("files_done").notNull().default(0),
+  filesTotal: integer("files_total").notNull().default(0),
+  bytes: integer("bytes").notNull().default(0),
+  filename: text("filename").notNull(),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Shoot = typeof shoots.$inferSelect;
 export type Media = typeof media.$inferSelect;
 export type MediaType = (typeof mediaTypeEnum.enumValues)[number];
+export type ZipJob = typeof zipJobs.$inferSelect;

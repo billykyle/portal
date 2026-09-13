@@ -71,6 +71,20 @@ async function createTables() {
       sort_order integer NOT NULL DEFAULT 0
     )
   `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS zip_jobs (
+      id text PRIMARY KEY,
+      shoot_id uuid NOT NULL REFERENCES shoots(id) ON DELETE CASCADE,
+      state text NOT NULL,
+      files_done integer NOT NULL DEFAULT 0,
+      files_total integer NOT NULL DEFAULT 0,
+      bytes integer NOT NULL DEFAULT 0,
+      filename text NOT NULL,
+      error text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
 }
 
 export async function ensureDb() {

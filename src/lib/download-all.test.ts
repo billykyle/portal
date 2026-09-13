@@ -9,6 +9,8 @@ import {
   publicShootZipPath,
   shootZipPath,
   uniqueZipEntryName,
+  withZipJob,
+  zipJobProgressPath,
   zipDownloadName,
   zipJobPercent,
 } from "./download-all";
@@ -32,6 +34,8 @@ test("keeps zip entry names unique", () => {
 test("builds shoot zip routes", () => {
   assert.equal(shootZipPath("abc"), "/api/shoots/abc/zip");
   assert.equal(publicShootZipPath("tok"), "/api/s/tok/zip");
+  assert.equal(withZipJob("/api/s/tok/zip", "job-1"), "/api/s/tok/zip?job=job-1");
+  assert.equal(zipJobProgressPath("job-1"), "/api/zip-jobs/job-1");
 });
 
 test("formats size, duration, and zip progress", () => {
@@ -71,7 +75,7 @@ test("formats size, duration, and zip progress", () => {
       remainingMs: 62_000,
       percent: 26,
     }),
-    /Downloading 21 of 83/,
+    /Downloading 21 of 83 — Full-19.jpg/,
   );
   assert.match(
     formatZipStatus({

@@ -67,25 +67,41 @@ export function streamShootZip(options: {
   folderName: string;
   origin: string;
   approxBytes?: number | null;
+  onFile?: (info: { filesDone: number; filesTotal: number; bytes: number }) => void | Promise<void>;
+  onDone?: () => void | Promise<void>;
+  onError?: (error: Error) => void | Promise<void>;
 }) {
   const zipName = zipDownloadName(options.folderName);
   const zip = new ZipFile();
   const usedNames = new Set<string>();
+  const output = zip.outputStream as Readable;
 
   void (async () => {
     try {
-      for (const file of options.files) {
+      let packed = 0;
+      for (const [index, file] of options.files.entries()) {
         const bytes = await loadZipSourceBytes(file, options.origin);
+        packed += bytes.byteLength;
         zip.addBuffer(bytes, uniqueZipEntryName(file.filename, usedNames), { compress: false });
+        await options.onFile?.({
+          filesDone: index + 1,
+          filesTotal: options.files.length,
+          bytes: packed,
+        });
       }
       zip.end();
     } catch (error) {
       const failed = error instanceof Error ? error : new Error("Zip failed.");
-      (zip.outputStream as Readable).destroy(failed);
+      await options.onError?.(failed);
+      output.destroy(failed);
     }
   })();
 
-  const stream = Readable.toWeb(zip.outputStream as Readable) as ReadableStream<Uint8Array>;
+  output.on("end", () => {
+    void options.onDone?.();
+  });
+
+  const stream = Readable.toWeb(output) as ReadableStream<Uint8Array>;
   const headers = new Headers({
     "Content-Type": "application/zip",
     "Content-Disposition": contentDispositionAttachment(zipName),

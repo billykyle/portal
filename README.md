@@ -238,7 +238,7 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 The portal caches thumbs and full files under `NAS_CACHE_DIR` after the first request so repeat views do not re-hit the NAS.
 
-**Download** on a shoot page requests one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The page shows preparing → downloading (bytes, speed, time remaining when size is known) → saved or failed. Safari/iPhone confirms once for `2026-09-04 - 12 Wood View Drive.zip`. Per-tile **Save** still downloads that one file. If the zip route fails, the browser builds the same zip from the media proxy as a fallback.
+**Download** on a shoot page starts one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The browser saves that attachment directly (Safari/iPhone confirms once) instead of buffering a ~470MB archive in JavaScript. The page polls zip-job progress and shows preparing → downloading (files, bytes, speed, time remaining) → saved or failed. Named `{date} - {address}.zip`. Per-tile **Save** still downloads that one file.
 
 Dropbox is backup only, behind the collapsed **Dropbox** control.
 

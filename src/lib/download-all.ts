@@ -32,6 +32,14 @@ export function publicShootZipPath(token: string) {
   return `/api/s/${token}/zip`;
 }
 
+export function withZipJob(zipUrl: string, jobId: string) {
+  return zipUrl.includes("?") ? `${zipUrl}&job=${jobId}` : `${zipUrl}?job=${jobId}`;
+}
+
+export function zipJobProgressPath(jobId: string) {
+  return `/api/zip-jobs/${jobId}`;
+}
+
 export function zipDownloadName(folderName: string) {
   const safe = folderName
     .replace(/[\\/:*?"<>|]+/g, "-")
@@ -124,7 +132,10 @@ export function formatZipStatus(progress: ZipJobProgress) {
       ? `${formatBytes(progress.bytes)} of ~${formatBytes(progress.totalBytes)}`
       : formatBytes(progress.bytes);
   if (progress.filesTotal > 1 && progress.filesDone > 0) {
-    return `Downloading ${progress.filesDone} of ${progress.filesTotal} — ${progress.filename} · ${size}${speed}${eta}`;
+    const label = progress.filename.toLowerCase().endsWith(".zip")
+      ? `Downloading ${progress.filesDone} of ${progress.filesTotal}`
+      : `Downloading ${progress.filesDone} of ${progress.filesTotal} — ${progress.filename}`;
+    return `${label} · ${size}${speed}${eta}`;
   }
   return `Downloading · ${size}${speed}${eta}`;
 }

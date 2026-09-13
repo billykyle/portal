@@ -5,8 +5,10 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
+import { zipDownloadName } from "@/lib/download-all";
 import { shootFolderName } from "@/lib/media";
 import { approxZipSourceBytes, streamShootZip } from "@/lib/shoot-zip";
+import { trackShootZipJob } from "@/lib/zip-jobs";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -46,12 +48,20 @@ export async function GET(
 
   try {
     const origin = new URL(request.url).origin;
+    const folderName = shootFolderName(shoot.shotDate, shoot.address);
     const approxBytes = await approxZipSourceBytes(files);
+    const tracking = await trackShootZipJob({
+      jobId: new URL(request.url).searchParams.get("job"),
+      shootId: shoot.id,
+      filesTotal: files.length,
+      filename: zipDownloadName(folderName),
+    });
     return streamShootZip({
       files,
-      folderName: shootFolderName(shoot.shotDate, shoot.address),
+      folderName,
       origin,
       approxBytes,
+      ...tracking,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Zip failed.";

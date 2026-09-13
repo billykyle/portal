@@ -5,8 +5,10 @@ import {
   downloadHref,
   estimateRemainingMs,
   uniqueZipEntryName,
+  withZipJob,
   zipDownloadName,
   zipJobPercent,
+  zipJobProgressPath,
   type DownloadFile,
   type ZipJobProgress,
   type ZipJobState,
@@ -44,6 +46,7 @@ type ProgressEmitter = {
     totalBytes?: number | null;
   }) => void;
   addBytes: (delta: number) => void;
+  setBytes: (next: number) => void;
 };
 
 function createProgressTracker(
@@ -54,6 +57,9 @@ function createProgressTracker(
   return {
     addBytes(delta: number) {
       bytes += delta;
+    },
+    setBytes(next: number) {
+      bytes = Math.max(0, next);
     },
     emit(partial) {
       const elapsedMs = Date.now() - started;
@@ -143,6 +149,15 @@ export async function saveOne(file: DownloadFile) {
   saveBlob(blob, file.filename, blob.type || "application/octet-stream");
 }
 
+type ZipJobPayload = {
+  state: ZipJobState;
+  filesDone: number;
+  filesTotal: number;
+  bytes: number;
+  filename: string;
+  error?: string | null;
+};
+
 export async function downloadZipFromUrl(
   zipUrl: string,
   folderName: string,
@@ -150,6 +165,7 @@ export async function downloadZipFromUrl(
 ) {
   const started = Date.now();
   const zipName = zipDownloadName(folderName);
+  const jobId = crypto.randomUUID();
   const tracker = createProgressTracker(started, onProgress);
   tracker.emit({
     state: "preparing",
@@ -158,48 +174,43 @@ export async function downloadZipFromUrl(
     filename: zipName,
   });
 
-  const response = await fetch(zipUrl, { cache: "no-store", credentials: "same-origin" });
-  if (!response.ok) {
-    throw new Error(`Could not download ${zipName}`);
-  }
+  // Native attachment so Safari/iPhone streams ~470MB to disk and confirms once.
+  startNativeZipDownload(withZipJob(zipUrl, jobId), folderName);
 
-  const length = Number(response.headers.get("content-length") || 0);
-  const approx = Number(response.headers.get("x-zip-approx-bytes") || 0);
-  const fileCount = Number(response.headers.get("x-zip-file-count") || 0);
-  const headerName = response.headers.get("x-zip-filename") || zipName;
-  const totalBytes = length > 0 ? length : approx > 0 ? approx : null;
-
-  tracker.emit({
-    state: "downloading",
-    filesDone: 0,
-    filesTotal: fileCount,
-    filename: headerName,
-    totalBytes,
-  });
-
-  const bytes = await readResponseBytes(response, (delta) => {
-    tracker.addBytes(delta);
+  const deadline = started + 6 * 60 * 1000;
+  let seen = false;
+  while (Date.now() < deadline) {
+    await delay(400);
+    const response = await fetch(zipJobProgressPath(jobId), { cache: "no-store" });
+    if (response.status === 404) {
+      if (seen) throw new Error(`Could not download ${zipName}`);
+      continue;
+    }
+    if (!response.ok) throw new Error(`Could not download ${zipName}`);
+    const job = (await response.json()) as ZipJobPayload;
+    seen = true;
+    tracker.setBytes(job.bytes);
+    if (job.state === "failed") {
+      throw new Error(job.error || `Could not download ${zipName}`);
+    }
     tracker.emit({
-      state: "downloading",
-      filesDone: 0,
-      filesTotal: fileCount,
-      filename: headerName,
-      totalBytes,
+      state: job.state,
+      filesDone: job.filesDone,
+      filesTotal: job.filesTotal,
+      filename: job.filename || zipName,
     });
-  });
-
-  saveBlob([bytes] as BlobPart[], headerName);
-  tracker.emit({
-    state: "done",
-    filesDone: fileCount,
-    filesTotal: fileCount,
-    filename: headerName,
-    totalBytes,
-  });
+    if (job.state === "done") return;
+  }
+  throw new Error(`Could not download ${zipName}`);
 }
 
-export function startNativeZipDownload(zipUrl: string, folderName: string) {
-  clickDownload(zipUrl, zipDownloadName(folderName));
+export function startNativeZipDownload(zipUrl: string, _folderName: string) {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("hidden", "");
+  frame.setAttribute("aria-hidden", "true");
+  frame.src = zipUrl;
+  document.body.appendChild(frame);
+  window.setTimeout(() => frame.remove(), 120_000);
 }
 
 export async function zipAndDownloadFiles(

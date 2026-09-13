@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   downloadZipFromUrl,
-  startNativeZipDownload,
   zipAndDownloadFiles,
   type DownloadFile,
 } from "@/components/download-controls";
@@ -49,16 +48,10 @@ export function ShootActions({
     setProgress(emptyZipProgress("preparing", files.length, zipName));
     try {
       if (zipUrl) {
-        try {
-          await downloadZipFromUrl(zipUrl, folderName, report);
-          return;
-        } catch {
-          if (files.length === 0) throw new Error("No files");
-          await zipAndDownloadFiles(files, folderName, report);
-          return;
-        }
+        await downloadZipFromUrl(zipUrl, folderName, report);
+      } else {
+        await zipAndDownloadFiles(files, folderName, report);
       }
-      await zipAndDownloadFiles(files, folderName, report);
     } catch {
       setProgress((current) =>
         current
@@ -66,9 +59,6 @@ export function ShootActions({
           : emptyZipProgress("failed", files.length, zipName),
       );
       setStatus("Download failed. Try again, or Save a single photo.");
-      if (zipUrl) {
-        startNativeZipDownload(zipUrl, folderName);
-      }
     } finally {
       setPending(false);
     }
