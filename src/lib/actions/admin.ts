@@ -10,9 +10,11 @@ import {
 } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, media, shoots, type MediaType } from "@/lib/db/schema";
+import { clients, media, shoots } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
-import { joinUrl } from "@/lib/media";
+import { guessMediaType, joinUrl } from "@/lib/media";
+import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
+import { nasEnabled } from "@/lib/nas";
 import { createPublicToken } from "@/lib/public-link";
 import { mapleMedia } from "@/lib/sample-media";
 
@@ -72,13 +74,6 @@ export async function mintClient(formData: FormData) {
   redirect(adminClientsUrl({ minted: client.inviteCode }));
 }
 
-function guessType(filename: string): MediaType {
-  const lower = filename.toLowerCase();
-  if (/\.(mp4|mov|webm|m4v)$/.test(lower)) return "video";
-  if (/(floor|plan)/.test(lower) || /\.svg$/.test(lower) || /\.pdf$/.test(lower)) return "floor_plan";
-  return "photo";
-}
-
 export async function attachShoot(formData: FormData) {
   if (!(await getAdminSession())) {
     redirect("/admin");
@@ -112,6 +107,7 @@ export async function attachShoot(formData: FormData) {
     .returning();
 
   const usePlaceholder = formData.get("usePlaceholderMedia") === "on";
+  const importNas = formData.get("importNasStills") === "on";
   if (usePlaceholder) {
     await db.insert(media).values(
       mapleMedia.map((item) => ({
@@ -120,6 +116,17 @@ export async function attachShoot(formData: FormData) {
         nasRelativePath: `${nasRelativePath}/${item.filename}`,
       })),
     );
+  } else if (importNas) {
+    if (!nasEnabled()) {
+      redirect(`${clientPath}?error=${encodeURIComponent("Turn on NAS_ENABLED to import stills.")}`);
+    }
+    try {
+      const folder = await resolveShootFolder(nasRelativePath);
+      await importNasStills(shoot.id, folder);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NAS import failed.";
+      redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
+    }
   } else {
     const lines = String(formData.get("mediaPaths") ?? "")
       .split("\n")
@@ -132,7 +139,7 @@ export async function attachShoot(formData: FormData) {
       const relative = isAbsolute ? `${nasRelativePath}/${filename}` : line.replace(/^\/+/, "");
       return {
         shootId: shoot.id,
-        type: guessType(filename),
+        type: guessMediaType(filename),
         filename,
         url: isAbsolute ? line : nasBase ? joinUrl(nasBase, relative) : "/samples/maple-exterior.jpg",
         nasRelativePath: relative,

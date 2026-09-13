@@ -1,4 +1,5 @@
-import type { Media } from "./db/schema";
+import type { Media, MediaType } from "./db/schema";
+import { isNasFilePath, nasEnabled } from "./nas";
 
 export function joinUrl(base: string, relativePath: string) {
   const trimmed = base.replace(/\/+$/, "");
@@ -10,13 +11,25 @@ export function joinUrl(base: string, relativePath: string) {
   return `${trimmed}/${encoded}`;
 }
 
-export function resolveMediaUrl(item: Pick<Media, "url" | "nasRelativePath">) {
-  const base = process.env.NAS_BASE_URL?.trim();
-  const useNas = process.env.NAS_ENABLED === "true";
-  if (useNas && base && item.nasRelativePath) {
-    return joinUrl(base, item.nasRelativePath);
-  }
+export function isNasBacked(item: Pick<Media, "id" | "nasRelativePath">) {
+  return nasEnabled() && isNasFilePath(item.nasRelativePath);
+}
+
+export function resolveMediaUrl(item: Pick<Media, "id" | "url" | "nasRelativePath">) {
+  if (isNasBacked(item)) return `/api/media/${item.id}`;
   return item.url;
+}
+
+export function resolveMediaThumbUrl(item: Pick<Media, "id" | "url" | "nasRelativePath">) {
+  if (isNasBacked(item)) return `/api/media/${item.id}/thumb`;
+  return item.url;
+}
+
+export function guessMediaType(filename: string): MediaType {
+  const lower = filename.toLowerCase();
+  if (/\.(mp4|mov|webm|m4v)$/.test(lower)) return "video";
+  if (/(floor|plan)/.test(lower) || /\.svg$/.test(lower) || /\.pdf$/.test(lower)) return "floor_plan";
+  return "photo";
 }
 
 export function formatShootDate(isoDate: string) {

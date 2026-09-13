@@ -1,4 +1,5 @@
 import { count, eq, isNull } from "drizzle-orm";
+import { ensureSamLeporeShoot } from "../nas-import";
 import { createPublicToken } from "../public-link";
 import { db, sql } from "./index";
 import { clients, shoots } from "./schema";
@@ -82,6 +83,11 @@ export async function ensureDb() {
       const [{ value }] = await db.select({ value: count() }).from(clients);
       if (value === 0) {
         await seedDemo();
+      }
+      try {
+        await ensureSamLeporeShoot();
+      } catch (error) {
+        console.error("NAS shoot import skipped:", error);
       }
     })().catch((error) => {
       ready = null;

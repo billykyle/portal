@@ -19,12 +19,16 @@ export function AttachShootForm({
       <Field
         id="nasRelativePath"
         label="NAS folder (optional)"
-        placeholder="Client / 2026-09-04 - 123 Main"
+        placeholder="Sam Lepore/2026.09.04 - 12 Wood View Drive"
         autoComplete="off"
       />
       <label className="flex items-center gap-3 text-sm text-[#c7c7cc]">
-        <input type="checkbox" name="usePlaceholderMedia" defaultChecked className="size-4 accent-white" />
+        <input type="checkbox" name="usePlaceholderMedia" className="size-4 accent-white" />
         Use sample placeholder media
+      </label>
+      <label className="flex items-center gap-3 text-sm text-[#c7c7cc]">
+        <input type="checkbox" name="importNasStills" defaultChecked className="size-4 accent-white" />
+        Import stills from NAS (Final or Photos)
       </label>
       <div className="flex flex-col gap-2">
         <label htmlFor="mediaPaths" className="text-[16px] font-normal text-white">
@@ -38,8 +42,8 @@ export function AttachShootForm({
           className="rounded-xl border-0 bg-[#1c1c1e] px-4 py-3 text-base text-white outline-none"
         />
         <p className="text-xs text-[#8e8e93]">
-          Ignored when sample media is checked. Relative paths resolve against NAS_BASE_URL when
-          NAS_ENABLED=true.
+          Ignored when sample media or NAS import is checked. NAS import looks for a Final or Photos
+          folder under the shoot path, then lists JPGs through the server-side UGOS share proxy.
         </p>
       </div>
       <FormError message={error} />

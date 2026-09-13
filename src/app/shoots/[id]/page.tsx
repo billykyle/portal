@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
-import { formatShootDate, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 
 export default async function ShootPage({
   params,
@@ -58,6 +58,7 @@ export default async function ShootPage({
           filename: item.filename,
           type: item.type,
           url: resolveMediaUrl(item),
+          thumbUrl: resolveMediaThumbUrl(item),
         }))}
       />
     </PhoneShell>

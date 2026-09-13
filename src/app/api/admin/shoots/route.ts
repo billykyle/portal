@@ -2,17 +2,12 @@ import { NextResponse } from "next/server";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { media, shoots, type MediaType } from "@/lib/db/schema";
-import { joinUrl } from "@/lib/media";
+import { media, shoots } from "@/lib/db/schema";
+import { guessMediaType, joinUrl } from "@/lib/media";
+import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
+import { nasEnabled } from "@/lib/nas";
 import { createPublicToken } from "@/lib/public-link";
 import { mapleMedia } from "@/lib/sample-media";
-
-function guessType(filename: string): MediaType {
-  const lower = filename.toLowerCase();
-  if (/\.(mp4|mov|webm|m4v)$/.test(lower)) return "video";
-  if (/(floor|plan)/.test(lower) || /\.svg$/.test(lower) || /\.pdf$/.test(lower)) return "floor_plan";
-  return "photo";
-}
 
 export async function POST(request: Request) {
   if (!(await getAdminSession())) {
@@ -26,6 +21,7 @@ export async function POST(request: Request) {
     dropboxUrl?: string;
     nasRelativePath?: string;
     usePlaceholderMedia?: boolean;
+    importNasStills?: boolean;
     mediaPaths?: string;
   };
 
@@ -65,6 +61,17 @@ export async function POST(request: Request) {
         nasRelativePath: `${nasRelativePath}/${item.filename}`,
       })),
     );
+  } else if (body.importNasStills) {
+    if (!nasEnabled()) {
+      return NextResponse.json({ error: "Turn on NAS_ENABLED to import stills." }, { status: 400 });
+    }
+    try {
+      const folder = await resolveShootFolder(nasRelativePath);
+      await importNasStills(shoot.id, folder);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NAS import failed.";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
   } else {
     const lines = (body.mediaPaths ?? "")
       .split("\n")
@@ -77,7 +84,7 @@ export async function POST(request: Request) {
       const relative = isAbsolute ? `${nasRelativePath}/${filename}` : line.replace(/^\/+/, "");
       return {
         shootId: shoot.id,
-        type: guessType(filename),
+        type: guessMediaType(filename),
         filename,
         url: isAbsolute ? line : nasBase ? joinUrl(nasBase, relative) : "/samples/maple-exterior.jpg",
         nasRelativePath: relative,

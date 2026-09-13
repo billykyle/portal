@@ -6,7 +6,7 @@ import { ShootDetail } from "@/components/shoot-detail";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
-import { formatShootDate, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 import { publicShootPath } from "@/lib/public-link";
 
 export default async function PublicShootPage({
@@ -46,6 +46,7 @@ export default async function PublicShootPage({
           filename: item.filename,
           type: item.type,
           url: resolveMediaUrl(item),
+          thumbUrl: resolveMediaThumbUrl(item),
         }))}
       />
     </PhoneShell>

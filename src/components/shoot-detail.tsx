@@ -5,6 +5,7 @@ import { mediaLabel } from "@/lib/media";
 export type ShootMedia = {
   id: string;
   url: string;
+  thumbUrl?: string;
   filename: string;
   type: "photo" | "video" | "floor_plan";
 };
@@ -140,8 +141,10 @@ function MediaTile({
       <Link href={href} className="block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={item.url}
+          src={item.thumbUrl ?? item.url}
           alt={item.filename}
+          loading="lazy"
+          decoding="async"
           className={`aspect-square w-full ${contain ? "object-contain p-1" : "object-cover"}`}
         />
       </Link>

@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# NAS proxy cache (thumbs + full files)
+.nas-cache/
+
 # vercel
 .vercel
 
