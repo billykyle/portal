@@ -1,5 +1,5 @@
 import { count, eq, isNull } from "drizzle-orm";
-import { runLockedNasSync } from "../nas-scheduler";
+import { runLockedNasSync, startNasSyncScheduler } from "../nas-scheduler";
 import { createPublicToken } from "../public-link";
 import { db, sql } from "./index";
 import { clients, shoots } from "./schema";
@@ -90,6 +90,7 @@ export async function ensureDb() {
       } catch (error) {
         console.error("NAS share sync skipped:", error);
       }
+      startNasSyncScheduler();
     })().catch((error) => {
       ready = null;
       throw error;
