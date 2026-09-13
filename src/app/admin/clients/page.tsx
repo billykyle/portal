@@ -53,7 +53,7 @@ export default async function AdminClientsPage({
       <header className="flex items-center justify-between gap-4 py-6">
         <div className="flex min-w-0 items-center gap-3">
           <BkMark size="header" className="shrink-0" />
-          <h1 className="text-2xl font-medium">Clients</h1>
+          <h1 className="text-2xl font-medium">Admin</h1>
         </div>
         <SignOutButton admin />
       </header>
