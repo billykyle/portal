@@ -328,7 +328,7 @@ function nodeStreamResponse(filePath: string, contentType: string, filename: str
   return new Response(stream, {
     headers: {
       "Content-Type": contentType,
-      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
+      "Content-Disposition": disposition(download, filename),
       "Cache-Control": "private, max-age=86400",
     },
   });
@@ -361,6 +361,13 @@ export async function proxyNasThumbnail(nasPath: string, filename: string) {
   });
 }
 
+let fileProxyChain: Promise<unknown> = Promise.resolve();
+
+function disposition(download: boolean, filename: string) {
+  const safe = filename.replace(/["\\]/g, "_");
+  return `${download ? "attachment" : "inline"}; filename="${safe}"`;
+}
+
 export async function proxyNasFile(nasPath: string, filename: string, download = false) {
   const ext = extensionFrom(filename, "bin");
   const hit = await cachedFile("files", nasPath, ext);
@@ -368,7 +375,11 @@ export async function proxyNasFile(nasPath: string, filename: string, download =
     return nodeStreamResponse(hit, ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "application/octet-stream", filename, download);
   }
 
-  return withCookie(async (config, cookie) => {
+  const run = async () => {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await withCookie(async (config, cookie) => {
     const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
       method: "POST",
       headers: jsonHeaders(config, cookie),
@@ -395,9 +406,23 @@ export async function proxyNasFile(nasPath: string, filename: string, download =
     return new Response(bytes, {
       headers: {
         "Content-Type": type.includes("image/") ? type : "image/jpeg",
-        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
+        "Content-Disposition": disposition(download, filename),
         "Cache-Control": "private, max-age=86400",
       },
     });
-  });
+        });
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("NAS download failed.");
+  };
+
+  const queued = fileProxyChain.then(run, run);
+  fileProxyChain = queued.then(
+    () => undefined,
+    () => undefined,
+  );
+  return queued;
 }

@@ -10,7 +10,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 2. Create account — email + password, or sign in.
 3. Forgot password — email reset link (or an on-screen link when email is not configured).
 4. Library — every shoot for that invite code, labeled date + address, newest first.
-5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
+5. Shoot — in-app photo viewer, inline video, floor plans, **Download** (folder picker when the browser allows it, otherwise every file in sequence with progress — never a zip) and per-file Save on each tile.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
 8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media.

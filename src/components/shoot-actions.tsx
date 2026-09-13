@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { saveOne, saveToFolder, type DownloadFile } from "@/components/download-controls";
+import {
+  downloadAllFiles,
+  formatDownloadProgress,
+  formatDownloadResult,
+  type DownloadFile,
+} from "@/components/download-controls";
 import { publicShootPath } from "@/lib/public-link";
 
 const chip =
@@ -32,24 +37,16 @@ export function ShootActions({
     setPending(true);
     setStatus("");
     try {
-      try {
-        const usedFolder = await saveToFolder(files, folderName);
-        if (usedFolder) {
-          setStatus(`Saved ${files.length} files into ${folderName}.`);
-          return;
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
+      const result = await downloadAllFiles(files, folderName, (current, total, filename) => {
+        setStatus(`${formatDownloadProgress({ current, total, filename })}. Keep this page open.`);
+      });
+      if (result.cancelled) {
+        setStatus("");
+        return;
       }
-      for (const file of files) {
-        await saveOne(file);
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-      setStatus(`Started ${files.length} downloads.`);
+      setStatus(formatDownloadResult(result.saved, result.failed, files.length));
     } catch {
-      setStatus("Could not download every file. Try a single file instead.");
+      setStatus("Could not start downloads. Try a single file instead.");
     } finally {
       setPending(false);
     }
