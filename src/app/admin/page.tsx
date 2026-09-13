@@ -12,7 +12,7 @@ export default async function AdminLoginPage() {
   return (
     <PhoneShell>
       <div className="flex flex-1 flex-col items-center justify-center pt-[8vh]">
-        <BkMark className="w-24" />
+        <BkMark size="hero" />
         <p className="mt-4 text-[15px] text-[#c7c7cc]">Admin</p>
       </div>
       <div className="pb-16">

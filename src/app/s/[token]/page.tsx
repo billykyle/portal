@@ -32,7 +32,7 @@ export default async function PublicShootPage({
   return (
     <PhoneShell>
       <header className="flex justify-center py-6">
-        <BkMark className="h-7" />
+        <BkMark size="header" />
       </header>
       <ShootDetail
         basePath={publicShootPath(shoot.publicToken)}

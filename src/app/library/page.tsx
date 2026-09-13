@@ -27,7 +27,7 @@ export default async function LibraryPage() {
   return (
     <PhoneShell>
       <header className="flex items-center justify-between py-6">
-        <BkMark className="h-7" />
+        <BkMark size="header" />
         <SignOutButton />
       </header>
       <div className="mb-8">

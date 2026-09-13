@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { BkMark } from "@/components/logo";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
 import { getSession } from "@/lib/auth";
@@ -39,10 +40,11 @@ export default async function ShootPage({
 
   return (
     <PhoneShell>
-      <div className="py-6">
+      <div className="flex items-center justify-between py-6">
         <Link href="/library" className="text-sm text-[#8e8e93]">
           Library
         </Link>
+        <BkMark size="header" />
       </div>
       <ShootDetail
         basePath={`/shoots/${shoot.id}`}

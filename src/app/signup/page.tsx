@@ -1,9 +1,12 @@
-import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { AuthHeader } from "@/components/auth-header";
 import { SignupForm } from "@/components/forms/signup-form";
-import { BkMark } from "@/components/logo";
 import { PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { ensureDb } from "@/lib/db/ensure";
+import { clients } from "@/lib/db/schema";
 
 export default async function SignupPage() {
   if (await getSession()) {
@@ -13,16 +16,12 @@ export default async function SignupPage() {
   if (!inviteCode) {
     redirect("/");
   }
+  await ensureDb();
+  const [client] = await db.select().from(clients).where(eq(clients.inviteCode, inviteCode)).limit(1);
 
   return (
     <PhoneShell>
-      <div className="flex items-center justify-between py-6">
-        <Link href="/" className="text-sm text-[#8e8e93]">
-          Back
-        </Link>
-        <BkMark className="h-7" />
-        <span className="w-10" />
-      </div>
+      <AuthHeader clientName={client?.displayName} />
       <h1 className="mb-6 text-2xl font-medium">Create account</h1>
       <SignupForm inviteCode={inviteCode} />
     </PhoneShell>

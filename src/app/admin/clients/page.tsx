@@ -2,6 +2,7 @@ import { desc } from "drizzle-orm";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BkMark } from "@/components/logo";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { PhoneShell } from "@/components/phone-shell";
@@ -49,8 +50,11 @@ export default async function AdminClientsPage({
 
   return (
     <PhoneShell wide>
-      <header className="flex items-center justify-between py-6">
-        <h1 className="text-2xl font-medium">Clients</h1>
+      <header className="flex items-center justify-between gap-4 py-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <BkMark size="header" className="shrink-0" />
+          <h1 className="text-2xl font-medium">Clients</h1>
+        </div>
         <SignOutButton admin />
       </header>
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
