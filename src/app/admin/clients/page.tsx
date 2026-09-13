@@ -25,6 +25,7 @@ export default async function AdminClientsPage({
     reusedClients?: string;
     reusedShoots?: string;
     warnings?: string;
+    ready?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
@@ -42,6 +43,7 @@ export default async function AdminClientsPage({
     reusedClients,
     reusedShoots,
     warnings,
+    ready,
   } = await searchParams;
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
@@ -63,6 +65,7 @@ export default async function AdminClientsPage({
             {reusedClients === "1" ? "" : "s"} / {reusedShoots ?? "0"} shoot
             {reusedShoots === "1" ? "" : "s"}
             {refreshed && refreshed !== "0" ? `, refreshed ${refreshed} stills` : ""}
+            {ready && ready !== "0" ? ` · ${ready} shoot${ready === "1" ? "" : "s"} ready to deliver` : ""}
             {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
           </p>
         ) : null}

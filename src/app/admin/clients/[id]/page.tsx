@@ -3,25 +3,27 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CopyPublicLink } from "@/components/copy-public-link";
 import { AttachShootForm } from "@/components/forms/attach-shoot-form";
+import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
+import { publicShootUrl } from "@/lib/public-link";
 
 export default async function AdminClientPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; attached?: string }>;
+  searchParams: Promise<{ error?: string; attached?: string; delivered?: string }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached } = await searchParams;
+  const { error, attached, delivered } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -47,6 +49,9 @@ export default async function AdminClientPage({
         <p className="mt-2 text-sm text-[#c7c7cc]">{client.primaryEmail}</p>
         {client.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
         {client.notes ? <p className="mt-3 text-sm text-[#8e8e93]">{client.notes}</p> : null}
+        {delivered ? (
+          <p className="mt-3 text-sm text-white">Marked delivered. No email was sent — Pepper can hook this later.</p>
+        ) : null}
       </header>
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
@@ -67,9 +72,16 @@ export default async function AdminClientPage({
                   <p className="mt-1 text-xs text-[#8e8e93]">
                     {count} file{count === 1 ? "" : "s"}
                     {shoot.dropboxUrl ? " · Dropbox backup" : ""}
+                    {shoot.deliveredAt
+                      ? ` · Delivered ${shoot.deliveredAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                      : " · Not delivered"}
                   </p>
-                  <div className="mt-2">
+                  <p className="mt-1 break-all text-xs text-[#8e8e93]">{publicShootUrl(shoot.publicToken)}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
                     <CopyPublicLink token={shoot.publicToken} compact />
+                    {!shoot.deliveredAt ? (
+                      <MarkDeliveredForm clientId={client.id} shootId={shoot.id} />
+                    ) : null}
                   </div>
                 </li>
               );

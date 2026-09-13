@@ -42,6 +42,7 @@ export const shoots = pgTable("shoots", {
   address: text("address").notNull(),
   nasRelativePath: text("nas_relative_path"),
   dropboxUrl: text("dropbox_url"),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

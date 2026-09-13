@@ -50,6 +50,7 @@ async function createTables() {
     )
   `;
   await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS public_token text`;
+  await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS delivered_at timestamptz`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_public_token_uidx ON shoots (public_token)`;
   await sql`
     DO $$ BEGIN

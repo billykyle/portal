@@ -13,9 +13,46 @@ Black and white only. No favorites. Every shoot has a stable public link.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-8. Admin — Billy syncs the NAS share (new client/shoot folders become portal records), or mints a BK code and attaches a shoot by hand.
+8. Admin — Billy syncs the NAS share (new client/shoot folders become portal records), marks a shoot delivered (stub for Pepper), or mints a BK code by hand.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
+
+## Intended delivery flow
+
+Billy’s end-to-end path (this is the product, not a future maybe):
+
+1. Drop stills for a client into **Client Deliverables / {client} / {date} - {address} / Final** (or `Photos`).
+2. Sync (`npm run nas:sync` or **Sync from NAS** in admin). The portal upserts the client, creates the shoot + public link, and imports JPGs.
+3. A delivery email goes out with that portal link.
+
+This pass implements steps 1–2. Step 3 is a **hook**, not Gmail:
+
+- After sync, each newly ready shoot (new folder, or first stills on an empty shoot) POSTs `shoot.ready` to `DELIVERY_WEBHOOK_URL` when that env var is set.
+- Admin **Mark delivered** records `delivered_at` and POSTs `shoot.delivered` to the same URL. It does **not** send mail.
+- Pepper (or any automation) should send the email later: “Your photos are ready” + `shoot.publicUrl` (and invite code if they do not have a login yet).
+
+Webhook body:
+
+```json
+{
+  "event": "shoot.ready",
+  "client": {
+    "id": "…",
+    "displayName": "Sam Lepore",
+    "inviteCode": "BK00004",
+    "primaryEmail": "sam@example.com"
+  },
+  "shoot": {
+    "id": "…",
+    "shotDate": "2026-09-04",
+    "address": "12 Wood View Drive",
+    "publicUrl": "http://127.0.0.1:43173/s/…",
+    "fileCount": 83
+  }
+}
+```
+
+`event` is `shoot.ready` or `shoot.delivered`. Set `PORTAL_PUBLIC_URL` so `publicUrl` is an absolute link. Leave `DELIVERY_WEBHOOK_URL` empty to skip the POST. Password-reset mail (`RESEND_API_KEY`) is unrelated and stays optional.
 
 ## Run locally
 
@@ -75,7 +112,9 @@ Sample photos, walkthrough videos, and floor plans for the Whitfield demo live i
 | `NAS_SHARE_URL` | Optional full share URL. Used to parse `id` and discover the real host if `NAS_SHARE_HOST` is unset. |
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). |
 | `NAS_CACHE_DIR` | Local cache for proxied thumbs and full files. Default: `.nas-cache`. |
-| `RESEND_API_KEY` | Optional. Sends password-reset email. |
+| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot links in webhooks and admin. Default: `http://127.0.0.1:43173`. |
+| `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
+| `RESEND_API_KEY` | Optional. Sends password-reset email only — not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. |
 
 ## Hosted Postgres

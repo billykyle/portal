@@ -11,7 +11,7 @@
     "db:push": "drizzle-kit push",
     "nas:sync": "tsx --env-file=.env.local scripts/sync-nas.ts",
     "nas:sync:warm": "tsx --env-file=.env.local scripts/sync-nas.ts --warm",
-    "test:nas": "tsx --test src/lib/nas-folder.test.ts"
+    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

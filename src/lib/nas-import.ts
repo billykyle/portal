@@ -13,6 +13,7 @@ import {
   nasShareRoot,
   resolveNasPath,
 } from "./nas";
+import { buildDeliveryPayload, notifyDeliveryWebhook } from "./delivery";
 import { clientFolderRelPath, parseShootFolderName, pendingClientEmail } from "./nas-folder";
 import { createPublicToken } from "./public-link";
 
@@ -26,6 +27,7 @@ export type NasSyncResult = {
   mediaImported: number;
   mediaUpdated: number;
   mediaRemoved: number;
+  ready: number;
   warnings: string[];
 };
 
@@ -38,6 +40,7 @@ const EMPTY_SYNC: NasSyncResult = {
   mediaImported: 0,
   mediaUpdated: 0,
   mediaRemoved: 0,
+  ready: 0,
   warnings: [],
 };
 
@@ -208,6 +211,9 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       if (shootCreated) result.shootsCreated += 1;
       else result.shootsReused += 1;
 
+      const existingCount = (
+        await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))
+      ).length;
       const mediaResult = await importNasStills(shoot.id, shootFolder.path);
       result.mediaImported += mediaResult.imported;
       result.mediaUpdated += mediaResult.updated;
@@ -216,6 +222,23 @@ export async function syncNasShare(): Promise<NasSyncResult> {
         result.warnings.push(
           `No Final/Photos stills under ${nasRelativePath}. Shoot is listed with no files yet.`,
         );
+        continue;
+      }
+      const becameReady = shootCreated || (existingCount === 0 && mediaResult.imported > 0);
+      if (!becameReady) continue;
+      result.ready += 1;
+      try {
+        await notifyDeliveryWebhook(
+          buildDeliveryPayload({
+            event: "shoot.ready",
+            client,
+            shoot,
+            fileCount: mediaResult.total,
+          }),
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "webhook failed";
+        result.warnings.push(`Delivery webhook failed for ${nasRelativePath}: ${message}`);
       }
     }
   }
