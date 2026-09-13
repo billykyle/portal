@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
     try {
       const folder = await resolveShootFolder(nasRelativePath);
-      await importNasStills(shoot.id, folder);
+      await importNasStills(shoot.id, folder, { required: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "NAS import failed.";
       return NextResponse.json({ error: message }, { status: 502 });

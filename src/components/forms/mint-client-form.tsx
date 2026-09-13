@@ -1,11 +1,9 @@
-import { Field, FormError, SubmitButton } from "@/components/field";
+import { Field, SubmitButton } from "@/components/field";
 import { mintClient } from "@/lib/actions/admin";
 
 export function MintClientForm({
-  error,
   minted,
 }: {
-  error?: string;
   minted?: string;
 }) {
   return (
@@ -25,7 +23,6 @@ export function MintClientForm({
           className="rounded-xl border-0 bg-[#1c1c1e] px-4 py-3 text-base text-white outline-none"
         />
       </div>
-      <FormError message={error} />
       {minted ? <p className="text-sm text-white">Minted {minted}.</p> : null}
       <SubmitButton>Mint next BK code</SubmitButton>
     </form>

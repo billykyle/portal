@@ -1,5 +1,5 @@
 import { count, eq, isNull } from "drizzle-orm";
-import { ensureSamLeporeShoot } from "../nas-import";
+import { syncNasShare } from "../nas-import";
 import { createPublicToken } from "../public-link";
 import { db, sql } from "./index";
 import { clients, shoots } from "./schema";
@@ -85,9 +85,9 @@ export async function ensureDb() {
         await seedDemo();
       }
       try {
-        await ensureSamLeporeShoot();
+        await syncNasShare();
       } catch (error) {
-        console.error("NAS shoot import skipped:", error);
+        console.error("NAS share sync skipped:", error);
       }
     })().catch((error) => {
       ready = null;

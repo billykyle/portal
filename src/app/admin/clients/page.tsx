@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MintClientForm } from "@/components/forms/mint-client-form";
+import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -13,13 +14,22 @@ import { clients } from "@/lib/db/schema";
 export default async function AdminClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; minted?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    minted?: string;
+    synced?: string;
+    clients?: string;
+    shoots?: string;
+    photos?: string;
+    reused?: string;
+    warnings?: string;
+  }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   await ensureDb();
-  const { error, minted } = await searchParams;
+  const { error, minted, synced, clients: createdClients, shoots, photos, warnings } = await searchParams;
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
   return (
@@ -28,9 +38,22 @@ export default async function AdminClientsPage({
         <h1 className="text-2xl font-medium">Clients</h1>
         <SignOutButton admin />
       </header>
+      {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
+      <section className="mb-10">
+        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">NAS sync</h2>
+        <SyncNasForm />
+        {synced ? (
+          <p className="mt-3 text-sm text-white">
+            Sync finished. {createdClients ?? "0"} new client{(createdClients === "1") ? "" : "s"},{" "}
+            {shoots ?? "0"} new shoot{(shoots === "1") ? "" : "s"}, {photos ?? "0"} new photo
+            {(photos === "1") ? "" : "s"}
+            {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
+          </p>
+        ) : null}
+      </section>
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Mint client</h2>
-        <MintClientForm error={error} minted={minted} />
+        <MintClientForm minted={minted} />
       </section>
       <section className="pb-16">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>

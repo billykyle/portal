@@ -1,14 +1,25 @@
 import { sql } from "../src/lib/db";
 import { ensureDb } from "../src/lib/db/ensure";
-import { ensureSamLeporeShoot } from "../src/lib/nas-import";
+import { syncNasShare } from "../src/lib/nas-import";
 import { isNasFilePath, proxyNasThumbnail } from "../src/lib/nas";
 
 async function main() {
+  const warm = process.argv.includes("--warm");
   await ensureDb();
-  const result = await ensureSamLeporeShoot();
+  const result = await syncNasShare();
   console.log(JSON.stringify(result, null, 2));
-  if (!result.skipped && result.shootId) {
-    const files = await sql`SELECT id, filename, nas_relative_path FROM media WHERE shoot_id = ${result.shootId} ORDER BY sort_order`;
+  if (result.skipped) {
+    process.exitCode = 1;
+    await sql.end({ timeout: 5 });
+    return;
+  }
+  if (warm) {
+    const files = await sql`
+      SELECT filename, nas_relative_path
+      FROM media
+      WHERE nas_relative_path LIKE '/%'
+      ORDER BY sort_order
+    `;
     let warmed = 0;
     for (const file of files) {
       const path = String(file.nas_relative_path ?? "");

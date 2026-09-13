@@ -1,44 +1,79 @@
 import { randomUUID } from "crypto";
-import { hash } from "bcryptjs";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ilike } from "drizzle-orm";
 import { db } from "./db";
-import { clients, media, shoots, users } from "./db/schema";
+import { clients, media, shoots } from "./db/schema";
 import { formatInviteCode, parseInviteSequence } from "./invite";
 import { guessMediaType } from "./media";
 import {
   getNasConfig,
+  isNasFilePath,
+  listNasDirectories,
   listNasStills,
   nasEnabled,
   nasShareRoot,
   resolveNasPath,
 } from "./nas";
+import { clientFolderRelPath, parseShootFolderName, pendingClientEmail } from "./nas-folder";
 import { createPublicToken } from "./public-link";
 
-export const SAM_LEPORE = {
-  displayName: "Sam Lepore",
-  primaryEmail: "sam@example.com",
-  notes: "First NAS-backed client. Stills come from Final on the UGOS share.",
-  shotDate: "2026-09-04",
-  address: "12 Wood View Drive",
-  folder: "Sam Lepore/2026.09.04 - 12 Wood View Drive",
+export type NasSyncResult = {
+  skipped: boolean;
+  reason?: string;
+  clientsCreated: number;
+  clientsReused: number;
+  shootsCreated: number;
+  shootsReused: number;
+  mediaImported: number;
+  mediaUpdated: number;
+  mediaRemoved: number;
+  warnings: string[];
 };
 
-export async function importNasStills(shootId: string, shootFolderPath: string) {
+const EMPTY_SYNC: NasSyncResult = {
+  skipped: false,
+  clientsCreated: 0,
+  clientsReused: 0,
+  shootsCreated: 0,
+  shootsReused: 0,
+  mediaImported: 0,
+  mediaUpdated: 0,
+  mediaRemoved: 0,
+  warnings: [],
+};
+
+async function nextInviteCode() {
+  const existing = await db.select({ inviteCode: clients.inviteCode }).from(clients);
+  const next = existing.reduce((max, row) => Math.max(max, parseInviteSequence(row.inviteCode) ?? 0), 0) + 1;
+  return formatInviteCode(next);
+}
+
+export async function importNasStills(
+  shootId: string,
+  shootFolderPath: string,
+  options: { required?: boolean } = {},
+) {
   const files = await listNasStills(shootFolderPath);
   if (files.length === 0) {
-    throw new Error(`No stills in Final/Photos under ${shootFolderPath}.`);
+    if (options.required) {
+      throw new Error(`No stills in Final/Photos under ${shootFolderPath}.`);
+    }
+    return { imported: 0, updated: 0, removed: 0, total: 0 };
   }
   const existing = await db.select().from(media).where(eq(media.shootId, shootId));
   const byName = new Map(existing.map((row) => [row.filename, row]));
+  const seen = new Set<string>();
   const rows = [];
+  let updated = 0;
   let sortOrder = 1;
   for (const file of files) {
+    seen.add(file.name);
     const prev = byName.get(file.name);
     if (prev) {
       await db
         .update(media)
         .set({ nasRelativePath: file.path, sortOrder, type: guessMediaType(file.name) })
         .where(eq(media.id, prev.id));
+      updated += 1;
     } else {
       const id = randomUUID();
       rows.push({
@@ -56,7 +91,13 @@ export async function importNasStills(shootId: string, shootFolderPath: string) 
   if (rows.length > 0) {
     await db.insert(media).values(rows);
   }
-  return { imported: rows.length, updated: files.length - rows.length, total: files.length };
+  let removed = 0;
+  for (const prev of existing) {
+    if (seen.has(prev.filename) || !isNasFilePath(prev.nasRelativePath)) continue;
+    await db.delete(media).where(eq(media.id, prev.id));
+    removed += 1;
+  }
+  return { imported: rows.length, updated, removed, total: files.length };
 }
 
 export async function resolveShootFolder(nasRelativePath: string) {
@@ -64,81 +105,120 @@ export async function resolveShootFolder(nasRelativePath: string) {
   return resolveNasPath(root, nasRelativePath);
 }
 
-async function nextInviteCode() {
-  const existing = await db.select({ inviteCode: clients.inviteCode }).from(clients);
-  const next = existing.reduce((max, row) => Math.max(max, parseInviteSequence(row.inviteCode) ?? 0), 0) + 1;
-  return formatInviteCode(next);
-}
-
-export async function ensureSamLeporeShoot() {
-  if (!nasEnabled() || !getNasConfig()) {
-    return { skipped: true as const, reason: "NAS is not enabled or not configured." };
-  }
-
-  let [client] = await db
+async function upsertClientByName(displayName: string) {
+  const [existing] = await db
     .select()
     .from(clients)
-    .where(eq(clients.displayName, SAM_LEPORE.displayName))
+    .where(ilike(clients.displayName, displayName))
     .limit(1);
-
-  if (!client) {
-    [client] = await db
-      .insert(clients)
-      .values({
-        inviteCode: await nextInviteCode(),
-        displayName: SAM_LEPORE.displayName,
-        primaryEmail: SAM_LEPORE.primaryEmail,
-        notes: SAM_LEPORE.notes,
-      })
-      .returning();
+  if (existing) {
+    return { client: existing, created: false };
   }
+  const [client] = await db
+    .insert(clients)
+    .values({
+      inviteCode: await nextInviteCode(),
+      displayName,
+      primaryEmail: pendingClientEmail(displayName),
+      notes: "Imported from the NAS share. Give the client this invite code so they can sign up.",
+    })
+    .returning();
+  return { client, created: true };
+}
 
-  const [existingUser] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, SAM_LEPORE.primaryEmail))
-    .limit(1);
-  if (!existingUser) {
-    await db.insert(users).values({
-      email: SAM_LEPORE.primaryEmail,
-      passwordHash: await hash(process.env.DEMO_PASSWORD ?? "portal1234", 10),
-      clientId: client.id,
-    });
-  }
-
-  let [shoot] = await db
+async function upsertShoot(input: {
+  clientId: string;
+  shotDate: string;
+  address: string;
+  nasRelativePath: string;
+}) {
+  const [existing] = await db
     .select()
     .from(shoots)
     .where(
       and(
-        eq(shoots.clientId, client.id),
-        eq(shoots.shotDate, SAM_LEPORE.shotDate),
-        eq(shoots.address, SAM_LEPORE.address),
+        eq(shoots.clientId, input.clientId),
+        eq(shoots.shotDate, input.shotDate),
+        eq(shoots.address, input.address),
       ),
     )
     .limit(1);
+  if (existing) {
+    if (existing.nasRelativePath !== input.nasRelativePath) {
+      await db.update(shoots).set({ nasRelativePath: input.nasRelativePath }).where(eq(shoots.id, existing.id));
+    }
+    return { shoot: { ...existing, nasRelativePath: input.nasRelativePath }, created: false };
+  }
+  const [shoot] = await db
+    .insert(shoots)
+    .values({
+      clientId: input.clientId,
+      publicToken: createPublicToken(),
+      shotDate: input.shotDate,
+      address: input.address,
+      nasRelativePath: input.nasRelativePath,
+    })
+    .returning();
+  return { shoot, created: true };
+}
 
-  if (!shoot) {
-    [shoot] = await db
-      .insert(shoots)
-      .values({
-        clientId: client.id,
-        publicToken: createPublicToken(),
-        shotDate: SAM_LEPORE.shotDate,
-        address: SAM_LEPORE.address,
-        nasRelativePath: SAM_LEPORE.folder,
-      })
-      .returning();
+/**
+ * Walk `Client Deliverables / {client} / {date} - {address} / Final|Photos`.
+ * New client folders mint a BK code. New shoot folders get a public token + stills.
+ */
+export async function syncNasShare(): Promise<NasSyncResult> {
+  if (!nasEnabled() || !getNasConfig()) {
+    return { ...EMPTY_SYNC, skipped: true, reason: "NAS is not enabled or not configured." };
   }
 
-  const folder = await resolveShootFolder(shoot.nasRelativePath || SAM_LEPORE.folder);
-  const result = await importNasStills(shoot.id, folder);
-  return {
-    skipped: false as const,
-    clientId: client.id,
-    inviteCode: client.inviteCode,
-    shootId: shoot.id,
-    publicToken: shoot.publicToken,
-    ...result,
-  };
+  const result: NasSyncResult = { ...EMPTY_SYNC, warnings: [] };
+  const root = await nasShareRoot();
+  const clientFolders = await listNasDirectories(root);
+  const skipNames = new Set(
+    (getNasConfig()?.stillsFolders ?? []).map((name) => name.toLowerCase()),
+  );
+
+  for (const clientFolder of clientFolders) {
+    if (skipNames.has(clientFolder.name.toLowerCase())) {
+      result.warnings.push(`Skipped ${clientFolder.name} at share root (stills folder name).`);
+      continue;
+    }
+
+    const { client, created: clientCreated } = await upsertClientByName(clientFolder.name);
+    if (clientCreated) result.clientsCreated += 1;
+    else result.clientsReused += 1;
+
+    const shootFolders = await listNasDirectories(clientFolder.path);
+    for (const shootFolder of shootFolders) {
+      const parsed = parseShootFolderName(shootFolder.name);
+      if (!parsed) {
+        result.warnings.push(
+          `Skipped ${clientFolder.name}/${shootFolder.name} — expected "{date} - {address}".`,
+        );
+        continue;
+      }
+
+      const nasRelativePath = clientFolderRelPath(clientFolder.name, shootFolder.name);
+      const { shoot, created: shootCreated } = await upsertShoot({
+        clientId: client.id,
+        shotDate: parsed.shotDate,
+        address: parsed.address,
+        nasRelativePath,
+      });
+      if (shootCreated) result.shootsCreated += 1;
+      else result.shootsReused += 1;
+
+      const mediaResult = await importNasStills(shoot.id, shootFolder.path);
+      result.mediaImported += mediaResult.imported;
+      result.mediaUpdated += mediaResult.updated;
+      result.mediaRemoved += mediaResult.removed;
+      if (mediaResult.total === 0) {
+        result.warnings.push(
+          `No Final/Photos stills under ${nasRelativePath}. Shoot is listed with no files yet.`,
+        );
+      }
+    }
+  }
+
+  return result;
 }

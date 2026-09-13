@@ -13,7 +13,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
 import { guessMediaType, joinUrl } from "@/lib/media";
-import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
+import { importNasStills, resolveShootFolder, syncNasShare } from "@/lib/nas-import";
 import { nasEnabled } from "@/lib/nas";
 import { createPublicToken } from "@/lib/public-link";
 import { mapleMedia } from "@/lib/sample-media";
@@ -122,7 +122,7 @@ export async function attachShoot(formData: FormData) {
     }
     try {
       const folder = await resolveShootFolder(nasRelativePath);
-      await importNasStills(shoot.id, folder);
+      await importNasStills(shoot.id, folder, { required: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "NAS import failed.";
       redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
@@ -153,4 +153,32 @@ export async function attachShoot(formData: FormData) {
 
   revalidatePath(clientPath);
   redirect(`${clientPath}?attached=1`);
+}
+
+export async function syncNasFromAdmin() {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  await ensureDb();
+  let result;
+  try {
+    result = await syncNasShare();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "NAS sync failed.";
+    redirect(adminClientsUrl({ error: message }));
+  }
+  if (result.skipped) {
+    redirect(adminClientsUrl({ error: result.reason ?? "NAS sync skipped." }));
+  }
+  revalidatePath("/admin/clients");
+  redirect(
+    adminClientsUrl({
+      synced: "1",
+      clients: String(result.clientsCreated),
+      shoots: String(result.shootsCreated),
+      photos: String(result.mediaImported),
+      reused: String(result.shootsReused + result.clientsReused),
+      warnings: String(result.warnings.length),
+    }),
+  );
 }

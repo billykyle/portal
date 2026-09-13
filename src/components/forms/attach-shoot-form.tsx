@@ -42,8 +42,8 @@ export function AttachShootForm({
           className="rounded-xl border-0 bg-[#1c1c1e] px-4 py-3 text-base text-white outline-none"
         />
         <p className="text-xs text-[#8e8e93]">
-          Ignored when sample media or NAS import is checked. NAS import looks for a Final or Photos
-          folder under the shoot path, then lists JPGs through the server-side UGOS share proxy.
+          Manual override. Prefer Sync from NAS on the clients list — that walks every client and
+          shoot folder. This import looks for Final or Photos under the path you type.
         </p>
       </div>
       <FormError message={error} />

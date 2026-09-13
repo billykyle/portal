@@ -13,7 +13,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-8. Admin — Billy mints the next BK code and attaches shoots by hand. Kold can automate this later.
+8. Admin — Billy syncs the NAS share (new client/shoot folders become portal records), or mints a BK code and attaches a shoot by hand.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -27,7 +27,7 @@ cp .env.example .env.local
 docker compose up -d   # or any Postgres that matches DATABASE_URL
 npm install
 npm run db:setup       # creates tables and seeds BK00001 when empty
-npm run nas:sync       # creates Sam Lepore + imports Wood View Drive stills when NAS_ENABLED=true
+npm run nas:sync       # walk Client Deliverables and upsert clients, shoots, stills
 npm run dev            # http://127.0.0.1:43173
 ```
 
@@ -44,7 +44,7 @@ The first server boot also creates tables and seeds an empty database.
 | Role   | How to get in |
 | ------ | ------------- |
 | Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234` |
-| Sam Lepore | Next minted BK code after existing clients (`BK00002` on a fresh database), or sign in as `sam@example.com` / `portal1234` |
+| Sam Lepore | Invite minted on first NAS sync (`BK00002` on a fresh database), or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
 | Admin  | `/admin` with `ADMIN_PASSWORD` (example: `atmos-admin`) |
 
 Demo (placeholder) shoots on Whitfield:
@@ -90,6 +90,8 @@ Any managed Postgres that gives you a connection string is fine:
 
 ## Mint a client
 
+Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual mint is for demo clients or people who are not on the share yet.
+
 1. Open `/admin` and enter `ADMIN_PASSWORD`.
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
@@ -100,7 +102,9 @@ Give the invite code to the client. Anyone with that code can create an account 
 
 ## NAS (UGOS share-download)
 
-The first live shoot is **Sam Lepore / 2026.09.04 - 12 Wood View Drive**. Stills live in **`Final`** (about 83 JPGs). The portal never points the browser at ug.link — it talks to UGOS on the server and proxies files.
+The first live proof is **Sam Lepore / 2026.09.04 - 12 Wood View Drive** (~83 JPGs in `Final`). The importer is not Sam-specific: any matching folder on the share becomes a client, shoot, and stills set.
+
+The portal never points the browser at ug.link — it talks to UGOS on the server and proxies files.
 
 ### Share env
 
@@ -118,14 +122,50 @@ NAS_STILLS_FOLDERS=Final,Photos
 
 Do not put the short `ug.link` marketing URL in `NAS_SHARE_HOST`. That host serves the share UI, not the file API. The real API is `{NAS_SHARE_HOST}/ugreen/v1`.
 
-### Stills rule
+### Folder layout (auto-import)
 
-Under each shoot folder, look for **`Final` or `Photos`** (whichever exists; first match in `NAS_STILLS_FOLDERS` wins). This shoot uses **Final**:
+```
+Client Deliverables /
+  {client display name} /
+    {YYYY.MM.DD|YYYY-MM-DD} - {address} /
+      Final/   or   Photos/
+        *.jpg
+```
+
+- A new `{client}` folder upserts a client by display name and mints the next BK code if needed. Existing clients (matched case-insensitively) keep their invite and email.
+- A new `{date} - {address}` folder creates a shoot with a public `/s/[token]` link.
+- Stills come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`). This first shoot uses **Final**.
+- Folders that are not `date - address` are skipped (logged as warnings).
+- Sync does not delete clients or shoots that disappear from the share. It does refresh stills for shoots it finds (adds new JPGs, updates paths, removes NAS files that are gone).
+
+Example that is already on the share:
 
 ```
 Client Deliverables / Sam Lepore / 2026.09.04 - 12 Wood View Drive / Final /
   Full-01.jpg … Full-81.jpg + twilight variants
 ```
+
+### Run sync
+
+After you drop a new client or shoot folder on the NAS:
+
+```
+npm run nas:sync
+```
+
+Or sign in to `/admin` and click **Sync from NAS**.
+
+That walk is idempotent. First boot also runs it once when `NAS_ENABLED=true` so an empty database picks up whatever is already on the share.
+
+Optional: warm thumbnail cache after sync (`npm run nas:sync:warm`). Tiles otherwise fetch thumbs on first view.
+
+Cron (every 15 minutes) if you want it unattended:
+
+```
+*/15 * * * * cd /path/to/portal && npm run nas:sync
+```
+
+New clients created from the share get a placeholder email (`{name}@pending.local`) and no login. Give them the minted BK code so they can sign up. Sam Lepore already has `sam@example.com` from the first import; later syncs reuse that record.
 
 ### How the proxy works
 
@@ -134,13 +174,7 @@ Client Deliverables / Sam Lepore / 2026.09.04 - 12 Wood View Drive / Final /
 3. `GET /filemgr/shareThumbnail?type=1&size_type=3` — ~1920px tile/preview.
 4. `POST /filemgr/addPathsByShareId` then `GET /filemgr/shareDownloadFile` — full file.
 
-The portal caches thumbs and full files under `NAS_CACHE_DIR` after the first request so repeat views do not re-hit the NAS. Re-import with:
-
-```
-npm run nas:sync
-```
-
-That command is idempotent: it creates Sam Lepore (`BK00002`) if needed, attaches the Wood View Drive shoot, and refreshes media rows from Final.
+The portal caches thumbs and full files under `NAS_CACHE_DIR` after the first request so repeat views do not re-hit the NAS.
 
 Dropbox is backup only, behind the collapsed **Dropbox** control.
 

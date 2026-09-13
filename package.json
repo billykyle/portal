@@ -9,7 +9,9 @@
     "lint": "eslint",
     "db:setup": "tsx --env-file=.env.local scripts/setup.ts",
     "db:push": "drizzle-kit push",
-    "nas:sync": "tsx --env-file=.env.local scripts/sync-nas-shoot.ts"
+    "nas:sync": "tsx --env-file=.env.local scripts/sync-nas.ts",
+    "nas:sync:warm": "tsx --env-file=.env.local scripts/sync-nas.ts --warm",
+    "test:nas": "tsx --test src/lib/nas-folder.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

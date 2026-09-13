@@ -20,7 +20,7 @@ export type NasConfig = {
 };
 
 const DEFAULT_STILLS = ["Final", "Photos"];
-const FILE_TYPE_DIR = 1;
+export const NAS_DIR = 1;
 
 let cachedCookie: string | null = null;
 let cachedRootPath: string | null = null;
@@ -254,28 +254,34 @@ export async function listNasDir(dirPath: string): Promise<NasFile[]> {
   });
 }
 
+export function isNasDirectory(file: NasFile) {
+  return file.fileType === NAS_DIR;
+}
+
+export function isHiddenNasName(name: string) {
+  return name.startsWith(".") || name.startsWith("_");
+}
+
+export async function listNasDirectories(dirPath: string) {
+  const entries = await listNasDir(dirPath);
+  return entries.filter(isNasDirectory).filter((entry) => !isHiddenNasName(entry.name));
+}
+
 export async function findStillsFolder(shootFolderPath: string) {
   const config = getNasConfig();
   if (!config) throw new Error("NAS share is not configured.");
-  const entries = await listNasDir(shootFolderPath);
-  const dirs = entries.filter((entry) => entry.fileType === FILE_TYPE_DIR);
+  const dirs = await listNasDirectories(shootFolderPath);
   const wanted = config.stillsFolders.map((name) => name.toLowerCase());
-  const match = dirs.find((dir) => wanted.includes(dir.name.toLowerCase()));
-  if (!match) {
-    const names = dirs.map((dir) => dir.name).join(", ") || "none";
-    throw new Error(
-      `No ${config.stillsFolders.join(" or ")} folder under ${shootFolderPath}. Found: ${names}.`,
-    );
-  }
-  return match;
+  return dirs.find((dir) => wanted.includes(dir.name.toLowerCase())) ?? null;
 }
 
 const STILL_EXT = /\.(jpe?g|png|webp|heic|tif|tiff)$/i;
 
 export async function listNasStills(shootFolderPath: string) {
   const stills = await findStillsFolder(shootFolderPath);
+  if (!stills) return [];
   const files = await listNasDir(stills.path);
-  return files.filter((file) => file.fileType !== FILE_TYPE_DIR && STILL_EXT.test(file.name));
+  return files.filter((file) => !isNasDirectory(file) && STILL_EXT.test(file.name));
 }
 
 function cacheKey(nasPath: string) {
