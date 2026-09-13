@@ -2,6 +2,9 @@
   "name": "billy-kyle-client-portal",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev --port 43173 --hostname 0.0.0.0",
     "build": "next build",
@@ -11,7 +14,7 @@
     "db:push": "drizzle-kit push",
     "nas:sync": "tsx --env-file=.env.local scripts/sync-nas.ts",
     "nas:sync:warm": "tsx --env-file=.env.local scripts/sync-nas.ts --warm",
-    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts src/lib/nas-sync-config.test.ts"
+    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts src/lib/nas-sync-config.test.ts src/lib/runtime.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

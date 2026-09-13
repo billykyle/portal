@@ -3,6 +3,7 @@ import { createReadStream } from "fs";
 import { mkdir, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
+import { isVercelRuntime } from "./runtime";
 
 export type NasFile = {
   path: string;
@@ -43,6 +44,13 @@ function parseShareIdFromUrl(url: string) {
   }
 }
 
+export function defaultNasCacheDir() {
+  const configured = process.env.NAS_CACHE_DIR?.trim();
+  if (configured) return configured;
+  if (isVercelRuntime()) return "/tmp/nas-cache";
+  return path.join(process.cwd(), ".nas-cache");
+}
+
 export function getNasConfig(): NasConfig | null {
   const shareUrl = process.env.NAS_SHARE_URL?.trim() ?? "";
   const shareId = process.env.NAS_SHARE_ID?.trim() || parseShareIdFromUrl(shareUrl);
@@ -58,7 +66,7 @@ export function getNasConfig(): NasConfig | null {
     shareId,
     password: process.env.NAS_SHARE_PASSWORD ?? "",
     stillsFolders: folders.length > 0 ? folders : DEFAULT_STILLS,
-    cacheDir: process.env.NAS_CACHE_DIR?.trim() || path.join(process.cwd(), ".nas-cache"),
+    cacheDir: defaultNasCacheDir(),
   };
 }
 

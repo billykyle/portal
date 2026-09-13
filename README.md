@@ -111,10 +111,11 @@ Sample photos, walkthrough videos, and floor plans for the Whitfield demo live i
 | `NAS_SHARE_PASSWORD` | Optional share password. Leave empty when the share has none. |
 | `NAS_SHARE_URL` | Optional full share URL. Used to parse `id` and discover the real host if `NAS_SHARE_HOST` is unset. |
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). |
-| `NAS_CACHE_DIR` | Local cache for proxied thumbs and full files. Default: `.nas-cache`. |
-| `NAS_SYNC_INTERVAL_MINUTES` | How often the running app walks the share. Default `10`. `0` disables the timer. |
+| `NAS_CACHE_DIR` | Local cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel. |
+| `NAS_SYNC_INTERVAL_MINUTES` | How often a long-running Node process walks the share. Default `10`. `0` disables the timer. Ignored on Vercel. |
 | `NAS_SYNC_ENABLED` | `false` turns off the in-process timer. Manual sync is unchanged. |
-| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot links in webhooks and admin. Default: `http://127.0.0.1:43173`. |
+| `CRON_SECRET` | Bearer token for `GET /api/cron/nas-sync`. Required on Vercel. |
+| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot links in webhooks and admin. Production: `https://portal.billy-kyle.com`. |
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset email only — not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. |
@@ -207,7 +208,9 @@ NAS_SYNC_ENABLED=false
 
 Optional: warm thumbnail cache after a manual sync (`npm run nas:sync:warm`). Tiles otherwise fetch thumbs on first view.
 
-System cron is a backup if the Node process is not running (serverless freeze, host sleep). The in-process timer is the default:
+On Vercel the in-process timer is off (serverless isolates freeze). Production uses `vercel.json` → `GET /api/cron/nas-sync` every 10 minutes. Admin **Sync from NAS** still works.
+
+A system cron is only a backup for a long-running Node host:
 
 ```
 */10 * * * * cd /path/to/portal && npm run nas:sync
@@ -232,3 +235,15 @@ Dropbox is backup only, behind the collapsed **Dropbox** control.
 - Email/password sessions (JWT httpOnly cookies)
 - Drizzle ORM + Postgres
 - Optional Resend for password reset
+
+## Deploy on Vercel (Origin)
+
+Import this Origin repo into the **billy-kyle** Vercel Pro team. Do not mirror to GitHub.
+
+Vercel can already see the **billykyle** Origin namespace, but it will show **No Git Repositories Found** until this Cloud Agent `tmp-*` workspace is published as a real Origin repo (**Create repo** in Cursor, or **New** at [cursor.com/codebase](https://cursor.com/codebase)). Then grant the Vercel app that repo (**Settings → Apps → Manage Apps**, and Vercel **Settings → Git → Origin → Manage on Cursor**).
+
+Framework: Next.js. Build: `next build`. Production URL: `https://portal.billy-kyle.com`.
+
+Set `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PASSWORD`, `PORTAL_PUBLIC_URL=https://portal.billy-kyle.com`, the `NAS_*` share values, and `CRON_SECRET` before the first production deploy. Placeholders live in `.env.example`.
+
+Exact click-path, env table, and serverless sync notes: [docs/vercel.md](docs/vercel.md).

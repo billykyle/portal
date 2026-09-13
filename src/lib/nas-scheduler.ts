@@ -1,10 +1,11 @@
 import { nasEnabled } from "./nas";
 import { syncNasShare, type NasSyncResult } from "./nas-import";
 import { nasSyncIntervalMinutes } from "./nas-sync-config";
+import { useInProcessNasScheduler } from "./runtime";
 
 export { nasSyncIntervalMinutes };
 
-type SyncSource = "boot" | "interval" | "admin" | "cli";
+type SyncSource = "boot" | "interval" | "admin" | "cli" | "cron";
 
 type GlobalNas = typeof globalThis & {
   __nasSyncInFlight?: Promise<NasSyncResult> | null;
@@ -62,6 +63,11 @@ export async function runLockedNasSync(source: SyncSource): Promise<NasSyncResul
 export function startNasSyncScheduler() {
   const g = state();
   if (g.__nasSyncTimer) return;
+
+  if (!useInProcessNasScheduler()) {
+    console.log("NAS auto-sync: Vercel cron /api/cron/nas-sync (in-process timer off)");
+    return;
+  }
 
   const minutes = nasSyncIntervalMinutes();
   if (!nasEnabled() || minutes <= 0) {
