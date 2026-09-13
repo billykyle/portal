@@ -37,7 +37,7 @@ export function ShootDetail({
   const videos = media.filter((item) => item.type === "video");
   const plans = media.filter((item) => item.type === "floor_plan");
   const viewable = media.filter((item) => item.type !== "video");
-  const files = media.map((item) => ({ url: item.url, filename: item.filename }));
+  const files = media.map((item) => ({ url: item.url, filename: item.filename, type: item.type }));
   const activeIndex = viewable.findIndex((item) => item.id === viewId);
   const active = activeIndex >= 0 ? viewable[activeIndex] : null;
   const prev = active ? viewable[activeIndex - 1] : null;
@@ -91,7 +91,7 @@ export function ShootDetail({
               <figcaption className="flex items-center justify-between px-3 py-2 text-sm text-[#c7c7cc]">
                 <span className="truncate">{item.filename}</span>
                 <a href={item.url} download={item.filename} className="text-white">
-                  Save
+                  Download
                 </a>
               </figcaption>
             </figure>
@@ -113,7 +113,7 @@ export function ShootDetail({
               {active.filename} · {activeIndex + 1} / {viewable.length}
             </p>
             <a href={active.url} download={active.filename} className="text-sm text-white">
-              Save
+              Download
             </a>
           </div>
           <div className="flex min-h-0 flex-1 items-center justify-center px-3 pb-6">
@@ -156,7 +156,7 @@ function MediaTile({
         download={item.filename}
         className="absolute right-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
       >
-        Save
+        Download
       </a>
     </figure>
   );

@@ -10,7 +10,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 2. Create account — email + password, or sign in.
 3. Forgot password — email reset link (or an on-screen link when email is not configured).
 4. Library — every shoot for that invite code, labeled date + address, newest first.
-5. Shoot — in-app photo viewer, inline video, floor plans, **Download** (one streamed zip of the shoot — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Save** on each tile. The zip is named `{date} - {address}.zip`.
+5. Shoot — in-app photo viewer, inline video, floor plans, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
 8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media.
@@ -238,7 +238,7 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 The portal caches thumbs and full files under `NAS_CACHE_DIR` after the first request so repeat views do not re-hit the NAS.
 
-**Download** on a shoot page starts one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The browser saves that attachment directly (Safari/iPhone confirms once) instead of buffering a ~470MB archive in JavaScript. The page polls zip-job progress and shows preparing → downloading (files, bytes, speed, time remaining) → saved or failed. Named `{date} - {address}.zip`. Per-tile **Save** still downloads that one file.
+**Download** on a shoot page starts one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The browser saves that attachment directly (Safari/iPhone confirms once) instead of buffering a ~470MB archive in JavaScript. The page polls zip-job progress and shows preparing → downloading (files, bytes, speed, time remaining) → saved or failed. Named `{date} - {address}.zip` (or `{date} - {address} - Photos.zip` when a type is chosen). Per-tile **Download** still saves that one file.
 
 Dropbox is backup only, behind the collapsed **Dropbox** control.
 

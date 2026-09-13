@@ -5,7 +5,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
 import { zipDownloadName } from "@/lib/download-all";
 import { shootFolderName } from "@/lib/media";
-import { approxZipSourceBytes, streamShootZip } from "@/lib/shoot-zip";
+import { approxZipSourceBytes, scopeZipRequest, streamShootZip } from "@/lib/shoot-zip";
 import { trackShootZipJob } from "@/lib/zip-jobs";
 
 export const runtime = "nodejs";
@@ -34,17 +34,20 @@ export async function GET(
 
   try {
     const origin = new URL(request.url).origin;
-    const folderName = shootFolderName(shoot.shotDate, shoot.address);
-    const approxBytes = await approxZipSourceBytes(files);
+    const scoped = scopeZipRequest(files, request, shootFolderName(shoot.shotDate, shoot.address));
+    if (scoped.files.length === 0) {
+      return NextResponse.json({ error: "This shoot has no files of that type." }, { status: 404 });
+    }
+    const approxBytes = await approxZipSourceBytes(scoped.files);
     const tracking = await trackShootZipJob({
       jobId: new URL(request.url).searchParams.get("job"),
       shootId: shoot.id,
-      filesTotal: files.length,
-      filename: zipDownloadName(folderName),
+      filesTotal: scoped.files.length,
+      filename: zipDownloadName(scoped.folderName),
     });
     return streamShootZip({
-      files,
-      folderName,
+      files: scoped.files,
+      folderName: scoped.folderName,
       origin,
       approxBytes,
       ...tracking,

@@ -1,12 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   downloadZipFromUrl,
   zipAndDownloadFiles,
   type DownloadFile,
 } from "@/components/download-controls";
 import { emptyZipProgress, formatZipStatus, zipDownloadName, type ZipJobProgress } from "@/lib/download-all";
+import {
+  filterFilesByZipTypes,
+  presentMediaTypes,
+  typesFromScope,
+  withZipTypes,
+  zipDownloadOptions,
+  zipScopeFolderName,
+  type ZipMediaType,
+} from "@/lib/download-scope";
 import { publicShootPath } from "@/lib/public-link";
 
 const chip =
@@ -31,7 +40,12 @@ export function ShootActions({
   const [progress, setProgress] = useState<ZipJobProgress | null>(null);
   const [pending, setPending] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
-  const zipName = zipDownloadName(folderName);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const present = presentMediaTypes(files);
+  const needsPicker = present.length > 1;
+  const options = zipDownloadOptions(present);
 
   function publicHref() {
     return `${window.location.origin}${publicShootPath(shareToken ?? "")}`;
@@ -42,27 +56,60 @@ export function ShootActions({
     setStatus(formatZipStatus(next));
   }
 
-  async function downloadAll() {
+  async function startDownload(scope: "all" | ZipMediaType) {
+    const types = typesFromScope(scope);
+    const scopedFiles = filterFilesByZipTypes(files, types);
+    const scopedFolder = zipScopeFolderName(folderName, types, present);
+    const zipName = zipDownloadName(scopedFolder);
+    setMenuOpen(false);
     setPending(true);
     setStatus("");
-    setProgress(emptyZipProgress("preparing", files.length, zipName));
+    setProgress(emptyZipProgress("preparing", scopedFiles.length, zipName));
     try {
-      if (zipUrl) {
-        await downloadZipFromUrl(zipUrl, folderName, report);
+      const scopedZipUrl = zipUrl ? withZipTypes(zipUrl, types) : undefined;
+      if (scopedZipUrl) {
+        await downloadZipFromUrl(scopedZipUrl, scopedFolder, report);
       } else {
-        await zipAndDownloadFiles(files, folderName, report);
+        await zipAndDownloadFiles(scopedFiles, scopedFolder, report);
       }
     } catch {
       setProgress((current) =>
         current
           ? { ...current, state: "failed", percent: 0 }
-          : emptyZipProgress("failed", files.length, zipName),
+          : emptyZipProgress("failed", scopedFiles.length, zipName),
       );
-      setStatus("Download failed. Try again, or Save a single photo.");
+      setStatus("Download failed. Try again, or Download a single file.");
     } finally {
       setPending(false);
     }
   }
+
+  function onDownloadClick() {
+    if (pending || files.length === 0) return;
+    if (needsPicker) {
+      setMenuOpen((open) => !open);
+      return;
+    }
+    void startDownload("all");
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   async function copyLink() {
     await navigator.clipboard.writeText(publicHref());
@@ -92,17 +139,26 @@ export function ShootActions({
       : pending
         ? "Downloading…"
         : "Download";
+  const activeZipName = progress?.filename || zipDownloadName(folderName);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" ref={menuRef}>
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
-          onClick={downloadAll}
+          onClick={onDownloadClick}
           disabled={pending || files.length === 0}
-          className={`${chip} bg-white font-medium text-black disabled:bg-[#c7c7cc] disabled:text-black/45`}
+          aria-haspopup={needsPicker ? "menu" : undefined}
+          aria-expanded={needsPicker ? menuOpen : undefined}
+          aria-controls={needsPicker ? menuId : undefined}
+          className={`${chip} gap-1 bg-white font-medium text-black disabled:bg-[#c7c7cc] disabled:text-black/45`}
         >
           {buttonLabel}
+          {needsPicker && !pending ? (
+            <span aria-hidden className="text-[10px] leading-none">
+              ▾
+            </span>
+          ) : null}
         </button>
         {shareToken ? (
           <>
@@ -129,6 +185,25 @@ export function ShootActions({
           </button>
         ) : null}
       </div>
+      {needsPicker && menuOpen ? (
+        <div
+          id={menuId}
+          role="menu"
+          className="overflow-hidden rounded-xl border border-white/15 bg-[#1c1c1e]"
+        >
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitem"
+              onClick={() => void startDownload(option.id)}
+              className="flex h-11 w-full items-center px-3 text-left text-sm text-white hover:bg-white/10"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {progress && progress.state !== "done" ? (
         <div className="flex flex-col gap-1.5">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#2c2c2e]">
@@ -152,7 +227,7 @@ export function ShootActions({
       ) : null}
       {status ? <p className="text-xs text-[#8e8e93]">{status}</p> : null}
       {pending && progress && (progress.state === "preparing" || progress.state === "downloading") ? (
-        <p className="text-xs text-[#8e8e93]">Safari will ask once for {zipName}. Keep this page open.</p>
+        <p className="text-xs text-[#8e8e93]">Safari will ask once for {activeZipName}. Keep this page open.</p>
       ) : null}
     </div>
   );

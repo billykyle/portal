@@ -3,13 +3,29 @@ import path from "path";
 import { Readable } from "stream";
 import { ZipFile } from "yazl";
 import { uniqueZipEntryName, zipDownloadName } from "./download-all";
+import {
+  filterFilesByZipTypes,
+  parseZipTypesParam,
+  presentMediaTypes,
+  zipScopeFolderName,
+} from "./download-scope";
 import { isNasFilePath, loadNasFileBytes, nasCachedFileSize, nasEnabled } from "./nas";
 
 export type ZipSourceFile = {
   filename: string;
   url: string;
+  type?: string;
   nasRelativePath?: string | null;
 };
+
+export function scopeZipRequest<T extends ZipSourceFile>(files: T[], request: Request, folderName: string) {
+  const types = parseZipTypesParam(new URL(request.url).searchParams.get("types"));
+  const scoped = filterFilesByZipTypes(files, types);
+  return {
+    files: scoped,
+    folderName: zipScopeFolderName(folderName, types, presentMediaTypes(files)),
+  };
+}
 
 export function contentDispositionAttachment(filename: string) {
   const safe = filename.replace(/["\\\r\n]/g, "_");

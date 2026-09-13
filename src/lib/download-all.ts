@@ -1,6 +1,7 @@
 export type DownloadFile = {
   url: string;
   filename: string;
+  type?: "photo" | "video" | "floor_plan";
 };
 
 export type ZipJobState = "preparing" | "downloading" | "done" | "failed";
@@ -123,7 +124,7 @@ export function estimateRemainingMs(input: {
 export function formatZipStatus(progress: ZipJobProgress) {
   if (progress.state === "preparing") return "Preparing zip…";
   if (progress.state === "done") return `Saved ${progress.filename}`;
-  if (progress.state === "failed") return "Download failed. Try again, or Save a single photo.";
+  if (progress.state === "failed") return "Download failed. Try again, or Download a single file.";
   const speed = progress.bytesPerSec > 0 ? ` · ${formatBytes(progress.bytesPerSec)}/s` : "";
   const eta =
     progress.remainingMs != null ? ` · ${formatDuration(progress.remainingMs)} left` : "";
