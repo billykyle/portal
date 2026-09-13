@@ -13,7 +13,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Portal files match the NAS tree — no placeholder media.
+8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -127,7 +127,7 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
 4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Stills import from Final or Photos. There is no placeholder-media option.
-5. **Delete shoot** removes one project under that client. The BK invite stays.
+5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). **Delete shoot** and **Mark delivered** stay on the admin list and on that preview. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
 

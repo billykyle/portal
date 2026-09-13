@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BkMark } from "@/components/logo";
@@ -129,15 +130,20 @@ export default async function AdminClientPage({
               const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
               return (
                 <li key={shoot.id} className="border-b border-white/10 py-4">
-                  <p className="text-[15px]">{formatShootDate(shoot.shotDate)}</p>
-                  <p className="text-sm text-[#8e8e93]">{shoot.address}</p>
-                  <p className="mt-1 text-xs text-[#8e8e93]">
-                    {count} file{count === 1 ? "" : "s"}
-                    {shoot.dropboxUrl ? " · Dropbox backup" : ""}
-                    {shoot.deliveredAt
-                      ? ` · Delivered ${shoot.deliveredAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                      : " · Not delivered"}
-                  </p>
+                  <Link href={`/shoots/${shoot.id}`} className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px]">{formatShootDate(shoot.shotDate)}</p>
+                      <p className="text-sm text-[#8e8e93]">{shoot.address}</p>
+                      <p className="mt-1 text-xs text-[#8e8e93]">
+                        {count} file{count === 1 ? "" : "s"}
+                        {shoot.dropboxUrl ? " · Dropbox backup" : ""}
+                        {shoot.deliveredAt
+                          ? ` · Delivered ${shoot.deliveredAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                          : " · Not delivered"}
+                      </p>
+                    </div>
+                    <ChevronRight className="size-5 shrink-0 text-[#8e8e93]" />
+                  </Link>
                   <p className="mt-1 break-all text-xs text-[#8e8e93]">{publicShootUrl(shoot.publicToken)}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <CopyPublicLink token={shoot.publicToken} compact />

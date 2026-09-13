@@ -28,7 +28,10 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/admin" && admin) {
     return NextResponse.redirect(new URL("/admin/clients", request.url));
   }
-  if ((pathname.startsWith("/library") || pathname.startsWith("/shoots")) && !session) {
+  if (pathname.startsWith("/library") && !session) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+  if (pathname.startsWith("/shoots") && !session && !admin) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   if (session && (pathname === "/" || pathname === "/signup" || pathname === "/signin")) {
