@@ -8,7 +8,7 @@ export type DownloadFile = {
   filename: string;
 };
 
-async function saveOne(file: DownloadFile) {
+export async function saveOne(file: DownloadFile) {
   const response = await fetch(file.url);
   if (!response.ok) {
     throw new Error(`Could not download ${file.filename}`);
@@ -24,7 +24,7 @@ async function saveOne(file: DownloadFile) {
   URL.revokeObjectURL(objectUrl);
 }
 
-async function saveToFolder(files: DownloadFile[], folderName: string) {
+export async function saveToFolder(files: DownloadFile[], folderName: string) {
   const picker = (
     window as Window & {
       showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;

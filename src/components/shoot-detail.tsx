@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { BackupPanel } from "@/components/backup-panel";
-import { CopyPublicLink } from "@/components/copy-public-link";
-import { DownloadAllButton } from "@/components/download-controls";
+import { ShootActions } from "@/components/shoot-actions";
 import { mediaLabel } from "@/lib/media";
 
 export type ShootMedia = {
@@ -50,9 +48,13 @@ export function ShootDetail({
         <h1 className="text-xl font-medium leading-snug">{address}</h1>
       </header>
 
-      {shareToken ? <CopyPublicLink token={shareToken} /> : null}
-
-      <DownloadAllButton files={files} folderName={folderName} />
+      <ShootActions
+        files={files}
+        folderName={folderName}
+        shareToken={shareToken}
+        dropboxUrl={dropboxUrl}
+        showBackup={showBackup}
+      />
 
       {photos.length > 0 ? (
         <section className="flex flex-col gap-2">
@@ -96,8 +98,6 @@ export function ShootDetail({
       {media.length === 0 ? (
         <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p>
       ) : null}
-
-      {showBackup ? <BackupPanel dropboxUrl={dropboxUrl} /> : null}
 
       {active ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
