@@ -1,26 +1,21 @@
 "use client";
 
+import { Zip, ZipPassThrough } from "fflate";
 import {
-  downloadDelayMs,
   downloadHref,
-  formatDownloadProgress,
-  formatDownloadResult,
-  isAppleMobile,
+  estimateRemainingMs,
+  uniqueZipEntryName,
+  zipDownloadName,
+  zipJobPercent,
   type DownloadFile,
+  type ZipJobProgress,
+  type ZipJobState,
 } from "@/lib/download-all";
 
-export type { DownloadFile };
+export type { DownloadFile, ZipJobProgress };
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchBlob(file: DownloadFile) {
-  const response = await fetch(downloadHref(file.url), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Could not download ${file.filename}`);
-  }
-  return response.blob();
 }
 
 function clickDownload(url: string, filename: string) {
@@ -33,99 +28,248 @@ function clickDownload(url: string, filename: string) {
   link.remove();
 }
 
-function triggerDirectDownload(url: string) {
-  const frame = document.createElement("iframe");
-  frame.setAttribute("hidden", "true");
-  frame.setAttribute("aria-hidden", "true");
-  frame.src = url;
-  document.body.appendChild(frame);
-  window.setTimeout(() => frame.remove(), 60_000);
-}
-
-export async function saveOne(file: DownloadFile) {
-  const blob = await fetchBlob(file);
+function saveBlob(data: BlobPart[] | Blob, filename: string, type = "application/zip") {
+  const blob = data instanceof Blob ? data : new Blob(data, { type });
   const objectUrl = URL.createObjectURL(blob);
-  clickDownload(objectUrl, file.filename);
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 15_000);
+  clickDownload(objectUrl, filename);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
 }
 
-async function saveOneWithRetry(file: DownloadFile, attempts = 3) {
+type ProgressEmitter = {
+  emit: (partial: {
+    state: ZipJobState;
+    filesDone: number;
+    filesTotal: number;
+    filename: string;
+    totalBytes?: number | null;
+  }) => void;
+  addBytes: (delta: number) => void;
+};
+
+function createProgressTracker(
+  started: number,
+  onProgress?: (progress: ZipJobProgress) => void,
+): ProgressEmitter {
+  let bytes = 0;
+  return {
+    addBytes(delta: number) {
+      bytes += delta;
+    },
+    emit(partial) {
+      const elapsedMs = Date.now() - started;
+      const remainingMs =
+        partial.state === "downloading"
+          ? estimateRemainingMs({
+              filesDone: partial.filesDone,
+              filesTotal: partial.filesTotal,
+              bytes,
+              elapsedMs,
+              totalBytes: partial.totalBytes,
+            })
+          : null;
+      onProgress?.({
+        state: partial.state,
+        filesDone: partial.filesDone,
+        filesTotal: partial.filesTotal,
+        filename: partial.filename,
+        bytes,
+        totalBytes: partial.totalBytes ?? null,
+        elapsedMs,
+        bytesPerSec: elapsedMs > 0 ? bytes / (elapsedMs / 1000) : 0,
+        remainingMs,
+        percent: zipJobPercent({
+          state: partial.state,
+          filesDone: partial.filesDone,
+          filesTotal: partial.filesTotal,
+          bytes,
+          totalBytes: partial.totalBytes,
+        }),
+      });
+    },
+  };
+}
+
+async function readResponseBytes(
+  response: Response,
+  onBytes?: (delta: number) => void,
+) {
+  if (!response.body) {
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    onBytes?.(buffer.byteLength);
+    return buffer;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      total += value.byteLength;
+      onBytes?.(value.byteLength);
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+async function fetchFileBytes(file: DownloadFile, onBytes?: (delta: number) => void) {
   let last: unknown;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      await saveOne(file);
-      return;
+      const response = await fetch(file.url, { cache: "default" });
+      if (!response.ok) throw new Error(`Could not read ${file.filename}`);
+      return await readResponseBytes(response, onBytes);
     } catch (error) {
       last = error;
       await delay(400 * attempt);
     }
   }
-  throw last instanceof Error ? last : new Error(`Could not download ${file.filename}`);
+  throw last instanceof Error ? last : new Error(`Could not read ${file.filename}`);
 }
 
-export async function saveToFolder(
-  files: DownloadFile[],
+export async function saveOne(file: DownloadFile) {
+  const response = await fetch(downloadHref(file.url), { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Could not download ${file.filename}`);
+  }
+  const blob = await response.blob();
+  saveBlob(blob, file.filename, blob.type || "application/octet-stream");
+}
+
+export async function downloadZipFromUrl(
+  zipUrl: string,
   folderName: string,
-  onProgress?: (current: number, total: number, filename: string) => void,
+  onProgress?: (progress: ZipJobProgress) => void,
 ) {
-  const picker = (
-    window as Window & {
-      showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
-    }
-  ).showDirectoryPicker;
-  if (!picker) return false;
-  const root = await picker();
-  const folder = await root.getDirectoryHandle(folderName.replace(/[\\/]/g, "-"), {
-    create: true,
+  const started = Date.now();
+  const zipName = zipDownloadName(folderName);
+  const tracker = createProgressTracker(started, onProgress);
+  tracker.emit({
+    state: "preparing",
+    filesDone: 0,
+    filesTotal: 0,
+    filename: zipName,
   });
-  for (const [index, file] of files.entries()) {
-    onProgress?.(index + 1, files.length, file.filename);
-    const blob = await fetchBlob(file);
-    const handle = await folder.getFileHandle(file.filename, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
+
+  const response = await fetch(zipUrl, { cache: "no-store", credentials: "same-origin" });
+  if (!response.ok) {
+    throw new Error(`Could not download ${zipName}`);
   }
-  return true;
+
+  const length = Number(response.headers.get("content-length") || 0);
+  const approx = Number(response.headers.get("x-zip-approx-bytes") || 0);
+  const fileCount = Number(response.headers.get("x-zip-file-count") || 0);
+  const headerName = response.headers.get("x-zip-filename") || zipName;
+  const totalBytes = length > 0 ? length : approx > 0 ? approx : null;
+
+  tracker.emit({
+    state: "downloading",
+    filesDone: 0,
+    filesTotal: fileCount,
+    filename: headerName,
+    totalBytes,
+  });
+
+  const bytes = await readResponseBytes(response, (delta) => {
+    tracker.addBytes(delta);
+    tracker.emit({
+      state: "downloading",
+      filesDone: 0,
+      filesTotal: fileCount,
+      filename: headerName,
+      totalBytes,
+    });
+  });
+
+  saveBlob([bytes] as BlobPart[], headerName);
+  tracker.emit({
+    state: "done",
+    filesDone: fileCount,
+    filesTotal: fileCount,
+    filename: headerName,
+    totalBytes,
+  });
 }
 
-export async function downloadAllFiles(
+export function startNativeZipDownload(zipUrl: string, folderName: string) {
+  clickDownload(zipUrl, zipDownloadName(folderName));
+}
+
+export async function zipAndDownloadFiles(
   files: DownloadFile[],
   folderName: string,
-  onProgress?: (current: number, total: number, filename: string) => void,
+  onProgress?: (progress: ZipJobProgress) => void,
 ) {
-  try {
-    const usedFolder = await saveToFolder(files, folderName, onProgress);
-    if (usedFolder) {
-      return { cancelled: false, saved: files.length, failed: 0, mode: "folder" as const };
-    }
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return { cancelled: true, saved: 0, failed: 0, mode: "folder" as const };
-    }
-  }
+  const started = Date.now();
+  const zipName = zipDownloadName(folderName);
+  const tracker = createProgressTracker(started, onProgress);
 
-  const appleMobile = isAppleMobile(navigator.userAgent, navigator.maxTouchPoints);
-  const wait = downloadDelayMs(files.length, appleMobile);
-  let saved = 0;
-  let failed = 0;
+  tracker.emit({
+    state: "preparing",
+    filesDone: 0,
+    filesTotal: files.length,
+    filename: zipName,
+  });
 
+  const chunks: Uint8Array[] = [];
+  let resolveZip: () => void;
+  let rejectZip: (error: Error) => void;
+  const zipFinished = new Promise<void>((resolve, reject) => {
+    resolveZip = resolve;
+    rejectZip = reject;
+  });
+  const zip = new Zip((error, data, final) => {
+    if (error) {
+      rejectZip(error);
+      return;
+    }
+    if (data.length) chunks.push(data);
+    if (final) resolveZip();
+  });
+
+  const usedNames = new Set<string>();
   for (const [index, file] of files.entries()) {
-    onProgress?.(index + 1, files.length, file.filename);
-    try {
-      if (appleMobile) {
-        triggerDirectDownload(downloadHref(file.url));
-      } else {
-        await saveOneWithRetry(file);
-      }
-      saved += 1;
-    } catch {
-      failed += 1;
-    }
-    await delay(wait);
+    tracker.emit({
+      state: "downloading",
+      filesDone: index,
+      filesTotal: files.length,
+      filename: file.filename,
+    });
+    const data = await fetchFileBytes(file, (delta) => {
+      tracker.addBytes(delta);
+      tracker.emit({
+        state: "downloading",
+        filesDone: index,
+        filesTotal: files.length,
+        filename: file.filename,
+      });
+    });
+    const entry = new ZipPassThrough(uniqueZipEntryName(file.filename, usedNames));
+    zip.add(entry);
+    entry.push(data, true);
+    tracker.emit({
+      state: "downloading",
+      filesDone: index + 1,
+      filesTotal: files.length,
+      filename: file.filename,
+    });
   }
 
-  return { cancelled: false, saved, failed, mode: appleMobile ? "direct" : "blob" } as const;
-}
+  zip.end();
+  await zipFinished;
 
-export { formatDownloadProgress, formatDownloadResult };
+  saveBlob(chunks as BlobPart[], zipName);
+  tracker.emit({
+    state: "done",
+    filesDone: files.length,
+    filesTotal: files.length,
+    filename: zipName,
+  });
+}

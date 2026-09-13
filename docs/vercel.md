@@ -106,6 +106,8 @@ GET /api/cron/nas-sync
 
 `vercel.json` schedules that path every 10 minutes (`*/10 * * * *`). Pro allows this interval. Admin **Sync from NAS** still works anytime.
 
+Shoot **Download** streams one zip from `GET /api/shoots/[id]/zip` (logged-in) or `GET /api/s/[token]/zip` (public). Those routes use `maxDuration = 300` and STORE compression so ~83 JPEGs can finish on Pro without buffering the whole archive in the function first. The page tracks bytes as the zip arrives and Safari only confirms once.
+
 ## After import
 
 1. Confirm the Git section shows Origin + the named repo + production branch `main`.

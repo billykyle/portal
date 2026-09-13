@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import {
-  downloadAllFiles,
-  formatDownloadProgress,
-  formatDownloadResult,
+  downloadZipFromUrl,
+  startNativeZipDownload,
+  zipAndDownloadFiles,
   type DownloadFile,
 } from "@/components/download-controls";
+import { emptyZipProgress, formatZipStatus, zipDownloadName, type ZipJobProgress } from "@/lib/download-all";
 import { publicShootPath } from "@/lib/public-link";
 
 const chip =
@@ -15,38 +16,59 @@ const chip =
 export function ShootActions({
   files,
   folderName,
+  zipUrl,
   shareToken,
   dropboxUrl,
   showBackup = false,
 }: {
   files: DownloadFile[];
   folderName: string;
+  zipUrl?: string;
   shareToken?: string;
   dropboxUrl?: string | null;
   showBackup?: boolean;
 }) {
   const [status, setStatus] = useState("");
+  const [progress, setProgress] = useState<ZipJobProgress | null>(null);
   const [pending, setPending] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  const zipName = zipDownloadName(folderName);
 
   function publicHref() {
     return `${window.location.origin}${publicShootPath(shareToken ?? "")}`;
   }
 
+  function report(next: ZipJobProgress) {
+    setProgress(next);
+    setStatus(formatZipStatus(next));
+  }
+
   async function downloadAll() {
     setPending(true);
     setStatus("");
+    setProgress(emptyZipProgress("preparing", files.length, zipName));
     try {
-      const result = await downloadAllFiles(files, folderName, (current, total, filename) => {
-        setStatus(`${formatDownloadProgress({ current, total, filename })}. Keep this page open.`);
-      });
-      if (result.cancelled) {
-        setStatus("");
-        return;
+      if (zipUrl) {
+        try {
+          await downloadZipFromUrl(zipUrl, folderName, report);
+          return;
+        } catch {
+          if (files.length === 0) throw new Error("No files");
+          await zipAndDownloadFiles(files, folderName, report);
+          return;
+        }
       }
-      setStatus(formatDownloadResult(result.saved, result.failed, files.length));
+      await zipAndDownloadFiles(files, folderName, report);
     } catch {
-      setStatus("Could not start downloads. Try a single file instead.");
+      setProgress((current) =>
+        current
+          ? { ...current, state: "failed", percent: 0 }
+          : emptyZipProgress("failed", files.length, zipName),
+      );
+      setStatus("Download failed. Try again, or Save a single photo.");
+      if (zipUrl) {
+        startNativeZipDownload(zipUrl, folderName);
+      }
     } finally {
       setPending(false);
     }
@@ -55,6 +77,7 @@ export function ShootActions({
   async function copyLink() {
     await navigator.clipboard.writeText(publicHref());
     setStatus("Link copied.");
+    setProgress(null);
     window.setTimeout(() => setStatus(""), 2000);
   }
 
@@ -73,6 +96,13 @@ export function ShootActions({
     await copyLink();
   }
 
+  const buttonLabel =
+    pending && progress?.state === "preparing"
+      ? "Preparing…"
+      : pending
+        ? "Downloading…"
+        : "Download";
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -82,7 +112,7 @@ export function ShootActions({
           disabled={pending || files.length === 0}
           className={`${chip} bg-white font-medium text-black disabled:bg-[#c7c7cc] disabled:text-black/45`}
         >
-          {pending ? "Saving…" : "Download"}
+          {buttonLabel}
         </button>
         {shareToken ? (
           <>
@@ -109,6 +139,16 @@ export function ShootActions({
           </button>
         ) : null}
       </div>
+      {progress && progress.state !== "done" ? (
+        <div className="flex flex-col gap-1.5">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#2c2c2e]">
+            <div
+              className="h-full rounded-full bg-white transition-[width] duration-200"
+              style={{ width: `${Math.max(progress.state === "failed" ? 0 : 2, progress.percent)}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
       {backupOpen ? (
         <p className="text-xs text-[#8e8e93]">
           {dropboxUrl ? (
@@ -121,6 +161,9 @@ export function ShootActions({
         </p>
       ) : null}
       {status ? <p className="text-xs text-[#8e8e93]">{status}</p> : null}
+      {pending && progress && (progress.state === "preparing" || progress.state === "downloading") ? (
+        <p className="text-xs text-[#8e8e93]">Safari will ask once for {zipName}. Keep this page open.</p>
+      ) : null}
     </div>
   );
 }

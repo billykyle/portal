@@ -17,6 +17,7 @@ export function ShootDetail({
   dateLabel,
   dropboxUrl,
   folderName,
+  zipUrl,
   media,
   shareToken,
   showBackup = false,
@@ -27,6 +28,7 @@ export function ShootDetail({
   dateLabel: string;
   dropboxUrl: string | null;
   folderName: string;
+  zipUrl?: string;
   media: ShootMedia[];
   shareToken?: string;
   showBackup?: boolean;
@@ -52,6 +54,7 @@ export function ShootDetail({
       <ShootActions
         files={files}
         folderName={folderName}
+        zipUrl={zipUrl}
         shareToken={shareToken}
         dropboxUrl={dropboxUrl}
         showBackup={showBackup}

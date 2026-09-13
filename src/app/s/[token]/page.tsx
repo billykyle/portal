@@ -6,6 +6,7 @@ import { ShootDetail } from "@/components/shoot-detail";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
+import { publicShootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 import { publicShootPath } from "@/lib/public-link";
 
@@ -41,6 +42,7 @@ export default async function PublicShootPage({
         dateLabel={formatShootDate(shoot.shotDate)}
         dropboxUrl={null}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
+        zipUrl={publicShootZipPath(shoot.publicToken)}
         media={files.map((item) => ({
           id: item.id,
           filename: item.filename,

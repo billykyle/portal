@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { createReadStream } from "fs";
-import { mkdir, stat, writeFile } from "fs/promises";
+import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import { isVercelRuntime } from "./runtime";
@@ -368,61 +368,93 @@ function disposition(download: boolean, filename: string) {
   return `${download ? "attachment" : "inline"}; filename="${safe}"`;
 }
 
-export async function proxyNasFile(nasPath: string, filename: string, download = false) {
-  const ext = extensionFrom(filename, "bin");
-  const hit = await cachedFile("files", nasPath, ext);
-  if (hit) {
-    return nodeStreamResponse(hit, ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "application/octet-stream", filename, download);
-  }
+function contentTypeFor(ext: string, fallback = "application/octet-stream") {
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "mp4") return "video/mp4";
+  return fallback;
+}
 
-  const run = async () => {
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        return await withCookie(async (config, cookie) => {
-    const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
-      method: "POST",
-      headers: jsonHeaders(config, cookie),
-      body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
-      cache: "no-store",
-    });
-    const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
-    if (taskBody.code !== 200 || !taskBody.data?.result) {
-      throw new Error(taskBody.msg || "NAS download task failed.");
-    }
-    const downloadUrl = new URL(`${apiBase(config)}/filemgr/shareDownloadFile`);
-    downloadUrl.searchParams.set("coding", "true");
-    downloadUrl.searchParams.set("share_id", config.shareId);
-    downloadUrl.searchParams.set("password", config.password);
-    downloadUrl.searchParams.set("task_id", taskBody.data.result);
-    const res = await fetch(downloadUrl, { headers: mediaHeaders(config, cookie), cache: "no-store" });
-    const type = res.headers.get("content-type") ?? "";
-    if (type.includes("application/json") || !res.ok) {
-      const body = await res.text();
-      throw new Error(`NAS download failed: ${body.slice(0, 180)}`);
-    }
-    const bytes = Buffer.from(await res.arrayBuffer());
-    await writeCache("files", nasPath, ext, bytes);
-    return new Response(bytes, {
-      headers: {
-        "Content-Type": type.includes("image/") ? type : "image/jpeg",
-        "Content-Disposition": disposition(download, filename),
-        "Cache-Control": "private, max-age=86400",
-      },
-    });
-        });
-      } catch (error) {
-        lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
-      }
-    }
-    throw lastError instanceof Error ? lastError : new Error("NAS download failed.");
-  };
-
+function queueNasDownload<T>(run: () => Promise<T>): Promise<T> {
   const queued = fileProxyChain.then(run, run);
   fileProxyChain = queued.then(
     () => undefined,
     () => undefined,
   );
   return queued;
+}
+
+async function downloadNasFileBytes(nasPath: string, filename: string, ext: string): Promise<Buffer> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await withCookie(async (config, cookie) => {
+        const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
+          method: "POST",
+          headers: jsonHeaders(config, cookie),
+          body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
+          cache: "no-store",
+        });
+        const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
+        if (taskBody.code !== 200 || !taskBody.data?.result) {
+          throw new Error(taskBody.msg || "NAS download task failed.");
+        }
+        const downloadUrl = new URL(`${apiBase(config)}/filemgr/shareDownloadFile`);
+        downloadUrl.searchParams.set("coding", "true");
+        downloadUrl.searchParams.set("share_id", config.shareId);
+        downloadUrl.searchParams.set("password", config.password);
+        downloadUrl.searchParams.set("task_id", taskBody.data.result);
+        const res = await fetch(downloadUrl, { headers: mediaHeaders(config, cookie), cache: "no-store" });
+        const type = res.headers.get("content-type") ?? "";
+        if (type.includes("application/json") || !res.ok) {
+          const body = await res.text();
+          throw new Error(`NAS download failed: ${body.slice(0, 180)}`);
+        }
+        const bytes = Buffer.from(await res.arrayBuffer());
+        await writeCache("files", nasPath, ext, bytes);
+        return bytes;
+      });
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("NAS download failed.");
+}
+
+export async function nasCachedFileSize(nasPath: string, filename: string) {
+  const ext = extensionFrom(filename, "bin");
+  const hit = await cachedFile("files", nasPath, ext);
+  if (!hit) return null;
+  try {
+    const info = await stat(hit);
+    return info.size > 0 ? info.size : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadNasFileBytes(nasPath: string, filename: string) {
+  const ext = extensionFrom(filename, "bin");
+  const hit = await cachedFile("files", nasPath, ext);
+  if (hit) return readFile(hit);
+  return queueNasDownload(() => downloadNasFileBytes(nasPath, filename, ext));
+}
+
+export async function proxyNasFile(nasPath: string, filename: string, download = false) {
+  const ext = extensionFrom(filename, "bin");
+  const hit = await cachedFile("files", nasPath, ext);
+  if (hit) {
+    return nodeStreamResponse(hit, contentTypeFor(ext), filename, download);
+  }
+
+  const bytes = await loadNasFileBytes(nasPath, filename);
+  return new Response(bytes as unknown as BodyInit, {
+    headers: {
+      "Content-Type": contentTypeFor(ext),
+      "Content-Disposition": disposition(download, filename),
+      "Cache-Control": "private, max-age=86400",
+    },
+  });
 }

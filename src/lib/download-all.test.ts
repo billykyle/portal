@@ -1,35 +1,106 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  downloadDelayMs,
   downloadHref,
-  formatDownloadProgress,
-  formatDownloadResult,
-  isAppleMobile,
+  estimateRemainingMs,
+  formatBytes,
+  formatDuration,
+  formatZipStatus,
+  publicShootZipPath,
+  shootZipPath,
+  uniqueZipEntryName,
+  zipDownloadName,
+  zipJobPercent,
 } from "./download-all";
 
 test("adds download=1 to media proxy URLs once", () => {
   assert.equal(downloadHref("/api/media/abc"), "/api/media/abc?download=1");
   assert.equal(downloadHref("/api/media/abc?download=1"), "/api/media/abc?download=1");
-  assert.equal(downloadHref("/samples/maple-exterior.jpg"), "/samples/maple-exterior.jpg");
 });
 
-test("detects iPhone and iPad", () => {
-  assert.equal(isAppleMobile("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", 5), true);
-  assert.equal(isAppleMobile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 5), true);
-  assert.equal(isAppleMobile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 0), false);
+test("names the zip from the shoot folder", () => {
+  assert.equal(zipDownloadName("2026-09-04 - 12 Wood View Drive"), "2026-09-04 - 12 Wood View Drive.zip");
+  assert.equal(zipDownloadName("Sam/Wood:View"), "Sam-Wood-View.zip");
 });
 
-test("spaces Safari downloads farther apart", () => {
-  assert.equal(downloadDelayMs(83, true), 1200);
-  assert.ok(downloadDelayMs(83, false) < 1200);
+test("keeps zip entry names unique", () => {
+  const used = new Set<string>();
+  assert.equal(uniqueZipEntryName("Full-01.jpg", used), "Full-01.jpg");
+  assert.equal(uniqueZipEntryName("Full-01.jpg", used), "Full-01-2.jpg");
 });
 
-test("progress and result copy", () => {
+test("builds shoot zip routes", () => {
+  assert.equal(shootZipPath("abc"), "/api/shoots/abc/zip");
+  assert.equal(publicShootZipPath("tok"), "/api/s/tok/zip");
+});
+
+test("formats size, duration, and zip progress", () => {
+  assert.equal(formatBytes(2048), "2.0 KB");
+  assert.equal(formatDuration(90_000), "1m 30s");
+  assert.equal(zipJobPercent({ state: "preparing", filesDone: 0, filesTotal: 83 }), 2);
+  assert.equal(zipJobPercent({ state: "done", filesDone: 83, filesTotal: 83 }), 100);
   assert.equal(
-    formatDownloadProgress({ current: 12, total: 83, filename: "Full-12.jpg" }),
-    "Saving 12 of 83 — Full-12.jpg",
+    zipJobPercent({ state: "downloading", filesDone: 0, filesTotal: 83, bytes: 21_000_000, totalBytes: 83_000_000 }),
+    27,
   );
-  assert.equal(formatDownloadResult(83, 0, 83), "Saved 83 files.");
-  assert.match(formatDownloadResult(80, 3, 83), /Saved 80 of 83/);
+  const remaining = estimateRemainingMs({
+    filesDone: 21,
+    filesTotal: 83,
+    bytes: 21_000_000,
+    elapsedMs: 21_000,
+  });
+  assert.ok(remaining && remaining > 50_000);
+  const fromTotal = estimateRemainingMs({
+    filesDone: 0,
+    filesTotal: 83,
+    bytes: 21_000_000,
+    elapsedMs: 21_000,
+    totalBytes: 83_000_000,
+  });
+  assert.ok(fromTotal && fromTotal > 50_000);
+  assert.match(
+    formatZipStatus({
+      state: "downloading",
+      filesDone: 21,
+      filesTotal: 83,
+      filename: "Full-19.jpg",
+      bytes: 21_000_000,
+      totalBytes: null,
+      elapsedMs: 21_000,
+      bytesPerSec: 1_000_000,
+      remainingMs: 62_000,
+      percent: 26,
+    }),
+    /Downloading 21 of 83/,
+  );
+  assert.match(
+    formatZipStatus({
+      state: "downloading",
+      filesDone: 0,
+      filesTotal: 83,
+      filename: "2026-09-04 - 12 Wood View Drive.zip",
+      bytes: 21_000_000,
+      totalBytes: 83_000_000,
+      elapsedMs: 21_000,
+      bytesPerSec: 1_000_000,
+      remainingMs: 62_000,
+      percent: 27,
+    }),
+    /Downloading · 20\.0 MB of ~79\.2 MB/,
+  );
+  assert.equal(
+    formatZipStatus({
+      state: "preparing",
+      filesDone: 0,
+      filesTotal: 83,
+      filename: "shoot.zip",
+      bytes: 0,
+      totalBytes: null,
+      elapsedMs: 0,
+      bytesPerSec: 0,
+      remainingMs: null,
+      percent: 2,
+    }),
+    "Preparing zip…",
+  );
 });

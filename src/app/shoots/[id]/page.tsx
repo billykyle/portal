@@ -11,6 +11,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
+import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 
 export default async function ShootPage({
@@ -76,6 +77,7 @@ export default async function ShootPage({
         dateLabel={formatShootDate(shoot.shotDate)}
         dropboxUrl={shoot.dropboxUrl}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
+        zipUrl={shootZipPath(shoot.id)}
         shareToken={shoot.publicToken}
         showBackup
         media={files.map((item) => ({
