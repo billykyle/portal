@@ -3,7 +3,7 @@ import { ensureDb } from "../src/lib/db/ensure";
 
 async function main() {
   await ensureDb();
-  console.log("Database ready. Demo client BK00001 is seeded when the table is empty.");
+  console.log("Database ready. Empty DBs get BK00001 (no fake shoots). Files come from NAS sync.");
   await sql.end({ timeout: 5 });
 }
 

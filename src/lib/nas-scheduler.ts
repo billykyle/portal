@@ -30,6 +30,7 @@ export async function runLockedNasSync(source: SyncSource): Promise<NasSyncResul
       mediaImported: 0,
       mediaUpdated: 0,
       mediaRemoved: 0,
+      shootsRemoved: 0,
       ready: 0,
       warnings: [],
     };
@@ -44,7 +45,7 @@ export async function runLockedNasSync(source: SyncSource): Promise<NasSyncResul
         console.log(`NAS sync skipped (${source}): ${result.reason}`);
       } else {
         console.log(
-          `NAS sync done (${source}) ${ms}ms +${result.clientsCreated} clients / +${result.shootsCreated} shoots / +${result.mediaImported} stills (reused ${result.clientsReused}c ${result.shootsReused}s, refreshed ${result.mediaUpdated})`,
+          `NAS sync done (${source}) ${ms}ms +${result.clientsCreated} clients / +${result.shootsCreated} shoots / +${result.mediaImported} stills (reused ${result.clientsReused}c ${result.shootsReused}s, refreshed ${result.mediaUpdated}, -${result.mediaRemoved} files, -${result.shootsRemoved} orphan shoots)`,
         );
       }
       return result;

@@ -13,7 +13,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login, marks a shoot delivered (stub for Pepper), or mints a BK code by hand.
+8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Portal files match the NAS tree — no placeholder media.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -80,22 +80,11 @@ The first server boot also creates tables and seeds an empty database.
 
 | Role   | How to get in |
 | ------ | ------------- |
-| Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234` |
-| Sam Lepore | Invite minted on first NAS sync (`BK00002` on a fresh database), or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
+| Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234`. Empty DBs seed this client with **no shoots**. |
+| Sam Lepore | Invite minted on first NAS sync, or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
 | Admin  | `/admin` with `ADMIN_PASSWORD` (example: `atmos-admin`) |
 
-Demo (placeholder) shoots on Whitfield:
-
-- Sep 4, 2026 — 1847 Maple Avenue, Austin, TX
-- Mar 18, 2026 — 412 West 12th Street, Unit 6B, Austin, TX
-
-NAS-backed shoot on Sam Lepore (real JPGs from the UGOS share):
-
-- Sep 4, 2026 — 12 Wood View Drive (`Final/` stills)
-
-Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
-
-Sample photos, walkthrough videos, and floor plans for the Whitfield demo live in `public/samples/`. Sam’s shoot is proxied from the NAS.
+Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View Drive stills are proxied from `Final/`. Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
 
 ## Env vars
 
@@ -105,7 +94,7 @@ Sample photos, walkthrough videos, and floor plans for the Whitfield demo live i
 | `JWT_SECRET` | Signs client and admin cookies. Use a long random string in production. |
 | `ADMIN_PASSWORD` | Shared password for `/admin`. Billy only. |
 | `DEMO_PASSWORD` | Password for the seeded `demo@example.com` user. |
-| `NAS_ENABLED` | `true` serves NAS-backed media through the server proxy (`/api/media/[id]`). Keep `false` to use placeholder URLs. |
+| `NAS_ENABLED` | `true` serves NAS-backed media through the server proxy (`/api/media/[id]`). Required for attach and sync. |
 | `NAS_SHARE_HOST` | UGOS share host after the ug.link redirect, e.g. `https://10128873.us15.ug.link`. |
 | `NAS_SHARE_ID` | Share id from the `?id=` query on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | Optional share password. Leave empty when the share has none. |
@@ -137,8 +126,8 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 1. Open `/admin` and enter `ADMIN_PASSWORD`.
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
-4. Open the client and **Attach shoot**: date, address, optional Dropbox URL, optional NAS folder.
-5. Check **Import stills from NAS (Final or Photos)** to list JPGs from that shoot folder, or **Use sample placeholder media**, or paste one media path per line.
+4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Stills import from Final or Photos. There is no placeholder-media option.
+5. **Delete shoot** removes one project under that client. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
 
@@ -188,7 +177,19 @@ Client Deliverables /
 - A new `{date} - {address}` folder creates a shoot with a public `/s/[token]` link.
 - Stills come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`). This first shoot uses **Final**.
 - Folders that are not `date - address` are skipped (logged as warnings).
-- Sync does not delete clients or shoots that disappear from the share. It does refresh stills for shoots it finds (adds new JPGs, updates paths, removes NAS files that are gone).
+- **NAS is the source of truth for files.** Sync adds new stills, updates paths, and deletes portal files that are not on the share (including leftover `/samples/` placeholders). A shoot is created only when Final/Photos has stills — empty NAS folders do not become 0-file portal shoots, and existing empty ones are removed. Shoots with no matching NAS folder are removed. Clients are not deleted if their folder disappears. If the share walk returns zero client folders, orphan prune is skipped so a failed listing cannot wipe the library.
+
+### Clear demo / test shoots on BK00001
+
+Empty databases no longer seed Maple Avenue or West 12th. To strip those test projects from an existing database (keeps the BK00001 client and any real NAS shoots):
+
+```
+DATABASE_URL='postgresql://…' npm run db:clear-demo-shoots -- --invite BK00001
+```
+
+That keeps the BK00001 client and logins. It deletes Whitfield/Austin placeholder shoots and any 0-file portal shoots. Pass `--keep-empty` to leave empty shoots alone.
+
+Or in `/admin`: open the client → **Delete shoot** on that project (confirm in the dialog). The BK invite stays. After deploy, **Sync from NAS** also drops portal-only and empty shoots.
 
 Example that is already on the share:
 

@@ -7,6 +7,7 @@ import { AttachShootForm } from "@/components/forms/attach-shoot-form";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
+import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -27,13 +28,14 @@ export default async function AdminClientPage({
     delivered?: string;
     saved?: string;
     userRemoved?: string;
+    shootRemoved?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached, delivered, saved, userRemoved } = await searchParams;
+  const { error, attached, delivered, saved, userRemoved, shootRemoved } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -76,7 +78,8 @@ export default async function AdminClientPage({
         {delivered ? (
           <p className="mt-3 text-sm text-white">Marked delivered. No email was sent — Pepper can hook this later.</p>
         ) : null}
-        {attached ? <p className="mt-3 text-sm text-white">Shoot attached.</p> : null}
+        {attached ? <p className="mt-3 text-sm text-white">Shoot attached from NAS.</p> : null}
+        {shootRemoved ? <p className="mt-3 text-sm text-white">Shoot deleted. The client invite is unchanged.</p> : null}
       </header>
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Client info</h2>
@@ -141,6 +144,11 @@ export default async function AdminClientPage({
                     {!shoot.deliveredAt ? (
                       <MarkDeliveredForm clientId={client.id} shootId={shoot.id} />
                     ) : null}
+                    <DeleteShootForm
+                      clientId={client.id}
+                      shootId={shoot.id}
+                      address={shoot.address}
+                    />
                   </div>
                 </li>
               );

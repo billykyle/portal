@@ -13,13 +13,11 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
-import { guessMediaType, joinUrl } from "@/lib/media";
 import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
 import { runLockedNasSync } from "@/lib/nas-scheduler";
 import { nasEnabled } from "@/lib/nas";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "@/lib/delivery";
 import { createPublicToken } from "@/lib/public-link";
-import { mapleMedia } from "@/lib/sample-media";
 
 export type AdminState = {
   error?: string;
@@ -96,7 +94,14 @@ export async function attachShoot(formData: FormData) {
     redirect(`${clientPath}?error=${encodeURIComponent("Address is required.")}`);
   }
 
-  const nasRelativePath = String(formData.get("nasRelativePath") ?? "").trim() || `${shotDate} - ${address}`;
+  const nasRelativePath = String(formData.get("nasRelativePath") ?? "").trim();
+  if (!nasRelativePath) {
+    redirect(`${clientPath}?error=${encodeURIComponent("NAS folder is required. Files come from the share only.")}`);
+  }
+  if (!nasEnabled()) {
+    redirect(`${clientPath}?error=${encodeURIComponent("Turn on NAS_ENABLED to attach a shoot.")}`);
+  }
+
   const [shoot] = await db
     .insert(shoots)
     .values({
@@ -109,49 +114,13 @@ export async function attachShoot(formData: FormData) {
     })
     .returning();
 
-  const usePlaceholder = formData.get("usePlaceholderMedia") === "on";
-  const importNas = formData.get("importNasStills") === "on";
-  if (usePlaceholder) {
-    await db.insert(media).values(
-      mapleMedia.map((item) => ({
-        ...item,
-        shootId: shoot.id,
-        nasRelativePath: `${nasRelativePath}/${item.filename}`,
-      })),
-    );
-  } else if (importNas) {
-    if (!nasEnabled()) {
-      redirect(`${clientPath}?error=${encodeURIComponent("Turn on NAS_ENABLED to import stills.")}`);
-    }
-    try {
-      const folder = await resolveShootFolder(nasRelativePath);
-      await importNasStills(shoot.id, folder, { required: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "NAS import failed.";
-      redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
-    }
-  } else {
-    const lines = String(formData.get("mediaPaths") ?? "")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const nasBase = process.env.NAS_BASE_URL?.trim();
-    const rows = lines.map((line, index) => {
-      const isAbsolute = /^https?:\/\//i.test(line) || line.startsWith("/");
-      const filename = line.split("/").filter(Boolean).at(-1) ?? `file-${index + 1}`;
-      const relative = isAbsolute ? `${nasRelativePath}/${filename}` : line.replace(/^\/+/, "");
-      return {
-        shootId: shoot.id,
-        type: guessMediaType(filename),
-        filename,
-        url: isAbsolute ? line : nasBase ? joinUrl(nasBase, relative) : "/samples/maple-exterior.jpg",
-        nasRelativePath: relative,
-        sortOrder: index + 1,
-      };
-    });
-    if (rows.length > 0) {
-      await db.insert(media).values(rows);
-    }
+  try {
+    const folder = await resolveShootFolder(nasRelativePath);
+    await importNasStills(shoot.id, folder, { required: true });
+  } catch (error) {
+    await db.delete(shoots).where(eq(shoots.id, shoot.id));
+    const message = error instanceof Error ? error.message : "NAS import failed.";
+    redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
   }
 
   revalidatePath(clientPath);
@@ -183,6 +152,8 @@ export async function syncNasFromAdmin() {
         refreshed: String(result.mediaUpdated),
         reusedClients: String(result.clientsReused),
         reusedShoots: String(result.shootsReused),
+        removedShoots: String(result.shootsRemoved),
+        removedPhotos: String(result.mediaRemoved),
         warnings: String(result.warnings.length),
         ready: String(result.ready),
       }),
@@ -222,6 +193,27 @@ export async function markShootDelivered(formData: FormData) {
   }
   revalidatePath(clientPath);
   redirect(`${clientPath}?delivered=1`);
+}
+
+export async function deleteShoot(formData: FormData) {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  await ensureDb();
+  const shootId = String(formData.get("shootId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const clientPath = `/admin/clients/${clientId}`;
+  if (!shootId || !clientId) {
+    redirect(`${clientPath}?error=${encodeURIComponent("Shoot is required.")}`);
+  }
+  const [shoot] = await db.select().from(shoots).where(eq(shoots.id, shootId)).limit(1);
+  if (!shoot || shoot.clientId !== clientId) {
+    redirect(`${clientPath}?error=${encodeURIComponent("Shoot was not found.")}`);
+  }
+  await db.delete(shoots).where(eq(shoots.id, shoot.id));
+  revalidatePath("/admin/clients");
+  revalidatePath(clientPath);
+  redirect(`${clientPath}?shootRemoved=1`);
 }
 
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {

@@ -5,8 +5,12 @@ import { clients, media, shoots } from "./db/schema";
 import { formatInviteCode, parseInviteSequence } from "./invite";
 import { guessMediaType } from "./media";
 import {
+  mediaFilenamesMissingFromNas,
+  shouldCreatePortalShoot,
+  shouldPruneShootsMissingFromNas,
+} from "./demo-shoots";
+import {
   getNasConfig,
-  isNasFilePath,
   listNasDirectories,
   listNasStills,
   nasEnabled,
@@ -27,6 +31,7 @@ export type NasSyncResult = {
   mediaImported: number;
   mediaUpdated: number;
   mediaRemoved: number;
+  shootsRemoved: number;
   ready: number;
   warnings: string[];
 };
@@ -40,6 +45,7 @@ const EMPTY_SYNC: NasSyncResult = {
   mediaImported: 0,
   mediaUpdated: 0,
   mediaRemoved: 0,
+  shootsRemoved: 0,
   ready: 0,
   warnings: [],
 };
@@ -63,6 +69,12 @@ export async function importNasStills(
     return { imported: 0, updated: 0, removed: 0, total: 0 };
   }
   const existing = await db.select().from(media).where(eq(media.shootId, shootId));
+  if (files.length === 0) {
+    for (const prev of existing) {
+      await db.delete(media).where(eq(media.id, prev.id));
+    }
+    return { imported: 0, updated: 0, removed: existing.length, total: 0 };
+  }
   const byName = new Map(existing.map((row) => [row.filename, row]));
   const seen = new Set<string>();
   const rows = [];
@@ -74,7 +86,12 @@ export async function importNasStills(
     if (prev) {
       await db
         .update(media)
-        .set({ nasRelativePath: file.path, sortOrder, type: guessMediaType(file.name) })
+        .set({
+          nasRelativePath: file.path,
+          sortOrder,
+          type: guessMediaType(file.name),
+          url: `/api/media/${prev.id}`,
+        })
         .where(eq(media.id, prev.id));
       updated += 1;
     } else {
@@ -95,8 +112,9 @@ export async function importNasStills(
     await db.insert(media).values(rows);
   }
   let removed = 0;
-  for (const prev of existing) {
-    if (seen.has(prev.filename) || !isNasFilePath(prev.nasRelativePath)) continue;
+  for (const filename of mediaFilenamesMissingFromNas(existing, seen)) {
+    const prev = byName.get(filename);
+    if (!prev) continue;
     await db.delete(media).where(eq(media.id, prev.id));
     removed += 1;
   }
@@ -167,7 +185,8 @@ async function upsertShoot(input: {
 
 /**
  * Walk `Client Deliverables / {client} / {date} - {address} / Final|Photos`.
- * New client folders mint a BK code. New shoot folders get a public token + stills.
+ * NAS is the source of truth: new drops appear, files gone from the share are
+ * removed from the portal, and shoots with no matching folder are pruned.
  */
 export async function syncNasShare(): Promise<NasSyncResult> {
   if (!nasEnabled() || !getNasConfig()) {
@@ -180,6 +199,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
   const skipNames = new Set(
     (getNasConfig()?.stillsFolders ?? []).map((name) => name.toLowerCase()),
   );
+  const seenShootIds = new Set<string>();
 
   for (const clientFolder of clientFolders) {
     if (skipNames.has(clientFolder.name.toLowerCase())) {
@@ -202,6 +222,31 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       }
 
       const nasRelativePath = clientFolderRelPath(clientFolder.name, shootFolder.name);
+      const stills = await listNasStills(shootFolder.path);
+      if (!shouldCreatePortalShoot(stills.length)) {
+        const [empty] = await db
+          .select()
+          .from(shoots)
+          .where(
+            and(
+              eq(shoots.clientId, client.id),
+              eq(shoots.shotDate, parsed.shotDate),
+              eq(shoots.address, parsed.address),
+            ),
+          )
+          .limit(1);
+        if (empty) {
+          await db.delete(shoots).where(eq(shoots.id, empty.id));
+          result.shootsRemoved += 1;
+          result.warnings.push(
+            `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no Final/Photos stills on NAS).`,
+          );
+        } else {
+          result.warnings.push(`Skipped ${nasRelativePath} — no Final/Photos stills.`);
+        }
+        continue;
+      }
+
       const { shoot, created: shootCreated } = await upsertShoot({
         clientId: client.id,
         shotDate: parsed.shotDate,
@@ -210,6 +255,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       });
       if (shootCreated) result.shootsCreated += 1;
       else result.shootsReused += 1;
+      seenShootIds.add(shoot.id);
 
       const existingCount = (
         await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))
@@ -219,8 +265,11 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       result.mediaUpdated += mediaResult.updated;
       result.mediaRemoved += mediaResult.removed;
       if (mediaResult.total === 0) {
+        await db.delete(shoots).where(eq(shoots.id, shoot.id));
+        seenShootIds.delete(shoot.id);
+        result.shootsRemoved += 1;
         result.warnings.push(
-          `No Final/Photos stills under ${nasRelativePath}. Shoot is listed with no files yet.`,
+          `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no Final/Photos stills on NAS).`,
         );
         continue;
       }
@@ -241,6 +290,21 @@ export async function syncNasShare(): Promise<NasSyncResult> {
         result.warnings.push(`Delivery webhook failed for ${nasRelativePath}: ${message}`);
       }
     }
+  }
+
+  if (!shouldPruneShootsMissingFromNas(clientFolders.length)) {
+    result.warnings.push("Share listed 0 client folders; skipped orphan shoot prune.");
+    return result;
+  }
+
+  const portalShoots = await db.select().from(shoots);
+  for (const shoot of portalShoots) {
+    if (seenShootIds.has(shoot.id)) continue;
+    await db.delete(shoots).where(eq(shoots.id, shoot.id));
+    result.shootsRemoved += 1;
+    result.warnings.push(
+      `Removed portal-only shoot ${shoot.shotDate} — ${shoot.address} (not on NAS).`,
+    );
   }
 
   return result;

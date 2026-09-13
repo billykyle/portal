@@ -1,54 +1,33 @@
-import { Field, FormError, SubmitButton } from "@/components/field";
+import { Field, SubmitButton } from "@/components/field";
 import { attachShoot } from "@/lib/actions/admin";
 
 export function AttachShootForm({
   clientId,
-  error,
-  attached,
 }: {
   clientId: string;
-  error?: string;
-  attached?: boolean;
 }) {
   return (
     <form action={attachShoot} className="flex flex-col gap-4" autoComplete="off">
       <input type="hidden" name="clientId" value={clientId} />
+      <p className="text-sm leading-6 text-[#8e8e93]">
+        Files come from the NAS Client Deliverables tree only. This does not invent
+        placeholder photos.
+      </p>
       <Field id="shotDate" label="Date" type="date" required />
       <Field id="address" label="Address" required autoComplete="off" />
       <Field id="dropboxUrl" label="Dropbox backup URL" type="url" autoComplete="off" />
       <Field
         id="nasRelativePath"
-        label="NAS folder (optional)"
+        label="NAS folder"
         placeholder="Sam Lepore/2026.09.04 - 12 Wood View Drive"
         autoComplete="off"
+        required
       />
-      <label className="flex items-center gap-3 text-sm text-[#c7c7cc]">
-        <input type="checkbox" name="usePlaceholderMedia" className="size-4 accent-white" />
-        Use sample placeholder media
-      </label>
-      <label className="flex items-center gap-3 text-sm text-[#c7c7cc]">
-        <input type="checkbox" name="importNasStills" defaultChecked className="size-4 accent-white" />
-        Import stills from NAS (Final or Photos)
-      </label>
-      <div className="flex flex-col gap-2">
-        <label htmlFor="mediaPaths" className="text-[16px] font-normal text-white">
-          Media paths
-        </label>
-        <textarea
-          id="mediaPaths"
-          name="mediaPaths"
-          rows={4}
-          placeholder={"photos/01-exterior.jpg\nvideo/walkthrough.mp4\nplans/level-1.jpg"}
-          className="rounded-xl border-0 bg-[#1c1c1e] px-4 py-3 text-base text-white outline-none"
-        />
-        <p className="text-xs text-[#8e8e93]">
-          Manual override. Prefer Sync from NAS on the clients list — that walks every client and
-          shoot folder. This import looks for Final or Photos under the path you type.
-        </p>
-      </div>
-      <FormError message={error} />
-      {attached ? <p className="text-sm text-white">Shoot attached.</p> : null}
-      <SubmitButton>Attach shoot</SubmitButton>
+      <p className="text-xs leading-5 text-[#8e8e93]">
+        Must match a folder on the share. Stills are imported from Final or Photos
+        under that path. Prefer Sync from NAS on the clients list for the full tree.
+      </p>
+      <SubmitButton>Attach shoot from NAS</SubmitButton>
     </form>
   );
 }

@@ -1,9 +1,8 @@
 import { hash } from "bcryptjs";
-import { createPublicToken } from "../public-link";
-import { mapleMedia, west12Media } from "../sample-media";
 import { db } from "./index";
-import { clients, media, shoots, users } from "./schema";
+import { clients, users } from "./schema";
 
+/** Empty-database bootstrap only. No fake shoots — files come from NAS. */
 export async function seedDemo() {
   const [client] = await db
     .insert(clients)
@@ -12,7 +11,8 @@ export async function seedDemo() {
       displayName: "Whitfield",
       primaryEmail: "whitfield@example.com",
       company: "Whitfield Homes",
-      notes: "Demo client. Invite is permanent and multi-use — teammates redeem BK00001 and each get their own login.",
+      notes:
+        "Invite is permanent and multi-use. Shoots appear when a matching folder exists on the NAS Client Deliverables share — this seed does not invent files.",
     })
     .returning();
 
@@ -22,33 +22,4 @@ export async function seedDemo() {
     passwordHash,
     clientId: client.id,
   });
-
-  const [maple] = await db
-    .insert(shoots)
-    .values({
-      clientId: client.id,
-      shotDate: "2026-09-04",
-      address: "1847 Maple Avenue, Austin, TX",
-      publicToken: createPublicToken(),
-      nasRelativePath: "Whitfield/2026-09-04 - 1847 Maple Avenue, Austin, TX",
-      dropboxUrl: "https://www.dropbox.com/scl/fo/demo-maple-avenue/placeholder?rlkey=demo&dl=0",
-    })
-    .returning();
-
-  const [west12] = await db
-    .insert(shoots)
-    .values({
-      clientId: client.id,
-      shotDate: "2026-03-18",
-      address: "412 West 12th Street, Unit 6B, Austin, TX",
-      publicToken: createPublicToken(),
-      nasRelativePath: "Whitfield/2026-03-18 - 412 West 12th Street, Unit 6B, Austin, TX",
-      dropboxUrl: "https://www.dropbox.com/scl/fo/demo-west-12th/placeholder?rlkey=demo&dl=0",
-    })
-    .returning();
-
-  await db.insert(media).values([
-    ...mapleMedia.map((item) => ({ ...item, shootId: maple.id })),
-    ...west12Media.map((item) => ({ ...item, shootId: west12.id })),
-  ]);
 }

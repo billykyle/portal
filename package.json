@@ -11,10 +11,11 @@
     "start": "next start --port 43173 --hostname 0.0.0.0",
     "lint": "eslint",
     "db:setup": "tsx --env-file=.env.local scripts/setup.ts",
+    "db:clear-demo-shoots": "tsx --env-file=.env.local scripts/clear-demo-shoots.ts",
     "db:push": "drizzle-kit push",
     "nas:sync": "tsx --env-file=.env.local scripts/sync-nas.ts",
     "nas:sync:warm": "tsx --env-file=.env.local scripts/sync-nas.ts --warm",
-    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts src/lib/nas-sync-config.test.ts src/lib/runtime.test.ts src/lib/welcome.test.ts"
+    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts src/lib/nas-sync-config.test.ts src/lib/runtime.test.ts src/lib/welcome.test.ts src/lib/demo-shoots.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

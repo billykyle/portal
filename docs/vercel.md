@@ -86,7 +86,15 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset mail only. |
 | `EMAIL_FROM` | `Billy Kyle Client Portal <noreply@billy-kyle.com>` | Used only when Resend is set. |
 
-After the first deploy, open `/admin` once so tables exist, or hit any page — `ensureDb()` runs on first use. Then **Sync from NAS** (or wait for cron) to import shoots.
+After the first deploy, open `/admin` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
+
+To remove leftover Whitfield / `/samples/` test projects from production without deleting the client:
+
+```
+DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run db:clear-demo-shoots -- --invite BK00001
+```
+
+Or delete each test shoot from `/admin`. The next successful NAS sync also prunes portal-only shoots.
 
 ## How sync works in production
 

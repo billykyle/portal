@@ -28,6 +28,8 @@ export default async function AdminClientsPage({
     warnings?: string;
     ready?: string;
     removed?: string;
+    removedShoots?: string;
+    removedPhotos?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
@@ -47,6 +49,8 @@ export default async function AdminClientsPage({
     warnings,
     ready,
     removed,
+    removedShoots,
+    removedPhotos,
   } = await searchParams;
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
@@ -77,6 +81,12 @@ export default async function AdminClientsPage({
             {reusedShoots === "1" ? "" : "s"}
             {refreshed && refreshed !== "0" ? `, refreshed ${refreshed} stills` : ""}
             {ready && ready !== "0" ? ` · ${ready} shoot${ready === "1" ? "" : "s"} ready to deliver` : ""}
+            {removedPhotos && removedPhotos !== "0"
+              ? ` · removed ${removedPhotos} file${removedPhotos === "1" ? "" : "s"} gone from NAS`
+              : ""}
+            {removedShoots && removedShoots !== "0"
+              ? ` · removed ${removedShoots} portal-only shoot${removedShoots === "1" ? "" : "s"}`
+              : ""}
             {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
           </p>
         ) : null}
