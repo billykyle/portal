@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
 import {
   downloadZipFromUrl,
   zipAndDownloadFiles,
@@ -84,7 +84,8 @@ export function ShootActions({
     }
   }
 
-  function onDownloadClick() {
+  function onDownloadClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
     if (pending || files.length === 0) return;
     if (needsPicker) {
       setMenuOpen((open) => !open);
@@ -103,9 +104,12 @@ export function ShootActions({
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setMenuOpen(false);
     }
-    document.addEventListener("pointerdown", onPointerDown);
+    const timer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", onPointerDown);
+    }, 50);
     document.addEventListener("keydown", onKey);
     return () => {
+      window.clearTimeout(timer);
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKey);
     };
@@ -144,10 +148,11 @@ export function ShootActions({
   return (
     <div className="flex flex-col gap-2" ref={menuRef}>
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <button
-          type="button"
-          onClick={onDownloadClick}
-          disabled={pending || files.length === 0}
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onDownloadClick}
+            disabled={pending || files.length === 0}
           aria-haspopup={needsPicker ? "menu" : undefined}
           aria-expanded={needsPicker ? menuOpen : undefined}
           aria-controls={needsPicker ? menuId : undefined}
