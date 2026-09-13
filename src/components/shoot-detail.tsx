@@ -44,7 +44,7 @@ export function ShootDetail({
   const hrefFor = (id?: string) => (id ? `${basePath}?view=${id}` : basePath);
 
   return (
-    <div className="flex flex-col gap-8 pb-16">
+    <div className="flex flex-col gap-6 pb-16">
       <header className="flex flex-col gap-1">
         <p className="text-sm text-[#8e8e93]">{dateLabel}</p>
         <h1 className="text-xl font-medium leading-snug">{address}</h1>
@@ -55,23 +55,22 @@ export function ShootDetail({
       <DownloadAllButton files={files} folderName={folderName} />
 
       {photos.length > 0 ? (
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-2">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("photo")}</h2>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             {photos.map((item) => (
-              <figure key={item.id} className="relative overflow-hidden rounded-xl bg-[#111]">
-                <Link href={hrefFor(item.id)} className="block">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.url} alt={item.filename} className="aspect-[4/3] w-full object-cover" />
-                </Link>
-                <a
-                  href={item.url}
-                  download={item.filename}
-                  className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white"
-                >
-                  Save
-                </a>
-              </figure>
+              <MediaTile key={item.id} item={item} href={hrefFor(item.id)} contain={false} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {plans.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("floor_plan")}</h2>
+          <div className="grid grid-cols-3 gap-1.5">
+            {plans.map((item) => (
+              <MediaTile key={item.id} item={item} href={hrefFor(item.id)} contain />
             ))}
           </div>
         </section>
@@ -84,30 +83,6 @@ export function ShootDetail({
             <figure key={item.id} className="overflow-hidden rounded-xl bg-[#111]">
               <video src={item.url} controls playsInline preload="metadata" className="w-full" />
               <figcaption className="flex items-center justify-between px-3 py-2 text-sm text-[#c7c7cc]">
-                <span className="truncate">{item.filename}</span>
-                <a href={item.url} download={item.filename} className="text-white">
-                  Save
-                </a>
-              </figcaption>
-            </figure>
-          ))}
-        </section>
-      ) : null}
-
-      {plans.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("floor_plan")}</h2>
-          {plans.map((item) => (
-            <figure key={item.id} className="overflow-hidden rounded-xl bg-white">
-              <Link href={hrefFor(item.id)} className="block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.url}
-                  alt={item.filename}
-                  className="min-h-[220px] w-full bg-white object-contain"
-                />
-              </Link>
-              <figcaption className="flex items-center justify-between bg-black px-3 py-2 text-sm text-[#c7c7cc]">
                 <span className="truncate">{item.filename}</span>
                 <a href={item.url} download={item.filename} className="text-white">
                   Save
@@ -148,5 +123,35 @@ export function ShootDetail({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function MediaTile({
+  item,
+  href,
+  contain,
+}: {
+  item: ShootMedia;
+  href: string;
+  contain: boolean;
+}) {
+  return (
+    <figure className={`relative overflow-hidden rounded-lg ${contain ? "bg-white" : "bg-[#111]"}`}>
+      <Link href={href} className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={item.url}
+          alt={item.filename}
+          className={`aspect-square w-full ${contain ? "object-contain p-1" : "object-cover"}`}
+        />
+      </Link>
+      <a
+        href={item.url}
+        download={item.filename}
+        className="absolute right-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
+      >
+        Save
+      </a>
+    </figure>
   );
 }
