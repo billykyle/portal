@@ -173,12 +173,14 @@ export async function syncNasFromAdmin() {
   revalidatePath("/admin/clients");
   redirect(
     adminClientsUrl({
-      synced: "1",
-      clients: String(result.clientsCreated),
-      shoots: String(result.shootsCreated),
-      photos: String(result.mediaImported),
-      reused: String(result.shootsReused + result.clientsReused),
-      warnings: String(result.warnings.length),
-    }),
+        synced: "1",
+        clients: String(result.clientsCreated),
+        shoots: String(result.shootsCreated),
+        photos: String(result.mediaImported),
+        refreshed: String(result.mediaUpdated),
+        reusedClients: String(result.clientsReused),
+        reusedShoots: String(result.shootsReused),
+        warnings: String(result.warnings.length),
+      }),
   );
 }

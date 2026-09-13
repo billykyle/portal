@@ -21,7 +21,9 @@ export default async function AdminClientsPage({
     clients?: string;
     shoots?: string;
     photos?: string;
-    reused?: string;
+    refreshed?: string;
+    reusedClients?: string;
+    reusedShoots?: string;
     warnings?: string;
   }>;
 }) {
@@ -29,7 +31,18 @@ export default async function AdminClientsPage({
     redirect("/admin");
   }
   await ensureDb();
-  const { error, minted, synced, clients: createdClients, shoots, photos, warnings } = await searchParams;
+  const {
+    error,
+    minted,
+    synced,
+    clients: createdClients,
+    shoots,
+    photos,
+    refreshed,
+    reusedClients,
+    reusedShoots,
+    warnings,
+  } = await searchParams;
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
   return (
@@ -44,9 +57,12 @@ export default async function AdminClientsPage({
         <SyncNasForm />
         {synced ? (
           <p className="mt-3 text-sm text-white">
-            Sync finished. {createdClients ?? "0"} new client{(createdClients === "1") ? "" : "s"},{" "}
-            {shoots ?? "0"} new shoot{(shoots === "1") ? "" : "s"}, {photos ?? "0"} new photo
-            {(photos === "1") ? "" : "s"}
+            Sync finished. {createdClients ?? "0"} new client{createdClients === "1" ? "" : "s"},{" "}
+            {shoots ?? "0"} new shoot{shoots === "1" ? "" : "s"}, {photos ?? "0"} new photo
+            {photos === "1" ? "" : "s"}. Reused {reusedClients ?? "0"} client
+            {reusedClients === "1" ? "" : "s"} / {reusedShoots ?? "0"} shoot
+            {reusedShoots === "1" ? "" : "s"}
+            {refreshed && refreshed !== "0" ? `, refreshed ${refreshed} stills` : ""}
             {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
           </p>
         ) : null}
