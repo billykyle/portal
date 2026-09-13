@@ -15,7 +15,7 @@ export function SyncNasForm() {
       <p className="text-sm text-[#8e8e93]">
         Walks the share. New client folders mint a BK code. New{" "}
         <span className="text-[#c7c7cc]">date - address</span> folders get a public link. Stills come
-        from Final or Photos.
+        from Final or Photos. The running app also syncs every 10 minutes unless you turn that off.
       </p>
       <p className="font-mono text-xs leading-relaxed text-[#8e8e93]">
         Client Deliverables / {"{client}"} / {"{date}"} - {"{address}"}

@@ -14,7 +14,8 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
 import { guessMediaType, joinUrl } from "@/lib/media";
-import { importNasStills, resolveShootFolder, syncNasShare } from "@/lib/nas-import";
+import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
+import { runLockedNasSync } from "@/lib/nas-scheduler";
 import { nasEnabled } from "@/lib/nas";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "@/lib/delivery";
 import { createPublicToken } from "@/lib/public-link";
@@ -164,7 +165,7 @@ export async function syncNasFromAdmin() {
   await ensureDb();
   let result;
   try {
-    result = await syncNasShare();
+    result = await runLockedNasSync("admin");
   } catch (error) {
     const message = error instanceof Error ? error.message : "NAS sync failed.";
     redirect(adminClientsUrl({ error: message }));

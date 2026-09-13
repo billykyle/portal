@@ -112,6 +112,8 @@ Sample photos, walkthrough videos, and floor plans for the Whitfield demo live i
 | `NAS_SHARE_URL` | Optional full share URL. Used to parse `id` and discover the real host if `NAS_SHARE_HOST` is unset. |
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). |
 | `NAS_CACHE_DIR` | Local cache for proxied thumbs and full files. Default: `.nas-cache`. |
+| `NAS_SYNC_INTERVAL_MINUTES` | How often the running app walks the share. Default `10`. `0` disables the timer. |
+| `NAS_SYNC_ENABLED` | `false` turns off the in-process timer. Manual sync is unchanged. |
 | `PORTAL_PUBLIC_URL` | Absolute origin for public shoot links in webhooks and admin. Default: `http://127.0.0.1:43173`. |
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset email only — not delivery mail. |
@@ -186,22 +188,29 @@ Client Deliverables / Sam Lepore / 2026.09.04 - 12 Wood View Drive / Final /
 
 ### Run sync
 
-After you drop a new client or shoot folder on the NAS:
+The same walk runs from:
+
+- the running app, every **10 minutes** (`NAS_SYNC_INTERVAL_MINUTES`)
+- first boot, once, when `NAS_ENABLED=true`
+- `npm run nas:sync`
+- **Sync from NAS** in `/admin`
+
+Drop a folder on the share and wait up to 10 minutes, or sync now with the script or the admin button. Overlapping runs are skipped (one lock). Logs look like `NAS sync start (interval)` and `NAS sync done (interval) … +clients / +shoots / +stills`.
+
+Turn the timer off:
 
 ```
-npm run nas:sync
+NAS_SYNC_INTERVAL_MINUTES=0
+# or
+NAS_SYNC_ENABLED=false
 ```
 
-Or sign in to `/admin` and click **Sync from NAS**.
+Optional: warm thumbnail cache after a manual sync (`npm run nas:sync:warm`). Tiles otherwise fetch thumbs on first view.
 
-That walk is idempotent. First boot also runs it once when `NAS_ENABLED=true` so an empty database picks up whatever is already on the share.
-
-Optional: warm thumbnail cache after sync (`npm run nas:sync:warm`). Tiles otherwise fetch thumbs on first view.
-
-Cron (every 15 minutes) if you want it unattended:
+System cron is a backup if the Node process is not running (serverless freeze, host sleep). The in-process timer is the default:
 
 ```
-*/15 * * * * cd /path/to/portal && npm run nas:sync
+*/10 * * * * cd /path/to/portal && npm run nas:sync
 ```
 
 New clients created from the share get a placeholder email (`{name}@pending.local`) and no login. Give them the minted BK code so they can sign up. Sam Lepore already has `sam@example.com` from the first import; later syncs reuse that record.

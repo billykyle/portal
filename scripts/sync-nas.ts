@@ -1,15 +1,17 @@
 import { sql } from "../src/lib/db";
 import { ensureDb } from "../src/lib/db/ensure";
-import { syncNasShare } from "../src/lib/nas-import";
+import { runLockedNasSync } from "../src/lib/nas-scheduler";
 import { isNasFilePath, proxyNasThumbnail } from "../src/lib/nas";
 
 async function main() {
   const warm = process.argv.includes("--warm");
   await ensureDb();
-  const result = await syncNasShare();
+  const result = await runLockedNasSync("cli");
   console.log(JSON.stringify(result, null, 2));
   if (result.skipped) {
-    process.exitCode = 1;
+    if (!result.reason?.includes("already running")) {
+      process.exitCode = 1;
+    }
     await sql.end({ timeout: 5 });
     return;
   }
