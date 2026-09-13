@@ -1,5 +1,3 @@
-import { mediaLabel } from "./media";
-
 export const ZIP_MEDIA_TYPES = ["photo", "floor_plan", "video"] as const;
 export type ZipMediaType = (typeof ZIP_MEDIA_TYPES)[number];
 
@@ -8,6 +6,12 @@ export type TypedDownloadFile = {
   filename: string;
   type: ZipMediaType;
 };
+
+export function zipTypeLabel(type: string) {
+  if (type === "floor_plan") return "Floor plans";
+  if (type === "video") return "Video";
+  return "Photos";
+}
 
 export function presentMediaTypes(files: Array<{ type?: string }>): ZipMediaType[] {
   return ZIP_MEDIA_TYPES.filter((type) => files.some((file) => file.type === type));
@@ -39,7 +43,7 @@ export function zipScopeFolderName(
   if (types === "all" || types.length === 0 || types.length === present.length) {
     return folderName;
   }
-  return `${folderName} - ${types.map((type) => mediaLabel(type)).join(" + ")}`;
+  return `${folderName} - ${types.map((type) => zipTypeLabel(type)).join(" + ")}`;
 }
 
 export function zipDownloadOptions(present: ZipMediaType[]) {
@@ -48,7 +52,7 @@ export function zipDownloadOptions(present: ZipMediaType[]) {
     options.push({ id: "all", label: "Everything" });
   }
   for (const type of present) {
-    options.push({ id: type, label: mediaLabel(type) });
+    options.push({ id: type, label: zipTypeLabel(type) });
   }
   return options;
 }
