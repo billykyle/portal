@@ -12,7 +12,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 4. Library — every shoot for that invite code, labeled date + address, newest first.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
-7. Backup — collapsed control with the Dropbox view link (logged-in shoot page only).
+7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
 8. Admin — Billy mints the next BK code and attaches shoots by hand. Kold can automate this later.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
@@ -102,7 +102,7 @@ Until then:
 - Leave `NAS_ENABLED=false` so the portal keeps using placeholders.
 - When the Ugreen Link URL is ready, set `NAS_BASE_URL` and `NAS_ENABLED=true`. Paths resolve as `{NAS_BASE_URL}/{nasRelativePath}`.
 
-Dropbox is backup only, behind the collapsed **Backup** control.
+Dropbox is backup only, behind the collapsed **Dropbox** control.
 
 ## Stack
 

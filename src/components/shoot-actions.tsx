@@ -108,7 +108,7 @@ export function ShootActions({
             aria-expanded={backupOpen}
             className={`${chip} border border-white/20 text-[#8e8e93]`}
           >
-            Backup
+            Dropbox
           </button>
         ) : null}
       </div>
@@ -116,10 +116,10 @@ export function ShootActions({
         <p className="text-xs text-[#8e8e93]">
           {dropboxUrl ? (
             <a href={dropboxUrl} target="_blank" rel="noreferrer" className="break-all underline">
-              Open Dropbox backup
+              Open Dropbox
             </a>
           ) : (
-            "No backup link for this shoot."
+            "No Dropbox link for this shoot."
           )}
         </p>
       ) : null}
