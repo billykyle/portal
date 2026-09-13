@@ -44,7 +44,7 @@ The first server boot also creates tables and seeds an empty database.
 | Role   | How to get in |
 | ------ | ------------- |
 | Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234` |
-| Sam Lepore | Invite `BK00002`, or sign in as `sam@example.com` / `portal1234` |
+| Sam Lepore | Next minted BK code after existing clients (`BK00002` on a fresh database), or sign in as `sam@example.com` / `portal1234` |
 | Admin  | `/admin` with `ADMIN_PASSWORD` (example: `atmos-admin`) |
 
 Demo (placeholder) shoots on Whitfield:

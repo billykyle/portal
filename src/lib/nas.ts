@@ -23,6 +23,7 @@ const DEFAULT_STILLS = ["Final", "Photos"];
 const FILE_TYPE_DIR = 1;
 
 let cachedCookie: string | null = null;
+let cachedRootPath: string | null = null;
 let cookieInFlight: Promise<string> | null = null;
 let resolvedHost: string | null = null;
 
@@ -97,7 +98,7 @@ function cookieFromResponse(res: Response) {
       ? res.headers.getSetCookie()
       : [res.headers.get("set-cookie")].filter((value): value is string => Boolean(value));
   for (const entry of raw) {
-    const match = entry.match(/^(share_cookie_[^=]+)=([^;]+)/);
+    const match = entry.match(/(share_cookie_[^=]+)=([^;]+)/);
     if (match) return `${match[1]}=${match[2]}`;
   }
   return null;
@@ -159,25 +160,29 @@ async function verifyShare(config: NasConfig) {
     }),
     cache: "no-store",
   });
+  const cookie = cookieFromResponse(res) ?? cachedCookie;
   const body = await readJson<
     UgosResponse<{ file_info?: Array<{ path: string; name: string; file_type: number }> }>
   >(res);
   if (body.code !== 200) {
     throw new Error(body.msg || "NAS share verify failed.");
   }
-  const cookie = cookieFromResponse(res);
   if (!cookie) {
     throw new Error("NAS share did not set a share cookie.");
   }
   cachedCookie = cookie;
-  return { config: live, cookie, rootPath: body.data?.file_info?.[0]?.path ?? "" };
+  cachedRootPath = body.data?.file_info?.[0]?.path ?? cachedRootPath;
+  return { config: live, cookie, rootPath: cachedRootPath ?? "" };
 }
 
 async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<T>): Promise<T> {
   const base = getNasConfig();
   if (!base) throw new Error("NAS share is not configured.");
   const run = async (force: boolean) => {
-    if (force) cachedCookie = null;
+    if (force) {
+      cachedCookie = null;
+      cachedRootPath = null;
+    }
     if (!cachedCookie) {
       cookieInFlight ??= verifyShare(base)
         .then((result) => result.cookie)
@@ -194,11 +199,13 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
     return await run(false);
   } catch {
     cachedCookie = null;
+    cachedRootPath = null;
     return run(true);
   }
 }
 
 export async function nasShareRoot() {
+  if (cachedRootPath && cachedCookie) return cachedRootPath;
   const base = getNasConfig();
   if (!base) throw new Error("NAS share is not configured.");
   const { rootPath } = await verifyShare(base);
