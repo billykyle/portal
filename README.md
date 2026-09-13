@@ -13,7 +13,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 5. Shoot — in-app photo viewer, inline video, floor plans, **Download all** (folder picker when the browser allows it, otherwise one file at a time — never a zip) and per-file download.
 6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), marks a shoot delivered (stub for Pepper), or mints a BK code by hand.
+8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login, marks a shoot delivered (stub for Pepper), or mints a BK code by hand.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -141,6 +141,16 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 5. Check **Import stills from NAS (Final or Photos)** to list JPGs from that shoot folder, or **Use sample placeholder media**, or paste one media path per line.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
+
+## Edit or remove a client
+
+Open a client from `/admin` (the list is titled **Admin**). Invite `BK#####` is the client key and is never edited.
+
+- **Client info** — change display name, primary contact email, company, and internal notes, then **Save client**. Those persist to Postgres. Do not rename someone whose NAS folder still uses the old name — sync matches by display name and would mint a new BK code.
+- **Teammate logins** — each email/password account that redeemed the invite. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
+- **Delete client** — destructive. Type the invite code and `DELETE`. This removes the client record, every teammate login under it, and all attached shoots and photos. If the NAS folder is still there, the next sync mints a new BK code for that name.
+
+Use **Remove** on a teammate when you only need to kick one person. Use **Delete client** when the whole BK record should go away.
 
 ## NAS (UGOS share-download)
 

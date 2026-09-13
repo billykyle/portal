@@ -27,6 +27,7 @@ export default async function AdminClientsPage({
     reusedShoots?: string;
     warnings?: string;
     ready?: string;
+    removed?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
@@ -45,6 +46,7 @@ export default async function AdminClientsPage({
     reusedShoots,
     warnings,
     ready,
+    removed,
   } = await searchParams;
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
@@ -58,6 +60,11 @@ export default async function AdminClientsPage({
         <SignOutButton admin />
       </header>
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
+      {removed ? (
+        <p className="mb-6 text-sm text-white">
+          Removed {removed} and every teammate login, shoot, and photo on that record.
+        </p>
+      ) : null}
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">NAS sync</h2>
         <SyncNasForm />

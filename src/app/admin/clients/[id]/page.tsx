@@ -4,12 +4,15 @@ import { notFound, redirect } from "next/navigation";
 import { BkMark } from "@/components/logo";
 import { CopyPublicLink } from "@/components/copy-public-link";
 import { AttachShootForm } from "@/components/forms/attach-shoot-form";
+import { DeleteClientForm } from "@/components/forms/delete-client-form";
+import { EditClientForm } from "@/components/forms/edit-client-form";
 import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
+import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, media, shoots } from "@/lib/db/schema";
+import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
 import { publicShootUrl } from "@/lib/public-link";
 
@@ -18,18 +21,33 @@ export default async function AdminClientPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; attached?: string; delivered?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    attached?: string;
+    delivered?: string;
+    saved?: string;
+    userRemoved?: string;
+  }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached, delivered } = await searchParams;
+  const { error, attached, delivered, saved, userRemoved } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
     notFound();
   }
+  const teammateRows = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.clientId, client.id))
+    .orderBy(desc(users.createdAt));
   const shootRows = await db
     .select()
     .from(shoots)
@@ -50,16 +68,55 @@ export default async function AdminClientPage({
         <h1 className="text-2xl font-medium">{client.displayName}</h1>
         <p className="mt-2 text-sm text-[#c7c7cc]">{client.primaryEmail}</p>
         {client.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
-        {client.notes ? <p className="mt-3 text-sm text-[#8e8e93]">{client.notes}</p> : null}
+        {error ? <p className="mt-3 text-sm text-[#a1a1a1]">{error}</p> : null}
+        {saved ? <p className="mt-3 text-sm text-white">Client saved.</p> : null}
+        {userRemoved ? (
+          <p className="mt-3 text-sm text-white">Removed {userRemoved}. The invite is unchanged.</p>
+        ) : null}
         {delivered ? (
           <p className="mt-3 text-sm text-white">Marked delivered. No email was sent — Pepper can hook this later.</p>
         ) : null}
+        {attached ? <p className="mt-3 text-sm text-white">Shoot attached.</p> : null}
       </header>
       <section className="mb-10">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
-        <AttachShootForm clientId={client.id} error={error} attached={attached === "1"} />
+        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Client info</h2>
+        <EditClientForm client={client} />
       </section>
-      <section className="pb-16">
+      <section className="mb-10">
+        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Teammate logins</h2>
+        <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
+          These are email/password accounts that redeemed {client.inviteCode}. Removing one
+          login does not delete the client or the invite. They can sign up again with the
+          same code.
+        </p>
+        {teammateRows.length === 0 ? (
+          <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
+        ) : (
+          <ul>
+            {teammateRows.map((user) => (
+              <li key={user.id} className="flex items-center gap-3 border-b border-white/10 py-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px]">{user.email}</p>
+                  <p className="text-xs text-[#8e8e93]">
+                    Joined{" "}
+                    {user.createdAt.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+                <RemoveUserForm clientId={client.id} userId={user.id} email={user.email} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="mb-10">
+        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
+        <AttachShootForm clientId={client.id} />
+      </section>
+      <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
         {shootRows.length === 0 ? (
           <p className="text-sm text-[#8e8e93]">No shoots attached yet.</p>
@@ -90,6 +147,10 @@ export default async function AdminClientPage({
             })}
           </ul>
         )}
+      </section>
+      <section className="pb-16">
+        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Delete client</h2>
+        <DeleteClientForm clientId={client.id} inviteCode={client.inviteCode} />
       </section>
     </PhoneShell>
   );
