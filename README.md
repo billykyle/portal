@@ -233,7 +233,7 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 1. `POST /filemgr/externalVerifySharePassword` — sets `share_cookie_{id}` (password field is sent even when empty).
 2. `POST /filemgr/getShearDirFileList` — walk the tree and list JPGs.
-3. `GET /filemgr/shareThumbnail?type=1&size_type=3` — ~1920px tile/preview.
+3. `GET /filemgr/shareThumbnail?type=1&size_type=1` — small tile (~40KB). Failed tiles retry; the proxy does not rotate the share cookie on a single miss.
 4. `POST /filemgr/addPathsByShareId` then `GET /filemgr/shareDownloadFile` — full file.
 
 The portal caches thumbs and full files under `NAS_CACHE_DIR` after the first request so repeat views do not re-hit the NAS.

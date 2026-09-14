@@ -24,7 +24,10 @@ export async function GET(
       return await proxyNasThumbnail(nasPath, item.filename);
     } catch (error) {
       const message = error instanceof Error ? error.message : "NAS thumbnail failed.";
-      return NextResponse.json({ error: message }, { status: 502 });
+      return NextResponse.json(
+        { error: message },
+        { status: 502, headers: { "Cache-Control": "no-store" } },
+      );
     }
   }
   return NextResponse.redirect(new URL(item.url, request.url));

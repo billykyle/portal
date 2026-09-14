@@ -3,6 +3,7 @@ import { createReadStream } from "fs";
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
+import { isNasAuthError } from "./nas-auth";
 import { isVercelRuntime } from "./runtime";
 
 export type NasFile = {
@@ -205,7 +206,11 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
   };
   try {
     return await run(false);
-  } catch {
+  } catch (error) {
+    // Re-verify only when the share cookie is actually dead. A failed
+    // thumbnail/download used to clear the cookie and mint a new one, which
+    // invalidated every other in-flight tile on this isolate (blue ? icons).
+    if (!isNasAuthError(error)) throw error;
     cachedCookie = null;
     cachedRootPath = null;
     return run(true);
@@ -334,15 +339,16 @@ function nodeStreamResponse(filePath: string, contentType: string, filename: str
   });
 }
 
-export async function proxyNasThumbnail(nasPath: string, filename: string) {
-  const hit = await cachedFile("thumbs", nasPath, "jpg");
-  if (hit) return nodeStreamResponse(hit, "image/jpeg", filename, false);
+const queueNasThumbnail = createQueue(3);
 
+async function fetchNasThumbnail(nasPath: string, filename: string) {
   return withCookie(async (config, cookie) => {
     const url = new URL(`${apiBase(config)}/filemgr/shareThumbnail`);
     url.searchParams.set("path", nasPath);
     url.searchParams.set("type", "1");
-    url.searchParams.set("size_type", "3");
+    // size_type=3 is ~1920px / 400KB — too heavy for a 3-column phone grid.
+    // size_type=1 is ~44KB and still sharp enough for tiles.
+    url.searchParams.set("size_type", "1");
     const res = await fetch(url, { headers: mediaHeaders(config, cookie), cache: "no-store" });
     const type = res.headers.get("content-type") ?? "";
     if (type.includes("application/json") || !res.ok) {
@@ -350,7 +356,7 @@ export async function proxyNasThumbnail(nasPath: string, filename: string) {
       throw new Error(`NAS thumbnail failed: ${body.slice(0, 180)}`);
     }
     const bytes = Buffer.from(await res.arrayBuffer());
-    await writeCache("thumbs", nasPath, "jpg", bytes);
+    await writeCache("thumbs", `${nasPath}#t1`, "jpg", bytes);
     return new Response(bytes, {
       headers: {
         "Content-Type": type.includes("image/") ? type : "image/jpeg",
@@ -361,7 +367,43 @@ export async function proxyNasThumbnail(nasPath: string, filename: string) {
   });
 }
 
+export async function proxyNasThumbnail(nasPath: string, filename: string) {
+  const hit = await cachedFile("thumbs", `${nasPath}#t1`, "jpg");
+  if (hit) return nodeStreamResponse(hit, "image/jpeg", filename, false);
+
+  return queueNasThumbnail(async () => {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await fetchNasThumbnail(nasPath, filename);
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("NAS thumbnail failed.");
+  });
+}
+
 let fileProxyChain: Promise<unknown> = Promise.resolve();
+
+function createQueue(concurrency: number) {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  return function enqueue<T>(run: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const start = () => {
+        active += 1;
+        run().then(resolve, reject).finally(() => {
+          active -= 1;
+          waiting.shift()?.();
+        });
+      };
+      if (active < concurrency) start();
+      else waiting.push(start);
+    });
+  };
+}
 
 function disposition(download: boolean, filename: string) {
   const safe = filename.replace(/["\\]/g, "_");

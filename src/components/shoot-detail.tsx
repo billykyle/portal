@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MediaTile } from "@/components/media-tile";
 import { ShootActions } from "@/components/shoot-actions";
 import { mediaLabel } from "@/lib/media";
 
@@ -65,7 +66,14 @@ export function ShootDetail({
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("photo")}</h2>
           <div className="grid grid-cols-3 gap-1.5">
             {photos.map((item) => (
-              <MediaTile key={item.id} item={item} href={hrefFor(item.id)} contain={false} />
+              <MediaTile
+                key={item.id}
+                href={hrefFor(item.id)}
+                src={item.thumbUrl ?? item.url}
+                filename={item.filename}
+                downloadUrl={item.url}
+                contain={false}
+              />
             ))}
           </div>
         </section>
@@ -76,7 +84,14 @@ export function ShootDetail({
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("floor_plan")}</h2>
           <div className="grid grid-cols-3 gap-1.5">
             {plans.map((item) => (
-              <MediaTile key={item.id} item={item} href={hrefFor(item.id)} contain />
+              <MediaTile
+                key={item.id}
+                href={hrefFor(item.id)}
+                src={item.thumbUrl ?? item.url}
+                filename={item.filename}
+                downloadUrl={item.url}
+                contain
+              />
             ))}
           </div>
         </section>
@@ -130,34 +145,3 @@ export function ShootDetail({
   );
 }
 
-function MediaTile({
-  item,
-  href,
-  contain,
-}: {
-  item: ShootMedia;
-  href: string;
-  contain: boolean;
-}) {
-  return (
-    <figure className={`relative overflow-hidden rounded-lg ${contain ? "bg-white" : "bg-[#111]"}`}>
-      <Link href={href} className="block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={item.thumbUrl ?? item.url}
-          alt={item.filename}
-          loading="lazy"
-          decoding="async"
-          className={`aspect-square w-full ${contain ? "object-contain p-1" : "object-cover"}`}
-        />
-      </Link>
-      <a
-        href={item.url}
-        download={item.filename}
-        className="absolute right-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
-      >
-        Download
-      </a>
-    </figure>
-  );
-}
