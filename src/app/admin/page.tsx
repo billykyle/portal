@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { AdminLoginForm } from "@/components/forms/admin-login-form";
-import { BkMark } from "@/components/logo";
-import { PhoneShell } from "@/components/phone-shell";
+import { SplashScreen } from "@/components/splash-screen";
 import { getAdminSession } from "@/lib/admin-auth";
 
 export default async function AdminLoginPage() {
@@ -10,14 +9,8 @@ export default async function AdminLoginPage() {
   }
 
   return (
-    <PhoneShell>
-      <div className="flex flex-1 flex-col items-center justify-center pt-[8vh]">
-        <BkMark size="hero" />
-        <p className="mt-4 text-[15px] text-[#c7c7cc]">Admin</p>
-      </div>
-      <div className="pb-16">
-        <AdminLoginForm />
-      </div>
-    </PhoneShell>
+    <SplashScreen subtitle="Admin">
+      <AdminLoginForm />
+    </SplashScreen>
   );
 }
