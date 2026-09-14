@@ -25,7 +25,10 @@ export async function GET(
       return await proxyNasFile(nasPath, item.filename, download);
     } catch (error) {
       const message = error instanceof Error ? error.message : "NAS proxy failed.";
-      return NextResponse.json({ error: message }, { status: 502 });
+      return NextResponse.json(
+        { error: message },
+        { status: 502, headers: { "Cache-Control": "no-store" } },
+      );
     }
   }
   return NextResponse.redirect(new URL(item.url, request.url));
