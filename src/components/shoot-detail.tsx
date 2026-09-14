@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { MediaTile } from "@/components/media-tile";
+import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
 import { mediaLabel } from "@/lib/media";
+import { photoViewerHref } from "@/lib/photo-viewer";
 
 export type ShootMedia = {
   id: string;
@@ -37,13 +39,13 @@ export function ShootDetail({
   const photos = media.filter((item) => item.type === "photo");
   const videos = media.filter((item) => item.type === "video");
   const plans = media.filter((item) => item.type === "floor_plan");
-  const viewable = media.filter((item) => item.type !== "video");
   const files = media.map((item) => ({ url: item.url, filename: item.filename, type: item.type }));
-  const activeIndex = viewable.findIndex((item) => item.id === viewId);
-  const active = activeIndex >= 0 ? viewable[activeIndex] : null;
-  const prev = active ? viewable[activeIndex - 1] : null;
-  const next = active ? viewable[activeIndex + 1] : null;
-  const hrefFor = (id?: string) => (id ? `${basePath}?view=${id}` : basePath);
+  const hrefFor = (id?: string) => photoViewerHref(basePath, id);
+  const activePhoto = Boolean(viewId && photos.some((item) => item.id === viewId));
+  const planIndex = plans.findIndex((item) => item.id === viewId);
+  const activePlan = planIndex >= 0 ? plans[planIndex] : null;
+  const prevPlan = activePlan ? plans[planIndex - 1] : null;
+  const nextPlan = activePlan ? plans[planIndex + 1] : null;
 
   return (
     <div className="flex flex-col gap-6 pb-16">
@@ -118,26 +120,30 @@ export function ShootDetail({
         <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p>
       ) : null}
 
-      {active ? (
+      {activePhoto && viewId ? (
+        <PhotoViewer photos={photos} initialId={viewId} basePath={basePath} />
+      ) : null}
+
+      {activePlan ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
           <div className="flex items-center justify-between px-4 py-3">
             <Link href={hrefFor()} className="text-sm text-white">
               Close
             </Link>
             <p className="truncate px-3 text-sm text-[#a1a1a1]">
-              {active.filename} · {activeIndex + 1} / {viewable.length}
+              {activePlan.filename} · {planIndex + 1} / {plans.length}
             </p>
-            <a href={active.url} download={active.filename} className="text-sm text-white">
+            <a href={activePlan.url} download={activePlan.filename} className="text-sm text-white">
               Download
             </a>
           </div>
           <div className="flex min-h-0 flex-1 items-center justify-center px-3 pb-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={active.url} alt={active.filename} className="max-h-full max-w-full object-contain" />
+            <img src={activePlan.url} alt={activePlan.filename} className="max-h-full max-w-full object-contain" />
           </div>
           <div className="flex justify-between px-4 pb-6 text-sm text-white">
-            {prev ? <Link href={hrefFor(prev.id)}>Previous</Link> : <span />}
-            {next ? <Link href={hrefFor(next.id)}>Next</Link> : <span />}
+            {prevPlan ? <Link href={hrefFor(prevPlan.id)}>Previous</Link> : <span />}
+            {nextPlan ? <Link href={hrefFor(nextPlan.id)}>Next</Link> : <span />}
           </div>
         </div>
       ) : null}

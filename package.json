@@ -15,7 +15,7 @@
     "db:push": "drizzle-kit push",
     "nas:sync": "tsx --env-file=.env.local scripts/sync-nas.ts",
     "nas:sync:warm": "tsx --env-file=.env.local scripts/sync-nas.ts --warm",
-    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts src/lib/nas-sync-config.test.ts src/lib/runtime.test.ts src/lib/welcome.test.ts src/lib/demo-shoots.test.ts src/lib/download-all.test.ts src/lib/download-scope.test.ts src/lib/shoot-zip.test.ts src/lib/zip-jobs.test.ts src/lib/nas-auth.test.ts src/lib/thumb-retry.test.ts"
+    "test:nas": "tsx --test src/lib/nas-folder.test.ts src/lib/delivery.test.ts src/lib/nas-sync-config.test.ts src/lib/runtime.test.ts src/lib/welcome.test.ts src/lib/demo-shoots.test.ts src/lib/download-all.test.ts src/lib/download-scope.test.ts src/lib/shoot-zip.test.ts src/lib/zip-jobs.test.ts src/lib/nas-auth.test.ts src/lib/thumb-retry.test.ts src/lib/photo-viewer.test.ts src/lib/site-metadata.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
