@@ -1,4 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BkMark } from "@/components/logo";
@@ -13,6 +14,26 @@ import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
 import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { shootPageMetadata } from "@/lib/site-metadata";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  try {
+    await ensureDb();
+    const [shoot] = await db.select().from(shoots).where(eq(shoots.id, id)).limit(1);
+    if (!shoot) return {};
+    return shootPageMetadata({
+      address: shoot.address,
+      dateLabel: formatShootDate(shoot.shotDate),
+    });
+  } catch {
+    return {};
+  }
+}
 
 export default async function ShootPage({
   params,

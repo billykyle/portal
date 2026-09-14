@@ -1,14 +1,35 @@
 import { asc, eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BkMark } from "@/components/logo";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
 import { db } from "@/lib/db";
-import { ensureDb } from "@/lib/db/ensure";
-import { media, shoots } from "@/lib/db/schema";
+import { media } from "@/lib/db/schema";
 import { publicShootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
-import { publicShootPath } from "@/lib/public-link";
+import { publicShootPath, publicShootUrl } from "@/lib/public-link";
+import { getPublicShoot } from "@/lib/public-shoot";
+import { shootPageMetadata } from "@/lib/site-metadata";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  try {
+    const shoot = await getPublicShoot(token);
+    if (!shoot) return {};
+    return shootPageMetadata({
+      address: shoot.address,
+      dateLabel: formatShootDate(shoot.shotDate),
+      url: publicShootUrl(shoot.publicToken),
+    });
+  } catch {
+    return {};
+  }
+}
 
 export default async function PublicShootPage({
   params,
@@ -19,8 +40,7 @@ export default async function PublicShootPage({
 }) {
   const { token } = await params;
   const { view } = await searchParams;
-  await ensureDb();
-  const [shoot] = await db.select().from(shoots).where(eq(shoots.publicToken, token)).limit(1);
+  const shoot = await getPublicShoot(token);
   if (!shoot) {
     notFound();
   }

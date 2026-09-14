@@ -1,16 +1,8 @@
-import type { Metadata, Viewport } from "next";
+import type { Viewport } from "next";
+import { siteMetadata } from "@/lib/site-metadata";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Client Portal — Billy Kyle",
-  description: "Private file delivery for Atmos Imagery / Billy Kyle clients.",
-  applicationName: "Billy Kyle Client Portal",
-  appleWebApp: {
-    capable: true,
-    title: "Client Portal",
-    statusBarStyle: "black",
-  },
-};
+export const metadata = siteMetadata();
 
 export const viewport: Viewport = {
   width: "device-width",
