@@ -209,7 +209,7 @@ export function PhotoViewer({
           {photos.map((item, slideIndex) => (
             <div
               key={item.id}
-              className="flex h-full shrink-0 items-center justify-center px-3"
+              className="relative flex h-full shrink-0 items-center justify-center px-3"
               style={{ width: width > 0 ? width : "100%" }}
             >
               {shouldRenderPhotoSlide(slideIndex, index) ? (
@@ -219,16 +219,16 @@ export function PhotoViewer({
           ))}
         </div>
       </div>
-      <div className="flex justify-between px-4 pb-6 text-sm text-white">
+      <div className="flex justify-between px-2 pb-6 text-sm text-white">
         {canPrev ? (
-          <button type="button" onClick={() => snapTo(index - 1)} className="text-white">
+          <button type="button" onClick={() => snapTo(index - 1)} className="min-h-11 px-3 text-white">
             Previous
           </button>
         ) : (
           <span />
         )}
         {canNext ? (
-          <button type="button" onClick={() => snapTo(index + 1)} className="text-white">
+          <button type="button" onClick={() => snapTo(index + 1)} className="min-h-11 px-3 text-white">
             Next
           </button>
         ) : (
@@ -242,14 +242,14 @@ export function PhotoViewer({
 function StillImage({ photo, active }: { photo: ViewerPhoto; active: boolean }) {
   const thumb = photo.thumbUrl && photo.thumbUrl !== photo.url ? photo.thumbUrl : null;
   return (
-    <div className="relative flex max-h-full max-w-full items-center justify-center">
+    <>
       {thumb ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={thumb}
           alt=""
           draggable={false}
-          className="absolute max-h-full max-w-full object-contain"
+          className="absolute inset-0 m-auto max-h-full max-w-full object-contain px-3"
         />
       ) : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -258,8 +258,8 @@ function StillImage({ photo, active }: { photo: ViewerPhoto; active: boolean }) 
         alt={active ? photo.filename : ""}
         draggable={false}
         decoding="async"
-        className="relative max-h-full max-w-full object-contain"
+        className="min-h-0 min-w-0 max-h-full max-w-full object-contain"
       />
-    </div>
+    </>
   );
 }
