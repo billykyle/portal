@@ -1,3 +1,5 @@
+"use client";
+
 import { markShootDelivered } from "@/lib/actions/admin";
 
 export function MarkDeliveredForm({

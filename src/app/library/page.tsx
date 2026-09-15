@@ -1,9 +1,8 @@
 import { desc, eq } from "drizzle-orm";
-import { ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BkMark } from "@/components/logo";
 import { PhoneShell } from "@/components/phone-shell";
+import { ShootList } from "@/components/shoot-list";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -37,25 +36,16 @@ export default async function LibraryPage() {
         ) : null}
         {client?.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
       </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-[#8e8e93]">
-          No shoots yet. Your photographer will post them here.
-        </p>
-      ) : (
-        <ul className="flex flex-col">
-          {rows.map((shoot) => (
-            <li key={shoot.id} className="border-b border-white/10">
-              <Link href={`/shoots/${shoot.id}`} className="flex items-center gap-3 py-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px]">{formatShootDate(shoot.shotDate)}</p>
-                  <p className="truncate text-sm text-[#8e8e93]">{shoot.address}</p>
-                </div>
-                <ChevronRight className="size-5 shrink-0 text-[#8e8e93]" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ShootList
+        emptyLabel="No shoots yet. Your photographer will post them here."
+        shoots={rows.map((shoot) => ({
+          id: shoot.id,
+          href: `/shoots/${shoot.id}`,
+          address: shoot.address,
+          shotDate: shoot.shotDate,
+          dateLabel: formatShootDate(shoot.shotDate),
+        }))}
+      />
     </PhoneShell>
   );
 }
