@@ -10,6 +10,7 @@ import {
   stepPhotoIndex,
   swipeStep,
   viewerCaption,
+  viewerCountLabel,
 } from "./photo-viewer";
 
 const photos = [{ id: "a" }, { id: "b" }, { id: "c" }];
@@ -60,6 +61,7 @@ test("resists dragging past the first or last still", () => {
   assert.equal(resistedDrag(-100, 5, 38), -100);
 });
 
-test("keeps filename and n / total in one caption", () => {
-  assert.equal(viewerCaption("Full-01.jpg", 0, 38), "Full-01.jpg · 1 / 38");
+test("splits count and filename for the stacked header", () => {
+  assert.equal(viewerCountLabel(8, 38), "9 / 38");
+  assert.equal(viewerCaption("Full-09.jpg", 8, 38), "9 / 38, Full-09.jpg");
 });

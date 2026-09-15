@@ -57,6 +57,10 @@ export function resistedDrag(deltaX: number, index: number, total: number) {
   return deltaX;
 }
 
+export function viewerCountLabel(index: number, total: number) {
+  return `${index + 1} / ${total}`;
+}
+
 export function viewerCaption(filename: string, index: number, total: number) {
-  return `${filename} · ${index + 1} / ${total}`;
+  return `${viewerCountLabel(index, total)}, ${filename}`;
 }

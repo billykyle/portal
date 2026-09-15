@@ -12,6 +12,7 @@ import {
   shouldRenderPhotoSlide,
   swipeStep,
   viewerCaption,
+  viewerCountLabel,
   type ViewerPhoto,
 } from "@/lib/photo-viewer";
 
@@ -45,6 +46,7 @@ export function PhotoViewer({
 
   const photo = photos[index];
   const total = photos.length;
+  const countLabel = viewerCountLabel(index, total);
   const caption = photo ? viewerCaption(photo.filename, index, total) : "";
   const closeHref = photoViewerHref(basePath);
   const canPrev = index > 0;
@@ -187,13 +189,14 @@ export function PhotoViewer({
       aria-label={caption}
     >
       <div className="flex items-center justify-between px-4 py-3">
-        <Link href={closeHref} className="text-sm text-white">
+        <Link href={closeHref} className="shrink-0 text-sm text-white">
           Close
         </Link>
-        <p className="truncate px-3 text-sm text-[#a1a1a1]" aria-live="polite">
-          {caption}
-        </p>
-        <a href={photo.url} download={photo.filename} className="text-sm text-white">
+        <div className="min-w-0 flex-1 px-3 text-center" aria-live="polite">
+          <p className="text-[15px] font-medium leading-tight text-white">{countLabel}</p>
+          <p className="mt-0.5 truncate text-xs leading-tight text-[#8e8e93]">{photo.filename}</p>
+        </div>
+        <a href={photo.url} download={photo.filename} className="shrink-0 text-sm text-white">
           Download
         </a>
       </div>
