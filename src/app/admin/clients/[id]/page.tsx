@@ -1,16 +1,13 @@
 import { desc, eq } from "drizzle-orm";
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BkMark } from "@/components/logo";
-import { CopyPublicLink } from "@/components/copy-public-link";
 import { AttachShootForm } from "@/components/forms/attach-shoot-form";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
-import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
-import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { PhoneShell } from "@/components/phone-shell";
+import { ShootList } from "@/components/shoot-list";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -122,45 +119,32 @@ export default async function AdminClientPage({
       </section>
       <section className="mb-10">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
-        {shootRows.length === 0 ? (
-          <p className="text-sm text-[#8e8e93]">No shoots attached yet.</p>
-        ) : (
-          <ul>
-            {shootRows.map((shoot) => {
-              const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
-              return (
-                <li key={shoot.id} className="border-b border-white/10 py-4">
-                  <Link href={`/shoots/${shoot.id}`} className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[15px]">{formatShootDate(shoot.shotDate)}</p>
-                      <p className="text-sm text-[#8e8e93]">{shoot.address}</p>
-                      <p className="mt-1 text-xs text-[#8e8e93]">
-                        {count} file{count === 1 ? "" : "s"}
-                        {shoot.dropboxUrl ? " · Dropbox backup" : ""}
-                        {shoot.deliveredAt
-                          ? ` · Delivered ${shoot.deliveredAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                          : " · Not delivered"}
-                      </p>
-                    </div>
-                    <ChevronRight className="size-5 shrink-0 text-[#8e8e93]" />
-                  </Link>
-                  <p className="mt-1 break-all text-xs text-[#8e8e93]">{publicShootUrl(shoot.publicToken)}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <CopyPublicLink token={shoot.publicToken} compact />
-                    {!shoot.deliveredAt ? (
-                      <MarkDeliveredForm clientId={client.id} shootId={shoot.id} />
-                    ) : null}
-                    <DeleteShootForm
-                      clientId={client.id}
-                      shootId={shoot.id}
-                      address={shoot.address}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <ShootList
+          variant="admin"
+          emptyLabel="No shoots attached yet."
+          shoots={shootRows.map((shoot) => {
+            const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
+            return {
+              id: shoot.id,
+              href: `/shoots/${shoot.id}`,
+              address: shoot.address,
+              shotDate: shoot.shotDate,
+              dateLabel: formatShootDate(shoot.shotDate),
+              clientId: client.id,
+              fileCount: count,
+              publicUrl: publicShootUrl(shoot.publicToken),
+              publicToken: shoot.publicToken,
+              hasDropbox: Boolean(shoot.dropboxUrl),
+              deliveredLabel: shoot.deliveredAt
+                ? shoot.deliveredAt.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : null,
+            };
+          })}
+        />
       </section>
       <section className="pb-16">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Delete client</h2>
