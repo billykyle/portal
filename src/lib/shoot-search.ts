@@ -1,5 +1,3 @@
-import { formatShootDate } from "./media";
-
 export type ShootSearchFields = {
   address: string;
   shotDate: string;
@@ -14,13 +12,10 @@ function dateSearchExtras(shotDate: string) {
   const d = Number(day);
   if (!y || !m || !d) return [];
   const utc = new Date(Date.UTC(y, m - 1, d));
+  const parts = { day: "numeric", year: "numeric", timeZone: "UTC" } as const;
   return [
-    utc.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }),
+    utc.toLocaleDateString("en-US", { month: "short", ...parts }),
+    utc.toLocaleDateString("en-US", { month: "long", ...parts }),
     `${m}/${d}/${y}`,
     `${month}/${day}/${year}`,
     `${m}/${d}`,
@@ -30,8 +25,7 @@ function dateSearchExtras(shotDate: string) {
 }
 
 export function shootSearchHaystack(shoot: ShootSearchFields) {
-  const dateLabel = shoot.dateLabel ?? formatShootDate(shoot.shotDate);
-  return [shoot.address, shoot.shotDate, dateLabel, ...dateSearchExtras(shoot.shotDate)]
+  return [shoot.address, shoot.shotDate, shoot.dateLabel ?? "", ...dateSearchExtras(shoot.shotDate)]
     .join(" ")
     .toLowerCase();
 }

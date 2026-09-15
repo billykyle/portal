@@ -2,7 +2,7 @@
 
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { CopyPublicLink } from "@/components/copy-public-link";
 import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
@@ -112,32 +112,53 @@ function AdminRow({ shoot }: { shoot: AdminShootListItem }) {
   );
 }
 
+function FilteredShoots({
+  query,
+  onQueryChange,
+  matchCount,
+  children,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  matchCount: number;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <ShootSearchField value={query} onChange={onQueryChange} />
+      {matchCount === 0 ? <p className="text-sm text-[#8e8e93]">No shoots match.</p> : children}
+    </div>
+  );
+}
+
 export function ShootList(props: LibraryProps | AdminProps) {
   const [query, setQuery] = useState("");
-  const matches = filterShoots(props.shoots, query);
 
   if (props.shoots.length === 0) {
     return <p className="text-sm text-[#8e8e93]">{props.emptyLabel}</p>;
   }
 
-  return (
-    <div>
-      <ShootSearchField value={query} onChange={setQuery} />
-      {matches.length === 0 ? (
-        <p className="text-sm text-[#8e8e93]">No shoots match.</p>
-      ) : props.variant === "admin" ? (
+  if (props.variant === "admin") {
+    const matches = filterShoots(props.shoots, query);
+    return (
+      <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
         <ul>
           {matches.map((shoot) => (
             <AdminRow key={shoot.id} shoot={shoot} />
           ))}
         </ul>
-      ) : (
-        <ul className="flex flex-col">
-          {matches.map((shoot) => (
-            <LibraryRow key={shoot.id} shoot={shoot} />
-          ))}
-        </ul>
-      )}
-    </div>
+      </FilteredShoots>
+    );
+  }
+
+  const matches = filterShoots(props.shoots, query);
+  return (
+    <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
+      <ul className="flex flex-col">
+        {matches.map((shoot) => (
+          <LibraryRow key={shoot.id} shoot={shoot} />
+        ))}
+      </ul>
+    </FilteredShoots>
   );
 }
