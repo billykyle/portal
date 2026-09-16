@@ -2,7 +2,7 @@ import Link from "next/link";
 import { MediaTile } from "@/components/media-tile";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
-import { mediaLabel } from "@/lib/media";
+import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
 import { photoViewerHref } from "@/lib/photo-viewer";
 
 export type ShootMedia = {
@@ -63,8 +63,28 @@ export function ShootDetail({
         showBackup={showBackup}
       />
 
+      {[photos, plans, videos].filter((group) => group.length > 0).length > 1 ? (
+        <nav className="flex flex-wrap gap-x-3 gap-y-1 text-sm" aria-label="Media on this shoot">
+          {photos.length > 0 ? (
+            <a href={`#${mediaSectionId("photo")}`} className="text-white underline-offset-2 hover:underline">
+              {mediaLabel("photo")} ({photos.length})
+            </a>
+          ) : null}
+          {plans.length > 0 ? (
+            <a href={`#${mediaSectionId("floor_plan")}`} className="text-white underline-offset-2 hover:underline">
+              {mediaLabel("floor_plan")} ({plans.length})
+            </a>
+          ) : null}
+          {videos.length > 0 ? (
+            <a href={`#${mediaSectionId("video")}`} className="text-white underline-offset-2 hover:underline">
+              {mediaLabel("video")} ({videos.length})
+            </a>
+          ) : null}
+        </nav>
+      ) : null}
+
       {photos.length > 0 ? (
-        <section className="flex flex-col gap-2">
+        <section id={mediaSectionId("photo")} className="flex flex-col gap-2">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("photo")}</h2>
           <div className="grid grid-cols-3 gap-1.5">
             {photos.map((item) => (
@@ -82,7 +102,7 @@ export function ShootDetail({
       ) : null}
 
       {plans.length > 0 ? (
-        <section className="flex flex-col gap-2">
+        <section id={mediaSectionId("floor_plan")} className="flex flex-col gap-2">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("floor_plan")}</h2>
           <div className="grid grid-cols-3 gap-1.5">
             {plans.map((item) => (
@@ -100,7 +120,7 @@ export function ShootDetail({
       ) : null}
 
       {videos.length > 0 ? (
-        <section className="flex flex-col gap-3">
+        <section id={mediaSectionId("video")} className="flex flex-col gap-3">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("video")}</h2>
           {videos.map((item) => (
             <figure key={item.id} className="overflow-hidden rounded-xl bg-[#111]">
@@ -138,8 +158,16 @@ export function ShootDetail({
             </a>
           </div>
           <div className="flex min-h-0 flex-1 items-center justify-center px-3 pb-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={activePlan.url} alt={activePlan.filename} className="max-h-full max-w-full object-contain" />
+            {isPdfFilename(activePlan.filename) ? (
+              <iframe
+                src={activePlan.url}
+                title={activePlan.filename}
+                className="h-full min-h-[70vh] w-full bg-white"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={activePlan.url} alt={activePlan.filename} className="max-h-full max-w-full object-contain" />
+            )}
           </div>
           <div className="flex justify-between px-4 pb-6 text-sm text-white">
             {prevPlan ? <Link href={hrefFor(prevPlan.id)}>Previous</Link> : <span />}

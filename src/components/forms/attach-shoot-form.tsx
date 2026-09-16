@@ -24,8 +24,9 @@ export function AttachShootForm({
         required
       />
       <p className="text-xs leading-5 text-[#8e8e93]">
-        Must match a folder on the share. Stills are imported from Final or Photos
-        under that path. Prefer Sync from NAS on the clients list for the full tree.
+        Must match a folder on the share. Photos come from Final or Photos, floor
+        plans from Floor Plan, and video from files at the shoot root (or Video).
+        Prefer Sync from NAS on the clients list for the full tree.
       </p>
       <SubmitButton>Attach shoot from NAS</SubmitButton>
     </form>

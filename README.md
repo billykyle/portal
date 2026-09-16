@@ -21,7 +21,7 @@ Invite codes are the client primary key. They start at **BK00001** and increment
 
 Billy’s end-to-end path (this is the product, not a future maybe):
 
-1. Drop stills for a client into **Client Deliverables / {client} / {date} - {address} / Final** (or `Photos`).
+1. Drop stills for a client into **Client Deliverables / {client} / {date} - {address} / Final** (or `Photos`). Put floor plans in **Floor Plan** (nested folders are fine) and video as `.mp4`/`.mov` on that shoot folder.
 2. Sync (`npm run nas:sync` or **Sync from NAS** in admin). The portal upserts the client, creates the shoot + public link, and imports JPGs.
 3. A delivery email goes out with that portal link.
 
@@ -99,7 +99,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `NAS_SHARE_ID` | Share id from the `?id=` query on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | Optional share password. Leave empty when the share has none. |
 | `NAS_SHARE_URL` | Optional full share URL. Used to parse `id` and discover the real host if `NAS_SHARE_HOST` is unset. |
-| `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). |
+| `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). Floor plans and video are picked up separately (see folder layout). |
 | `NAS_CACHE_DIR` | Local cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel. |
 | `NAS_SYNC_INTERVAL_MINUTES` | How often a long-running Node process walks the share. Default `10`. `0` disables the timer. Ignored on Vercel. |
 | `NAS_SYNC_ENABLED` | `false` turns off the in-process timer. Manual sync is unchanged. |
@@ -126,7 +126,7 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 1. Open `/admin` and enter `ADMIN_PASSWORD`.
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
-4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Stills import from Final or Photos. There is no placeholder-media option.
+4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Photos import from Final or Photos; floor plans and video come along from the same shoot folder. There is no placeholder-media option.
 5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). **Delete shoot** and **Mark delivered** stay on the admin list and on that preview. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
@@ -169,15 +169,23 @@ Do not put the short `ug.link` marketing URL in `NAS_SHARE_HOST`. That host serv
 Client Deliverables /
   {client display name} /
     {YYYY.MM.DD|YYYY-MM-DD} - {address} /
-      Final/   or   Photos/
-        *.jpg
+      Final/   or   Photos/     → photos (first match in NAS_STILLS_FOLDERS)
+      Floor Plan/               → floor plans (recursive: W sqft, jpg-with-dim, 3D Floorplan, …)
+      3D Floorplan/             → more floor plans
+      *.mp4  *.mov              → video sitting on the shoot folder
+      Video/  or  Videos/       → video in a sibling folder
+    {YYYY.MM.DD} - {Month} Videos /
+      *.mp4  *.mov              → video-only shoot (same date - address rule)
 ```
 
 - A new `{client}` folder upserts a client by display name and mints the next BK code if needed. Existing clients (matched case-insensitively) keep their invite and email.
 - A new `{date} - {address}` folder creates a shoot with a public `/s/[token]` link.
-- Stills come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`). This first shoot uses **Final**.
-- Folders that are not `date - address` are skipped (logged as warnings).
-- **NAS is the source of truth for files.** Sync adds new stills, updates paths, and deletes portal files that are not on the share (including leftover `/samples/` placeholders). A shoot is created only when Final/Photos has stills — empty NAS folders do not become 0-file portal shoots, and existing empty ones are removed. Shoots with no matching NAS folder are removed. Clients are not deleted if their folder disappears. If the share walk returns zero client folders, orphan prune is skipped so a failed listing cannot wipe the library.
+- **Photos** come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`).
+- **Floor plans** come from any sibling folder whose name matches `Floor Plan`, `Floorplan`, `3D Floorplan`, or `Plans`, including nested folders. JPGs, PNGs, SVG, and PDF are imported. Nested copies (`W sqft` / `Wo sqft`, `jpg-with-dim` / `jpg-without-dim`) are all kept; the portal filename includes the relative path so they do not overwrite each other.
+- **Video** comes from `.mp4` / `.mov` / `.webm` / `.m4v` on the shoot folder itself, inside a `Video`/`Videos` folder, or inside Final/Photos. Monthly `{date} - January Videos` folders are valid shoots.
+- A file is typed by extension first (video), then by the folder it lives in (floor plan), then by `floor`/`plan` in the filename, otherwise photo.
+- Folders that are not `date - address` are skipped (logged as warnings). Client-level `Floor Plan` or `Photos` buckets that are not a shoot folder are ignored.
+- **NAS is the source of truth for files.** Sync adds new photos, floor plans, and video, updates paths, and deletes portal files that are not on the share (including leftover `/samples/` placeholders). A shoot is created when any of those files exist — empty NAS folders do not become 0-file portal shoots, and existing empty ones are removed. Shoots with no matching NAS folder are removed. Clients are not deleted if their folder disappears. If the share walk returns zero client folders, orphan prune is skipped so a failed listing cannot wipe the library.
 
 ### Clear demo / test shoots on BK00001
 
