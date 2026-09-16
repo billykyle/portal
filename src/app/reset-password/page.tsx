@@ -1,6 +1,6 @@
 import { ResetPasswordForm } from "@/components/forms/reset-password-form";
 import { BkMark } from "@/components/logo";
-import { PhoneShell } from "@/components/phone-shell";
+import { FormColumn, PhoneShell } from "@/components/phone-shell";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -14,7 +14,9 @@ export default async function ResetPasswordPage({
         <BkMark size="header" />
       </div>
       <h1 className="mb-6 text-2xl font-medium">Reset password</h1>
-      <ResetPasswordForm token={token ?? ""} />
+      <FormColumn>
+        <ResetPasswordForm token={token ?? ""} />
+      </FormColumn>
     </PhoneShell>
   );
 }

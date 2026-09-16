@@ -10,7 +10,7 @@ type LogoProps = {
 
 const SIZE = {
   header: "h-11 w-auto max-h-11",
-  splash: "h-auto w-[188px] max-w-[68vw]",
+  splash: "h-auto w-[188px] max-w-[68vw] lg:w-[220px] lg:max-w-none",
 } as const;
 
 /** Official BK monogram. Always object-contain — never stretch. */

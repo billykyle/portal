@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { AuthHeader } from "@/components/auth-header";
 import { SignupForm } from "@/components/forms/signup-form";
-import { PhoneShell } from "@/components/phone-shell";
+import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -23,7 +23,9 @@ export default async function SignupPage() {
     <PhoneShell>
       <AuthHeader clientName={client?.displayName} />
       <h1 className="mb-6 text-2xl font-medium">Create account</h1>
-      <SignupForm inviteCode={inviteCode} />
+      <FormColumn>
+        <SignupForm inviteCode={inviteCode} />
+      </FormColumn>
     </PhoneShell>
   );
 }

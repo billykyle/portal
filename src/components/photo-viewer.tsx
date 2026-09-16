@@ -200,29 +200,51 @@ export function PhotoViewer({
           Download
         </a>
       </div>
-      <div
-        ref={frameRef}
-        className="relative min-h-0 flex-1 touch-none overflow-hidden overscroll-x-none select-none"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        <div ref={trackRef} className="flex h-full will-change-transform">
-          {photos.map((item, slideIndex) => (
-            <div
-              key={item.id}
-              className="relative flex h-full shrink-0 items-center justify-center px-3"
-              style={{ width: width > 0 ? width : "100%" }}
-            >
-              {shouldRenderPhotoSlide(slideIndex, index) ? (
-                <StillImage photo={item} active={slideIndex === index} />
-              ) : null}
-            </div>
-          ))}
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={frameRef}
+          className="relative h-full min-h-0 touch-none overflow-hidden overscroll-x-none select-none"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <div ref={trackRef} className="flex h-full will-change-transform">
+            {photos.map((item, slideIndex) => (
+              <div
+                key={item.id}
+                className="relative flex h-full shrink-0 items-center justify-center px-3"
+                style={{ width: width > 0 ? width : "100%" }}
+              >
+                {shouldRenderPhotoSlide(slideIndex, index) ? (
+                  <StillImage photo={item} active={slideIndex === index} />
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
+        {canPrev ? (
+          <button
+            type="button"
+            aria-label="Previous photo"
+            onClick={() => snapTo(index - 1)}
+            className="absolute left-3 top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-sm text-white lg:flex"
+          >
+            Prev
+          </button>
+        ) : null}
+        {canNext ? (
+          <button
+            type="button"
+            aria-label="Next photo"
+            onClick={() => snapTo(index + 1)}
+            className="absolute right-3 top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-sm text-white lg:flex"
+          >
+            Next
+          </button>
+        ) : null}
       </div>
-      <div className="flex justify-between px-2 pb-6 text-sm text-white">
+      <div className="flex justify-between px-2 pb-6 text-sm text-white lg:hidden">
         {canPrev ? (
           <button type="button" onClick={() => snapTo(index - 1)} className="min-h-11 px-3 text-white">
             Previous

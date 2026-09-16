@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { AuthHeader } from "@/components/auth-header";
 import { SigninForm } from "@/components/forms/signin-form";
 import { BkMark } from "@/components/logo";
-import { PhoneShell } from "@/components/phone-shell";
+import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -36,7 +36,9 @@ export default async function SigninPage() {
         </div>
       )}
       <h1 className="mb-6 text-2xl font-medium">Sign in</h1>
-      <SigninForm />
+      <FormColumn>
+        <SigninForm />
+      </FormColumn>
     </PhoneShell>
   );
 }

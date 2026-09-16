@@ -52,7 +52,7 @@ export default async function PublicShootPage({
 
   return (
     <PhoneShell>
-      <header className="flex justify-center py-6">
+      <header className="flex justify-center py-6 lg:justify-start">
         <BkMark size="header" />
       </header>
       <ShootDetail
