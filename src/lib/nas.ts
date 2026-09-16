@@ -4,6 +4,7 @@ import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import { isNasAuthError } from "./nas-auth";
+import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import { isVercelRuntime } from "./runtime";
 
 export type NasFile = {
@@ -288,13 +289,36 @@ export async function findStillsFolder(shootFolderPath: string) {
   return dirs.find((dir) => wanted.includes(dir.name.toLowerCase())) ?? null;
 }
 
-const STILL_EXT = /\.(jpe?g|png|webp|heic|tif|tiff)$/i;
+export type NasMediaFile = NasFile & NasDeliverable;
 
+export async function listNasMedia(shootFolderPath: string): Promise<NasMediaFile[]> {
+  const config = getNasConfig();
+  if (!config) throw new Error("NAS share is not configured.");
+  const deliverables = await collectNasDeliverables({
+    shootFolderPath,
+    stillsFolders: config.stillsFolders,
+    list: async (dirPath) => {
+      const files = await listNasDir(dirPath);
+      return files.map((file) => ({
+        name: file.name,
+        path: file.path,
+        isDir: isNasDirectory(file),
+      }));
+    },
+  });
+  return deliverables.map((file) => ({
+    path: file.path,
+    name: file.name,
+    fileType: 0,
+    size: 0,
+    type: file.type,
+  }));
+}
+
+/** Photos only — prefer `listNasMedia` when floor plans or video should come along. */
 export async function listNasStills(shootFolderPath: string) {
-  const stills = await findStillsFolder(shootFolderPath);
-  if (!stills) return [];
-  const files = await listNasDir(stills.path);
-  return files.filter((file) => !isNasDirectory(file) && STILL_EXT.test(file.name));
+  const files = await listNasMedia(shootFolderPath);
+  return files.filter((file) => file.type === "photo");
 }
 
 function cacheKey(nasPath: string) {
@@ -414,7 +438,11 @@ function contentTypeFor(ext: string, fallback = "application/octet-stream") {
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   if (ext === "png") return "image/png";
   if (ext === "webp") return "image/webp";
-  if (ext === "mp4") return "video/mp4";
+  if (ext === "svg") return "image/svg+xml";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "mp4" || ext === "m4v") return "video/mp4";
+  if (ext === "webm") return "video/webm";
+  if (ext === "mov") return "video/quicktime";
   return fallback;
 }
 

@@ -46,7 +46,7 @@ test("refuses orphan prune when the share walk returned no client folders", () =
   assert.equal(shouldPruneShootsMissingFromNas(2), true);
 });
 
-test("does not create a portal shoot when NAS has no stills", () => {
+test("does not create a portal shoot when NAS has no deliverable files", () => {
   assert.equal(shouldCreatePortalShoot(0), false);
   assert.equal(shouldCreatePortalShoot(83), true);
 });

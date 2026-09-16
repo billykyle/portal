@@ -3,7 +3,6 @@ import { and, eq, ilike } from "drizzle-orm";
 import { db } from "./db";
 import { clients, media, shoots } from "./db/schema";
 import { formatInviteCode, parseInviteSequence } from "./invite";
-import { guessMediaType } from "./media";
 import {
   mediaFilenamesMissingFromNas,
   shouldCreatePortalShoot,
@@ -12,10 +11,11 @@ import {
 import {
   getNasConfig,
   listNasDirectories,
-  listNasStills,
+  listNasMedia,
   nasEnabled,
   nasShareRoot,
   resolveNasPath,
+  type NasMediaFile,
 } from "./nas";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "./delivery";
 import { clientFolderRelPath, parseShootFolderName, pendingClientEmail } from "./nas-folder";
@@ -59,12 +59,12 @@ async function nextInviteCode() {
 export async function importNasStills(
   shootId: string,
   shootFolderPath: string,
-  options: { required?: boolean } = {},
+  options: { required?: boolean; files?: NasMediaFile[] } = {},
 ) {
-  const files = await listNasStills(shootFolderPath);
+  const files = options.files ?? (await listNasMedia(shootFolderPath));
   if (files.length === 0) {
     if (options.required) {
-      throw new Error(`No stills in Final/Photos under ${shootFolderPath}.`);
+      throw new Error(`No photos, floor plans, or video under ${shootFolderPath}.`);
     }
     return { imported: 0, updated: 0, removed: 0, total: 0 };
   }
@@ -89,7 +89,7 @@ export async function importNasStills(
         .set({
           nasRelativePath: file.path,
           sortOrder,
-          type: guessMediaType(file.name),
+          type: file.type,
           url: `/api/media/${prev.id}`,
         })
         .where(eq(media.id, prev.id));
@@ -99,7 +99,7 @@ export async function importNasStills(
       rows.push({
         id,
         shootId,
-        type: guessMediaType(file.name),
+        type: file.type,
         filename: file.name,
         url: `/api/media/${id}`,
         nasRelativePath: file.path,
@@ -184,9 +184,10 @@ async function upsertShoot(input: {
 }
 
 /**
- * Walk `Client Deliverables / {client} / {date} - {address} / Final|Photos`.
- * NAS is the source of truth: new drops appear, files gone from the share are
- * removed from the portal, and shoots with no matching folder are pruned.
+ * Walk `Client Deliverables / {client} / {date} - {address}` for Final|Photos
+ * stills, Floor Plan folders, and video files. NAS is the source of truth:
+ * new drops appear, files gone from the share are removed from the portal,
+ * and shoots with no matching folder are pruned.
  */
 export async function syncNasShare(): Promise<NasSyncResult> {
   if (!nasEnabled() || !getNasConfig()) {
@@ -222,8 +223,8 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       }
 
       const nasRelativePath = clientFolderRelPath(clientFolder.name, shootFolder.name);
-      const stills = await listNasStills(shootFolder.path);
-      if (!shouldCreatePortalShoot(stills.length)) {
+      const deliverables = await listNasMedia(shootFolder.path);
+      if (!shouldCreatePortalShoot(deliverables.length)) {
         const [empty] = await db
           .select()
           .from(shoots)
@@ -239,10 +240,10 @@ export async function syncNasShare(): Promise<NasSyncResult> {
           await db.delete(shoots).where(eq(shoots.id, empty.id));
           result.shootsRemoved += 1;
           result.warnings.push(
-            `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no Final/Photos stills on NAS).`,
+            `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no photos, floor plans, or video on NAS).`,
           );
         } else {
-          result.warnings.push(`Skipped ${nasRelativePath} — no Final/Photos stills.`);
+          result.warnings.push(`Skipped ${nasRelativePath} — no photos, floor plans, or video.`);
         }
         continue;
       }
@@ -260,7 +261,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       const existingCount = (
         await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))
       ).length;
-      const mediaResult = await importNasStills(shoot.id, shootFolder.path);
+      const mediaResult = await importNasStills(shoot.id, shootFolder.path, { files: deliverables });
       result.mediaImported += mediaResult.imported;
       result.mediaUpdated += mediaResult.updated;
       result.mediaRemoved += mediaResult.removed;
@@ -269,7 +270,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
         seenShootIds.delete(shoot.id);
         result.shootsRemoved += 1;
         result.warnings.push(
-          `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no Final/Photos stills on NAS).`,
+          `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no photos, floor plans, or video on NAS).`,
         );
         continue;
       }

@@ -1,5 +1,7 @@
-import type { Media, MediaType } from "./db/schema";
+import type { Media } from "./db/schema";
 import { isNasFilePath, nasEnabled } from "./nas";
+
+export { guessMediaType } from "./nas-media";
 
 export function joinUrl(base: string, relativePath: string) {
   const trimmed = base.replace(/\/+$/, "");
@@ -25,13 +27,6 @@ export function resolveMediaThumbUrl(item: Pick<Media, "id" | "url" | "nasRelati
   return item.url;
 }
 
-export function guessMediaType(filename: string): MediaType {
-  const lower = filename.toLowerCase();
-  if (/\.(mp4|mov|webm|m4v)$/.test(lower)) return "video";
-  if (/(floor|plan)/.test(lower) || /\.svg$/.test(lower) || /\.pdf$/.test(lower)) return "floor_plan";
-  return "photo";
-}
-
 export function formatShootDate(isoDate: string) {
   const [year, month, day] = isoDate.split("-").map(Number);
   if (!year || !month || !day) return isoDate;
@@ -51,4 +46,14 @@ export function mediaLabel(type: string) {
   if (type === "floor_plan") return "Floor plans";
   if (type === "video") return "Video";
   return "Photos";
+}
+
+export function mediaSectionId(type: string) {
+  if (type === "floor_plan") return "floor-plans";
+  if (type === "video") return "video";
+  return "photos";
+}
+
+export function isPdfFilename(filename: string) {
+  return /\.pdf$/i.test(filename);
 }

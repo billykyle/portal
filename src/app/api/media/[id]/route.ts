@@ -6,7 +6,7 @@ import { media } from "@/lib/db/schema";
 import { isNasFilePath, nasEnabled, proxyNasFile } from "@/lib/nas";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(
   request: Request,

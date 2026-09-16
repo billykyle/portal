@@ -77,7 +77,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `NAS_SHARE_ID` | share id | From `?id=` on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | empty or the share password | Leave empty when the share has none. |
 | `NAS_SHARE_URL` | optional | Full share URL if you want host/id parsed from it. |
-| `NAS_STILLS_FOLDERS` | `Final,Photos` | First match under each shoot wins. |
+| `NAS_STILLS_FOLDERS` | `Final,Photos` | First match under each shoot wins for photos. Floor Plan folders and `.mov`/`.mp4` at the shoot root are imported separately. |
 | `NAS_CACHE_DIR` | `/tmp/nas-cache` | Optional on Vercel — the app already defaults to `/tmp/nas-cache` when `VERCEL=1`. Ephemeral. |
 | `NAS_SYNC_INTERVAL_MINUTES` | `10` | Kept for local `next start`. Ignored for in-process timers on Vercel. |
 | `NAS_SYNC_ENABLED` | `true` | Same. Production sync is the cron route. |
