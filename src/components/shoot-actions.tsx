@@ -147,7 +147,7 @@ export function ShootActions({
 
   return (
     <div className="flex flex-col gap-2" ref={menuRef}>
-      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-wrap lg:overflow-visible">
           <button
             type="button"
             onPointerDown={(event) => event.stopPropagation()}

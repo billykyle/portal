@@ -78,7 +78,7 @@ export default async function ShootPage({
         <BkMark size="header" />
       </div>
       {admin ? (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3 lg:mb-6">
           {!shoot.deliveredAt ? (
             <MarkDeliveredForm clientId={shoot.clientId} shootId={shoot.id} />
           ) : (

@@ -79,74 +79,78 @@ export default async function AdminClientPage({
         {attached ? <p className="mt-3 text-sm text-white">Shoot attached from NAS.</p> : null}
         {shootRemoved ? <p className="mt-3 text-sm text-white">Shoot deleted. The client invite is unchanged.</p> : null}
       </header>
-      <section className="mb-10">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Client info</h2>
-        <EditClientForm client={client} />
-      </section>
-      <section className="mb-10">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Teammate logins</h2>
-        <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
-          These are email/password accounts that redeemed {client.inviteCode}. Removing one
-          login does not delete the client or the invite. They can sign up again with the
-          same code.
-        </p>
-        {teammateRows.length === 0 ? (
-          <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
-        ) : (
-          <ul>
-            {teammateRows.map((user) => (
-              <li key={user.id} className="flex items-center gap-3 border-b border-white/10 py-4">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px]">{user.email}</p>
-                  <p className="text-xs text-[#8e8e93]">
-                    Joined{" "}
-                    {user.createdAt.toLocaleDateString("en-US", {
+      <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <div>
+          <section className="mb-10">
+            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Client info</h2>
+            <EditClientForm client={client} />
+          </section>
+          <section className="mb-10">
+            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Teammate logins</h2>
+            <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
+              These are email/password accounts that redeemed {client.inviteCode}. Removing one
+              login does not delete the client or the invite. They can sign up again with the
+              same code.
+            </p>
+            {teammateRows.length === 0 ? (
+              <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
+            ) : (
+              <ul>
+                {teammateRows.map((user) => (
+                  <li key={user.id} className="flex items-center gap-3 border-b border-white/10 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px]">{user.email}</p>
+                      <p className="text-xs text-[#8e8e93]">
+                        Joined{" "}
+                        {user.createdAt.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <RemoveUserForm clientId={client.id} userId={user.id} email={user.email} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="mb-10">
+            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
+            <AttachShootForm clientId={client.id} />
+          </section>
+        </div>
+        <section className="mb-10">
+          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
+          <ShootList
+            variant="admin"
+            emptyLabel="No shoots attached yet."
+            shoots={shootRows.map((shoot) => {
+              const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
+              return {
+                id: shoot.id,
+                href: `/shoots/${shoot.id}`,
+                address: shoot.address,
+                shotDate: shoot.shotDate,
+                dateLabel: formatShootDate(shoot.shotDate),
+                clientId: client.id,
+                fileCount: count,
+                publicUrl: publicShootUrl(shoot.publicToken),
+                publicToken: shoot.publicToken,
+                hasDropbox: Boolean(shoot.dropboxUrl),
+                deliveredLabel: shoot.deliveredAt
+                  ? shoot.deliveredAt.toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
-                    })}
-                  </p>
-                </div>
-                <RemoveUserForm clientId={client.id} userId={user.id} email={user.email} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section className="mb-10">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
-        <AttachShootForm clientId={client.id} />
-      </section>
-      <section className="mb-10">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
-        <ShootList
-          variant="admin"
-          emptyLabel="No shoots attached yet."
-          shoots={shootRows.map((shoot) => {
-            const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
-            return {
-              id: shoot.id,
-              href: `/shoots/${shoot.id}`,
-              address: shoot.address,
-              shotDate: shoot.shotDate,
-              dateLabel: formatShootDate(shoot.shotDate),
-              clientId: client.id,
-              fileCount: count,
-              publicUrl: publicShootUrl(shoot.publicToken),
-              publicToken: shoot.publicToken,
-              hasDropbox: Boolean(shoot.dropboxUrl),
-              deliveredLabel: shoot.deliveredAt
-                ? shoot.deliveredAt.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })
-                : null,
-            };
-          })}
-        />
-      </section>
-      <section className="pb-16">
+                    })
+                  : null,
+              };
+            })}
+          />
+        </section>
+      </div>
+      <section className="pb-16 md:max-w-md">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Delete client</h2>
         <DeleteClientForm clientId={client.id} inviteCode={client.inviteCode} />
       </section>

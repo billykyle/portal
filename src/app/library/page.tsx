@@ -29,8 +29,10 @@ export default async function LibraryPage() {
         <BkMark size="header" />
         <SignOutButton />
       </header>
-      <div className="mb-8">
-        <h1 className="text-[28px] font-bold leading-tight">{client?.displayName ?? "Your shoots"}</h1>
+      <div className="mb-8 lg:mb-10">
+        <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">
+          {client?.displayName ?? "Your shoots"}
+        </h1>
         {client?.primaryEmail ? (
           <p className="mt-1 text-sm text-[#8e8e93]">{client.primaryEmail}</p>
         ) : null}
