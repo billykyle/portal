@@ -22,52 +22,23 @@ export function CopyPublicLink({
     window.setTimeout(() => setStatus(""), 2000);
   }
 
-  async function share() {
-    const url = href();
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: "Shoot", url, text: "Open this shoot" });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-      }
-    }
-    await copy();
-  }
-
   if (compact) {
     return (
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={copy} className="text-sm text-white">
-          {status ? "Copied" : "Copy link"}
-        </button>
-        <button type="button" onClick={share} className="text-sm text-[#8e8e93]">
-          Share
-        </button>
-      </div>
+      <button type="button" onClick={copy} className="text-sm text-white">
+        {status ? "Copied" : "Copy link"}
+      </button>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={copy}
-          className="flex h-12 flex-1 appearance-none items-center justify-center rounded-xl border-0 bg-white text-base font-medium text-black"
-        >
-          Copy public link
-        </button>
-        <button
-          type="button"
-          onClick={share}
-          className="flex h-12 appearance-none items-center justify-center rounded-xl border border-white/20 px-5 text-base text-white"
-        >
-          Share
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={copy}
+        className="flex h-12 w-full appearance-none items-center justify-center rounded-xl border-0 bg-white text-base font-medium text-black"
+      >
+        Copy public link
+      </button>
       {status ? <p className="text-xs text-[#8e8e93]">{status}</p> : null}
     </div>
   );

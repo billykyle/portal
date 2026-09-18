@@ -13,7 +13,6 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
-import { publicShootUrl } from "@/lib/public-link";
 
 export default async function AdminClientPage({
   params,
@@ -135,16 +134,7 @@ export default async function AdminClientPage({
                 dateLabel: formatShootDate(shoot.shotDate),
                 clientId: client.id,
                 fileCount: count,
-                publicUrl: publicShootUrl(shoot.publicToken),
                 publicToken: shoot.publicToken,
-                hasDropbox: Boolean(shoot.dropboxUrl),
-                deliveredLabel: shoot.deliveredAt
-                  ? shoot.deliveredAt.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : null,
               };
             })}
           />
