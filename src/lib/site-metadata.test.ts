@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { absoluteBrandIconUrls } from "./brand-icons";
 import {
   SITE_NAME,
   metadataOrigin,
@@ -44,19 +45,47 @@ test("describes a shared shoot with the shoot date", () => {
 });
 
 test("site defaults use Billy Kyle — not the Vercel app name", () => {
-  const meta = siteMetadata();
-  assert.equal(meta.applicationName, SITE_NAME);
-  assert.equal(meta.openGraph?.title, SITE_NAME);
-  assert.deepEqual(meta.openGraph?.images, [
-    { url: "/opengraph-image", width: 1200, height: 630, alt: SITE_NAME },
-  ]);
-  assert.deepEqual(meta.twitter, {
-    card: "summary_large_image",
-    title: SITE_NAME,
-    description: meta.description,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: SITE_NAME }],
-  });
-  assert.equal((meta.appleWebApp as { title?: string }).title, SITE_NAME);
+  const previous = process.env.PORTAL_PUBLIC_URL;
+  try {
+    delete process.env.PORTAL_PUBLIC_URL;
+    const origin = metadataOrigin();
+    const icons = absoluteBrandIconUrls(origin);
+    const meta = siteMetadata();
+    assert.equal(origin, "https://portal.billy-kyle.com");
+    assert.equal(meta.applicationName, SITE_NAME);
+    assert.equal(meta.openGraph?.title, SITE_NAME);
+    assert.deepEqual(meta.openGraph?.images, [
+      { url: "/opengraph-image", width: 1200, height: 630, alt: SITE_NAME },
+    ]);
+    assert.deepEqual(meta.twitter, {
+      card: "summary_large_image",
+      title: SITE_NAME,
+      description: meta.description,
+      images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: SITE_NAME }],
+    });
+    assert.equal((meta.appleWebApp as { title?: string }).title, SITE_NAME);
+    assert.equal(meta.manifest, icons.manifest);
+    assert.deepEqual(meta.icons, {
+      icon: [
+        { url: icons.svg, type: "image/svg+xml" },
+        { url: icons.icon32, sizes: "32x32", type: "image/png" },
+        { url: icons.icon192, sizes: "192x192", type: "image/png" },
+        { url: icons.icon512, sizes: "512x512", type: "image/png" },
+        { url: icons.favicon, sizes: "48x48", type: "image/x-icon" },
+      ],
+      apple: [
+        { url: icons.apple, sizes: "180x180", type: "image/png" },
+        { url: icons.appleTouch, sizes: "180x180", type: "image/png" },
+      ],
+      other: [{ rel: "mask-icon", url: icons.mask, color: "#000000" }],
+    });
+    const serialized = JSON.stringify(meta);
+    assert.match(serialized, /https:\/\/portal\.billy-kyle\.com/);
+    assert.doesNotMatch(serialized, /vercel\.com/i);
+  } finally {
+    if (previous === undefined) delete process.env.PORTAL_PUBLIC_URL;
+    else process.env.PORTAL_PUBLIC_URL = previous;
+  }
 });
 
 test("shoot page metadata keeps the address as the share title", () => {

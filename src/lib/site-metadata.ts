@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { absoluteBrandIconUrls } from "@/lib/brand-icons";
 
 export const SITE_NAME = "Billy Kyle";
 export const SITE_TITLE = "Client Portal — Billy Kyle";
@@ -30,6 +31,7 @@ export function shootShareDescription(dateLabel: string) {
 
 export function siteMetadata(): Metadata {
   const origin = metadataOrigin();
+  const icons = absoluteBrandIconUrls(origin);
   return {
     metadataBase: new URL(origin),
     title: {
@@ -38,6 +40,27 @@ export function siteMetadata(): Metadata {
     },
     description: SITE_DESCRIPTION,
     applicationName: SITE_NAME,
+    manifest: icons.manifest,
+    icons: {
+      icon: [
+        { url: icons.svg, type: "image/svg+xml" },
+        { url: icons.icon32, sizes: "32x32", type: "image/png" },
+        { url: icons.icon192, sizes: "192x192", type: "image/png" },
+        { url: icons.icon512, sizes: "512x512", type: "image/png" },
+        { url: icons.favicon, sizes: "48x48", type: "image/x-icon" },
+      ],
+      apple: [
+        { url: icons.apple, sizes: "180x180", type: "image/png" },
+        { url: icons.appleTouch, sizes: "180x180", type: "image/png" },
+      ],
+      other: [
+        {
+          rel: "mask-icon",
+          url: icons.mask,
+          color: "#000000",
+        },
+      ],
+    },
     appleWebApp: {
       capable: true,
       title: SITE_NAME,
