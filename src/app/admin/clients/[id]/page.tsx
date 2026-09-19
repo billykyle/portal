@@ -7,12 +7,15 @@ import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { PhoneShell } from "@/components/phone-shell";
+import { BookingList } from "@/components/booking-list";
 import { ShootList } from "@/components/shoot-list";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
+import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
+import { schedulingHours } from "@/lib/scheduling/config";
 
 export default async function AdminClientPage({
   params,
@@ -26,13 +29,15 @@ export default async function AdminClientPage({
     saved?: string;
     userRemoved?: string;
     shootRemoved?: string;
+    bookingCancelled?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached, delivered, saved, userRemoved, shootRemoved } = await searchParams;
+  const { error, attached, delivered, saved, userRemoved, shootRemoved, bookingCancelled } =
+    await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -53,6 +58,8 @@ export default async function AdminClientPage({
     .where(eq(shoots.clientId, client.id))
     .orderBy(desc(shoots.shotDate));
   const mediaRows = await db.select().from(media);
+  const bookingRows = await listClientBookingsAdmin(client.id);
+  const hours = schedulingHours();
 
   return (
     <PhoneShell wide>
@@ -77,6 +84,7 @@ export default async function AdminClientPage({
         ) : null}
         {attached ? <p className="mt-3 text-sm text-white">Shoot attached from NAS.</p> : null}
         {shootRemoved ? <p className="mt-3 text-sm text-white">Shoot deleted. The client invite is unchanged.</p> : null}
+        {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
       <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <div>
@@ -119,6 +127,16 @@ export default async function AdminClientPage({
             <AttachShootForm clientId={client.id} />
           </section>
         </div>
+        <section className="mb-10">
+          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Bookings</h2>
+          <BookingList
+            bookings={bookingRows.map((booking) => ({ ...booking, clientId: client.id }))}
+            emptyLabel="No bookings yet."
+            timeZone={hours.timeZone}
+            allowCancel
+            admin
+          />
+        </section>
         <section className="mb-10">
           <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
           <ShootList

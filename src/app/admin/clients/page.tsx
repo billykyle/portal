@@ -61,7 +61,12 @@ export default async function AdminClientsPage({
           <BkMark size="header" className="shrink-0" />
           <h1 className="text-2xl font-medium">Admin</h1>
         </div>
-        <SignOutButton admin />
+        <div className="flex items-center gap-4">
+          <Link href="/admin/bookings" className="text-sm text-[#8e8e93]">
+            Bookings
+          </Link>
+          <SignOutButton admin />
+        </div>
       </header>
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {removed ? (

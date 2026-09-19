@@ -1,14 +1,18 @@
 import { desc, eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { BkMark } from "@/components/logo";
+import { ClientHeader } from "@/components/client-header";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootList } from "@/components/shoot-list";
-import { SignOutButton } from "@/components/sign-out-button";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, shoots } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
+
+export const metadata: Metadata = {
+  title: "My Content",
+};
 
 export default async function LibraryPage() {
   const session = await getSession();
@@ -25,10 +29,7 @@ export default async function LibraryPage() {
 
   return (
     <PhoneShell>
-      <header className="flex items-center justify-between py-6">
-        <BkMark size="header" />
-        <SignOutButton />
-      </header>
+      <ClientHeader />
       <div className="mb-8 lg:mb-10">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">
           {client?.displayName ?? "Your shoots"}

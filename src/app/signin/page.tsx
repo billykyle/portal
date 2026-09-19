@@ -6,13 +6,14 @@ import { SigninForm } from "@/components/forms/signin-form";
 import { BkMark } from "@/components/logo";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
+import { CLIENT_HOME } from "@/lib/routes";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients } from "@/lib/db/schema";
 
 export default async function SigninPage() {
   if (await getSession()) {
-    redirect("/library");
+    redirect(CLIENT_HOME);
   }
   const inviteCode = await getInviteCookie();
   let clientName: string | null = null;

@@ -85,6 +85,9 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` / `shoot.delivered`. |
 | `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset mail only. |
 | `EMAIL_FROM` | `Billy Kyle Client Portal <noreply@billy-kyle.com>` | Used only when Resend is set. |
+| `GOOGLE_CALENDAR_ID` | Billy’s calendar id | Optional. Free/busy + event write for scheduling. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | service account JSON | Optional. Share the calendar with that account. |
+| `GOOGLE_MAPS_API_KEY` | Distance Matrix key | Optional. Live drive time. Empty = hide slots that need travel instead of guessing. |
 
 After the first deploy, open `/admin` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
 

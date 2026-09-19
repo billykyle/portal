@@ -85,6 +85,32 @@ async function createTables() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `;
+  await sql`
+    DO $$ BEGIN
+      CREATE TYPE booking_status AS ENUM ('requested', 'confirmed', 'cancelled');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS bookings (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      address text NOT NULL,
+      starts_at timestamptz NOT NULL,
+      ends_at timestamptz NOT NULL,
+      status booking_status NOT NULL DEFAULT 'confirmed',
+      notes text,
+      access_codes text,
+      calendar_event_id text,
+      drive_seconds_from_prior integer,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS bookings_client_starts_idx ON bookings (client_id, starts_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS bookings_starts_idx ON bookings (starts_at)`;
 }
 
 export async function ensureDb() {
