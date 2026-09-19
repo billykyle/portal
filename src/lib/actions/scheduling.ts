@@ -17,10 +17,15 @@ import {
 import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { writeCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
+import { parseSchedulingService } from "@/lib/scheduling/services";
 
-function schedulingUrl(params: Record<string, string>) {
-  const query = new URLSearchParams(params);
-  return `${CLIENT_SCHEDULING}?${query.toString()}`;
+function schedulingUrl(params: Record<string, string | null | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value);
+  }
+  const qs = query.toString();
+  return qs ? `${CLIENT_SCHEDULING}?${qs}` : CLIENT_SCHEDULING;
 }
 
 export async function createBooking(formData: FormData) {
@@ -30,12 +35,16 @@ export async function createBooking(formData: FormData) {
   }
   await ensureDb();
   const address = String(formData.get("address") ?? "");
+  const service = parseSchedulingService(String(formData.get("service") ?? ""));
   const slot = String(formData.get("slot") ?? "");
   const [startIso, endIso] = slot.split("|");
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
+  if (!service) {
+    redirect(schedulingUrl({ address, error: "Pick a service." }));
+  }
   if (!startIso || !endIso) {
-    redirect(schedulingUrl({ address, error: "Pick a time." }));
+    redirect(schedulingUrl({ address, service, error: "Pick a time." }));
   }
 
   const portalJobs = await loadConfirmedPortalJobs();
@@ -44,16 +53,17 @@ export async function createBooking(formData: FormData) {
     portalJobs,
   });
   if ("error" in sources) {
-    redirect(schedulingUrl({ address, error: sources.error }));
+    redirect(schedulingUrl({ address, service, error: sources.error }));
   }
   const availability = await offerSlotsForAddress(address, sources);
   if (availability.error) {
-    redirect(schedulingUrl({ error: availability.error }));
+    redirect(schedulingUrl({ service, error: availability.error }));
   }
   if (!slotStillOffered(availability, startIso, endIso)) {
     redirect(
       schedulingUrl({
         address: availability.address,
+        service,
         error: "That time is no longer available. Pick another.",
       }),
     );
@@ -73,12 +83,12 @@ export async function createBooking(formData: FormData) {
         start,
         end,
         timeZone: hours.timeZone,
-        summary: `Shoot — ${client?.displayName ?? session.email}`,
-        description: [notes, accessCodes ? `Access: ${accessCodes}` : ""].filter(Boolean).join("\n"),
+        summary: `${service} — ${client?.displayName ?? session.email}`,
+        description: [service, notes, accessCodes ? `Access: ${accessCodes}` : ""].filter(Boolean).join("\n"),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Google Calendar write failed.";
-      redirect(schedulingUrl({ address: availability.address, error: message }));
+      redirect(schedulingUrl({ address: availability.address, service, error: message }));
     }
   }
 
@@ -86,6 +96,7 @@ export async function createBooking(formData: FormData) {
     clientId: session.clientId,
     createdByUserId: session.userId,
     address: availability.address,
+    service,
     startsAt: start,
     endsAt: end,
     status: "confirmed",

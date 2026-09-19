@@ -33,6 +33,7 @@ export async function listAdminBookings() {
     .select({
       id: bookings.id,
       address: bookings.address,
+      service: bookings.service,
       startsAt: bookings.startsAt,
       endsAt: bookings.endsAt,
       status: bookings.status,

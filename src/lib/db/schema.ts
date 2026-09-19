@@ -67,6 +67,7 @@ export const bookings = pgTable("bookings", {
     .references(() => clients.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   address: text("address").notNull(),
+  service: text("service"),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   status: bookingStatusEnum("status").notNull().default("confirmed"),

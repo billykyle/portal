@@ -12,7 +12,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 4. Hub — after sign-in, exactly two choices: **My Content** and **Scheduling**.
 5. My Content — the existing library: every shoot for that invite code, labeled date + address, newest first.
 6. Shoot — in-app photo viewer, inline video, floor plans, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
-7. Scheduling — address first, then available times. Upcoming bookings for that client. Travel hard-block is live drive time + 15 minutes (Google Maps when `GOOGLE_MAPS_API_KEY` is set). Google Calendar is source of truth when wired. Geography is never guessed.
+7. Scheduling — pick a service and address, then available times. Upcoming bookings for that client show the service. Travel hard-block is live drive time + 15 minutes (Google Maps when `GOOGLE_MAPS_API_KEY` is set). Google Calendar is source of truth when wired. Geography is never guessed. No prices in this flow.
 8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 9. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
 10. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot.
@@ -114,7 +114,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Optional. Service account JSON (share the calendar with that email). Or set `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY`. |
 | `GOOGLE_MAPS_API_KEY` | Optional. Distance Matrix for live drive time. Empty = refuse slots that need travel instead of inventing a duration. |
 
-Scheduling rules live in `src/lib/scheduling/rules.ts`: address first, Calendar as source of truth when wired, travel = live drive + 15 minutes, never fake geography.
+Scheduling rules live in `src/lib/scheduling/rules.ts`: address first, Calendar as source of truth when wired, travel = live drive + 15 minutes, never fake geography. The bookable service list lives in `src/lib/scheduling/services.ts`.
 
 ## Hosted Postgres
 

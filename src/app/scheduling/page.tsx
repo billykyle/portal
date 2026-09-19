@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { loadLiveAvailabilitySources, offerSlotsForAddress } from "@/lib/scheduling/availability";
 import { loadConfirmedPortalJobs, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
 import { schedulingHours } from "@/lib/scheduling/config";
+import { parseSchedulingService } from "@/lib/scheduling/services";
 
 export const metadata: Metadata = {
   title: "Scheduling",
@@ -22,6 +23,7 @@ export default async function SchedulingPage({
 }: {
   searchParams: Promise<{
     address?: string;
+    service?: string;
     booked?: string;
     cancelled?: string;
     error?: string;
@@ -32,7 +34,9 @@ export default async function SchedulingPage({
     redirect("/");
   }
   await ensureDb();
-  const { address: rawAddress = "", booked, cancelled, error } = await searchParams;
+  const { address: rawAddress = "", service: rawService = "", booked, cancelled, error } =
+    await searchParams;
+  const selectedService = parseSchedulingService(rawService) ?? "";
   const hours = schedulingHours();
   const [clientRows, upcoming, portalJobs] = await Promise.all([
     db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1),
@@ -66,8 +70,8 @@ export default async function SchedulingPage({
       <div className="mb-8 lg:mb-10">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
         <p className="mt-2 text-sm leading-6 text-[#8e8e93]">
-          Address first, then available times. {client?.displayName ?? "Your"} upcoming shoots stay
-          here.
+          Pick a service and address, then available times. {client?.displayName ?? "Your"} upcoming
+          shoots stay here.
         </p>
         {booked ? <p className="mt-3 text-sm text-white">You&apos;re booked.</p> : null}
         {cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
@@ -88,6 +92,7 @@ export default async function SchedulingPage({
           <FormColumn>
             <BookShootForm
               address={typedAddress}
+              service={selectedService}
               addressError={addressError}
               availability={availability}
             />
