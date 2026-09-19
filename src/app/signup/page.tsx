@@ -4,13 +4,14 @@ import { AuthHeader } from "@/components/auth-header";
 import { SignupForm } from "@/components/forms/signup-form";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
+import { CLIENT_HOME } from "@/lib/routes";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients } from "@/lib/db/schema";
 
 export default async function SignupPage() {
   if (await getSession()) {
-    redirect("/library");
+    redirect(CLIENT_HOME);
   }
   const inviteCode = await getInviteCookie();
   if (!inviteCode) {

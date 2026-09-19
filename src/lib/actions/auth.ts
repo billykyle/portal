@@ -16,6 +16,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, passwordResetTokens, users } from "@/lib/db/schema";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
+import { CLIENT_HOME } from "@/lib/routes";
 
 export type ActionState = {
   error?: string;
@@ -83,7 +84,7 @@ export async function signUp(_prev: ActionState | undefined, formData: FormData)
     inviteCode: client.inviteCode,
   });
   await clearInviteCookie();
-  redirect("/library");
+  redirect(CLIENT_HOME);
 }
 
 export async function signIn(_prev: ActionState | undefined, formData: FormData) {
@@ -104,7 +105,7 @@ export async function signIn(_prev: ActionState | undefined, formData: FormData)
     clientId: client.id,
     inviteCode: client.inviteCode,
   });
-  redirect("/library");
+  redirect(CLIENT_HOME);
 }
 
 export async function signOut() {

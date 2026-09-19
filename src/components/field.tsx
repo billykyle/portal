@@ -15,7 +15,7 @@ export function Field({
         id={id}
         name={id}
         className={cn(
-          "h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none",
+          "h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]",
           className,
         )}
         {...props}

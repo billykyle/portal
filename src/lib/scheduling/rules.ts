@@ -1,0 +1,28 @@
+/**
+ * Client scheduling — Acuity replacement.
+ *
+ * Locked product rules (Billy, 2026-09-19). The next Calendar/Maps wiring
+ * pass should keep these; only the I/O adapters change.
+ *
+ * 1. Google Calendar is the source of truth for busy time when credentials
+ *    exist (`GOOGLE_CALENDAR_ID` + a service account). Portal bookings are
+ *    always busy too, and are written to Calendar when that write hook is live.
+ * 2. Address first. Never compute or show times until a shoot address is known.
+ * 3. Travel hard-block: live drive time between the prior job address and the
+ *    new address, plus {@link TRAVEL_PAD_MINUTES}. Same check against the next
+ *    job. Example that must never be offered: Philly at noon, Shore at 1pm.
+ * 4. Do not fake geography. If a travel check is required (two different known
+ *    addresses) and drive time cannot be measured, refuse the slot. Never
+ *    assume 0 minutes or a guessed duration.
+ */
+
+export const TRAVEL_PAD_MINUTES = 15;
+export const TRAVEL_PAD_MS = TRAVEL_PAD_MINUTES * 60 * 1000;
+
+export const DEFAULT_TIMEZONE = "America/New_York";
+export const DEFAULT_OPEN_HOUR = 8;
+export const DEFAULT_CLOSE_HOUR = 18;
+export const DEFAULT_SLOT_MINUTES = 90;
+export const DEFAULT_STEP_MINUTES = 30;
+export const DEFAULT_DAYS_AHEAD = 14;
+export const DEFAULT_MIN_LEAD_MINUTES = 120;

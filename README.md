@@ -9,11 +9,13 @@ Black and white only. No favorites. Every shoot has a stable public link.
 1. Splash — enter invite code (`BK` + 5 digits).
 2. Create account — email + password, or sign in.
 3. Forgot password — email reset link (or an on-screen link when email is not configured).
-4. Library — every shoot for that invite code, labeled date + address, newest first.
-5. Shoot — in-app photo viewer, inline video, floor plans, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
-6. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
-7. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-8. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media.
+4. Hub — after sign-in, exactly two choices: **My Content** and **Scheduling**.
+5. My Content — the existing library: every shoot for that invite code, labeled date + address, newest first.
+6. Shoot — in-app photo viewer, inline video, floor plans, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
+7. Scheduling — address first, then available times. Upcoming bookings for that client. Travel hard-block is live drive time + 15 minutes (Google Maps when `GOOGLE_MAPS_API_KEY` is set). Google Calendar is source of truth when wired. Geography is never guessed.
+8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
+9. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
+10. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -108,6 +110,11 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset email only — not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. |
+| `GOOGLE_CALENDAR_ID` | Optional. Billy’s calendar. Read free/busy; write the booking when the service account can. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Optional. Service account JSON (share the calendar with that email). Or set `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY`. |
+| `GOOGLE_MAPS_API_KEY` | Optional. Distance Matrix for live drive time. Empty = refuse slots that need travel instead of inventing a duration. |
+
+Scheduling rules live in `src/lib/scheduling/rules.ts`: address first, Calendar as source of truth when wired, travel = live drive + 15 minutes, never fake geography.
 
 ## Hosted Postgres
 

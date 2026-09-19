@@ -58,6 +58,26 @@ export const media = pgTable("media", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const bookingStatusEnum = pgEnum("booking_status", ["requested", "confirmed", "cancelled"]);
+
+export const bookings = pgTable("bookings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  address: text("address").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  status: bookingStatusEnum("status").notNull().default("confirmed"),
+  notes: text("notes"),
+  accessCodes: text("access_codes"),
+  calendarEventId: text("calendar_event_id"),
+  driveSecondsFromPrior: integer("drive_seconds_from_prior"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const zipJobs = pgTable("zip_jobs", {
   id: text("id").primaryKey(),
   shootId: uuid("shoot_id")
@@ -79,3 +99,5 @@ export type Shoot = typeof shoots.$inferSelect;
 export type Media = typeof media.$inferSelect;
 export type MediaType = (typeof mediaTypeEnum.enumValues)[number];
 export type ZipJob = typeof zipJobs.$inferSelect;
+export type Booking = typeof bookings.$inferSelect;
+export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
