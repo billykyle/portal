@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
+import { TimesHelpNote } from "@/components/times-help-note";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
@@ -86,6 +87,7 @@ export function BookTimesForm({
         <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
           Change services or address
         </Link>
+        <TimesHelpNote />
       </div>
 
       <h2 className="mt-8 mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
