@@ -147,6 +147,17 @@ test("toggleSchedulingService is exclusive inside Podcast and multi-select elsew
     toggleSchedulingService(["Real Estate · Photography"], "Real Estate · Video"),
     ["Real Estate · Photography", "Real Estate · Video"],
   );
+  assert.deepEqual(
+    toggleSchedulingService(["Real Estate · Photography"], "Real Estate · Photography"),
+    [],
+  );
+  assert.deepEqual(
+    toggleSchedulingService(
+      ["Real Estate · Photography", "Construction · Video"],
+      "Real Estate · Photography",
+    ),
+    ["Construction · Video"],
+  );
 });
 
 test("bookingSlotMinutes sums locked option times including Aerial Photos", () => {
