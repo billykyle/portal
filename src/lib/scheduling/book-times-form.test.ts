@@ -44,3 +44,20 @@ test("book times radios post a named slot value the server can read", () => {
   assert.match(html, /id="book-shoot-error"/);
   assert.doesNotMatch(html, /type="hidden"[^>]*name="slot"/);
 });
+
+test("modify times form posts bookingId and keeps Save changes", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability,
+      services: ["Real Estate · Photography"],
+      notes: "Code 1234",
+      modifyBookingId: "11111111-1111-4111-8111-111111111111",
+      currentSlot: `${start}|${end}`,
+    }),
+  );
+  assert.match(html, /name="bookingId"/);
+  assert.match(html, /11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /Save changes/);
+  assert.doesNotMatch(html, /Book shoot/);
+  assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+});

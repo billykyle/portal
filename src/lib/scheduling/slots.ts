@@ -2,10 +2,13 @@ import type { Interval } from "./intervals";
 import { addCalendarDays, calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 import type { SchedulingHours } from "./config";
 
-export function generateCandidateSlots(input: SchedulingHours & { now: Date }): Interval[] {
+export function generateCandidateSlots(
+  input: SchedulingHours & { now: Date; retainStarts?: readonly Date[] },
+): Interval[] {
   const slots: Interval[] = [];
   const nowParts = utcToZonedParts(input.now, input.timeZone);
   const minStart = input.now.getTime() + input.minLeadMinutes * 60 * 1000;
+  const retainStarts = new Set((input.retainStarts ?? []).map((value) => value.getTime()));
   const step = Math.max(5, input.stepMinutes);
   const duration = Math.max(5, input.slotMinutes);
 
@@ -17,7 +20,7 @@ export function generateCandidateSlots(input: SchedulingHours & { now: Date }): 
       const min = minute % 60;
       const start = zonedDateTimeToUtc(input.timeZone, { ...day, hour, minute: min });
       const end = new Date(start.getTime() + duration * 60 * 1000);
-      if (start.getTime() < minStart) continue;
+      if (start.getTime() < minStart && !retainStarts.has(start.getTime())) continue;
       slots.push({ start, end });
     }
   }

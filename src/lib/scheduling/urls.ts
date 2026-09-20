@@ -8,6 +8,8 @@ export type SchedulingQuery = {
   error?: string | null;
   booked?: string | null;
   cancelled?: string | null;
+  modified?: string | null;
+  modify?: string | null;
 };
 
 export function schedulingSearch(params: SchedulingQuery) {
@@ -22,6 +24,8 @@ export function schedulingSearch(params: SchedulingQuery) {
   if (params.error) query.set("error", params.error);
   if (params.booked) query.set("booked", params.booked);
   if (params.cancelled) query.set("cancelled", params.cancelled);
+  if (params.modified) query.set("modified", params.modified);
+  if (params.modify) query.set("modify", params.modify);
   return query.toString();
 }
 

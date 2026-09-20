@@ -281,6 +281,57 @@ export async function tryWriteCalendarBooking(input: CalendarWriteInput): Promis
   return settleCalendarWrite(() => writeCalendarBooking(input));
 }
 
+/**
+ * Replace an existing Work calendar event. 404 falls back to insert so a
+ * stale `calendarEventId` still gets a live event when writer access works.
+ */
+export async function updateCalendarBooking(
+  eventId: string,
+  input: CalendarWriteInput,
+): Promise<string | null> {
+  const creds = readCalendarCredentials();
+  if (!creds) return null;
+  const token = await getCalendarAccessToken(creds.auth);
+  const res = await fetch(calendarUrl(creds.writeCalendarId, `/events/${encodeURIComponent(eventId)}`), {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      summary: input.summary,
+      location: input.address,
+      description: input.description ?? "",
+      start: { dateTime: input.start.toISOString(), timeZone: input.timeZone },
+      end: { dateTime: input.end.toISOString(), timeZone: input.timeZone },
+    }),
+  });
+  if (res.status === 404) {
+    return writeCalendarBooking(input);
+  }
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Google Calendar write");
+  }
+  const body = (await res.json()) as { id?: string };
+  return body.id ?? eventId;
+}
+
+/** Update the existing event, or insert when the booking never landed on Calendar. */
+export async function replaceCalendarBooking(
+  eventId: string | null | undefined,
+  input: CalendarWriteInput,
+): Promise<string | null> {
+  if (eventId) return updateCalendarBooking(eventId, input);
+  return writeCalendarBooking(input);
+}
+
+export async function tryReplaceCalendarBooking(
+  eventId: string | null | undefined,
+  input: CalendarWriteInput,
+): Promise<string | null> {
+  return settleCalendarWrite(() => replaceCalendarBooking(eventId, input));
+}
+
 /** Window used when asking Calendar for free/busy around the offered days. */
 export function availabilityWindow(now: Date, daysAhead: number, timeZone: string): Interval {
   const today = utcToZonedParts(now, timeZone);

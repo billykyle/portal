@@ -26,4 +26,14 @@ test("book and times hrefs keep a single address field plus services", () => {
     }),
     `${CLIENT_SCHEDULING_TIMES}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&service=Real+Estate+%C2%B7+Photography&error=Pick+a+time.`,
   );
+  assert.equal(
+    schedulingBookHref({
+      modify: "11111111-1111-4111-8111-111111111111",
+      address: "12 Wood View Drive, Princeton, NJ, USA",
+      services: ["Real Estate · Photography"],
+      notes: "Lockbox",
+    }),
+    `${CLIENT_SCHEDULING}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&service=Real+Estate+%C2%B7+Photography&notes=Lockbox&modify=11111111-1111-4111-8111-111111111111`,
+  );
+  assert.equal(schedulingBookHref({ modified: "1" }), `${CLIENT_SCHEDULING}?modified=1`);
 });

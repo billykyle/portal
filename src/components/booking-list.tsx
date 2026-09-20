@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { CancelBookingForm } from "@/components/forms/cancel-booking-form";
-import { adminCalendarGapNotice } from "@/lib/scheduling/bookings";
+import { adminCalendarGapNotice, canModifyBooking } from "@/lib/scheduling/bookings";
 import { bookingServiceList } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
+import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export type BookingListItem = {
   id: string;
@@ -25,14 +27,18 @@ export function BookingList({
   timeZone,
   showClient = false,
   allowCancel = false,
+  allowModify = false,
   admin = false,
+  clientId,
 }: {
   bookings: BookingListItem[];
   emptyLabel: string;
   timeZone: string;
   showClient?: boolean;
   allowCancel?: boolean;
+  allowModify?: boolean;
   admin?: boolean;
+  clientId?: string;
 }) {
   if (bookings.length === 0) {
     return <p className="text-sm text-[#8e8e93]">{emptyLabel}</p>;
@@ -74,7 +80,25 @@ export function BookingList({
             ) : null}
             {calendarGap ? <p className="text-sm text-[#8e8e93]">{calendarGap}</p> : null}
             {allowCancel && upcoming ? (
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                {allowModify &&
+                clientId &&
+                canModifyBooking(
+                  { status: booking.status, startsAt: booking.startsAt, clientId: booking.clientId ?? clientId },
+                  clientId,
+                ) ? (
+                  <Link
+                    href={schedulingBookHref({
+                      modify: booking.id,
+                      address: booking.address,
+                      services,
+                      notes: booking.notes,
+                    })}
+                    className="text-sm text-[#8e8e93]"
+                  >
+                    Modify
+                  </Link>
+                ) : null}
                 <CancelBookingForm bookingId={booking.id} fromAdmin={admin} clientId={booking.clientId} />
               </div>
             ) : null}

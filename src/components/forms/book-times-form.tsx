@@ -8,7 +8,7 @@ import { FormError, SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
 import { TimesHelpNote } from "@/components/times-help-note";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { createBooking } from "@/lib/actions/scheduling";
+import { createBooking, updateBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
 import { readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import {
@@ -24,22 +24,34 @@ export function BookTimesForm({
   services,
   notes = "",
   error,
+  modifyBookingId,
+  currentSlot,
 }: {
   availability: AvailabilityResult;
   services: string[];
   notes?: string;
   error?: string;
+  modifyBookingId?: string;
+  currentSlot?: string;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
   const last = parseRequiredDateKey(availability.lastBookableDate);
-  const firstKey = availability.firstBookableDate;
+  const currentStartSep = currentSlot?.indexOf("|") ?? -1;
+  const currentStart = currentStartSep > 0 ? currentSlot.slice(0, currentStartSep) : "";
+  const offeredCurrent = currentSlot
+    ? availability.slots.find((slot) => `${slot.start}|${slot.end}` === currentSlot) ??
+      availability.slots.find((slot) => slot.start === currentStart)
+    : undefined;
+  const firstKey = offeredCurrent?.dateKey ?? availability.firstBookableDate;
   const [weekStart, setWeekStart] = useState(firstKey);
   const [openDates, setOpenDates] = useState<string[]>(() =>
     firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots),
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState(
+    offeredCurrent ? `${offeredCurrent.start}|${offeredCurrent.end}` : "",
+  );
   const [slotError, setSlotError] = useState("");
 
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
@@ -47,6 +59,7 @@ export function BookTimesForm({
     address: availability.address,
     services,
     notes: notes || null,
+    modify: modifyBookingId || null,
   });
   const submitError = slotError || error;
 
@@ -105,7 +118,8 @@ export function BookTimesForm({
         <p className="mb-4 text-sm text-[#8e8e93]">No times fit this address right now.</p>
       ) : null}
 
-      <form action={createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
+      <form action={modifyBookingId ? updateBooking : createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
+        {modifyBookingId ? <input type="hidden" name="bookingId" value={modifyBookingId} /> : null}
         <input type="hidden" name="address" value={availability.address} />
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
@@ -208,7 +222,7 @@ export function BookTimesForm({
         <div id="book-shoot-error">
           <FormError message={submitError} />
         </div>
-        <BookShootSubmit />
+        <BookShootSubmit modify={Boolean(modifyBookingId)} />
       </form>
 
       <MonthCalendarDialog
@@ -234,9 +248,10 @@ function groupSlotsByDate(slots: OfferedSlot[]) {
   return groups;
 }
 
-function BookShootSubmit() {
+function BookShootSubmit({ modify }: { modify?: boolean }) {
   const { pending } = useFormStatus();
-  return <SubmitButton disabled={pending}>{pending ? "Booking…" : "Book shoot"}</SubmitButton>;
+  const label = modify ? (pending ? "Saving…" : "Save changes") : pending ? "Booking…" : "Book shoot";
+  return <SubmitButton disabled={pending}>{label}</SubmitButton>;
 }
 
 function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {

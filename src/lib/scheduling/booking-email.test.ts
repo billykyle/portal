@@ -3,8 +3,11 @@ import { afterEach, test } from "node:test";
 import {
   bookingConfirmationRecipients,
   buildBookingConfirmation,
+  buildBookingModified,
+  buildBookingModifiedNotify,
   buildBookingNotify,
   sendBookingConfirmation,
+  sendBookingModification,
 } from "./booking-email";
 
 const EMAIL_ENV = ["RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFY_EMAIL"] as const;
@@ -113,6 +116,29 @@ test("confirmation body omits empty notes and access codes", () => {
   assert.doesNotMatch(message.html, /Access codes/);
 });
 
+test("modification emails use updated copy for client and Billy", () => {
+  const input = {
+    clientEmail: "sam@example.com",
+    clientName: "Sam Lepore",
+    address: "644 Plumrun Dr, West Chester, PA",
+    services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
+    start,
+    end,
+    timeZone: "America/New_York",
+    notes: "Code 1234",
+  };
+  const client = buildBookingModified(input);
+  const notify = buildBookingModifiedNotify(input);
+  assert.match(client.subject, /Shoot updated/);
+  assert.match(client.text, /has been updated/);
+  assert.match(client.text, /644 Plumrun Dr/);
+  assert.match(client.text, /Code 1234/);
+  assert.match(notify.subject, /^Booking updated:/);
+  assert.match(notify.text, /modified on the portal/);
+  assert.match(notify.text, /Sam Lepore · sam@example.com/);
+  assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+});
+
 test("sendBookingConfirmation is a no-op without Resend", async () => {
   delete process.env.RESEND_API_KEY;
   const result = await sendBookingConfirmation({
@@ -171,6 +197,47 @@ test("sendBookingConfirmation posts two separate Resend emails with no CC/BCC", 
     assert.match(String(notify.subject), /^New booking:/);
     assert.match(String(client.text), /is confirmed/);
     assert.match(String(notify.text), /New booking on the portal/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sendBookingModification posts two separate Resend emails with no CC/BCC", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.EMAIL_FROM;
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+
+  const calls: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const result = await sendBookingModification({
+      clientEmail: "sam@example.com",
+      clientName: "Sam Lepore",
+      address: "644 Plumrun Dr, West Chester, PA",
+      services: ["Real Estate · Photography"],
+      start,
+      end,
+      timeZone: "America/New_York",
+    });
+    assert.equal(result.sent, true);
+    assert.equal(calls.length, 2);
+    const client = calls.find((body) => Array.isArray(body.to) && body.to.includes("sam@example.com"));
+    const notify = calls.find((body) => Array.isArray(body.to) && body.to.includes("billy@billyhere.com"));
+    assert.ok(client, "expected a client modification send");
+    assert.ok(notify, "expected a Billy notify send");
+    assert.equal(client.from, "Billy Kyle <billy@billyhere.com>");
+    assert.equal(notify.from, "Billy Kyle <billy@billyhere.com>");
+    assert.deepEqual(client.to, ["sam@example.com"]);
+    assert.deepEqual(notify.to, ["billy@billyhere.com"]);
+    assert.equal(client.cc, undefined);
+    assert.equal(notify.cc, undefined);
+    assert.match(String(client.subject), /Shoot updated/);
+    assert.match(String(notify.subject), /^Booking updated:/);
   } finally {
     globalThis.fetch = originalFetch;
   }

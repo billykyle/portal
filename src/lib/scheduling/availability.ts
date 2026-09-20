@@ -8,7 +8,7 @@ import {
   hoursForNow,
   lastBookableDate,
 } from "./horizon";
-import { mergeIntervals, overlaps, type Interval } from "./intervals";
+import { mergeIntervals, overlaps, sameInterval, subtractInterval, type Interval } from "./intervals";
 import { bookingSlotMinutes, parseSchedulingServices } from "./services";
 import { formatSlotRange, generateCandidateSlots } from "./slots";
 import {
@@ -49,10 +49,19 @@ export type AvailabilitySources = {
   driveTimeConfigured: boolean;
 };
 
+export function withoutOwnBooking(sources: AvailabilitySources, window: Interval): AvailabilitySources {
+  return {
+    ...sources,
+    busy: subtractInterval(sources.busy, window),
+    jobs: sources.jobs.filter((job) => !sameInterval(job, window)),
+  };
+}
+
 export async function offerSlotsForAddress(
   rawAddress: string,
   sources: AvailabilitySources,
   services: readonly string[] = [],
+  options?: { retainStarts?: readonly Date[] },
 ): Promise<AvailabilityResult> {
   const parsed = parseShootAddress(rawAddress);
   const now = sources.now ?? new Date();
@@ -80,7 +89,11 @@ export async function offerSlotsForAddress(
     };
   }
 
-  const candidates = generateCandidateSlots({ ...hours, now });
+  const candidates = generateCandidateSlots({
+    ...hours,
+    now,
+    retainStarts: options?.retainStarts,
+  });
   const busy = mergeIntervals(sources.busy);
   const afterBusy = candidates.filter((slot) => !busy.some((block) => overlaps(slot, block)));
   const neighborJobs = travelJobsWithBusy(sources.jobs, busy);

@@ -4,13 +4,42 @@ import { bookings, clients } from "@/lib/db/schema";
 import type { Interval } from "./intervals";
 import type { TravelJob } from "./travel";
 
-export async function loadConfirmedPortalJobs(): Promise<TravelJob[]> {
+export async function loadConfirmedPortalJobs(options?: {
+  excludeBookingId?: string | null;
+}): Promise<TravelJob[]> {
   const rows = await db.select().from(bookings).where(eq(bookings.status, "confirmed"));
-  return rows.map((row) => ({
-    start: row.startsAt,
-    end: row.endsAt,
-    address: row.address,
-  }));
+  return rows
+    .filter((row) => !options?.excludeBookingId || row.id !== options.excludeBookingId)
+    .map((row) => ({
+      start: row.startsAt,
+      end: row.endsAt,
+      address: row.address,
+    }));
+}
+
+const BOOKING_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function getClientBooking(clientId: string, bookingId: string) {
+  if (!bookingId || !BOOKING_ID_RE.test(bookingId)) return null;
+  const [booking] = await db
+    .select()
+    .from(bookings)
+    .where(and(eq(bookings.id, bookingId), eq(bookings.clientId, clientId)))
+    .limit(1);
+  return booking ?? null;
+}
+
+/** Owner may edit a confirmed shoot that has not started. */
+export function canModifyBooking(
+  booking: { status: string; startsAt: Date; clientId: string },
+  clientId: string,
+  now = new Date(),
+) {
+  return (
+    booking.status === "confirmed" &&
+    booking.clientId === clientId &&
+    booking.startsAt.getTime() > now.getTime()
+  );
 }
 
 export async function loadConfirmedPortalBusy(): Promise<Interval[]> {

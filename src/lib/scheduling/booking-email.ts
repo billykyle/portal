@@ -136,6 +136,70 @@ export function buildBookingNotify(input: BookingConfirmationInput) {
   };
 }
 
+/** Client-facing modification confirmation. Email #1. */
+export function buildBookingModified(input: BookingConfirmationInput) {
+  const { when, services, notes, accessCodes } = bookingDetails(input);
+  const greeting = input.clientName?.trim() ? `Hi ${input.clientName.trim()},` : "Hi,";
+
+  const text = [
+    greeting,
+    "",
+    "Your shoot with Billy Kyle has been updated.",
+    "",
+    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
+    "",
+    "Reply to this email if you need to change anything.",
+    "",
+    "— Billy Kyle",
+  ].join("\n");
+
+  const html = wrapHtml([
+    `<p>${escapeHtml(greeting)}</p>`,
+    "<p>Your shoot with Billy Kyle has been updated.</p>",
+    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
+    "<p>Reply to this email if you need to change anything.</p>",
+    "<p>— Billy Kyle</p>",
+  ]);
+
+  return {
+    subject: `Shoot updated — ${when}`,
+    text,
+    html,
+  };
+}
+
+/** Billy's modification alert. Email #2. */
+export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
+  const { when, services, notes, accessCodes } = bookingDetails(input);
+  const clientLabel = [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
+
+  const bookingsUrl = adminUrl("/admin/bookings");
+  const text = [
+    "A booking was modified on the portal.",
+    "",
+    "Client",
+    clientLabel || input.clientEmail,
+    "",
+    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
+    "",
+    "Admin",
+    bookingsUrl,
+  ].join("\n");
+
+  const html = wrapHtml([
+    "<p>A booking was modified on the portal.</p>",
+    `<p><strong>Client</strong><br>${escapeHtml(clientLabel || input.clientEmail)}</p>`,
+    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
+    `<p><strong>Admin</strong><br><a href="${escapeHtml(bookingsUrl)}">${escapeHtml(bookingsUrl)}</a></p>`,
+  ]);
+
+  return {
+    subject: `Booking updated: ${when}`,
+    text,
+    html,
+  };
+}
+
 export type BookingEmailSendResult = {
   sent: boolean;
   client: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
@@ -151,14 +215,25 @@ export type BookingEmailSendResult = {
  * One failed send does not skip the other.
  */
 export async function sendBookingConfirmation(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
+  return sendBookingPair(input, buildBookingConfirmation(input), buildBookingNotify(input));
+}
+
+/** Same two-send pattern after a client modifies an upcoming booking. */
+export async function sendBookingModification(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
+  return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input));
+}
+
+async function sendBookingPair(
+  input: BookingConfirmationInput,
+  clientMessage: { subject: string; text: string; html: string },
+  notifyMessage: { subject: string; text: string; html: string },
+): Promise<BookingEmailSendResult> {
   if (!emailConfigured()) {
     const skipped = { sent: false as const, reason: "resend-unconfigured" };
     return { sent: false, client: skipped, notify: skipped };
   }
 
   const recipients = bookingConfirmationRecipients(input.clientEmail);
-  const clientMessage = buildBookingConfirmation(input);
-  const notifyMessage = buildBookingNotify(input);
 
   const [client, notify] = await Promise.all([
     recipients.client

@@ -8,8 +8,8 @@ import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { TimesHelpNote } from "@/components/times-help-note";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { loadLiveAvailabilitySources, offerSlotsForAddress } from "@/lib/scheduling/availability";
-import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
+import { loadLiveAvailabilitySources, offerSlotsForAddress, withoutOwnBooking } from "@/lib/scheduling/availability";
+import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { resolveBookAddress } from "@/lib/scheduling/places";
 import { parseSchedulingServices } from "@/lib/scheduling/services";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
@@ -27,6 +27,7 @@ export default async function SchedulingTimesPage({
     service?: string | string[];
     notes?: string;
     error?: string;
+    modify?: string;
   }>;
 }) {
   const session = await getSession();
@@ -40,11 +41,17 @@ export default async function SchedulingTimesPage({
     service: rawService,
     notes: rawNotes = "",
     error,
+    modify: rawModify = "",
   } = await searchParams;
   const selectedServices = parseSchedulingServices(rawService);
   const typedAddress = rawAddress.trim();
   const placeId = rawPlaceId.trim();
   const notes = rawNotes.trim();
+  const modifyId = rawModify.trim();
+  const modifying = modifyId ? await getClientBooking(session.clientId, modifyId) : null;
+  if (modifyId && (!modifying || !canModifyBooking(modifying, session.clientId))) {
+    redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
+  }
 
   if (selectedServices.length === 0) {
     redirect(
@@ -52,6 +59,7 @@ export default async function SchedulingTimesPage({
         address: typedAddress || null,
         placeId: placeId || null,
         notes: notes || null,
+        modify: modifying?.id ?? null,
         error: "Pick at least one service.",
       }),
     );
@@ -65,6 +73,7 @@ export default async function SchedulingTimesPage({
         placeId: placeId || null,
         services: selectedServices,
         notes: notes || null,
+        modify: modifying?.id ?? null,
         error: resolved.error,
       }),
     );
@@ -74,27 +83,34 @@ export default async function SchedulingTimesPage({
     address: resolved.address,
     services: selectedServices,
     notes: notes || null,
+    modify: modifying?.id ?? null,
   });
-  const portalJobs = await loadConfirmedPortalJobs();
-  const sources = await loadLiveAvailabilitySources({
+  const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: modifying?.id });
+  const loaded = await loadLiveAvailabilitySources({
     portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
     portalJobs,
   });
-  if ("error" in sources) {
+  if ("error" in loaded) {
     return (
-      <TimesShell changeHref={changeHref} error={sources.error}>
+      <TimesShell changeHref={changeHref} error={loaded.error}>
         <TimesUnavailable address={resolved.address} services={selectedServices} changeHref={changeHref} />
       </TimesShell>
     );
   }
 
-  const availability = await offerSlotsForAddress(resolved.address, sources, selectedServices);
+  const sources = modifying
+    ? withoutOwnBooking(loaded, { start: modifying.startsAt, end: modifying.endsAt })
+    : loaded;
+  const availability = await offerSlotsForAddress(resolved.address, sources, selectedServices, {
+    retainStarts: modifying ? [modifying.startsAt] : undefined,
+  });
   if (availability.error) {
     redirect(
       schedulingBookHref({
         address: typedAddress || null,
         services: selectedServices,
         notes: notes || null,
+        modify: modifying?.id ?? null,
         error: availability.error,
       }),
     );
@@ -107,6 +123,10 @@ export default async function SchedulingTimesPage({
         services={selectedServices}
         notes={notes}
         error={error}
+        modifyBookingId={modifying?.id}
+        currentSlot={
+          modifying ? `${modifying.startsAt.toISOString()}|${modifying.endsAt.toISOString()}` : undefined
+        }
       />
     </TimesShell>
   );

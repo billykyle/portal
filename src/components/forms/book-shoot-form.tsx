@@ -10,6 +10,7 @@ export function BookShootForm({
   notes,
   addressError,
   placesConfigured,
+  modifyBookingId,
 }: {
   address: string;
   placeId?: string;
@@ -17,9 +18,11 @@ export function BookShootForm({
   notes?: string;
   addressError?: string;
   placesConfigured: boolean;
+  modifyBookingId?: string;
 }) {
   return (
     <BookTimesNavigation>
+      {modifyBookingId ? <input type="hidden" name="modify" value={modifyBookingId} /> : null}
       <p className="text-sm text-[#8e8e93]">Step 1 of 2 — address and services</p>
       <AddressAutocomplete
         defaultValue={address}
