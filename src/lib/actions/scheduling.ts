@@ -17,7 +17,7 @@ import {
 import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { writeCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
-import { parseSchedulingServices } from "@/lib/scheduling/services";
+import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
 
 function schedulingUrl(params: {
   address?: string | null;
@@ -93,8 +93,8 @@ export async function createBooking(formData: FormData) {
         start,
         end,
         timeZone: hours.timeZone,
-        summary: `${services.join(", ")} — ${client?.displayName ?? session.email}`,
-        description: [services.join(", "), notes, accessCodes ? `Access: ${accessCodes}` : ""]
+        summary: `${formatBookingServices(services)} — ${client?.displayName ?? session.email}`,
+        description: [formatBookingServices(services), notes, accessCodes ? `Access: ${accessCodes}` : ""]
           .filter(Boolean)
           .join("\n"),
       });

@@ -1,5 +1,5 @@
 import { CancelBookingForm } from "@/components/forms/cancel-booking-form";
-import { bookingServiceList, formatBookingServices } from "@/lib/scheduling/services";
+import { bookingServiceList } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
 
 export type BookingListItem = {
@@ -44,7 +44,13 @@ export function BookingList({
         return (
           <li key={booking.id} className="border-b border-white/10 py-4">
             {services.length > 0 ? (
-              <p className="text-[15px]">{formatBookingServices(services)}</p>
+              <ul className="flex flex-col gap-0.5">
+                {services.map((service) => (
+                  <li key={service} className="text-[15px]">
+                    {service}
+                  </li>
+                ))}
+              </ul>
             ) : null}
             <p className={services.length > 0 ? "text-sm text-[#8e8e93]" : "text-[15px]"}>
               {booking.address}
