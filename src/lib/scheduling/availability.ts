@@ -151,7 +151,7 @@ export async function offerSlotsForAddress(
   if (!sources.driveTimeConfigured && hiddenForTravel > 0) {
     notices.push("Some times next to another job are hidden until live drive time is available.");
   } else if (sources.driveTimeConfigured && hiddenForTravel > 0 && slots.length === 0) {
-    notices.push("No remaining times fit travel from the prior or to the next job plus the 15-minute pad.");
+    notices.push("No remaining times fit live drive time from the prior or to the next job.");
   }
 
   return {
