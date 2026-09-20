@@ -17,7 +17,7 @@ import {
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { sendBookingConfirmation } from "@/lib/scheduling/booking-email";
-import { writeCalendarBooking } from "@/lib/scheduling/calendar";
+import { tryWriteCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
 import { schedulingBookHref, schedulingTimesHref } from "@/lib/scheduling/urls";
@@ -36,6 +36,18 @@ export async function createBooking(formData: FormData) {
   function failTimes(error: string, nextAddress = address): never {
     redirect(schedulingTimesHref({ address: nextAddress, services, notes, error }));
   }
+
+  let created:
+    | {
+        bookingId: string;
+        address: string;
+        start: Date;
+        end: Date;
+        timeZone: string;
+        clientName: string | null;
+        calendarConfigured: boolean;
+      }
+    | undefined;
 
   try {
     await ensureDb();
@@ -69,37 +81,25 @@ export async function createBooking(formData: FormData) {
     const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
     const hours = schedulingHours();
 
-    let calendarEventId: string | null = null;
-    if (availability.calendarConfigured) {
-      try {
-        calendarEventId = await writeCalendarBooking({
-          address: availability.address,
-          start,
-          end,
-          timeZone: hours.timeZone,
-          summary: `${formatBookingServices(services)} — ${client?.displayName ?? session.email}`,
-          description: [formatBookingServices(services), notes, accessCodes ? `Access: ${accessCodes}` : ""]
-            .filter(Boolean)
-            .join("\n"),
-        });
-      } catch (error) {
-        failTimes(bookingUserError(error, "Google Calendar write failed."), availability.address);
-      }
+    const [booking] = await db
+      .insert(bookings)
+      .values({
+        clientId: session.clientId,
+        createdByUserId: session.userId,
+        address: availability.address,
+        services,
+        startsAt: start,
+        endsAt: end,
+        status: "confirmed",
+        notes,
+        accessCodes,
+        calendarEventId: null,
+        driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
+      })
+      .returning({ id: bookings.id });
+    if (!booking) {
+      failTimes("Booking could not be completed.");
     }
-
-    await db.insert(bookings).values({
-      clientId: session.clientId,
-      createdByUserId: session.userId,
-      address: availability.address,
-      services,
-      startsAt: start,
-      endsAt: end,
-      status: "confirmed",
-      notes,
-      accessCodes,
-      calendarEventId,
-      driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
-    });
 
     try {
       await sendBookingConfirmation({
@@ -116,9 +116,44 @@ export async function createBooking(formData: FormData) {
     } catch (error) {
       console.error("Booking confirmation email failed", error);
     }
+
+    created = {
+      bookingId: booking.id,
+      address: availability.address,
+      start,
+      end,
+      timeZone: hours.timeZone,
+      clientName: client?.displayName ?? null,
+      calendarConfigured: availability.calendarConfigured,
+    };
   } catch (error) {
     unstable_rethrow(error);
     failTimes(bookingUserError(error));
+  }
+
+  // Calendar write is best-effort after the portal row and emails exist. A 403
+  // writer-access error (or any other insert failure) must not undo Book shoot.
+  if (created?.calendarConfigured) {
+    try {
+      const calendarEventId = await tryWriteCalendarBooking({
+        address: created.address,
+        start: created.start,
+        end: created.end,
+        timeZone: created.timeZone,
+        summary: `${formatBookingServices(services)} — ${created.clientName ?? session.email}`,
+        description: [formatBookingServices(services), notes, accessCodes ? `Access: ${accessCodes}` : ""]
+          .filter(Boolean)
+          .join("\n"),
+      });
+      if (calendarEventId) {
+        await db
+          .update(bookings)
+          .set({ calendarEventId, updatedAt: new Date() })
+          .where(eq(bookings.id, created.bookingId));
+      }
+    } catch (error) {
+      console.error("Google Calendar write failed; booking still confirmed", error);
+    }
   }
 
   revalidatePath(CLIENT_SCHEDULING);

@@ -18,6 +18,15 @@ export async function loadConfirmedPortalBusy(): Promise<Interval[]> {
   return jobs.map((job) => ({ start: job.start, end: job.end }));
 }
 
+/** Soft admin notice when a confirmed booking never landed on Work calendar. */
+export function adminCalendarGapNotice(booking: {
+  status: string;
+  calendarEventId?: string | null;
+}): string | null {
+  if (booking.status !== "confirmed" || booking.calendarEventId) return null;
+  return "Not on Google Calendar yet.";
+}
+
 export async function listClientUpcomingBookings(clientId: string) {
   return db
     .select()

@@ -62,6 +62,8 @@ Use the existing SA. Do not create a JSON key.
 6. Enable **IAM Service Account Credentials API** and **Security Token Service API** if they are off.
 7. In Google Calendar, share **both** calendars with `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com` (Make changes to events on work so bookings can be written). Do not share US Holidays.
 
+   **Workspace Admin required for live Calendar create.** Google Workspace for `atmosimagery.com` currently blocks granting an external service account **Make changes to events** on Work — only See details is allowed. Free/busy still works; event insert returns `403 requiredAccessLevel`. A Workspace Admin must allow external calendar edit sharing (or domain-wide delegation) before `portal-scheduling@…` can create events. Until then, Book shoot still confirms in the portal and leaves `calendarEventId` null.
+
 OIDC is automatic on Vercel. Locally, `vercel env pull` writes a `VERCEL_OIDC_TOKEN` (~12h) if you want to exercise WIF without a private key.
 
 ## Flynn checklist (production `invalid_grant` audience)

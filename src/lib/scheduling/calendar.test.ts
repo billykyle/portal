@@ -6,6 +6,7 @@ import {
   collectFreeBusyIntervals,
   formatCalendarHttpError,
   parseCalendarApiError,
+  settleCalendarWrite,
   splitQueryWindows,
 } from "./calendar";
 import { DEFAULT_TIMEZONE } from "./rules";
@@ -313,6 +314,46 @@ test("splitQueryWindows keeps each freeBusy chunk under the 3-month cap", () => 
     if (i > 0) assert.equal(window.start.getTime(), windows[i - 1]?.end.getTime());
   }
   assert.deepEqual(splitQueryWindows({ start: now, end: now }), []);
+});
+
+test("formatCalendarHttpError surfaces a 403 writer-access Calendar insert", () => {
+  assert.equal(
+    formatCalendarHttpError(
+      403,
+      JSON.stringify({
+        error: {
+          code: 403,
+          message: "You need to have writer access to this calendar.",
+          errors: [{ reason: "requiredAccessLevel", message: "You need to have writer access to this calendar." }],
+        },
+      }),
+      "Google Calendar write",
+    ),
+    "Google Calendar write 403 (requiredAccessLevel: You need to have writer access to this calendar.)",
+  );
+});
+
+test("settleCalendarWrite keeps the event id on success and null on 403", async () => {
+  assert.equal(await settleCalendarWrite(async () => "evt_123"), "evt_123");
+  const writerDenied = new Error(
+    "Google Calendar write 403 (requiredAccessLevel: You need to have writer access to this calendar.)",
+  );
+  const errors: unknown[] = [];
+  const previous = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  try {
+    assert.equal(
+      await settleCalendarWrite(async () => {
+        throw writerDenied;
+      }),
+      null,
+    );
+  } finally {
+    console.error = previous;
+  }
+  assert.equal(errors.length, 1);
 });
 
 test("parseCalendarApiError surfaces Google timeRangeTooLong details", () => {

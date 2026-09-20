@@ -10,7 +10,9 @@
  *    `bkyle015@gmail.com`. A slot is busy if either calendar is busy. Do
  *    not use US Holidays. Portal
  *    bookings are always busy too, and are written to the work calendar when
- *    that write hook is live. Singular `GOOGLE_CALENDAR_ID` is still accepted.
+ *    that write hook is live. A Calendar write failure (including 403 writer
+ *    access) is logged and leaves `calendarEventId` null — Book shoot still
+ *    confirms. Singular `GOOGLE_CALENDAR_ID` is still accepted.
  * 2. Address first. Never compute or show times until a shoot address is known.
  * 3. Travel hard-block: live drive time only between the prior job address
  *    and the new address. Same check against the next located job. Exclusive
@@ -26,7 +28,9 @@
  *    (no CC/BCC): client confirmation to the session email, and a
  *    `New booking: …` alert to Billy (`billy@billyhere.com` /
  *    `BOOKING_NOTIFY_EMAIL`). Do not require Pepper. Soft-fail: never roll
- *    back the calendar event or DB insert if mail fails.
+ *    back the calendar event or DB insert if mail fails. Calendar write is
+ *    also soft-fail after the DB insert (and emails): try the Work insert,
+ *    but a 403 must not fail the client confirm.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.

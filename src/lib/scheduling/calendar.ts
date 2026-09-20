@@ -217,14 +217,26 @@ async function fetchCalendarJobsForId(
   return jobs;
 }
 
-export async function writeCalendarBooking(input: {
+export type CalendarWriteInput = {
   address: string;
   start: Date;
   end: Date;
   timeZone: string;
   summary: string;
   description?: string;
-}): Promise<string | null> {
+};
+
+/**
+ * Insert a booking on the Work calendar (`writeCalendarId`).
+ *
+ * Live create needs **Make changes to events** (or domain-wide delegation).
+ * Workspace for atmosimagery.com currently blocks granting that to the
+ * external `portal-scheduling@…` service account — only See details is
+ * allowed, so free/busy works and insert returns 403 `requiredAccessLevel`.
+ * A Workspace Admin must allow external calendar edit sharing before this
+ * can succeed. Book shoot must still confirm when it throws.
+ */
+export async function writeCalendarBooking(input: CalendarWriteInput): Promise<string | null> {
   const creds = readCalendarCredentials();
   if (!creds) return null;
   const token = await getCalendarAccessToken(creds.auth);
@@ -247,6 +259,26 @@ export async function writeCalendarBooking(input: {
   }
   const body = (await res.json()) as { id?: string };
   return body.id ?? null;
+}
+
+/**
+ * Attempt a Calendar insert without failing Book shoot.
+ * Success returns the event id; any error (including 403 writer access)
+ * is logged and returns null so `calendarEventId` stays empty.
+ */
+export async function settleCalendarWrite(
+  write: () => Promise<string | null>,
+): Promise<string | null> {
+  try {
+    return await write();
+  } catch (error) {
+    console.error("Google Calendar write failed; booking still confirmed", error);
+    return null;
+  }
+}
+
+export async function tryWriteCalendarBooking(input: CalendarWriteInput): Promise<string | null> {
+  return settleCalendarWrite(() => writeCalendarBooking(input));
 }
 
 /** Window used when asking Calendar for free/busy around the offered days. */
