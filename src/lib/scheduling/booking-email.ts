@@ -1,3 +1,4 @@
+import { adminUrl } from "@/lib/hosts";
 import {
   bookingNotifyEmail,
   emailConfigured,
@@ -108,6 +109,7 @@ export function buildBookingNotify(input: BookingConfirmationInput) {
   const { when, services, notes, accessCodes } = bookingDetails(input);
   const clientLabel = [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
 
+  const bookingsUrl = adminUrl("/admin/bookings");
   const text = [
     "New booking on the portal.",
     "",
@@ -115,12 +117,16 @@ export function buildBookingNotify(input: BookingConfirmationInput) {
     clientLabel || input.clientEmail,
     "",
     ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
+    "",
+    "Admin",
+    bookingsUrl,
   ].join("\n");
 
   const html = wrapHtml([
     "<p>New booking on the portal.</p>",
     `<p><strong>Client</strong><br>${escapeHtml(clientLabel || input.clientEmail)}</p>`,
     ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
+    `<p><strong>Admin</strong><br><a href="${escapeHtml(bookingsUrl)}">${escapeHtml(bookingsUrl)}</a></p>`,
   ]);
 
   return {

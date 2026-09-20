@@ -91,7 +91,9 @@ test("Billy's copy uses a New booking subject and names the client", () => {
   assert.match(message.text, /New booking on the portal/);
   assert.match(message.text, /Sam Lepore · sam@example.com/);
   assert.match(message.text, /12 Wood View Drive, Princeton, NJ/);
+  assert.match(message.text, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.match(message.html, /sam@example.com/);
+  assert.match(message.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
 });
 
 test("confirmation body omits empty notes and access codes", () => {
