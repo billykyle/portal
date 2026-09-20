@@ -33,5 +33,8 @@ export const DEFAULT_OPEN_HOUR = 8;
 export const DEFAULT_CLOSE_HOUR = 18;
 export const DEFAULT_SLOT_MINUTES = 90;
 export const DEFAULT_STEP_MINUTES = 30;
+/** Fallback when env is unset. Runtime horizon is at least {@link DEFAULT_MAX_BOOKING_MONTHS}. */
 export const DEFAULT_DAYS_AHEAD = 14;
 export const DEFAULT_MIN_LEAD_MINUTES = 120;
+export const DEFAULT_WEEK_DAYS = 7;
+export const DEFAULT_MAX_BOOKING_MONTHS = 3;

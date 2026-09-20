@@ -16,6 +16,7 @@ import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { schedulingHours } from "@/lib/scheduling/config";
+import { teammateDisplayName } from "@/lib/signup-fields";
 
 export default async function AdminClientPage({
   params,
@@ -47,6 +48,9 @@ export default async function AdminClientPage({
     .select({
       id: users.id,
       email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      phone: users.phone,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -106,7 +110,9 @@ export default async function AdminClientPage({
                 {teammateRows.map((user) => (
                   <li key={user.id} className="flex items-center gap-3 border-b border-white/10 py-4">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px]">{user.email}</p>
+                      <p className="truncate text-[15px]">{teammateDisplayName(user)}</p>
+                      <p className="truncate text-sm text-[#8e8e93]">{user.email}</p>
+                      {user.phone ? <p className="truncate text-sm text-[#8e8e93]">{user.phone}</p> : null}
                       <p className="text-xs text-[#8e8e93]">
                         Joined{" "}
                         {user.createdAt.toLocaleDateString("en-US", {

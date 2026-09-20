@@ -5,14 +5,43 @@ import { useActionState } from "react";
 import { Field, FormError, SubmitButton } from "@/components/field";
 import { signUp } from "@/lib/actions/auth";
 
-export function SignupForm({ inviteCode }: { inviteCode: string }) {
+export function SignupForm({
+  inviteCode,
+  defaultEmail,
+  defaultCompany,
+  emailLocked = false,
+}: {
+  inviteCode: string;
+  defaultEmail?: string;
+  defaultCompany?: string;
+  emailLocked?: boolean;
+}) {
   const [state, action, pending] = useActionState(signUp, undefined);
 
   return (
     <form action={action} className="flex flex-col gap-4">
       <p className="text-sm text-[#8e8e93]">Invite {inviteCode}</p>
       <input type="hidden" name="inviteCode" value={inviteCode} />
-      <Field id="email" label="Email" type="email" autoComplete="email" required />
+      <Field id="firstName" name="firstName" label="First name" autoComplete="given-name" required />
+      <Field id="lastName" name="lastName" label="Last name" autoComplete="family-name" required />
+      <Field
+        id="companyName"
+        name="companyName"
+        label="Company name"
+        autoComplete="organization"
+        defaultValue={defaultCompany}
+        required
+      />
+      <Field id="phone" name="phone" label="Phone number" type="tel" autoComplete="tel" required />
+      <Field
+        id="email"
+        label="Email"
+        type="email"
+        autoComplete="email"
+        defaultValue={defaultEmail}
+        required
+        readOnly={emailLocked}
+      />
       <Field id="password" label="Password" type="password" autoComplete="new-password" required minLength={8} />
       <Field id="confirm" label="Confirm password" type="password" autoComplete="new-password" required minLength={8} />
       <FormError message={state?.error} />
