@@ -83,8 +83,9 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `NAS_SYNC_ENABLED` | `true` | Same. Production sync is the cron route. |
 | `CRON_SECRET` | long random string | Vercel sends `Authorization: Bearer $CRON_SECRET` to `/api/cron/nas-sync`. Required or cron gets 401. |
 | `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` / `shoot.delivered`. |
-| `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset mail only. |
-| `EMAIL_FROM` | `Billy Kyle Client Portal <noreply@billy-kyle.com>` | Used only when Resend is set. |
+| `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset and booking-confirmation mail. |
+| `EMAIL_FROM` | `Billy Kyle <billy@billyhere.com>` | Used only when Resend is set. Default if unset. |
+| `BOOKING_NOTIFY_EMAIL` | `billy@billyhere.com` | Optional. BCC/copy of each booking confirmation. |
 | `GOOGLE_CALENDAR_IDS` | `billy@atmosimagery.com,bkyle015@gmail.com` | Optional. Work + personal. Free/busy unions both — busy if either calendar is busy. Do **not** add US Holidays. Bookings write to the first ID. Share both with the service-account email. |
 | `GOOGLE_CALENDAR_ID` | single calendar id | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. |
 | `GCP_PROJECT_ID` | `glassy-polymer-509203-r1` | Optional display / GoogleAuth project id. |

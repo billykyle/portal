@@ -15,6 +15,7 @@ import {
   slotStillOffered,
 } from "@/lib/scheduling/availability";
 import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
+import { sendBookingConfirmation } from "@/lib/scheduling/booking-email";
 import { writeCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
@@ -99,6 +100,22 @@ export async function createBooking(formData: FormData) {
     calendarEventId,
     driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
   });
+
+  try {
+    await sendBookingConfirmation({
+      clientEmail: session.email,
+      clientName: client?.displayName ?? null,
+      address: availability.address,
+      services,
+      start,
+      end,
+      timeZone: hours.timeZone,
+      notes,
+      accessCodes,
+    });
+  } catch (error) {
+    console.error("Booking confirmation email failed", error);
+  }
 
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);

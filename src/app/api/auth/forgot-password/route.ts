@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { passwordResetTokens, users } from "@/lib/db/schema";
+import { emailConfigured, sendEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   await ensureDb();
@@ -28,21 +29,11 @@ export async function POST(request: Request) {
     const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
     resetUrl = `${proto}://${host}/reset-password?token=${token}`;
 
-    const resendKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM ?? "Billy Kyle Client Portal <noreply@localhost>";
-    if (resendKey) {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: [user.email],
-          subject: "Reset your Client Portal password",
-          text: `Reset your password:\n${resetUrl}\n\nThis link expires in one hour.`,
-        }),
+    if (emailConfigured()) {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Client Portal password",
+        text: `Reset your password:\n${resetUrl}\n\nThis link expires in one hour.`,
       });
       return NextResponse.json({ ok: true });
     }
