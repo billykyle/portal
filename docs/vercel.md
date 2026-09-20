@@ -85,7 +85,8 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` / `shoot.delivered`. |
 | `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset mail only. |
 | `EMAIL_FROM` | `Billy Kyle Client Portal <noreply@billy-kyle.com>` | Used only when Resend is set. |
-| `GOOGLE_CALENDAR_ID` | Billy’s calendar id | Optional. Free/busy + event write for scheduling. |
+| `GOOGLE_CALENDAR_IDS` | `billy@atmosimagery.com,bkyle015@gmail.com` | Optional. Work + personal. Free/busy unions both — busy if either calendar is busy. Do **not** add US Holidays. Bookings write to the first ID. Share both with the service-account email. |
+| `GOOGLE_CALENDAR_ID` | single calendar id | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | service account JSON | Optional. Share the calendar with that account. |
 | `GOOGLE_MAPS_API_KEY` | Maps Platform key | Optional, server-only. Enable **Places API (New)** (or Places API), **Address Validation**, and **Distance Matrix** on this key. Used for address autocomplete and live drive time. Empty = no invented suggestions or travel; the book form shows a clear message. |
 

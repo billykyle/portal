@@ -5,8 +5,11 @@
  * pass should keep these; only the I/O adapters change.
  *
  * 1. Google Calendar is the source of truth for busy time when credentials
- *    exist (`GOOGLE_CALENDAR_ID` + a service account). Portal bookings are
- *    always busy too, and are written to Calendar when that write hook is live.
+ *    exist (`GOOGLE_CALENDAR_IDS` + a service account). Locked calendars are
+ *    work `billy@atmosimagery.com` and personal `bkyle015@gmail.com`. A slot
+ *    is busy if either calendar is busy. Do not use US Holidays. Portal
+ *    bookings are always busy too, and are written to the work calendar when
+ *    that write hook is live. Singular `GOOGLE_CALENDAR_ID` is still accepted.
  * 2. Address first. Never compute or show times until a shoot address is known.
  * 3. Travel hard-block: live drive time between the prior job address and the
  *    new address, plus {@link TRAVEL_PAD_MINUTES}. Same check against the next
