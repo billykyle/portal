@@ -23,10 +23,11 @@
  *    `New booking: …` alert to Billy (`billy@billyhere.com` /
  *    `BOOKING_NOTIFY_EMAIL`). Do not require Pepper. Soft-fail: never roll
  *    back the calendar event or DB insert if mail fails.
- * 6. Slot length is the sum of selected service minutes (Billy, 2026-09-20).
- *    When services are known, offered times and calendar event end use that
- *    sum instead of {@link DEFAULT_SLOT_MINUTES}. Aerial Photos is still the
- *    default until Billy locks a time.
+ * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
+ *    Never longest-only. When services are known, offered times and calendar
+ *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}. Aerial
+ *    Photos stays on the `AERIAL_PHOTOS_MINUTES_TBD` placeholder until Billy
+ *    locks a time.
  */
 
 export const TRAVEL_PAD_MINUTES = 15;
@@ -35,7 +36,7 @@ export const TRAVEL_PAD_MS = TRAVEL_PAD_MINUTES * 60 * 1000;
 export const DEFAULT_TIMEZONE = "America/New_York";
 export const DEFAULT_OPEN_HOUR = 8;
 export const DEFAULT_CLOSE_HOUR = 18;
-/** Fallback when no services are selected, and for Aerial Photos until Billy locks a time. */
+/** Fallback when no services are selected. Not the Aerial Photos duration. */
 export const DEFAULT_SLOT_MINUTES = 90;
 export const DEFAULT_STEP_MINUTES = 30;
 /** Fallback when env is unset. Runtime horizon is at least {@link DEFAULT_MAX_BOOKING_MONTHS}. */

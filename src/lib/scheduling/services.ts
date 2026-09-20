@@ -5,8 +5,8 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
  * Scheduling picker, booking records, and admin. Clients may select more
  * than one option, including across industries, except exclusive groups
  * (Podcast: 1 episode or 2 episodes). Do not invent prices here.
- * Slot length is the sum of selected option minutes; Aerial Photos is
- * still {@link DEFAULT_SLOT_MINUTES} until Billy locks a time.
+ * Slot length is the **sum** of selected option minutes (never longest-only).
+ * Aerial Photos uses {@link AERIAL_PHOTOS_MINUTES_TBD} until Billy locks a time.
  */
 export const SCHEDULING_INDUSTRIES = [
   {
@@ -40,13 +40,20 @@ export const SCHEDULING_SERVICES = SCHEDULING_INDUSTRIES.flatMap((group) =>
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
 
 /**
- * Locked minutes per option (Billy, 2026-09-20). Aerial Photos is TBD —
- * keep the existing default slot instead of inventing 45.
+ * Aerial Photos minutes are TBD (Billy, 2026-09-20). Stand-in only so a
+ * selected Aerial option can still generate a slot. Flynn: replace this
+ * when Billy answers — do not treat as a locked catalog duration.
+ */
+export const AERIAL_PHOTOS_MINUTES_TBD = DEFAULT_SLOT_MINUTES;
+
+/**
+ * Locked minutes per option (Billy, 2026-09-20). Multi-select bookings
+ * **sum** these values. Aerial Photos is {@link AERIAL_PHOTOS_MINUTES_TBD}.
  */
 export const SCHEDULING_SERVICE_MINUTES = {
   "Real Estate · Photography": 45,
   "Real Estate · Video": 30,
-  "Real Estate · Aerial Photos": DEFAULT_SLOT_MINUTES,
+  "Real Estate · Aerial Photos": AERIAL_PHOTOS_MINUTES_TBD,
   "Real Estate · Zillow 360": 15,
   "Construction · Photography": 45,
   "Construction · Video": 45,
@@ -54,7 +61,7 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Podcast · 2 episodes": 105,
 } as const;
 
-/** Sum of selected option minutes. Empty / unknown → existing default slot. */
+/** Sum of selected option minutes — never longest-only. Empty / unknown → default slot. */
 export function bookingSlotMinutes(services: readonly string[]): number {
   const parsed = parseSchedulingServices(services);
   if (parsed.length === 0) return DEFAULT_SLOT_MINUTES;

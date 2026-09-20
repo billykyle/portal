@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_SLOT_MINUTES } from "./rules";
 import {
+  AERIAL_PHOTOS_MINUTES_TBD,
   bookingServiceList,
   bookingSlotMinutes,
   formatBookingServices,
@@ -149,11 +150,12 @@ test("toggleSchedulingService is exclusive inside Podcast and multi-select elsew
   );
 });
 
-test("bookingSlotMinutes sums locked option times and leaves Aerial at the default", () => {
+test("bookingSlotMinutes sums locked option times and leaves Aerial as TBD", () => {
+  assert.equal(AERIAL_PHOTOS_MINUTES_TBD, DEFAULT_SLOT_MINUTES);
   assert.deepEqual(SCHEDULING_SERVICE_MINUTES, {
     "Real Estate · Photography": 45,
     "Real Estate · Video": 30,
-    "Real Estate · Aerial Photos": DEFAULT_SLOT_MINUTES,
+    "Real Estate · Aerial Photos": AERIAL_PHOTOS_MINUTES_TBD,
     "Real Estate · Zillow 360": 15,
     "Construction · Photography": 45,
     "Construction · Video": 45,
@@ -164,13 +166,15 @@ test("bookingSlotMinutes sums locked option times and leaves Aerial at the defau
   assert.equal(bookingSlotMinutes(["Wedding"]), DEFAULT_SLOT_MINUTES);
   assert.equal(bookingSlotMinutes(["Real Estate · Photography"]), 45);
   assert.equal(bookingSlotMinutes(["Real Estate · Video"]), 30);
-  assert.equal(bookingSlotMinutes(["Real Estate · Aerial Photos"]), DEFAULT_SLOT_MINUTES);
+  assert.equal(bookingSlotMinutes(["Real Estate · Aerial Photos"]), AERIAL_PHOTOS_MINUTES_TBD);
   assert.equal(bookingSlotMinutes(["Real Estate · Zillow 360"]), 15);
   assert.equal(bookingSlotMinutes(["Construction · Photography"]), 45);
   assert.equal(bookingSlotMinutes(["Construction · Video"]), 45);
   assert.equal(bookingSlotMinutes(["Podcast · 1 episode"]), 60);
   assert.equal(bookingSlotMinutes(["Podcast · 2 episodes"]), 105);
-  assert.equal(bookingSlotMinutes(["Real Estate · Photography", "Real Estate · Video"]), 75);
+  const photoAndVideo = bookingSlotMinutes(["Real Estate · Photography", "Real Estate · Video"]);
+  assert.equal(photoAndVideo, 75);
+  assert.notEqual(photoAndVideo, 45);
   assert.equal(
     bookingSlotMinutes(["Real Estate · Photography", "Podcast · 2 episodes", "Podcast · 1 episode"]),
     105,
