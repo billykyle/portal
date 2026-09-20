@@ -1,5 +1,5 @@
 import type { Interval } from "./intervals";
-import { addCalendarDays, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
+import { addCalendarDays, calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 import type { SchedulingHours } from "./config";
 
 export function generateCandidateSlots(input: SchedulingHours & { now: Date }): Interval[] {
@@ -34,7 +34,9 @@ export function formatSlotRange(start: Date, end: Date, timeZone: string) {
     timeZone,
   });
   const timeOpts: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit", timeZone };
+  const startParts = utcToZonedParts(start, timeZone);
   return {
+    dateKey: calendarDateKey(startParts),
     dateLabel,
     timeLabel: `${start.toLocaleTimeString("en-US", timeOpts)} – ${end.toLocaleTimeString("en-US", timeOpts)}`,
   };

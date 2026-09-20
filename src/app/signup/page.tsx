@@ -8,6 +8,7 @@ import { CLIENT_HOME } from "@/lib/routes";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients } from "@/lib/db/schema";
+import { isPendingClientEmail } from "@/lib/signup-fields";
 
 export default async function SignupPage() {
   if (await getSession()) {
@@ -25,7 +26,15 @@ export default async function SignupPage() {
       <AuthHeader clientName={client?.displayName} />
       <h1 className="mb-6 text-2xl font-medium">Create account</h1>
       <FormColumn>
-        <SignupForm inviteCode={inviteCode} />
+        <SignupForm
+          inviteCode={inviteCode}
+          defaultEmail={
+            client?.primaryEmail && !isPendingClientEmail(client.primaryEmail)
+              ? client.primaryEmail
+              : undefined
+          }
+          defaultCompany={client?.company ?? undefined}
+        />
       </FormColumn>
     </PhoneShell>
   );

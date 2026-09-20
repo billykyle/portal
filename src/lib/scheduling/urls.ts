@@ -4,6 +4,7 @@ export type SchedulingQuery = {
   address?: string | null;
   placeId?: string | null;
   services?: readonly string[] | null;
+  notes?: string | null;
   error?: string | null;
   booked?: string | null;
   cancelled?: string | null;
@@ -16,6 +17,8 @@ export function schedulingSearch(params: SchedulingQuery) {
   for (const service of params.services ?? []) {
     query.append("service", service);
   }
+  const notes = params.notes?.trim();
+  if (notes) query.set("notes", notes);
   if (params.error) query.set("error", params.error);
   if (params.booked) query.set("booked", params.booked);
   if (params.cancelled) query.set("cancelled", params.cancelled);

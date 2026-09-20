@@ -6,20 +6,25 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, users } from "@/lib/db/schema";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
+import { parseSignupProfile } from "@/lib/signup-fields";
 
 export async function POST(request: Request) {
   await ensureDb();
   const body = (await request.json()) as {
+    firstName?: string;
+    lastName?: string;
+    companyName?: string;
+    phone?: string;
     email?: string;
     password?: string;
     inviteCode?: string;
   };
-  const email = (body.email ?? "").trim().toLowerCase();
+  const profile = parseSignupProfile(body);
   const password = body.password ?? "";
   const inviteCode = normalizeInviteCode(body.inviteCode || (await getInviteCookie()) || "");
 
-  if (!email || !email.includes("@")) {
-    return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
+  if (!profile.ok) {
+    return NextResponse.json({ error: profile.error }, { status: 400 });
   }
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
@@ -33,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That invite code was not found." }, { status: 404 });
   }
 
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const [existing] = await db.select().from(users).where(eq(users.email, profile.value.email)).limit(1);
   if (existing) {
     return NextResponse.json({ error: "That email already has an account. Sign in instead." }, { status: 409 });
   }
@@ -41,11 +46,18 @@ export async function POST(request: Request) {
   const [user] = await db
     .insert(users)
     .values({
-      email,
+      email: profile.value.email,
       passwordHash: await hash(password, 10),
+      firstName: profile.value.firstName,
+      lastName: profile.value.lastName,
+      phone: profile.value.phone,
       clientId: client.id,
     })
     .returning();
+
+  if (!client.company) {
+    await db.update(clients).set({ company: profile.value.companyName }).where(eq(clients.id, client.id));
+  }
 
   await createSession({
     userId: user.id,

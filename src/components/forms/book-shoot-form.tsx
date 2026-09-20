@@ -1,18 +1,20 @@
 import { AddressAutocomplete } from "@/components/forms/address-autocomplete";
 import { ServiceFieldset } from "@/components/forms/service-fieldset";
-import { SubmitButton } from "@/components/field";
+import { Field, SubmitButton } from "@/components/field";
 import { CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 export function BookShootForm({
   address,
   placeId,
   services,
+  notes,
   addressError,
   placesConfigured,
 }: {
   address: string;
   placeId?: string;
   services: string[];
+  notes?: string;
   addressError?: string;
   placesConfigured: boolean;
 }) {
@@ -25,6 +27,13 @@ export function BookShootForm({
         defaultPlaceId={placeId}
         placesConfigured={placesConfigured}
         error={addressError}
+      />
+      <Field
+        id="notes"
+        name="notes"
+        label="Notes (optional)"
+        placeholder="Lockbox, contact, …"
+        defaultValue={notes}
       />
       <SubmitButton>Continue</SubmitButton>
     </form>

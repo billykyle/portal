@@ -1,7 +1,13 @@
 import { parseShootAddress } from "./address";
 import { availabilityWindow, fetchCalendarBusy, fetchCalendarJobs } from "./calendar";
-import { schedulingHours, schedulingIntegrations } from "./config";
+import { schedulingIntegrations } from "./config";
 import { measureDriveSeconds } from "./drive-time";
+import {
+  calendarDateKey,
+  firstBookableDate,
+  hoursForNow,
+  lastBookableDate,
+} from "./horizon";
 import { mergeIntervals, overlaps, type Interval } from "./intervals";
 import { formatSlotRange, generateCandidateSlots } from "./slots";
 import { pickNextJob, pickPriorJob, travelFits, type TravelJob } from "./travel";
@@ -9,6 +15,7 @@ import { pickNextJob, pickPriorJob, travelFits, type TravelJob } from "./travel"
 export type OfferedSlot = {
   start: string;
   end: string;
+  dateKey: string;
   dateLabel: string;
   timeLabel: string;
   driveSecondsFromPrior: number | null;
@@ -19,6 +26,8 @@ export type AvailabilityResult = {
   timeZone: string;
   calendarConfigured: boolean;
   driveTimeConfigured: boolean;
+  firstBookableDate: string;
+  lastBookableDate: string;
   slots: OfferedSlot[];
   notices: string[];
   error?: string;
@@ -38,9 +47,13 @@ export async function offerSlotsForAddress(
   sources: AvailabilitySources,
 ): Promise<AvailabilityResult> {
   const parsed = parseShootAddress(rawAddress);
-  const hours = schedulingHours();
   const now = sources.now ?? new Date();
+  const hours = hoursForNow(now);
   const notices: string[] = [];
+  const window = {
+    firstBookableDate: calendarDateKey(firstBookableDate(now, hours)),
+    lastBookableDate: calendarDateKey(lastBookableDate(now, hours.timeZone)),
+  };
 
   if (!parsed.ok) {
     return {
@@ -48,6 +61,7 @@ export async function offerSlotsForAddress(
       timeZone: hours.timeZone,
       calendarConfigured: sources.calendarConfigured,
       driveTimeConfigured: sources.driveTimeConfigured,
+      ...window,
       slots: [],
       notices,
       error: parsed.error,
@@ -107,6 +121,7 @@ export async function offerSlotsForAddress(
     slots.push({
       start: slot.start.toISOString(),
       end: slot.end.toISOString(),
+      dateKey: labels.dateKey,
       dateLabel: labels.dateLabel,
       timeLabel: labels.timeLabel,
       driveSecondsFromPrior: verdict.driveSecondsFromPrior,
@@ -119,9 +134,7 @@ export async function offerSlotsForAddress(
     );
   }
   if (!sources.driveTimeConfigured && hiddenForTravel > 0) {
-    notices.push(
-      "Some times next to another job are hidden until live drive time is available (GOOGLE_MAPS_API_KEY). Geography is never guessed.",
-    );
+    notices.push("Some times next to another job are hidden until live drive time is available.");
   } else if (sources.driveTimeConfigured && hiddenForTravel > 0 && slots.length === 0) {
     notices.push("No remaining times fit travel from the prior job plus the 15-minute pad.");
   }
@@ -131,6 +144,7 @@ export async function offerSlotsForAddress(
     timeZone: hours.timeZone,
     calendarConfigured: sources.calendarConfigured,
     driveTimeConfigured: sources.driveTimeConfigured,
+    ...window,
     slots,
     notices,
   };
@@ -154,9 +168,9 @@ export async function loadLiveAvailabilitySources(options: {
   portalJobs: TravelJob[];
   now?: Date;
 }): Promise<AvailabilitySources | { error: string }> {
-  const hours = schedulingHours();
-  const integrations = schedulingIntegrations();
   const now = options.now ?? new Date();
+  const hours = hoursForNow(now);
+  const integrations = schedulingIntegrations();
   const range = availabilityWindow(now, hours.daysAhead, hours.timeZone);
   const busy = [...options.portalBusy];
   const jobs = [...options.portalJobs];

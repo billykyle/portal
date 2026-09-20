@@ -10,8 +10,9 @@ test("book and times hrefs keep a single address field plus services", () => {
       address: "12 Wood View Drive, Princeton, NJ, USA",
       placeId: "ChIJ123",
       services: ["Real Estate · Photography", "Construction · Video"],
+      notes: "Lockbox on the porch",
     }),
-    `${CLIENT_SCHEDULING_TIMES}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&placeId=ChIJ123&service=Real+Estate+%C2%B7+Photography&service=Construction+%C2%B7+Video`,
+    `${CLIENT_SCHEDULING_TIMES}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&placeId=ChIJ123&service=Real+Estate+%C2%B7+Photography&service=Construction+%C2%B7+Video&notes=Lockbox+on+the+porch`,
   );
   assert.equal(
     schedulingBookHref({ booked: "1" }),

@@ -18,6 +18,7 @@ import { clients, passwordResetTokens, users } from "@/lib/db/schema";
 import { emailConfigured, sendEmail } from "@/lib/email";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 import { CLIENT_HOME } from "@/lib/routes";
+import { parseSignupProfile } from "@/lib/signup-fields";
 
 export type ActionState = {
   error?: string;
@@ -40,15 +41,21 @@ export async function redeemInvite(_prev: ActionState | undefined, formData: For
 
 export async function signUp(_prev: ActionState | undefined, formData: FormData) {
   await ensureDb();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const profile = parseSignupProfile({
+    firstName: String(formData.get("firstName") ?? ""),
+    lastName: String(formData.get("lastName") ?? ""),
+    companyName: String(formData.get("companyName") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    email: String(formData.get("email") ?? ""),
+  });
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
   const inviteCode = normalizeInviteCode(
     String(formData.get("inviteCode") ?? "") || (await getInviteCookie()) || "",
   );
 
-  if (!email || !email.includes("@")) {
-    return { error: "Enter a valid email." };
+  if (!profile.ok) {
+    return { error: profile.error };
   }
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters." };
@@ -64,7 +71,7 @@ export async function signUp(_prev: ActionState | undefined, formData: FormData)
   if (!client) {
     return { error: "That invite code was not found." };
   }
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const [existing] = await db.select().from(users).where(eq(users.email, profile.value.email)).limit(1);
   if (existing) {
     return { error: "That email already has an account. Sign in instead." };
   }
@@ -72,11 +79,18 @@ export async function signUp(_prev: ActionState | undefined, formData: FormData)
   const [user] = await db
     .insert(users)
     .values({
-      email,
+      email: profile.value.email,
       passwordHash: await hash(password, 10),
+      firstName: profile.value.firstName,
+      lastName: profile.value.lastName,
+      phone: profile.value.phone,
       clientId: client.id,
     })
     .returning();
+
+  if (!client.company) {
+    await db.update(clients).set({ company: profile.value.companyName }).where(eq(clients.id, client.id));
+  }
 
   await createSession({
     userId: user.id,

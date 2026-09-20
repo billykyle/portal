@@ -34,10 +34,10 @@ export async function createBooking(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
   if (services.length === 0) {
-    redirect(schedulingBookHref({ address, error: "Pick at least one service." }));
+    redirect(schedulingBookHref({ address, notes, error: "Pick at least one service." }));
   }
   if (!startIso || !endIso) {
-    redirect(schedulingTimesHref({ address, services, error: "Pick a time." }));
+    redirect(schedulingTimesHref({ address, services, notes, error: "Pick a time." }));
   }
 
   const portalJobs = await loadConfirmedPortalJobs();
@@ -46,17 +46,18 @@ export async function createBooking(formData: FormData) {
     portalJobs,
   });
   if ("error" in sources) {
-    redirect(schedulingTimesHref({ address, services, error: sources.error }));
+    redirect(schedulingTimesHref({ address, services, notes, error: sources.error }));
   }
   const availability = await offerSlotsForAddress(address, sources);
   if (availability.error) {
-    redirect(schedulingBookHref({ services, error: availability.error }));
+    redirect(schedulingBookHref({ services, notes, error: availability.error }));
   }
   if (!slotStillOffered(availability, startIso, endIso)) {
     redirect(
       schedulingTimesHref({
         address: availability.address,
         services,
+        notes,
         error: "That time is no longer available. Pick another.",
       }),
     );
@@ -83,7 +84,7 @@ export async function createBooking(formData: FormData) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Google Calendar write failed.";
-      redirect(schedulingTimesHref({ address: availability.address, services, error: message }));
+      redirect(schedulingTimesHref({ address: availability.address, services, notes, error: message }));
     }
   }
 

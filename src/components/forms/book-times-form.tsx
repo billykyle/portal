@@ -1,21 +1,67 @@
+"use client";
+
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Field, SubmitButton } from "@/components/field";
+import { MonthCalendarDialog } from "@/components/forms/month-calendar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking } from "@/lib/actions/scheduling";
-import { schedulingBookHref } from "@/lib/scheduling/urls";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
+import {
+  formatDateKeyLabel,
+  parseRequiredDateKey,
+  weekDateKeys,
+} from "@/lib/scheduling/horizon";
+import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export function BookTimesForm({
   availability,
   services,
+  notes = "",
 }: {
   availability: AvailabilityResult;
   services: string[];
+  notes?: string;
 }) {
-  const groups = groupSlots(availability.slots);
+  const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
+  const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
+  const last = parseRequiredDateKey(availability.lastBookableDate);
+  const firstKey = availability.firstBookableDate;
+  const [weekStart, setWeekStart] = useState(firstKey);
+  const [openDates, setOpenDates] = useState<string[]>(() => firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots));
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState("");
+  const [slotError, setSlotError] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
   const changeHref = schedulingBookHref({
     address: availability.address,
     services,
+    notes: notes || null,
   });
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    function onSubmit(event: Event) {
+      if (!selectedSlot) {
+        event.preventDefault();
+        setSlotError("Pick a time.");
+      }
+    }
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, [selectedSlot]);
+
+  function focusDate(dateKey: string) {
+    const inWeek = weekKeys.includes(dateKey);
+    if (!inWeek) {
+      setWeekStart(dateKey);
+    }
+    setOpenDates([dateKey]);
+  }
 
   return (
     <div>
@@ -38,66 +84,130 @@ export function BookTimesForm({
         </Link>
       </div>
 
-      <h2 className="mt-8 mb-2 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
-      <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
-        Times for this address. Travel uses live drive time plus a 15-minute pad when Maps is
-        connected — geography is never guessed.
-      </p>
+      <h2 className="mt-8 mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
       {availability.notices.map((notice) => (
         <p key={notice} className="mb-4 text-sm leading-6 text-[#c7c7cc]">
           {notice}
         </p>
       ))}
       {availability.slots.length === 0 ? (
-        <p className="text-sm text-[#8e8e93]">No times fit this address right now.</p>
-      ) : (
-        <form action={createBooking} className="flex flex-col gap-6">
-          <input type="hidden" name="address" value={availability.address} />
-          {services.map((service) => (
-            <input key={service} type="hidden" name="service" value={service} />
-          ))}
-          <fieldset className="flex flex-col gap-6">
-            <legend className="sr-only">Choose a time</legend>
-            {groups.map((group) => (
-              <div key={group.dateLabel}>
-                <p className="mb-2 text-[15px] font-medium">{group.dateLabel}</p>
-                <ul className="grid gap-2 sm:grid-cols-2">
-                  {group.slots.map((slot) => (
-                    <li key={slot.start}>
-                      <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
-                        <input
-                          type="radio"
-                          name="slot"
-                          value={`${slot.start}|${slot.end}`}
-                          required
-                          className="size-4 accent-white"
+        <p className="mb-4 text-sm text-[#8e8e93]">No times fit this address right now.</p>
+      ) : null}
+
+      <form ref={formRef} action={createBooking} className="flex flex-col gap-6">
+        <input type="hidden" name="address" value={availability.address} />
+        {services.map((service) => (
+          <input key={service} type="hidden" name="service" value={service} />
+        ))}
+        <input type="hidden" name="notes" value={notes} />
+        <input type="hidden" name="slot" value={selectedSlot} />
+        <fieldset className="flex flex-col gap-2">
+          <legend className="sr-only">Choose a date and time</legend>
+          <ul className="flex flex-col gap-2">
+            {weekKeys.map((dateKey) => {
+              const slots = slotsByDate.get(dateKey) ?? [];
+              const open = openDates.includes(dateKey);
+              const dateLabel = slots[0]?.dateLabel ?? formatDateKeyLabel(dateKey, availability.timeZone);
+              return (
+                <li key={dateKey}>
+                  <Collapsible
+                    open={open}
+                    onOpenChange={(next) => {
+                      setOpenDates((current) =>
+                        next
+                          ? current.includes(dateKey)
+                            ? current
+                            : [...current, dateKey]
+                          : current.filter((key) => key !== dateKey),
+                      );
+                    }}
+                  >
+                    <div className={`rounded-xl border ${open ? "border-white bg-white/5" : "border-white/10"}`}>
+                      <CollapsibleTrigger
+                        type="button"
+                        aria-label={dateLabel}
+                        className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+                      >
+                        <span className="text-[15px]">{dateLabel}</span>
+                        <ChevronDown
+                          aria-hidden
+                          className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
+                            open ? "rotate-180" : ""
+                          }`}
                         />
-                        <span className="text-[15px]">{slot.timeLabel}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </fieldset>
-          <Field id="notes" name="notes" label="Notes (optional)" placeholder="Lockbox, contact, …" />
-          <Field id="accessCodes" name="accessCodes" label="Access codes (optional)" />
-          <SubmitButton>Book shoot</SubmitButton>
-        </form>
-      )}
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-3 pb-3">
+                          {slots.length === 0 ? (
+                            <p className="px-1 py-2 text-sm text-[#8e8e93]">No times this day.</p>
+                          ) : (
+                            <ul className="grid gap-2 sm:grid-cols-2">
+                              {slots.map((slot) => {
+                                const value = `${slot.start}|${slot.end}`;
+                                const checked = selectedSlot === value;
+                                return (
+                                  <li key={slot.start}>
+                                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
+                                      <input
+                                        type="radio"
+                                        checked={checked}
+                                        onChange={() => {
+                                          setSelectedSlot(value);
+                                          setSlotError("");
+                                        }}
+                                        className="size-4 accent-white"
+                                      />
+                                      <span className="text-[15px]">{slot.timeLabel}</span>
+                                    </label>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                </li>
+              );
+            })}
+          </ul>
+        </fieldset>
+        <button
+          type="button"
+          onClick={() => setCalendarOpen(true)}
+          className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 text-[15px]"
+        >
+          Pick a date
+        </button>
+        {slotError ? <p className="text-sm text-[#a1a1a1]">{slotError}</p> : null}
+        <Field id="accessCodes" name="accessCodes" label="Access codes (optional)" />
+        <SubmitButton>Book shoot</SubmitButton>
+      </form>
+
+      <MonthCalendarDialog
+        open={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        selectedKey={openDates[0] ?? weekStart}
+        firstBookableDate={availability.firstBookableDate}
+        lastBookableDate={availability.lastBookableDate}
+        datesWithSlots={datesWithSlots}
+        onSelect={focusDate}
+      />
     </div>
   );
 }
 
-function groupSlots(slots: OfferedSlot[]) {
-  const groups: Array<{ dateLabel: string; slots: OfferedSlot[] }> = [];
+function groupSlotsByDate(slots: OfferedSlot[]) {
+  const groups = new Map<string, OfferedSlot[]>();
   for (const slot of slots) {
-    const last = groups[groups.length - 1];
-    if (!last || last.dateLabel !== slot.dateLabel) {
-      groups.push({ dateLabel: slot.dateLabel, slots: [slot] });
-    } else {
-      last.slots.push(slot);
-    }
+    const list = groups.get(slot.dateKey);
+    if (list) list.push(slot);
+    else groups.set(slot.dateKey, [slot]);
   }
   return groups;
+}
+
+function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {
+  return [weekKeys.find((key) => datesWithSlots.has(key)) ?? weekKeys[0] ?? ""].filter(Boolean);
 }

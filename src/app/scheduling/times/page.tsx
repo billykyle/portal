@@ -24,6 +24,7 @@ export default async function SchedulingTimesPage({
     address?: string;
     placeId?: string;
     service?: string | string[];
+    notes?: string;
     error?: string;
   }>;
 }) {
@@ -36,17 +37,20 @@ export default async function SchedulingTimesPage({
     address: rawAddress = "",
     placeId: rawPlaceId = "",
     service: rawService,
+    notes: rawNotes = "",
     error,
   } = await searchParams;
   const selectedServices = parseSchedulingServices(rawService);
   const typedAddress = rawAddress.trim();
   const placeId = rawPlaceId.trim();
+  const notes = rawNotes.trim();
 
   if (selectedServices.length === 0) {
     redirect(
       schedulingBookHref({
         address: typedAddress || null,
         placeId: placeId || null,
+        notes: notes || null,
         error: "Pick at least one service.",
       }),
     );
@@ -59,6 +63,7 @@ export default async function SchedulingTimesPage({
         address: typedAddress || null,
         placeId: placeId || null,
         services: selectedServices,
+        notes: notes || null,
         error: resolved.error,
       }),
     );
@@ -67,6 +72,7 @@ export default async function SchedulingTimesPage({
   const changeHref = schedulingBookHref({
     address: resolved.address,
     services: selectedServices,
+    notes: notes || null,
   });
   const portalJobs = await loadConfirmedPortalJobs();
   const sources = await loadLiveAvailabilitySources({
@@ -87,6 +93,7 @@ export default async function SchedulingTimesPage({
       schedulingBookHref({
         address: typedAddress || null,
         services: selectedServices,
+        notes: notes || null,
         error: availability.error,
       }),
     );
@@ -94,7 +101,7 @@ export default async function SchedulingTimesPage({
 
   return (
     <TimesShell changeHref={changeHref} error={error}>
-      <BookTimesForm availability={availability} services={selectedServices} />
+      <BookTimesForm availability={availability} services={selectedServices} notes={notes} />
     </TimesShell>
   );
 }

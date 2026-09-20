@@ -62,3 +62,40 @@ export function addCalendarDays(parts: CalendarDate, days: number): CalendarDate
     day: date.getUTCDate(),
   };
 }
+
+export function addCalendarMonths(parts: CalendarDate, months: number): CalendarDate {
+  const total = parts.year * 12 + (parts.month - 1) + months;
+  const year = Math.floor(total / 12);
+  const month = (total % 12) + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { year, month, day: Math.min(parts.day, lastDay) };
+}
+
+export function calendarDateKey(parts: CalendarDate): string {
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+export function parseDateKey(key: string): CalendarDate | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { year, month, day };
+}
+
+export function compareCalendarDates(a: CalendarDate, b: CalendarDate): number {
+  return calendarDateKey(a).localeCompare(calendarDateKey(b));
+}
+
+export function daysInclusive(from: CalendarDate, to: CalendarDate): number {
+  const start = Date.UTC(from.year, from.month - 1, from.day);
+  const end = Date.UTC(to.year, to.month - 1, to.day);
+  return Math.floor((end - start) / 86_400_000) + 1;
+}
+
+export function todayInZone(now: Date, timeZone: string): CalendarDate {
+  const parts = utcToZonedParts(now, timeZone);
+  return { year: parts.year, month: parts.month, day: parts.day };
+}

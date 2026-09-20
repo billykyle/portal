@@ -21,6 +21,7 @@ export default async function SchedulingPage({
     address?: string;
     placeId?: string;
     service?: string | string[];
+    notes?: string;
     booked?: string;
     cancelled?: string;
     error?: string;
@@ -35,6 +36,7 @@ export default async function SchedulingPage({
     address: rawAddress = "",
     placeId: rawPlaceId = "",
     service: rawService,
+    notes: rawNotes = "",
     booked,
     cancelled,
     error,
@@ -70,6 +72,7 @@ export default async function SchedulingPage({
               address={typedAddress}
               placeId={rawPlaceId.trim()}
               services={selectedServices}
+              notes={rawNotes.trim()}
               placesConfigured={placesConfigured()}
             />
           </FormColumn>

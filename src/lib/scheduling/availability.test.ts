@@ -234,6 +234,26 @@ test("travel pad is locked at 15 minutes", () => {
   assert.equal(TRAVEL_PAD_MINUTES, 15);
 });
 
+test("offered slots carry a date key and a 3-month bookable window", async () => {
+  const now = et(2026, 9, 20, 9);
+  const result = await offerSlotsForAddress(PHILLY, {
+    now,
+    busy: [],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  });
+  assert.equal(result.firstBookableDate, "2026-09-20");
+  assert.equal(result.lastBookableDate, "2026-12-20");
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-21"));
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-12-20"));
+  assert.equal(
+    result.slots.some((slot) => slot.dateKey === "2026-12-21"),
+    false,
+  );
+});
+
 test("publicCalendarError hides STS audience mismatch details", () => {
   assert.equal(
     publicCalendarError(
