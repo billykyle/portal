@@ -1,5 +1,5 @@
 /**
- * Shared Resend sender for password reset and booking confirmation.
+ * Shared Resend sender for password reset and booking confirm / modify / cancel.
  * Delivery webhooks (Pepper) stay separate — this is portal mail only.
  */
 

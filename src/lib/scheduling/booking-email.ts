@@ -66,6 +66,11 @@ export function bookingShootManageUrl(bookingId?: string | null, options?: { upd
   return `${origin}${CLIENT_SCHEDULING}`;
 }
 
+/** Fresh Scheduling page — never a cancelled booking's modify/confirm URL. */
+export function bookingSchedulingUrl() {
+  return `${publicPortalOrigin()}${CLIENT_SCHEDULING}`;
+}
+
 type DetailRow = { label: string; value: string };
 
 function detailRows(rows: DetailRow[]) {
@@ -134,12 +139,18 @@ function notifyCta() {
 
 function buildClientMessage(
   input: BookingConfirmationInput,
-  copy: { title: string; intro: string; subjectPrefix: string; updated: boolean },
+  copy: {
+    title: string;
+    intro: string;
+    subjectPrefix: string;
+    updated?: boolean;
+    cta?: { label: string; href: string };
+  },
 ) {
   const { when } = bookingDetails(input);
   const greeting = clientGreeting(input);
   const rows = sharedDetailRows(input);
-  const cta = clientCta(input, copy.updated);
+  const cta = copy.cta ?? clientCta(input, Boolean(copy.updated));
 
   const text = [
     greeting,
@@ -250,6 +261,28 @@ export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
   });
 }
 
+/** Client-facing cancellation. Email #1. Links back to Scheduling, not this booking. */
+export function buildBookingCancelled(input: BookingConfirmationInput) {
+  return buildClientMessage(input, {
+    title: "Shoot cancelled",
+    intro: "Your appointment with Billy Kyle has been cancelled.",
+    subjectPrefix: "Shoot cancelled",
+    cta: {
+      label: "Back to Scheduling",
+      href: bookingSchedulingUrl(),
+    },
+  });
+}
+
+/** Billy's cancellation alert. Email #2. */
+export function buildBookingCancelledNotify(input: BookingConfirmationInput) {
+  return buildNotifyMessage(input, {
+    title: "Booking cancelled",
+    intro: "A booking was cancelled on the portal.",
+    subjectPrefix: "Booking cancelled",
+  });
+}
+
 export type BookingEmailSendResult = {
   sent: boolean;
   client: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
@@ -271,6 +304,11 @@ export async function sendBookingConfirmation(input: BookingConfirmationInput): 
 /** Same two-send pattern after a client modifies an upcoming booking. */
 export async function sendBookingModification(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
   return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input));
+}
+
+/** Same two-send pattern after a client or Billy cancels a confirmed booking. */
+export async function sendBookingCancellation(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
+  return sendBookingPair(input, buildBookingCancelled(input), buildBookingCancelledNotify(input));
 }
 
 async function sendBookingPair(

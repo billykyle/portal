@@ -7,7 +7,7 @@ import { getAdminSession } from "@/lib/admin-auth";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { bookings, clients } from "@/lib/db/schema";
+import { bookings, clients, users } from "@/lib/db/schema";
 import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import {
   loadLiveAvailabilitySources,
@@ -17,10 +17,14 @@ import {
 } from "@/lib/scheduling/availability";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
-import { sendBookingConfirmation, sendBookingModification } from "@/lib/scheduling/booking-email";
+import {
+  sendBookingCancellation,
+  sendBookingConfirmation,
+  sendBookingModification,
+} from "@/lib/scheduling/booking-email";
 import { tryReplaceCalendarBooking, tryWriteCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
-import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
+import { bookingServiceList, formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
 import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "@/lib/scheduling/urls";
 
 export async function createBooking(formData: FormData) {
@@ -336,6 +340,30 @@ export async function updateBooking(formData: FormData) {
   redirect(schedulingConfirmedHref(updated.bookingId, { updated: true }));
 }
 
+async function resolveCancelledBookingEmail(input: {
+  clientId: string;
+  createdByUserId: string | null;
+  ownerEmail?: string | null;
+  primaryEmail?: string | null;
+}) {
+  if (input.ownerEmail?.trim()) return input.ownerEmail.trim();
+  if (input.createdByUserId) {
+    const [creator] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, input.createdByUserId))
+      .limit(1);
+    if (creator?.email) return creator.email;
+  }
+  if (input.primaryEmail?.trim()) return input.primaryEmail.trim();
+  const [member] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.clientId, input.clientId))
+    .limit(1);
+  return member?.email ?? "";
+}
+
 export async function cancelBooking(formData: FormData) {
   const admin = await getAdminSession();
   const session = await getSession();
@@ -358,10 +386,41 @@ export async function cancelBooking(formData: FormData) {
     redirect(admin ? "/admin/bookings" : CLIENT_SCHEDULING);
   }
 
-  await db
+  const [cancelled] = await db
     .update(bookings)
     .set({ status: "cancelled", updatedAt: new Date() })
-    .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")));
+    .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")))
+    .returning({ id: bookings.id });
+
+  if (cancelled) {
+    try {
+      const ownerCancelling = Boolean(session && session.clientId === booking.clientId);
+      const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
+      const clientEmail = await resolveCancelledBookingEmail({
+        clientId: booking.clientId,
+        createdByUserId: booking.createdByUserId,
+        ownerEmail: ownerCancelling ? session?.email : null,
+        primaryEmail: client?.primaryEmail,
+      });
+      if (clientEmail) {
+        const hours = schedulingHours();
+        await sendBookingCancellation({
+          bookingId: booking.id,
+          clientEmail,
+          clientName: client?.displayName ?? null,
+          address: booking.address,
+          services: bookingServiceList(booking),
+          start: booking.startsAt,
+          end: booking.endsAt,
+          timeZone: hours.timeZone,
+          notes: booking.notes,
+          accessCodes: booking.accessCodes,
+        });
+      }
+    } catch (error) {
+      console.error("Booking cancellation email failed", error);
+    }
+  }
 
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
