@@ -23,24 +23,16 @@ test("calendar name prefers first + last over displayName and never uses company
   assert.equal(calendarClientName({ firstName: null, lastName: null, displayName: null }), "");
 });
 
-test("title lockbox prefers accessCodes and skips full notes", () => {
-  assert.equal(calendarTitleLockbox("1234", "Park in the driveway."), "1234");
-  assert.equal(calendarTitleLockbox("  1234  ", null), "1234");
-  assert.equal(calendarTitleLockbox(null, "1234"), "1234");
-  assert.equal(calendarTitleLockbox("", "12344"), "12344");
-  assert.equal(calendarTitleLockbox(null, "Gate 4455"), "Gate 4455");
-  assert.equal(calendarTitleLockbox(null, "Code 1234"), "Code 1234");
-  assert.equal(calendarTitleLockbox(null, "Lockbox on the porch"), "Lockbox on the porch");
-  assert.equal(calendarTitleLockbox(null, "Park in the driveway."), null);
-  assert.equal(
-    calendarTitleLockbox(null, "Please park on the left and call when you arrive at the gate."),
-    null,
-  );
-  assert.equal(calendarTitleLockbox(null, "1234\nback door"), null);
-  assert.equal(calendarTitleLockbox(null, null), null);
+test("title lockbox is notes as typed; empty notes means no parens", () => {
+  assert.equal(calendarTitleLockbox("1234"), "1234");
+  assert.equal(calendarTitleLockbox("  1234  "), "1234");
+  assert.equal(calendarTitleLockbox("Park in the driveway."), "Park in the driveway.");
+  assert.equal(calendarTitleLockbox(""), null);
+  assert.equal(calendarTitleLockbox("   "), null);
+  assert.equal(calendarTitleLockbox(null), null);
 });
 
-test("calendar title is name - services, with lockbox parens only when present", () => {
+test("calendar title uses notes in parens and ignores accessCodes", () => {
   assert.equal(
     calendarEventTitle({
       firstName: "Billy",
@@ -48,8 +40,8 @@ test("calendar title is name - services, with lockbox parens only when present",
       displayName: "Atmos Imagery",
       address: "644 Plumrun Dr",
       services: [photo],
-      notes: "Park in the driveway.",
-      accessCodes: "1234",
+      notes: "1234",
+      accessCodes: "9999",
     }),
     "Billy Kyle - Real Estate · Photography (1234)",
   );
@@ -59,6 +51,7 @@ test("calendar title is name - services, with lockbox parens only when present",
       lastName: "Kyle",
       address: "644 Plumrun Dr",
       services: [photo, aerial],
+      accessCodes: "1234",
     }),
     "Billy Kyle - Real Estate · Photography, Real Estate · Aerial Photos",
   );
@@ -71,7 +64,7 @@ test("calendar title is name - services, with lockbox parens only when present",
     }),
     "Sam Lepore - Real Estate · Photography (1234)",
   );
-  assert.doesNotMatch(
+  assert.equal(
     calendarEventTitle({
       firstName: "Billy",
       lastName: "Kyle",
@@ -80,7 +73,18 @@ test("calendar title is name - services, with lockbox parens only when present",
       services: [photo],
       notes: "Park in the driveway.",
     }),
-    /Atmos|Park in the driveway/,
+    "Billy Kyle - Real Estate · Photography (Park in the driveway.)",
+  );
+  assert.doesNotMatch(
+    calendarEventTitle({
+      firstName: "Billy",
+      lastName: "Kyle",
+      company: "Atmos Imagery",
+      address: "644 Plumrun Dr",
+      services: [photo],
+      notes: "1234",
+    }),
+    /Atmos/,
   );
 });
 

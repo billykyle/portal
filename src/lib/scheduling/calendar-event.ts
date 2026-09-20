@@ -26,33 +26,16 @@ export function calendarClientName(input: {
   return input.displayName?.trim() || "";
 }
 
-/**
- * Title lockbox: dedicated `accessCodes` wins. The book form historically
- * only has Notes (placeholder “Lockbox, contact, …”), so a short notes
- * value can stand in. Full-paragraph notes stay out of the title.
- */
-export function calendarTitleLockbox(
-  accessCodes?: string | null,
-  notes?: string | null,
-): string | null {
-  const dedicated = accessCodes?.trim();
-  if (dedicated) return dedicated;
-  const note = notes?.trim();
-  if (!note || !looksLikeLockbox(note)) return null;
-  return note;
+/** Title `(…)` is the notes value as typed. Empty/missing notes → no parens. */
+export function calendarTitleLockbox(notes?: string | null): string | null {
+  return notes?.trim() || null;
 }
 
-function looksLikeLockbox(value: string): boolean {
-  if (value.includes("\n") || value.length > 40) return false;
-  if (/^(lockbox|code|gate|access)\b/i.test(value)) return true;
-  return /\d/.test(value) && /^[A-Za-z0-9][A-Za-z0-9\s-]{0,18}$/.test(value);
-}
-
-/** `{Name} - {Services}` or `{Name} - {Services} ({lockbox})`. */
+/** `{Name} - {Services}` or `{Name} - {Services} ({notes})`. */
 export function calendarEventTitle(input: CalendarEventCopyInput): string {
   const name = calendarClientName(input) || "Client";
   const services = formatBookingServices(input.services) || "Shoot";
-  const lockbox = calendarTitleLockbox(input.accessCodes, input.notes);
+  const lockbox = calendarTitleLockbox(input.notes);
   return lockbox ? `${name} - ${services} (${lockbox})` : `${name} - ${services}`;
 }
 

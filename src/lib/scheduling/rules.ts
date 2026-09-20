@@ -11,10 +11,10 @@
  *    not use US Holidays. Portal
  *    bookings are always busy too, and are written to the work calendar when
  *    that write hook is live. Event title is
- *    `{First Last} - {Services} (lockbox)` using user first+last (displayName
- *    only if those are missing — never company). Lockbox parens come from
- *    `accessCodes`, or a short notes code when that is the only source.
- *    Description is a labeled client list ending with
+ *    `{First Last} - {Services} (notes)` using user first+last (displayName
+ *    only if those are missing — never company). Title parens are the notes
+ *    value as typed; omit them when notes are empty. Do not use accessCodes
+ *    for the title. Description is a labeled client list ending with
  *    `Booked through your portal`. Location stays the shoot address. A
  *    Calendar write failure (including 403 writer access) is logged and
  *    leaves `calendarEventId` null — Book shoot still confirms. Singular
