@@ -28,7 +28,8 @@ import {
   tryWriteCalendarBooking,
 } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
-import { bookingServiceList, formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
+import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
+import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
 import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "@/lib/scheduling/urls";
 
 export async function createBooking(formData: FormData) {
@@ -55,6 +56,8 @@ export async function createBooking(formData: FormData) {
         timeZone: string;
         clientName: string | null;
         calendarConfigured: boolean;
+        calendarSummary: string;
+        calendarDescription: string;
       }
     | undefined;
 
@@ -88,7 +91,20 @@ export async function createBooking(formData: FormData) {
     const end = new Date(endIso);
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
     const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
     const hours = schedulingHours();
+    const calendar = calendarEventCopy({
+      firstName: user?.firstName,
+      lastName: user?.lastName,
+      displayName: client?.displayName,
+      email: user?.email ?? session.email,
+      phone: user?.phone,
+      company: client?.company,
+      address: availability.address,
+      services,
+      notes,
+      accessCodes,
+    });
 
     const [booking] = await db
       .insert(bookings)
@@ -135,6 +151,8 @@ export async function createBooking(formData: FormData) {
       timeZone: hours.timeZone,
       clientName: client?.displayName ?? null,
       calendarConfigured: availability.calendarConfigured,
+      calendarSummary: calendar.summary,
+      calendarDescription: calendar.description,
     };
   } catch (error) {
     unstable_rethrow(error);
@@ -150,10 +168,8 @@ export async function createBooking(formData: FormData) {
         start: created.start,
         end: created.end,
         timeZone: created.timeZone,
-        summary: `${formatBookingServices(services)} — ${created.clientName ?? session.email}`,
-        description: [formatBookingServices(services), notes, accessCodes ? `Access: ${accessCodes}` : ""]
-          .filter(Boolean)
-          .join("\n"),
+        summary: created.calendarSummary,
+        description: created.calendarDescription,
       });
       if (calendarEventId) {
         await db
@@ -206,6 +222,8 @@ export async function updateBooking(formData: FormData) {
         calendarConfigured: boolean;
         calendarEventId: string | null;
         accessCodes: string | null;
+        calendarSummary: string;
+        calendarDescription: string;
       }
     | undefined;
 
@@ -249,7 +267,20 @@ export async function updateBooking(formData: FormData) {
     const end = new Date(endIso);
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
     const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
     const hours = schedulingHours();
+    const calendar = calendarEventCopy({
+      firstName: user?.firstName,
+      lastName: user?.lastName,
+      displayName: client?.displayName,
+      email: user?.email ?? session.email,
+      phone: user?.phone,
+      company: client?.company,
+      address: availability.address,
+      services,
+      notes,
+      accessCodes: booking.accessCodes,
+    });
 
     const [saved] = await db
       .update(bookings)
@@ -301,6 +332,8 @@ export async function updateBooking(formData: FormData) {
       calendarConfigured: availability.calendarConfigured,
       calendarEventId: booking.calendarEventId,
       accessCodes: booking.accessCodes,
+      calendarSummary: calendar.summary,
+      calendarDescription: calendar.description,
     };
   } catch (error) {
     unstable_rethrow(error);
@@ -314,14 +347,8 @@ export async function updateBooking(formData: FormData) {
         start: updated.start,
         end: updated.end,
         timeZone: updated.timeZone,
-        summary: `${formatBookingServices(services)} — ${updated.clientName ?? session.email}`,
-        description: [
-          formatBookingServices(services),
-          notes,
-          updated.accessCodes ? `Access: ${updated.accessCodes}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n"),
+        summary: updated.calendarSummary,
+        description: updated.calendarDescription,
       });
       if (calendarEventId && calendarEventId !== updated.calendarEventId) {
         await db

@@ -10,9 +10,15 @@
  *    `bkyle015@gmail.com`. A slot is busy if either calendar is busy. Do
  *    not use US Holidays. Portal
  *    bookings are always busy too, and are written to the work calendar when
- *    that write hook is live. A Calendar write failure (including 403 writer
- *    access) is logged and leaves `calendarEventId` null — Book shoot still
- *    confirms. Singular `GOOGLE_CALENDAR_ID` is still accepted.
+ *    that write hook is live. Event title is
+ *    `{First Last} - {Services} (lockbox)` using user first+last (displayName
+ *    only if those are missing — never company). Lockbox parens come from
+ *    `accessCodes`, or a short notes code when that is the only source.
+ *    Description is a labeled client list ending with
+ *    `Booked through your portal`. Location stays the shoot address. A
+ *    Calendar write failure (including 403 writer access) is logged and
+ *    leaves `calendarEventId` null — Book shoot still confirms. Singular
+ *    `GOOGLE_CALENDAR_ID` is still accepted.
  * 2. Address first. Never compute or show times until a shoot address is known.
  * 3. Travel hard-block: live drive time only between the prior job address
  *    and the new address. Same check against the next located job. Exclusive
