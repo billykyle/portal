@@ -4,6 +4,7 @@ import {
   bookingHorizonDays,
   dateIsBookable,
   firstBookableDate,
+  formatWeekDayListLabel,
   hoursForNow,
   lastBookableDate,
   monthGrid,
@@ -102,4 +103,9 @@ test("September 2026 month grid starts on Tuesday", () => {
   assert.equal(cells[1], null);
   assert.deepEqual(cells[2], { year: 2026, month: 9, day: 1 });
   assert.equal(calendarDateKey({ year: 2026, month: 9, day: 20 }), "2026-09-20");
+});
+
+test("week day list marks days with zero slots as no time available", () => {
+  assert.equal(formatWeekDayListLabel("Sunday, Sep 20", true), "Sunday, Sep 20");
+  assert.equal(formatWeekDayListLabel("Monday, Sep 21", false), "Monday, Sep 21 - no time available");
 });

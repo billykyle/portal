@@ -3,13 +3,14 @@
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Field, SubmitButton } from "@/components/field";
+import { SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
 import {
   formatDateKeyLabel,
+  formatWeekDayListLabel,
   parseRequiredDateKey,
   weekDateKeys,
 } from "@/lib/scheduling/horizon";
@@ -29,7 +30,9 @@ export function BookTimesForm({
   const last = parseRequiredDateKey(availability.lastBookableDate);
   const firstKey = availability.firstBookableDate;
   const [weekStart, setWeekStart] = useState(firstKey);
-  const [openDates, setOpenDates] = useState<string[]>(() => firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots));
+  const [openDates, setOpenDates] = useState<string[]>(() =>
+    firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots),
+  );
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState("");
   const [slotError, setSlotError] = useState("");
@@ -56,6 +59,7 @@ export function BookTimesForm({
   }, [selectedSlot]);
 
   function focusDate(dateKey: string) {
+    if (!datesWithSlots.has(dateKey)) return;
     const inWeek = weekKeys.includes(dateKey);
     if (!inWeek) {
       setWeekStart(dateKey);
@@ -106,8 +110,24 @@ export function BookTimesForm({
           <ul className="flex flex-col gap-2">
             {weekKeys.map((dateKey) => {
               const slots = slotsByDate.get(dateKey) ?? [];
-              const open = openDates.includes(dateKey);
+              const hasSlots = slots.length > 0;
               const dateLabel = slots[0]?.dateLabel ?? formatDateKeyLabel(dateKey, availability.timeZone);
+              const displayLabel = formatWeekDayListLabel(dateLabel, hasSlots);
+              if (!hasSlots) {
+                return (
+                  <li key={dateKey}>
+                    <div className="rounded-xl border border-white/10">
+                      <p
+                        aria-disabled="true"
+                        className="flex min-h-12 w-full cursor-not-allowed items-center px-4 py-3 text-left text-[15px] text-[#636366]"
+                      >
+                        {displayLabel}
+                      </p>
+                    </div>
+                  </li>
+                );
+              }
+              const open = openDates.includes(dateKey);
               return (
                 <li key={dateKey}>
                   <Collapsible
@@ -125,10 +145,10 @@ export function BookTimesForm({
                     <div className={`rounded-xl border ${open ? "border-white bg-white/5" : "border-white/10"}`}>
                       <CollapsibleTrigger
                         type="button"
-                        aria-label={dateLabel}
+                        aria-label={displayLabel}
                         className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
                       >
-                        <span className="text-[15px]">{dateLabel}</span>
+                        <span className="text-[15px]">{displayLabel}</span>
                         <ChevronDown
                           aria-hidden
                           className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
@@ -138,32 +158,28 @@ export function BookTimesForm({
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="px-3 pb-3">
-                          {slots.length === 0 ? (
-                            <p className="px-1 py-2 text-sm text-[#8e8e93]">No times this day.</p>
-                          ) : (
-                            <ul className="grid gap-2 sm:grid-cols-2">
-                              {slots.map((slot) => {
-                                const value = `${slot.start}|${slot.end}`;
-                                const checked = selectedSlot === value;
-                                return (
-                                  <li key={slot.start}>
-                                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
-                                      <input
-                                        type="radio"
-                                        checked={checked}
-                                        onChange={() => {
-                                          setSelectedSlot(value);
-                                          setSlotError("");
-                                        }}
-                                        className="size-4 accent-white"
-                                      />
-                                      <span className="text-[15px]">{slot.timeLabel}</span>
-                                    </label>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
+                          <ul className="grid gap-2 sm:grid-cols-2">
+                            {slots.map((slot) => {
+                              const value = `${slot.start}|${slot.end}`;
+                              const checked = selectedSlot === value;
+                              return (
+                                <li key={slot.start}>
+                                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
+                                    <input
+                                      type="radio"
+                                      checked={checked}
+                                      onChange={() => {
+                                        setSelectedSlot(value);
+                                        setSlotError("");
+                                      }}
+                                      className="size-4 accent-white"
+                                    />
+                                    <span className="text-[15px]">{slot.timeLabel}</span>
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
                         </div>
                       </CollapsibleContent>
                     </div>
@@ -178,10 +194,9 @@ export function BookTimesForm({
           onClick={() => setCalendarOpen(true)}
           className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 text-[15px]"
         >
-          Pick a date
+          Further Date Options
         </button>
         {slotError ? <p className="text-sm text-[#a1a1a1]">{slotError}</p> : null}
-        <Field id="accessCodes" name="accessCodes" label="Access codes (optional)" />
         <SubmitButton>Book shoot</SubmitButton>
       </form>
 
@@ -209,5 +224,6 @@ function groupSlotsByDate(slots: OfferedSlot[]) {
 }
 
 function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {
-  return [weekKeys.find((key) => datesWithSlots.has(key)) ?? weekKeys[0] ?? ""].filter(Boolean);
+  const first = weekKeys.find((key) => datesWithSlots.has(key));
+  return first ? [first] : [];
 }

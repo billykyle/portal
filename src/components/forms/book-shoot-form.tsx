@@ -20,8 +20,7 @@ export function BookShootForm({
 }) {
   return (
     <form action={CLIENT_SCHEDULING_TIMES} method="get" className="flex flex-col gap-4">
-      <p className="text-sm text-[#8e8e93]">Step 1 of 2 — services and address</p>
-      <ServiceFieldset selected={services} />
+      <p className="text-sm text-[#8e8e93]">Step 1 of 2 — address and services</p>
       <AddressAutocomplete
         defaultValue={address}
         defaultPlaceId={placeId}
@@ -35,6 +34,7 @@ export function BookShootForm({
         placeholder="Lockbox, contact, …"
         defaultValue={notes}
       />
+      <ServiceFieldset selected={services} />
       <SubmitButton>Continue</SubmitButton>
     </form>
   );
