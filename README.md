@@ -124,7 +124,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 
 Production Calendar auth is Vercel OIDC + GCP Workload Identity Federation (no downloadable SA key). Pool setup and env table: [docs/google-calendar.md](docs/google-calendar.md).
 
-Scheduling rules live in `src/lib/scheduling/rules.ts`: address first (times only on `/scheduling/times` after a street address), Calendar as source of truth when wired (work + personal; busy if either is busy; no US Holidays), travel = live drive + 15 minutes, never fake geography. Address suggestions come from Places Autocomplete via the same `GOOGLE_MAPS_API_KEY` — the book form never invents streets. The locked starter catalog in `src/lib/scheduling/services.ts` is Real Estate (Photography, Video, Aerial Photos, Zillow 360), Construction (Photography, Video), and Podcast (1 episode, 2 episodes) — industry accordions; Podcast is single-select.
+Scheduling rules live in `src/lib/scheduling/rules.ts`: address first (times only on `/scheduling/times` after a street address), Calendar as source of truth when wired (work + personal; busy if either is busy; no US Holidays), travel = live drive + 15 minutes, never fake geography. Address suggestions come from Places Autocomplete via the same `GOOGLE_MAPS_API_KEY` — the book form never invents streets. The locked starter catalog in `src/lib/scheduling/services.ts` is Real Estate (Photography 45, Video 30, Aerial Photos default/TBD, Zillow 360 15), Construction (Photography 45, Video 45), and Podcast (1 episode 60, 2 episodes 105) — industry accordions; Podcast is single-select. Slot length is the sum of selected minutes.
 
 ## Hosted Postgres
 

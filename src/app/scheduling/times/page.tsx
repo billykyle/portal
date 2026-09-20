@@ -87,7 +87,7 @@ export default async function SchedulingTimesPage({
     );
   }
 
-  const availability = await offerSlotsForAddress(resolved.address, sources);
+  const availability = await offerSlotsForAddress(resolved.address, sources, selectedServices);
   if (availability.error) {
     redirect(
       schedulingBookHref({

@@ -146,6 +146,23 @@ test("candidate slots stay inside working hours in America/New_York", () => {
   assert.equal(last.end.getTime(), et(2026, 9, 21, 18).getTime());
 });
 
+test("candidate slot length can be shorter than the 30-minute start step", () => {
+  const slots = generateCandidateSlots({
+    now: et(2026, 9, 21, 6),
+    timeZone: DEFAULT_TIMEZONE,
+    openHour: 8,
+    closeHour: 18,
+    slotMinutes: 15,
+    stepMinutes: 30,
+    daysAhead: 1,
+    minLeadMinutes: 0,
+  });
+  assert.equal(slots[0].end.getTime() - slots[0].start.getTime(), 15 * 60 * 1000);
+  const last = slots[slots.length - 1];
+  assert.equal(last.start.getTime(), et(2026, 9, 21, 17, 30).getTime());
+  assert.equal(last.end.getTime(), et(2026, 9, 21, 17, 45).getTime());
+});
+
 test("zoned noon Eastern is 16:00 UTC in September", () => {
   assert.equal(et(2026, 9, 21, 12).toISOString(), "2026-09-21T16:00:00.000Z");
 });
@@ -252,6 +269,35 @@ test("offered slots carry a date key and a 3-month bookable window", async () =>
     result.slots.some((slot) => slot.dateKey === "2026-12-21"),
     false,
   );
+});
+
+test("offered slots use the summed service duration instead of 90 minutes", async () => {
+  const now = et(2026, 9, 20, 9);
+  const sources = {
+    now,
+    busy: [],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  };
+  const zillow = await offerSlotsForAddress(PHILLY, sources, ["Real Estate · Zillow 360"]);
+  const zillowSlot = zillow.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  assert.ok(zillowSlot);
+  assert.equal(startMs(zillowSlot.end), et(2026, 9, 21, 8, 15).getTime());
+
+  const combo = await offerSlotsForAddress(PHILLY, sources, [
+    "Real Estate · Photography",
+    "Real Estate · Video",
+  ]);
+  const comboSlot = combo.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  assert.ok(comboSlot);
+  assert.equal(startMs(comboSlot.end), et(2026, 9, 21, 9, 15).getTime());
+
+  const podcast = await offerSlotsForAddress(PHILLY, sources, ["Podcast · 2 episodes"]);
+  const podcastSlot = podcast.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  assert.ok(podcastSlot);
+  assert.equal(startMs(podcastSlot.end), et(2026, 9, 21, 9, 45).getTime());
 });
 
 test("publicCalendarError hides STS audience mismatch details", () => {

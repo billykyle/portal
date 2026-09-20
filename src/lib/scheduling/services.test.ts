@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { DEFAULT_SLOT_MINUTES } from "./rules";
 import {
   bookingServiceList,
+  bookingSlotMinutes,
   formatBookingServices,
   formatSchedulingService,
   isExclusiveIndustry,
   parseSchedulingService,
   parseSchedulingServices,
   SCHEDULING_INDUSTRIES,
+  SCHEDULING_SERVICE_MINUTES,
   SCHEDULING_SERVICES,
   schedulingServiceId,
   toggleSchedulingService,
@@ -143,5 +146,33 @@ test("toggleSchedulingService is exclusive inside Podcast and multi-select elsew
   assert.deepEqual(
     toggleSchedulingService(["Real Estate · Photography"], "Real Estate · Video"),
     ["Real Estate · Photography", "Real Estate · Video"],
+  );
+});
+
+test("bookingSlotMinutes sums locked option times and leaves Aerial at the default", () => {
+  assert.deepEqual(SCHEDULING_SERVICE_MINUTES, {
+    "Real Estate · Photography": 45,
+    "Real Estate · Video": 30,
+    "Real Estate · Aerial Photos": DEFAULT_SLOT_MINUTES,
+    "Real Estate · Zillow 360": 15,
+    "Construction · Photography": 45,
+    "Construction · Video": 45,
+    "Podcast · 1 episode": 60,
+    "Podcast · 2 episodes": 105,
+  });
+  assert.equal(bookingSlotMinutes([]), DEFAULT_SLOT_MINUTES);
+  assert.equal(bookingSlotMinutes(["Wedding"]), DEFAULT_SLOT_MINUTES);
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography"]), 45);
+  assert.equal(bookingSlotMinutes(["Real Estate · Video"]), 30);
+  assert.equal(bookingSlotMinutes(["Real Estate · Aerial Photos"]), DEFAULT_SLOT_MINUTES);
+  assert.equal(bookingSlotMinutes(["Real Estate · Zillow 360"]), 15);
+  assert.equal(bookingSlotMinutes(["Construction · Photography"]), 45);
+  assert.equal(bookingSlotMinutes(["Construction · Video"]), 45);
+  assert.equal(bookingSlotMinutes(["Podcast · 1 episode"]), 60);
+  assert.equal(bookingSlotMinutes(["Podcast · 2 episodes"]), 105);
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography", "Real Estate · Video"]), 75);
+  assert.equal(
+    bookingSlotMinutes(["Real Estate · Photography", "Podcast · 2 episodes", "Podcast · 1 episode"]),
+    105,
   );
 });

@@ -1,9 +1,12 @@
+import { DEFAULT_SLOT_MINUTES } from "./rules";
+
 /**
  * Client-bookable services, grouped by industry. One catalog for the
  * Scheduling picker, booking records, and admin. Clients may select more
  * than one option, including across industries, except exclusive groups
- * (Podcast: 1 episode or 2 episodes). Do not invent prices here —
- * duration still uses the existing slot length in {@link ./rules}.
+ * (Podcast: 1 episode or 2 episodes). Do not invent prices here.
+ * Slot length is the sum of selected option minutes; Aerial Photos is
+ * still {@link DEFAULT_SLOT_MINUTES} until Billy locks a time.
  */
 export const SCHEDULING_INDUSTRIES = [
   {
@@ -35,6 +38,28 @@ export const SCHEDULING_SERVICES = SCHEDULING_INDUSTRIES.flatMap((group) =>
 );
 
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
+
+/**
+ * Locked minutes per option (Billy, 2026-09-20). Aerial Photos is TBD —
+ * keep the existing default slot instead of inventing 45.
+ */
+export const SCHEDULING_SERVICE_MINUTES = {
+  "Real Estate · Photography": 45,
+  "Real Estate · Video": 30,
+  "Real Estate · Aerial Photos": DEFAULT_SLOT_MINUTES,
+  "Real Estate · Zillow 360": 15,
+  "Construction · Photography": 45,
+  "Construction · Video": 45,
+  "Podcast · 1 episode": 60,
+  "Podcast · 2 episodes": 105,
+} as const satisfies Record<SchedulingService, number>;
+
+/** Sum of selected option minutes. Empty / unknown → existing default slot. */
+export function bookingSlotMinutes(services: readonly string[]): number {
+  const parsed = parseSchedulingServices(services);
+  if (parsed.length === 0) return DEFAULT_SLOT_MINUTES;
+  return parsed.reduce((total, service) => total + SCHEDULING_SERVICE_MINUTES[service], 0);
+}
 
 const SERVICE_SET = new Set<string>(SCHEDULING_SERVICES);
 

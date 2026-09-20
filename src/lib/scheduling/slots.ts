@@ -7,7 +7,7 @@ export function generateCandidateSlots(input: SchedulingHours & { now: Date }): 
   const nowParts = utcToZonedParts(input.now, input.timeZone);
   const minStart = input.now.getTime() + input.minLeadMinutes * 60 * 1000;
   const step = Math.max(5, input.stepMinutes);
-  const duration = Math.max(step, input.slotMinutes);
+  const duration = Math.max(5, input.slotMinutes);
 
   for (let dayOffset = 0; dayOffset < input.daysAhead; dayOffset += 1) {
     const day = addCalendarDays(nowParts, dayOffset);
