@@ -11,7 +11,13 @@ import {
 import { mergeIntervals, overlaps, type Interval } from "./intervals";
 import { bookingSlotMinutes, parseSchedulingServices } from "./services";
 import { formatSlotRange, generateCandidateSlots } from "./slots";
-import { pickNextJob, pickPriorJob, travelFits, type TravelJob } from "./travel";
+import {
+  pickNextJobs,
+  pickPriorJobs,
+  travelFits,
+  travelJobsWithBusy,
+  type TravelJob,
+} from "./travel";
 
 export type OfferedSlot = {
   start: string;
@@ -77,20 +83,23 @@ export async function offerSlotsForAddress(
   const candidates = generateCandidateSlots({ ...hours, now });
   const busy = mergeIntervals(sources.busy);
   const afterBusy = candidates.filter((slot) => !busy.some((block) => overlaps(slot, block)));
+  const neighborJobs = travelJobsWithBusy(sources.jobs, busy);
 
   const pairKey = (from: string, to: string) => `${from}\n${to}`;
   const needed = new Map<string, { from: string; to: string; departAt: Date }>();
   for (const slot of afterBusy) {
-    const prior = pickPriorJob(sources.jobs, slot.start);
-    const next = pickNextJob(sources.jobs, slot.end);
-    if (prior?.address) {
+    const priors = pickPriorJobs(neighborJobs, slot.start);
+    const nexts = pickNextJobs(neighborJobs, slot.end);
+    for (const prior of priors) {
+      if (!prior.address) continue;
       needed.set(pairKey(prior.address, parsed.address), {
         from: prior.address,
         to: parsed.address,
         departAt: prior.end,
       });
     }
-    if (next?.address) {
+    for (const next of nexts) {
+      if (!next.address) continue;
       needed.set(pairKey(parsed.address, next.address), {
         from: parsed.address,
         to: next.address,
@@ -107,13 +116,13 @@ export async function offerSlotsForAddress(
   const slots: OfferedSlot[] = [];
   let hiddenForTravel = 0;
   for (const slot of afterBusy) {
-    const prior = pickPriorJob(sources.jobs, slot.start);
-    const next = pickNextJob(sources.jobs, slot.end);
+    const priors = pickPriorJobs(neighborJobs, slot.start);
+    const nexts = pickNextJobs(neighborJobs, slot.end);
     const verdict = travelFits({
       slot,
       newAddress: parsed.address,
-      prior,
-      next,
+      prior: priors,
+      next: nexts,
       driveSeconds: (from, to) => {
         const value = measured.get(pairKey(from, to));
         return value === undefined ? null : value;
@@ -142,7 +151,7 @@ export async function offerSlotsForAddress(
   if (!sources.driveTimeConfigured && hiddenForTravel > 0) {
     notices.push("Some times next to another job are hidden until live drive time is available.");
   } else if (sources.driveTimeConfigured && hiddenForTravel > 0 && slots.length === 0) {
-    notices.push("No remaining times fit travel from the prior job plus the 15-minute pad.");
+    notices.push("No remaining times fit travel from the prior or to the next job plus the 15-minute pad.");
   }
 
   return {

@@ -14,7 +14,11 @@
  * 2. Address first. Never compute or show times until a shoot address is known.
  * 3. Travel hard-block: live drive time between the prior job address and the
  *    new address, plus {@link TRAVEL_PAD_MINUTES}. Same check against the next
- *    job. Example that must never be offered: Philly at noon, Shore at 1pm.
+ *    busy block / job (Calendar free/busy, located events, portal bookings).
+ *    Exclusive end times still count — a slot ending at noon is not free to
+ *    start elsewhere at noon. Example that must never be offered: Philly at
+ *    noon, Shore at 1pm. If the neighbor has no location, still require the
+ *    15-minute pad (refuse zero-gap abutment).
  * 4. Do not fake geography. If a travel check is required (two different known
  *    addresses) and drive time cannot be measured, refuse the slot. Never
  *    assume 0 minutes or a guessed duration.

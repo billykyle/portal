@@ -6,11 +6,13 @@ import { schedulingIntegrations } from "./config";
 import { mergeIntervals, overlaps } from "./intervals";
 import { DEFAULT_TIMEZONE, TRAVEL_PAD_MINUTES } from "./rules";
 import { generateCandidateSlots } from "./slots";
-import { pickPriorJob, travelFits } from "./travel";
+import { pickNextJob, pickNextJobs, pickPriorJob, travelFits } from "./travel";
 import { zonedDateTimeToUtc } from "./zoned-time";
 
 const PHILLY = "1500 Market Street, Philadelphia, PA";
 const SHORE = "100 1st Avenue, Avalon, NJ";
+const LANSDALE = "112 Lenape Dr, Lansdale, PA 19446";
+const CHERRY_HILL = "1950 Route 70 East, Suite 300, Cherry Hill, NJ";
 
 function et(year: number, month: number, day: number, hour: number, minute = 0) {
   return zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year, month, day, hour, minute });
@@ -109,6 +111,56 @@ test("offerSlotsForAddress never returns times without a valid address", async (
   assert.equal(result.error, "Enter the shoot address first.");
 });
 
+test("engine hides Lansdale 11:15–12:00 when Cherry Hill starts at noon", async () => {
+  const now = et(2026, 9, 20, 9);
+  const cherryHill = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: CHERRY_HILL,
+  };
+  const arena = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: null,
+  };
+  const result = await offerSlotsForAddress(
+    LANSDALE,
+    {
+      now,
+      busy: [{ start: cherryHill.start, end: cherryHill.end }],
+      jobs: [arena, cherryHill],
+      calendarConfigured: true,
+      driveTimeConfigured: true,
+      driveSeconds: async () => 50 * 60,
+    },
+    ["Real Estate · Photography"],
+  );
+  const elevenFifteen = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 24, 11, 15).getTime());
+  assert.equal(elevenFifteen, undefined);
+  const ten = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 24, 10).getTime());
+  assert.ok(ten);
+});
+
+test("engine hides a noon-abutting slot from free/busy even without a job location", async () => {
+  const now = et(2026, 9, 20, 9);
+  const result = await offerSlotsForAddress(
+    LANSDALE,
+    {
+      now,
+      busy: [{ start: et(2026, 9, 24, 12), end: et(2026, 9, 24, 13, 30) }],
+      jobs: [],
+      calendarConfigured: true,
+      driveTimeConfigured: true,
+      driveSeconds: async () => {
+        throw new Error("should not measure travel without a location");
+      },
+    },
+    ["Real Estate · Photography"],
+  );
+  const elevenFifteen = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 24, 11, 15).getTime());
+  assert.equal(elevenFifteen, undefined);
+});
+
 test("engine hides Shore 1pm after a Philly noon job", async () => {
   const now = et(2026, 9, 20, 9);
   const result = await offerSlotsForAddress(SHORE, {
@@ -190,6 +242,93 @@ test("prior job is the latest job that ends before the slot", () => {
     et(2026, 9, 21, 13),
   );
   assert.equal(prior?.address, SHORE);
+});
+
+test("next job at an exclusive end prefers the located event", () => {
+  const slotEnd = et(2026, 9, 24, 12);
+  const arena = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: null,
+  };
+  const cherryHill = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: CHERRY_HILL,
+  };
+  const nexts = pickNextJobs([arena, cherryHill], slotEnd);
+  assert.equal(nexts.length, 2);
+  assert.equal(pickNextJob([arena, cherryHill], slotEnd)?.address, CHERRY_HILL);
+});
+
+test("Lansdale 11:15–12:00 is refused when Cherry Hill starts at noon", () => {
+  const slot = { start: et(2026, 9, 24, 11, 15), end: et(2026, 9, 24, 12) };
+  const next = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: CHERRY_HILL,
+  };
+  const verdict = travelFits({
+    slot,
+    newAddress: LANSDALE,
+    prior: null,
+    next,
+    driveSeconds: () => 50 * 60,
+  });
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.match(verdict.reason, /next job plus the 15-minute pad/);
+});
+
+test("a no-location prior event still refuses a slot that starts when it ends", () => {
+  const verdict = travelFits({
+    slot: { start: et(2026, 9, 24, 12), end: et(2026, 9, 24, 12, 45) },
+    newAddress: LANSDALE,
+    prior: { start: et(2026, 9, 24, 10, 30), end: et(2026, 9, 24, 12), address: null },
+    next: null,
+    driveSeconds: () => {
+      throw new Error("should not measure travel without a location");
+    },
+  });
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.match(verdict.reason, /15 minutes after the prior busy time/);
+});
+
+test("a no-location noon event still refuses a slot that ends at noon", () => {
+  const slot = { start: et(2026, 9, 24, 11, 15), end: et(2026, 9, 24, 12) };
+  const verdict = travelFits({
+    slot,
+    newAddress: LANSDALE,
+    prior: null,
+    next: { start: et(2026, 9, 24, 12), end: et(2026, 9, 24, 13, 30), address: null },
+    driveSeconds: () => {
+      throw new Error("should not measure travel without a location");
+    },
+  });
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.match(verdict.reason, /15 minutes before the next busy time/);
+});
+
+test("overlapping no-location event cannot hide a Cherry Hill travel check", () => {
+  const slot = { start: et(2026, 9, 24, 11, 15), end: et(2026, 9, 24, 12) };
+  const arena = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: null,
+  };
+  const cherryHill = {
+    start: et(2026, 9, 24, 12),
+    end: et(2026, 9, 24, 13, 30),
+    address: CHERRY_HILL,
+  };
+  const verdict = travelFits({
+    slot,
+    newAddress: LANSDALE,
+    prior: null,
+    next: [arena, cherryHill],
+    driveSeconds: () => 50 * 60,
+  });
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.match(verdict.reason, /next job plus the 15-minute pad|next busy time/);
 });
 
 test("a slot is busy if either availability calendar is busy", async () => {
