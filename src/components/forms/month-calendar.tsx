@@ -107,14 +107,15 @@ export function MonthCalendarDialog({
             const bookable = dateIsBookable(cell, first, last);
             const selectedDay = key === selectedKey;
             const hasSlots = datesWithSlots.has(key);
+            const available = bookable && hasSlots;
             return (
               <button
                 key={key}
                 type="button"
-                disabled={!bookable}
+                disabled={!available}
                 aria-pressed={selectedDay}
                 aria-label={
-                  bookable
+                  available
                     ? `${formatMonthTitle(cell.year, cell.month)} ${cell.day}`
                     : `${cell.day}, unavailable`
                 }
@@ -123,7 +124,7 @@ export function MonthCalendarDialog({
                   onClose();
                 }}
                 className={`flex h-11 flex-col items-center justify-center rounded-xl text-[15px] ${
-                  !bookable
+                  !available
                     ? "cursor-not-allowed text-[#3a3a3c]"
                     : selectedDay
                       ? "bg-white text-black"

@@ -75,6 +75,10 @@ export function formatDateKeyLabel(dateKey: string, timeZone: string): string {
   });
 }
 
+export function formatWeekDayListLabel(dateLabel: string, hasSlots: boolean) {
+  return hasSlots ? dateLabel : `${dateLabel} - no time available`;
+}
+
 export function monthGrid(year: number, month: number): Array<CalendarDate | null> {
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
