@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ClientHeader } from "@/components/client-header";
 import { BookTimesForm } from "@/components/forms/book-times-form";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { TimesHelpNote } from "@/components/times-help-note";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { loadLiveAvailabilitySources, offerSlotsForAddress } from "@/lib/scheduling/availability";
@@ -150,6 +151,7 @@ function TimesUnavailable({
       <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
         Change services or address
       </Link>
+      <TimesHelpNote />
       <p className="mt-8 text-sm text-[#8e8e93]">Times cannot be loaded until calendar lookup is back.</p>
     </div>
   );
