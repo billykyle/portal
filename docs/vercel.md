@@ -87,8 +87,16 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `EMAIL_FROM` | `Billy Kyle Client Portal <noreply@billy-kyle.com>` | Used only when Resend is set. |
 | `GOOGLE_CALENDAR_IDS` | `billy@atmosimagery.com,bkyle015@gmail.com` | Optional. Work + personal. Free/busy unions both — busy if either calendar is busy. Do **not** add US Holidays. Bookings write to the first ID. Share both with the service-account email. |
 | `GOOGLE_CALENDAR_ID` | single calendar id | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | service account JSON | Optional. Share the calendar with that account. |
-| `GOOGLE_MAPS_API_KEY` | Maps Platform key | Optional, server-only. Enable **Places API (New)** (or Places API), **Address Validation**, and **Distance Matrix** on this key. Used for address autocomplete and live drive time. Empty = no invented suggestions or travel; the book form shows a clear message. |
+| `GCP_PROJECT_ID` | `glassy-polymer-509203-r1` | Optional display / GoogleAuth project id. |
+| `GCP_PROJECT_NUMBER` | numeric project number | Required for production Calendar. IAM & Admin → Settings. |
+| `GCP_WORKLOAD_IDENTITY_POOL_ID` | pool id (e.g. `vercel`) | Required for production Calendar. Flynn creates the pool. |
+| `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | provider id (e.g. `vercel`) | Required for production Calendar. |
+| `GCP_SERVICE_ACCOUNT_EMAIL` | `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com` | Impersonated SA. Alias: `GOOGLE_SERVICE_ACCOUNT_EMAIL`. No private key. |
+| `GCP_AUDIENCE` | empty or provider / Vercel URL | Optional. Empty = IAM provider https URL (GCP Default audience). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | leave empty on Vercel | Local/dev fallback only. This GCP project blocks new SA key creation. |
+| `GOOGLE_MAPS_API_KEY` | Maps Platform key | Optional, server-only. Enable **Places API (New)** (or Places API), **Address Validation**, and **Distance Matrix** on this key. Used for address autocomplete and live drive time. Empty = no invented suggestions or travel; the book form shows a clear message. Separate from Calendar WIF. |
+
+Calendar production wiring (OIDC + WIF, no SA JSON key): [docs/google-calendar.md](google-calendar.md).
 
 After the first deploy, open `/admin` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
 

@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { collectFreeBusyIntervals } from "./calendar";
 import {
+  GCP_PROJECT_ID_KNOWN,
   PERSONAL_CALENDAR_ID,
+  PORTAL_SCHEDULING_SA_EMAIL,
   WORK_CALENDAR_ID,
+  iamProviderAudiences,
   isUsHolidayCalendar,
   parseCalendarIds,
+  readCalendarAuth,
   readCalendarCredentials,
   readCalendarIds,
+  readWorkloadIdentityConfig,
 } from "./config";
+import { wifClientOptions } from "./google-auth";
 
 const WORK = WORK_CALENDAR_ID;
 const PERSONAL = PERSONAL_CALENDAR_ID;
@@ -17,6 +23,8 @@ const HOLIDAY = "en.usa#holiday@group.v.calendar.google.com";
 test("locked availability calendars are work + personal emails", () => {
   assert.equal(WORK, "billy@atmosimagery.com");
   assert.equal(PERSONAL, "bkyle015@gmail.com");
+  assert.equal(PORTAL_SCHEDULING_SA_EMAIL, "portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com");
+  assert.equal(GCP_PROJECT_ID_KNOWN, "glassy-polymer-509203-r1");
 });
 
 test("parseCalendarIds prefers a comma list and drops US Holidays", () => {
@@ -44,18 +52,41 @@ test("readCalendarIds prefers GOOGLE_CALENDAR_IDS over singular GOOGLE_CALENDAR_
   restoreEnv(previous);
 });
 
+const WIF_ENV = [
+  "GCP_PROJECT_ID",
+  "GCP_PROJECT_NUMBER",
+  "GCP_SERVICE_ACCOUNT_EMAIL",
+  "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+  "GCP_WORKLOAD_IDENTITY_POOL_ID",
+  "GOOGLE_WORKLOAD_IDENTITY_POOL_ID",
+  "GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID",
+  "GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID",
+  "GCP_AUDIENCE",
+  "VERCEL",
+  "VERCEL_OIDC_TOKEN",
+] as const;
+
+function snapshotAuthEnv() {
+  const keys = [
+    "GOOGLE_CALENDAR_IDS",
+    "GOOGLE_CALENDAR_ID",
+    "GOOGLE_CLIENT_EMAIL",
+    "GOOGLE_PRIVATE_KEY",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+    ...WIF_ENV,
+  ];
+  return Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+}
+
+function clearAuthEnv() {
+  for (const key of Object.keys(snapshotAuthEnv())) {
+    delete process.env[key];
+  }
+}
+
 test("readCalendarCredentials needs at least one real calendar plus a service account", () => {
-  const previous = {
-    GOOGLE_CALENDAR_IDS: process.env.GOOGLE_CALENDAR_IDS,
-    GOOGLE_CALENDAR_ID: process.env.GOOGLE_CALENDAR_ID,
-    GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    GOOGLE_CLIENT_EMAIL: process.env.GOOGLE_CLIENT_EMAIL,
-    GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
-    GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-  };
-  delete process.env.GOOGLE_CALENDAR_IDS;
-  delete process.env.GOOGLE_CALENDAR_ID;
-  delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
   process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "sa@example.com";
   process.env.GOOGLE_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
   assert.equal(readCalendarCredentials(), null);
@@ -65,7 +96,125 @@ test("readCalendarCredentials needs at least one real calendar plus a service ac
   assert.ok(creds);
   assert.deepEqual(creds.calendarIds, [WORK, PERSONAL]);
   assert.equal(creds.writeCalendarId, WORK);
+  assert.equal(creds.auth.kind, "service-account-key");
+  if (creds.auth.kind === "service-account-key") {
+    assert.equal(creds.auth.clientEmail, "sa@example.com");
+  }
 
+  restoreEnv(previous);
+});
+
+test("WIF env configures Calendar without a private key", () => {
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  process.env.GOOGLE_CALENDAR_IDS = `${WORK},${PERSONAL}`;
+  process.env.GCP_PROJECT_ID = GCP_PROJECT_ID_KNOWN;
+  process.env.GCP_PROJECT_NUMBER = "1234567890";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_ID = "vercel";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID = "vercel";
+  process.env.GCP_SERVICE_ACCOUNT_EMAIL = PORTAL_SCHEDULING_SA_EMAIL;
+
+  const creds = readCalendarCredentials();
+  assert.ok(creds);
+  assert.equal(creds.auth.kind, "wif");
+  if (creds.auth.kind === "wif") {
+    assert.equal(creds.auth.serviceAccountEmail, PORTAL_SCHEDULING_SA_EMAIL);
+    assert.equal(
+      creds.auth.stsAudience,
+      "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/vercel/providers/vercel",
+    );
+    assert.equal(
+      creds.auth.oidcAudience,
+      "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/vercel/providers/vercel",
+    );
+  }
+
+  restoreEnv(previous);
+});
+
+test("WIF wins on Vercel even if a local private key is also set", () => {
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  process.env.GOOGLE_CALENDAR_IDS = WORK;
+  process.env.VERCEL = "1";
+  process.env.GCP_PROJECT_NUMBER = "1234567890";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_ID = "vercel";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID = "vercel";
+  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = PORTAL_SCHEDULING_SA_EMAIL;
+  process.env.GOOGLE_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
+
+  const auth = readCalendarAuth();
+  assert.equal(auth?.kind, "wif");
+
+  delete process.env.VERCEL;
+  const local = readCalendarAuth();
+  assert.equal(local?.kind, "service-account-key");
+
+  process.env.VERCEL_OIDC_TOKEN = "oidc-dev-token";
+  const pulled = readCalendarAuth();
+  assert.equal(pulled?.kind, "wif");
+
+  restoreEnv(previous);
+});
+
+test("GCP_AUDIENCE overrides the OIDC token aud and can supply the STS audience", () => {
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  process.env.GCP_PROJECT_NUMBER = "1234567890";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_ID = "portal";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID = "vercel";
+  process.env.GCP_SERVICE_ACCOUNT_EMAIL = PORTAL_SCHEDULING_SA_EMAIL;
+  process.env.GCP_AUDIENCE = "https://vercel.com/billy-kyle";
+
+  const vercelAud = readWorkloadIdentityConfig();
+  assert.equal(vercelAud?.oidcAudience, "https://vercel.com/billy-kyle");
+  assert.equal(
+    vercelAud?.stsAudience,
+    "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/portal/providers/vercel",
+  );
+
+  process.env.GCP_AUDIENCE =
+    "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/portal/providers/vercel";
+  const iamAud = readWorkloadIdentityConfig();
+  assert.equal(iamAud?.oidcAudience, process.env.GCP_AUDIENCE);
+  assert.equal(
+    iamAud?.stsAudience,
+    "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/portal/providers/vercel",
+  );
+
+  restoreEnv(previous);
+});
+
+test("WIF client options impersonate the portal-scheduling SA", () => {
+  const audiences = iamProviderAudiences("1234567890", "vercel", "vercel");
+  const options = wifClientOptions({
+    projectId: GCP_PROJECT_ID_KNOWN,
+    projectNumber: "1234567890",
+    serviceAccountEmail: PORTAL_SCHEDULING_SA_EMAIL,
+    poolId: "vercel",
+    providerId: "vercel",
+    ...audiences,
+  });
+  assert.equal(options.type, "external_account");
+  assert.equal(options.audience, audiences.stsAudience);
+  assert.equal(options.token_url, "https://sts.googleapis.com/v1/token");
+  assert.equal(
+    options.service_account_impersonation_url,
+    `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${PORTAL_SCHEDULING_SA_EMAIL}:generateAccessToken`,
+  );
+});
+
+test("malformed GOOGLE_SERVICE_ACCOUNT_JSON does not block WIF", () => {
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  process.env.GOOGLE_CALENDAR_IDS = WORK;
+  process.env.GOOGLE_SERVICE_ACCOUNT_JSON = "{not-json";
+  process.env.GCP_PROJECT_NUMBER = "1234567890";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_ID = "vercel";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID = "vercel";
+  process.env.GCP_SERVICE_ACCOUNT_EMAIL = PORTAL_SCHEDULING_SA_EMAIL;
+  const creds = readCalendarCredentials();
+  assert.equal(creds?.auth.kind, "wif");
   restoreEnv(previous);
 });
 
