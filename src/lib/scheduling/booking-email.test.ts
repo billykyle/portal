@@ -3,11 +3,15 @@ import { afterEach, test } from "node:test";
 import { BOOKING_EMAIL_LOGO_URL, EMAIL_SIGNATURE_LINKS } from "@/lib/email-brand";
 import {
   bookingConfirmationRecipients,
+  bookingSchedulingUrl,
   bookingShootManageUrl,
+  buildBookingCancelled,
+  buildBookingCancelledNotify,
   buildBookingConfirmation,
   buildBookingModified,
   buildBookingModifiedNotify,
   buildBookingNotify,
+  sendBookingCancellation,
   sendBookingConfirmation,
   sendBookingModification,
 } from "./booking-email";
@@ -177,6 +181,60 @@ test("client manage URL uses the confirmation page when a booking id is known", 
     "https://portal.billy-kyle.com/scheduling/confirmed/11111111-1111-4111-8111-111111111111?updated=1",
   );
   assert.equal(bookingShootManageUrl(null), "https://portal.billy-kyle.com/scheduling");
+  assert.equal(bookingSchedulingUrl(), "https://portal.billy-kyle.com/scheduling");
+});
+
+test("cancellation emails use cancelled copy and link back to Scheduling", () => {
+  delete process.env.PORTAL_PUBLIC_URL;
+  const input = sampleInput();
+  const client = buildBookingCancelled(input);
+  const notify = buildBookingCancelledNotify(input);
+
+  assert.match(client.subject, /Shoot cancelled/);
+  assert.match(client.subject, /Tue/);
+  assert.match(client.text, /Hi Sam Lepore,/);
+  assert.match(client.text, /appointment with Billy Kyle has been cancelled/);
+  assert.match(client.text, /America\/New_York/);
+  assert.match(client.text, /12 Wood View Drive, Princeton, NJ/);
+  assert.match(client.text, /Real Estate · Photography, Construction · Video/);
+  assert.match(client.text, /Park in the driveway\./);
+  assert.match(client.text, /Gate 4455/);
+  assert.match(client.text, /Back to Scheduling/);
+  assert.match(client.text, /https:\/\/portal\.billy-kyle\.com\/scheduling$/m);
+  assert.doesNotMatch(client.text, /Modify or cancel this shoot/);
+  assert.doesNotMatch(client.text, /scheduling\/confirmed/);
+  assert.doesNotMatch(client.html, /Modify or cancel this shoot/);
+  assert.doesNotMatch(client.html, /scheduling\/confirmed/);
+  assert.match(client.html, /Back to Scheduling/);
+  assert.match(client.html, /https:\/\/portal\.billy-kyle\.com\/scheduling/);
+
+  assert.match(notify.subject, /^Booking cancelled:/);
+  assert.match(notify.text, /cancelled on the portal/);
+  assert.match(notify.text, /Sam Lepore · sam@example.com/);
+  assert.match(notify.text, /12 Wood View Drive, Princeton, NJ/);
+  assert.match(notify.text, /View bookings/);
+  assert.match(notify.text, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assert.match(notify.html, /View bookings/);
+  assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assertOnBrandHtml(client.html);
+  assertOnBrandHtml(notify.html);
+});
+
+test("cancellation body omits empty notes and access codes", () => {
+  const message = buildBookingCancelled({
+    clientEmail: "sam@example.com",
+    address: "12 Wood View Drive",
+    services: ["Real Estate · Photography"],
+    start,
+    end,
+    timeZone: "America/New_York",
+    notes: "   ",
+    accessCodes: null,
+  });
+  assert.doesNotMatch(message.text, /Notes/);
+  assert.doesNotMatch(message.text, /Access codes/);
+  assert.doesNotMatch(message.html, /Notes/);
+  assert.doesNotMatch(message.html, /Access codes/);
 });
 
 test("sendBookingConfirmation is a no-op without Resend", async () => {
@@ -278,6 +336,53 @@ test("sendBookingModification posts two separate Resend emails with no CC/BCC", 
     assert.equal(notify.cc, undefined);
     assert.match(String(client.subject), /Shoot updated/);
     assert.match(String(notify.subject), /^Booking updated:/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sendBookingCancellation posts two separate Resend emails with no CC/BCC", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.EMAIL_FROM;
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  delete process.env.PORTAL_PUBLIC_URL;
+
+  const calls: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const result = await sendBookingCancellation({
+      clientEmail: "sam@example.com",
+      clientName: "Sam Lepore",
+      address: "644 Plumrun Dr, West Chester, PA",
+      services: ["Real Estate · Photography"],
+      start,
+      end,
+      timeZone: "America/New_York",
+    });
+    assert.equal(result.sent, true);
+    assert.equal(calls.length, 2);
+    const client = calls.find((body) => Array.isArray(body.to) && body.to.includes("sam@example.com"));
+    const notify = calls.find((body) => Array.isArray(body.to) && body.to.includes("billy@billyhere.com"));
+    assert.ok(client, "expected a client cancellation send");
+    assert.ok(notify, "expected a Billy notify send");
+    assert.equal(client.from, "Billy Kyle <billy@billyhere.com>");
+    assert.equal(notify.from, "Billy Kyle <billy@billyhere.com>");
+    assert.deepEqual(client.to, ["sam@example.com"]);
+    assert.deepEqual(notify.to, ["billy@billyhere.com"]);
+    assert.equal(client.cc, undefined);
+    assert.equal(notify.cc, undefined);
+    assert.equal(client.bcc, undefined);
+    assert.equal(notify.bcc, undefined);
+    assert.match(String(client.subject), /Shoot cancelled/);
+    assert.match(String(notify.subject), /^Booking cancelled:/);
+    assert.match(String(client.text), /has been cancelled/);
+    assert.doesNotMatch(String(client.text), /Modify or cancel this shoot/);
+    assert.match(String(notify.text), /cancelled on the portal/);
   } finally {
     globalThis.fetch = originalFetch;
   }
