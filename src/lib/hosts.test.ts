@@ -86,6 +86,7 @@ test("admin and client path helpers", () => {
   assert.equal(isAdminPath("/administration"), false);
   assert.equal(isClientPortalPath("/hub"), true);
   assert.equal(isClientPortalPath("/library"), true);
+  assert.equal(isClientPortalPath("/account"), true);
   assert.equal(isClientPortalPath("/scheduling/times"), true);
   assert.equal(isClientPortalPath("/s/token"), true);
   assert.equal(isClientPortalPath("/shoots/abc"), false);
@@ -135,6 +136,10 @@ test("admin host root goes to /admin; client paths go to the portal host", () =>
   });
   assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/hub" }), {
     location: "https://portal.billy-kyle.com/hub",
+    status: 308,
+  });
+  assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/account" }), {
+    location: "https://portal.billy-kyle.com/account",
     status: 308,
   });
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin" }), null);

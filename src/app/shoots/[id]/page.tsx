@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { AccountControl } from "@/components/account-control";
 import { AppHeader } from "@/components/app-header";
 import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
@@ -77,6 +78,7 @@ export default async function ShootPage({
             {admin ? "Client" : "Library"}
           </Link>
         }
+        right={!admin && session ? <AccountControl /> : undefined}
       />
       {admin ? (
         <div className="mb-4 flex flex-wrap items-center gap-3 lg:mb-6">

@@ -39,7 +39,13 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/admin" && admin) {
     return NextResponse.redirect(new URL("/admin/clients", request.url));
   }
-  if ((pathname.startsWith("/library") || pathname.startsWith("/hub") || pathname.startsWith("/scheduling")) && !session) {
+  if (
+    (pathname.startsWith("/library") ||
+      pathname.startsWith("/hub") ||
+      pathname.startsWith("/account") ||
+      pathname.startsWith("/scheduling")) &&
+    !session
+  ) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   if (pathname.startsWith("/shoots") && !session && !admin) {
@@ -60,6 +66,8 @@ export const config = {
     "/reset-password",
     "/hub",
     "/hub/:path*",
+    "/account",
+    "/account/:path*",
     "/scheduling",
     "/scheduling/:path*",
     "/library",

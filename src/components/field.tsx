@@ -55,3 +55,12 @@ export function FormError({ message }: { message?: string }) {
     </p>
   );
 }
+
+export function FormSuccess({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p role="status" className="text-sm text-white">
+      {message}
+    </p>
+  );
+}

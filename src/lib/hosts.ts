@@ -70,6 +70,7 @@ export function isAdminPath(pathname: string) {
 const CLIENT_PORTAL_PREFIXES = [
   "/hub",
   "/library",
+  "/account",
   "/scheduling",
   "/signup",
   "/signin",
