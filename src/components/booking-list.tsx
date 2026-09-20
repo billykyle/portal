@@ -1,4 +1,5 @@
 import { CancelBookingForm } from "@/components/forms/cancel-booking-form";
+import { adminCalendarGapNotice } from "@/lib/scheduling/bookings";
 import { bookingServiceList } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
 
@@ -12,6 +13,7 @@ export type BookingListItem = {
   status: string;
   notes?: string | null;
   accessCodes?: string | null;
+  calendarEventId?: string | null;
   clientName?: string;
   inviteCode?: string;
   clientId?: string;
@@ -41,6 +43,7 @@ export function BookingList({
       {bookings.map((booking) => {
         const upcoming = booking.status === "confirmed" && booking.startsAt.getTime() > Date.now();
         const services = bookingServiceList(booking);
+        const calendarGap = (admin || showClient) ? adminCalendarGapNotice(booking) : null;
         return (
           <li key={booking.id} className="border-b border-white/10 py-4">
             {services.length > 0 ? (
@@ -69,6 +72,7 @@ export function BookingList({
             {booking.accessCodes ? (
               <p className="text-sm text-[#8e8e93]">Access: {booking.accessCodes}</p>
             ) : null}
+            {calendarGap ? <p className="text-sm text-[#8e8e93]">{calendarGap}</p> : null}
             {allowCancel && upcoming ? (
               <div className="mt-2">
                 <CancelBookingForm bookingId={booking.id} fromAdmin={admin} clientId={booking.clientId} />
