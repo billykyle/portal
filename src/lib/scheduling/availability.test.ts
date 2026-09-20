@@ -286,6 +286,11 @@ test("offered slots use the summed service duration instead of 90 minutes", asyn
   assert.ok(zillowSlot);
   assert.equal(startMs(zillowSlot.end), et(2026, 9, 21, 8, 15).getTime());
 
+  const aerial = await offerSlotsForAddress(PHILLY, sources, ["Real Estate · Aerial Photos"]);
+  const aerialSlot = aerial.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  assert.ok(aerialSlot);
+  assert.equal(startMs(aerialSlot.end), et(2026, 9, 21, 8, 15).getTime());
+
   const combo = await offerSlotsForAddress(PHILLY, sources, [
     "Real Estate · Photography",
     "Real Estate · Video",
