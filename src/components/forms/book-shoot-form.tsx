@@ -1,20 +1,24 @@
 import { Field, SubmitButton } from "@/components/field";
+import { ServiceFieldset } from "@/components/forms/service-fieldset";
 import { createBooking } from "@/lib/actions/scheduling";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
 
 export function BookShootForm({
   address,
+  services,
   addressError,
   availability,
 }: {
   address: string;
+  services: string[];
   addressError?: string;
   availability: AvailabilityResult | null;
 }) {
   return (
     <div>
       <form action={CLIENT_SCHEDULING} method="get" className="flex flex-col gap-4">
+        <ServiceFieldset selected={services} />
         <Field
           id="address"
           name="address"
@@ -29,13 +33,19 @@ export function BookShootForm({
       </form>
 
       {availability && !availability.error ? (
-        <TimesStep availability={availability} />
+        <TimesStep availability={availability} services={services} />
       ) : null}
     </div>
   );
 }
 
-function TimesStep({ availability }: { availability: AvailabilityResult }) {
+function TimesStep({
+  availability,
+  services,
+}: {
+  availability: AvailabilityResult;
+  services: string[];
+}) {
   const groups = groupSlots(availability.slots);
 
   return (
@@ -55,6 +65,11 @@ function TimesStep({ availability }: { availability: AvailabilityResult }) {
       ) : (
         <form action={createBooking} className="flex flex-col gap-6">
           <input type="hidden" name="address" value={availability.address} />
+          {services.length > 0 ? (
+            services.map((service) => <input key={service} type="hidden" name="service" value={service} />)
+          ) : (
+            <ServiceFieldset selected={[]} />
+          )}
           <fieldset className="flex flex-col gap-6">
             <legend className="sr-only">Choose a time</legend>
             {groups.map((group) => (

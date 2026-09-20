@@ -1,9 +1,12 @@
 import { CancelBookingForm } from "@/components/forms/cancel-booking-form";
+import { bookingServiceList, formatBookingServices } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
 
 export type BookingListItem = {
   id: string;
   address: string;
+  service?: string | null;
+  services?: string[] | null;
   startsAt: Date;
   endsAt: Date;
   status: string;
@@ -37,9 +40,15 @@ export function BookingList({
     <ul>
       {bookings.map((booking) => {
         const upcoming = booking.status === "confirmed" && booking.startsAt.getTime() > Date.now();
+        const services = bookingServiceList(booking);
         return (
           <li key={booking.id} className="border-b border-white/10 py-4">
-            <p className="text-[15px]">{booking.address}</p>
+            {services.length > 0 ? (
+              <p className="text-[15px]">{formatBookingServices(services)}</p>
+            ) : null}
+            <p className={services.length > 0 ? "text-sm text-[#8e8e93]" : "text-[15px]"}>
+              {booking.address}
+            </p>
             <p className="text-sm text-[#8e8e93]">
               {formatBookingWhen(booking.startsAt, booking.endsAt, timeZone)}
               {booking.status !== "confirmed" ? ` · ${booking.status}` : ""}

@@ -17,10 +17,25 @@ import {
 import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { writeCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
+import { parseSchedulingServices } from "@/lib/scheduling/services";
 
-function schedulingUrl(params: Record<string, string>) {
-  const query = new URLSearchParams(params);
-  return `${CLIENT_SCHEDULING}?${query.toString()}`;
+function schedulingUrl(params: {
+  address?: string | null;
+  services?: readonly string[] | null;
+  error?: string | null;
+  booked?: string | null;
+  cancelled?: string | null;
+}) {
+  const query = new URLSearchParams();
+  if (params.address) query.set("address", params.address);
+  for (const service of params.services ?? []) {
+    query.append("service", service);
+  }
+  if (params.error) query.set("error", params.error);
+  if (params.booked) query.set("booked", params.booked);
+  if (params.cancelled) query.set("cancelled", params.cancelled);
+  const qs = query.toString();
+  return qs ? `${CLIENT_SCHEDULING}?${qs}` : CLIENT_SCHEDULING;
 }
 
 export async function createBooking(formData: FormData) {
@@ -30,12 +45,16 @@ export async function createBooking(formData: FormData) {
   }
   await ensureDb();
   const address = String(formData.get("address") ?? "");
+  const services = parseSchedulingServices(formData.getAll("service"));
   const slot = String(formData.get("slot") ?? "");
   const [startIso, endIso] = slot.split("|");
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
+  if (services.length === 0) {
+    redirect(schedulingUrl({ address, error: "Pick at least one service." }));
+  }
   if (!startIso || !endIso) {
-    redirect(schedulingUrl({ address, error: "Pick a time." }));
+    redirect(schedulingUrl({ address, services, error: "Pick a time." }));
   }
 
   const portalJobs = await loadConfirmedPortalJobs();
@@ -44,16 +63,17 @@ export async function createBooking(formData: FormData) {
     portalJobs,
   });
   if ("error" in sources) {
-    redirect(schedulingUrl({ address, error: sources.error }));
+    redirect(schedulingUrl({ address, services, error: sources.error }));
   }
   const availability = await offerSlotsForAddress(address, sources);
   if (availability.error) {
-    redirect(schedulingUrl({ error: availability.error }));
+    redirect(schedulingUrl({ services, error: availability.error }));
   }
   if (!slotStillOffered(availability, startIso, endIso)) {
     redirect(
       schedulingUrl({
         address: availability.address,
+        services,
         error: "That time is no longer available. Pick another.",
       }),
     );
@@ -73,12 +93,14 @@ export async function createBooking(formData: FormData) {
         start,
         end,
         timeZone: hours.timeZone,
-        summary: `Shoot — ${client?.displayName ?? session.email}`,
-        description: [notes, accessCodes ? `Access: ${accessCodes}` : ""].filter(Boolean).join("\n"),
+        summary: `${services.join(", ")} — ${client?.displayName ?? session.email}`,
+        description: [services.join(", "), notes, accessCodes ? `Access: ${accessCodes}` : ""]
+          .filter(Boolean)
+          .join("\n"),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Google Calendar write failed.";
-      redirect(schedulingUrl({ address: availability.address, error: message }));
+      redirect(schedulingUrl({ address: availability.address, services, error: message }));
     }
   }
 
@@ -86,6 +108,7 @@ export async function createBooking(formData: FormData) {
     clientId: session.clientId,
     createdByUserId: session.userId,
     address: availability.address,
+    services,
     startsAt: start,
     endsAt: end,
     status: "confirmed",
