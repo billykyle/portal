@@ -3,7 +3,12 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { SCHEDULING_INDUSTRIES, schedulingServiceId } from "@/lib/scheduling/services";
+import {
+  isExclusiveIndustry,
+  SCHEDULING_INDUSTRIES,
+  schedulingServiceId,
+  toggleSchedulingService,
+} from "@/lib/scheduling/services";
 
 export function ServiceFieldset({
   selected,
@@ -36,9 +41,7 @@ export function ServiceFieldset({
   }, []);
 
   function toggle(value: string) {
-    setPicked((current) =>
-      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
-    );
+    setPicked((current) => toggleSchedulingService(current, value));
     setError("");
   }
 
@@ -52,6 +55,7 @@ export function ServiceFieldset({
       <ul className="flex flex-col gap-2">
         {SCHEDULING_INDUSTRIES.map((group) => {
           const open = openIndustries.includes(group.industry);
+          const exclusive = isExclusiveIndustry(group);
           const selectedCount = group.options.filter((option) =>
             picked.includes(schedulingServiceId(group.industry, option)),
           ).length;
@@ -100,9 +104,14 @@ export function ServiceFieldset({
                           <li key={value}>
                             <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
                               <input
-                                type="checkbox"
+                                type={exclusive ? "radio" : "checkbox"}
                                 checked={checked}
-                                onChange={() => toggle(value)}
+                                onChange={() => {
+                                  if (!checked) toggle(value);
+                                }}
+                                onClick={() => {
+                                  if (exclusive && checked) toggle(value);
+                                }}
                                 className="size-4 shrink-0 accent-white"
                               />
                               <span className="text-[15px]">{option}</span>
