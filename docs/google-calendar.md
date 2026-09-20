@@ -7,7 +7,7 @@ The runtime path:
 1. Vercel injects a short-lived **Team-issuer** OIDC token (`iss` `https://oidc.vercel.com/billy-kyle`, default `aud` `https://vercel.com/billy-kyle`).
 2. The app sends that token to Google STS. STS `audience` is the WIF provider resource (`//iam.googleapis.com/projects/…/providers/vercel`) — that is **not** the OIDC token `aud`.
 3. The federation impersonates `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com`.
-4. That SA calls Calendar `freeBusy` (work + personal) and writes bookings to the first ID (work).
+4. That SA calls Calendar `freeBusy` (work + personal) and writes bookings to the first ID (work). `freeBusy` is queried in ≤60-day chunks — Google returns HTTP 400 `timeRangeTooLong` for a single window longer than ~3 months, and the bookable horizon is 3 months plus padding.
 
 Maps stays on `GOOGLE_MAPS_API_KEY`. Do not reuse it for Calendar.
 

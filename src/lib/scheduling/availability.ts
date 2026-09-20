@@ -184,6 +184,7 @@ export async function loadLiveAvailabilitySources(options: {
       busy.push(...calendarBusy);
       jobs.push(...calendarJobs);
     } catch (error) {
+      console.error("Google Calendar availability lookup failed", error);
       return { error: publicCalendarError(error) };
     }
   }
