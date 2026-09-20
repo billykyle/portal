@@ -38,7 +38,7 @@ export function BookTimesForm({
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
   const last = parseRequiredDateKey(availability.lastBookableDate);
   const currentStartSep = currentSlot?.indexOf("|") ?? -1;
-  const currentStart = currentStartSep > 0 ? currentSlot.slice(0, currentStartSep) : "";
+  const currentStart = currentSlot && currentStartSep > 0 ? currentSlot.slice(0, currentStartSep) : "";
   const offeredCurrent = currentSlot
     ? availability.slots.find((slot) => `${slot.start}|${slot.end}` === currentSlot) ??
       availability.slots.find((slot) => slot.start === currentStart)
