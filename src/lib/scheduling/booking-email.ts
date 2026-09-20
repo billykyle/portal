@@ -1,16 +1,26 @@
-import { adminUrl } from "@/lib/hosts";
+import {
+  EMAIL_FONT_STACK,
+  bookingEmailCtaButton,
+  emailSignatureHtml,
+  emailSignatureText,
+  wrapBookingEmailHtml,
+} from "@/lib/email-brand";
+import { adminUrl, publicPortalOrigin } from "@/lib/hosts";
 import {
   bookingNotifyEmail,
   emailConfigured,
   sendEmail,
   uniqueEmails,
 } from "@/lib/email";
+import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { formatBookingServices } from "./services";
 import { formatBookingWhen } from "./slots";
+import { schedulingConfirmedHref } from "./urls";
 
 export type BookingConfirmationInput = {
   clientEmail: string;
   clientName?: string | null;
+  bookingId?: string | null;
   address: string;
   services: readonly string[];
   start: Date;
@@ -45,159 +55,199 @@ function bookingDetails(input: BookingConfirmationInput) {
   return { when, services, notes, accessCodes };
 }
 
-function wrapHtml(blocks: string[]) {
-  return `<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:24px;background:#ffffff;color:#000000;font-family:Georgia,Times,serif;font-size:16px;line-height:1.5;">
-${blocks.join("\n")}
-</body>
-</html>`;
+export function bookingAdminUrl() {
+  return adminUrl("/admin/bookings");
 }
 
-function detailHtml(when: string, timeZone: string, address: string, services: string, notes: string, accessCodes: string) {
-  const blocks = [
-    `<p><strong>When</strong><br>${escapeHtml(when)} (${escapeHtml(timeZone)})</p>`,
-    `<p><strong>Where</strong><br>${escapeHtml(address)}</p>`,
-    `<p><strong>Services</strong><br>${escapeHtml(services)}</p>`,
+export function bookingShootManageUrl(bookingId?: string | null, options?: { updated?: boolean }) {
+  const origin = publicPortalOrigin();
+  const id = bookingId?.trim();
+  if (id) return `${origin}${schedulingConfirmedHref(id, options)}`;
+  return `${origin}${CLIENT_SCHEDULING}`;
+}
+
+type DetailRow = { label: string; value: string };
+
+function detailRows(rows: DetailRow[]) {
+  return rows.filter((row) => row.value);
+}
+
+function detailText(rows: DetailRow[]) {
+  return detailRows(rows).flatMap((row, index) => (index === 0 ? [row.label, row.value] : ["", row.label, row.value]));
+}
+
+function detailHtml(rows: DetailRow[]) {
+  const present = detailRows(rows);
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #000000;border-collapse:collapse;">
+${present
+  .map(
+    (row, index) => `  <tr>
+    <td style="padding:16px 18px;${index < present.length - 1 ? "border-bottom:1px solid #000000;" : ""}font-family:${EMAIL_FONT_STACK};color:#000000;">
+      <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:#000000;">${escapeHtml(row.label)}</div>
+      <div style="margin-top:6px;font-size:16px;line-height:1.45;color:#000000;">${escapeHtml(row.value).replaceAll("\n", "<br>")}</div>
+    </td>
+  </tr>`,
+  )
+  .join("\n")}
+</table>`;
+}
+
+function headingHtml(title: string, subtitle: string) {
+  return `<h1 style="margin:0 0 8px;font-family:${EMAIL_FONT_STACK};font-size:28px;line-height:1.2;font-weight:700;color:#000000;">${escapeHtml(title)}</h1>
+<p style="margin:0 0 28px;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.45;color:#000000;">${escapeHtml(subtitle)}</p>`;
+}
+
+function paragraphHtml(text: string) {
+  return `<p style="margin:0 0 20px;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.5;color:#000000;">${escapeHtml(text)}</p>`;
+}
+
+function sharedDetailRows(input: BookingConfirmationInput, extras: DetailRow[] = []) {
+  const { when, services, notes, accessCodes } = bookingDetails(input);
+  return [
+    ...extras,
+    { label: "When", value: `${when} (${input.timeZone})` },
+    { label: "Where", value: input.address },
+    { label: "Services", value: services },
+    { label: "Notes", value: notes },
+    { label: "Access codes", value: accessCodes },
   ];
-  if (notes) blocks.push(`<p><strong>Notes</strong><br>${escapeHtml(notes)}</p>`);
-  if (accessCodes) blocks.push(`<p><strong>Access codes</strong><br>${escapeHtml(accessCodes)}</p>`);
-  return blocks;
 }
 
-function detailText(when: string, timeZone: string, address: string, services: string, notes: string, accessCodes: string) {
-  const lines = ["When", `${when} (${timeZone})`, "", "Where", address, "", "Services", services];
-  if (notes) lines.push("", "Notes", notes);
-  if (accessCodes) lines.push("", "Access codes", accessCodes);
-  return lines;
+function clientGreeting(input: BookingConfirmationInput) {
+  return input.clientName?.trim() ? `Hi ${input.clientName.trim()},` : "Hi,";
+}
+
+function clientLabel(input: BookingConfirmationInput) {
+  return [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
+}
+
+function clientCta(input: BookingConfirmationInput, updated: boolean) {
+  return {
+    label: "Modify or cancel this shoot",
+    href: bookingShootManageUrl(input.bookingId, updated ? { updated: true } : undefined),
+  };
+}
+
+function notifyCta() {
+  return { label: "View bookings", href: bookingAdminUrl() };
+}
+
+function buildClientMessage(
+  input: BookingConfirmationInput,
+  copy: { title: string; intro: string; subjectPrefix: string; updated: boolean },
+) {
+  const { when } = bookingDetails(input);
+  const greeting = clientGreeting(input);
+  const rows = sharedDetailRows(input);
+  const cta = clientCta(input, copy.updated);
+
+  const text = [
+    greeting,
+    "",
+    copy.intro,
+    "",
+    ...detailText(rows),
+    "",
+    cta.label,
+    cta.href,
+    "",
+    emailSignatureText(),
+  ].join("\n");
+
+  const html = wrapBookingEmailHtml({
+    title: copy.title,
+    preheader: copy.intro,
+    body: [
+      headingHtml(copy.title, when),
+      paragraphHtml(greeting),
+      paragraphHtml(copy.intro),
+      detailHtml(rows),
+      `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
+    ].join("\n"),
+  });
+
+  return {
+    subject: `${copy.subjectPrefix} — ${when}`,
+    text,
+    html,
+  };
+}
+
+function buildNotifyMessage(
+  input: BookingConfirmationInput,
+  copy: { title: string; intro: string; subjectPrefix: string },
+) {
+  const { when } = bookingDetails(input);
+  const rows = sharedDetailRows(input, [{ label: "Client", value: clientLabel(input) || input.clientEmail }]);
+  const cta = notifyCta();
+
+  const text = [
+    copy.intro,
+    "",
+    ...detailText(rows),
+    "",
+    cta.label,
+    cta.href,
+    "",
+    emailSignatureText(),
+  ].join("\n");
+
+  const html = wrapBookingEmailHtml({
+    title: copy.title,
+    preheader: copy.intro,
+    body: [
+      headingHtml(copy.title, when),
+      paragraphHtml(copy.intro),
+      detailHtml(rows),
+      `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
+    ].join("\n"),
+  });
+
+  return {
+    subject: `${copy.subjectPrefix}: ${when}`,
+    text,
+    html,
+  };
 }
 
 /** Client-facing confirmation. Email #1. */
 export function buildBookingConfirmation(input: BookingConfirmationInput) {
-  const { when, services, notes, accessCodes } = bookingDetails(input);
-  const greeting = input.clientName?.trim() ? `Hi ${input.clientName.trim()},` : "Hi,";
-
-  const text = [
-    greeting,
-    "",
-    "Your shoot with Billy Kyle is confirmed.",
-    "",
-    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
-    "",
-    "Reply to this email if you need to change anything.",
-    "",
-    "— Billy Kyle",
-  ].join("\n");
-
-  const html = wrapHtml([
-    `<p>${escapeHtml(greeting)}</p>`,
-    "<p>Your shoot with Billy Kyle is confirmed.</p>",
-    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
-    "<p>Reply to this email if you need to change anything.</p>",
-    "<p>— Billy Kyle</p>",
-  ]);
-
-  return {
-    subject: `Shoot confirmed — ${when}`,
-    text,
-    html,
-  };
+  return buildClientMessage(input, {
+    title: "Shoot confirmed",
+    intro: "Your shoot with Billy Kyle is confirmed.",
+    subjectPrefix: "Shoot confirmed",
+    updated: false,
+  });
 }
 
 /** Billy's own booking alert. Email #2. */
 export function buildBookingNotify(input: BookingConfirmationInput) {
-  const { when, services, notes, accessCodes } = bookingDetails(input);
-  const clientLabel = [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
-
-  const bookingsUrl = adminUrl("/admin/bookings");
-  const text = [
-    "New booking on the portal.",
-    "",
-    "Client",
-    clientLabel || input.clientEmail,
-    "",
-    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
-    "",
-    "Admin",
-    bookingsUrl,
-  ].join("\n");
-
-  const html = wrapHtml([
-    "<p>New booking on the portal.</p>",
-    `<p><strong>Client</strong><br>${escapeHtml(clientLabel || input.clientEmail)}</p>`,
-    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
-    `<p><strong>Admin</strong><br><a href="${escapeHtml(bookingsUrl)}">${escapeHtml(bookingsUrl)}</a></p>`,
-  ]);
-
-  return {
-    subject: `New booking: ${when}`,
-    text,
-    html,
-  };
+  return buildNotifyMessage(input, {
+    title: "New booking",
+    intro: "New booking on the portal.",
+    subjectPrefix: "New booking",
+  });
 }
 
 /** Client-facing modification confirmation. Email #1. */
 export function buildBookingModified(input: BookingConfirmationInput) {
-  const { when, services, notes, accessCodes } = bookingDetails(input);
-  const greeting = input.clientName?.trim() ? `Hi ${input.clientName.trim()},` : "Hi,";
-
-  const text = [
-    greeting,
-    "",
-    "Your shoot with Billy Kyle has been updated.",
-    "",
-    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
-    "",
-    "Reply to this email if you need to change anything.",
-    "",
-    "— Billy Kyle",
-  ].join("\n");
-
-  const html = wrapHtml([
-    `<p>${escapeHtml(greeting)}</p>`,
-    "<p>Your shoot with Billy Kyle has been updated.</p>",
-    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
-    "<p>Reply to this email if you need to change anything.</p>",
-    "<p>— Billy Kyle</p>",
-  ]);
-
-  return {
-    subject: `Shoot updated — ${when}`,
-    text,
-    html,
-  };
+  return buildClientMessage(input, {
+    title: "Shoot updated",
+    intro: "Your shoot with Billy Kyle has been updated.",
+    subjectPrefix: "Shoot updated",
+    updated: true,
+  });
 }
 
 /** Billy's modification alert. Email #2. */
 export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
-  const { when, services, notes, accessCodes } = bookingDetails(input);
-  const clientLabel = [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
-
-  const bookingsUrl = adminUrl("/admin/bookings");
-  const text = [
-    "A booking was modified on the portal.",
-    "",
-    "Client",
-    clientLabel || input.clientEmail,
-    "",
-    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
-    "",
-    "Admin",
-    bookingsUrl,
-  ].join("\n");
-
-  const html = wrapHtml([
-    "<p>A booking was modified on the portal.</p>",
-    `<p><strong>Client</strong><br>${escapeHtml(clientLabel || input.clientEmail)}</p>`,
-    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
-    `<p><strong>Admin</strong><br><a href="${escapeHtml(bookingsUrl)}">${escapeHtml(bookingsUrl)}</a></p>`,
-  ]);
-
-  return {
-    subject: `Booking updated: ${when}`,
-    text,
-    html,
-  };
+  return buildNotifyMessage(input, {
+    title: "Booking updated",
+    intro: "A booking was modified on the portal.",
+    subjectPrefix: "Booking updated",
+  });
 }
 
 export type BookingEmailSendResult = {
