@@ -47,7 +47,10 @@ export default async function SchedulingPage({
     error,
   } = await searchParams;
   const modifyId = rawModify.trim();
-  const modifying = modifyId ? await getClientBooking(session.clientId, modifyId) : null;
+  const [modifying, upcoming] = await Promise.all([
+    modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
+    listClientUpcomingBookings(session.clientId),
+  ]);
   if (modifyId && (!modifying || !canModifyBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
   }
@@ -55,7 +58,6 @@ export default async function SchedulingPage({
     rawService ?? (modifying ? bookingServiceList(modifying) : undefined),
   );
   const hours = schedulingHours();
-  const upcoming = await listClientUpcomingBookings(session.clientId);
   const typedAddress = rawAddress.trim() || modifying?.address || "";
   const typedNotes = rawNotes.trim() || modifying?.notes || "";
 
