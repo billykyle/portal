@@ -9,6 +9,7 @@ import {
   lastBookableDate,
 } from "./horizon";
 import { mergeIntervals, overlaps, type Interval } from "./intervals";
+import { bookingSlotMinutes, parseSchedulingServices } from "./services";
 import { formatSlotRange, generateCandidateSlots } from "./slots";
 import { pickNextJob, pickPriorJob, travelFits, type TravelJob } from "./travel";
 
@@ -45,10 +46,15 @@ export type AvailabilitySources = {
 export async function offerSlotsForAddress(
   rawAddress: string,
   sources: AvailabilitySources,
+  services: readonly string[] = [],
 ): Promise<AvailabilityResult> {
   const parsed = parseShootAddress(rawAddress);
   const now = sources.now ?? new Date();
-  const hours = hoursForNow(now);
+  const selected = parseSchedulingServices(services);
+  const hours = hoursForNow(
+    now,
+    selected.length > 0 ? bookingSlotMinutes(selected) : undefined,
+  );
   const notices: string[] = [];
   const window = {
     firstBookableDate: calendarDateKey(firstBookableDate(now, hours)),

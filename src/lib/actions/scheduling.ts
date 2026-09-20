@@ -48,7 +48,7 @@ export async function createBooking(formData: FormData) {
   if ("error" in sources) {
     redirect(schedulingTimesHref({ address, services, notes, error: sources.error }));
   }
-  const availability = await offerSlotsForAddress(address, sources);
+  const availability = await offerSlotsForAddress(address, sources, services);
   if (availability.error) {
     redirect(schedulingBookHref({ services, notes, error: availability.error }));
   }

@@ -25,8 +25,7 @@ export function lastBookableDate(
 export function firstBookableDate(now: Date, hours: SchedulingHours): CalendarDate {
   const today = todayInZone(now, hours.timeZone);
   const minStart = now.getTime() + hours.minLeadMinutes * 60 * 1000;
-  const duration = Math.max(Math.max(5, hours.stepMinutes), hours.slotMinutes);
-  const lastStartMinute = hours.closeHour * 60 - duration;
+  const lastStartMinute = hours.closeHour * 60;
   const lastStart = zonedDateTimeToUtc(hours.timeZone, {
     ...today,
     hour: Math.floor(lastStartMinute / 60),
@@ -41,10 +40,11 @@ export function bookingHorizonDays(now: Date, timeZone: string): number {
 }
 
 /** Working hours plus a bookable window of at least 3 months from `now`. */
-export function hoursForNow(now: Date): SchedulingHours {
+export function hoursForNow(now: Date, slotMinutes?: number): SchedulingHours {
   const hours = schedulingHours();
   return {
     ...hours,
+    slotMinutes: slotMinutes ?? hours.slotMinutes,
     daysAhead: Math.max(hours.daysAhead, bookingHorizonDays(now, hours.timeZone)),
   };
 }

@@ -9,7 +9,13 @@ import {
   monthGrid,
   weekDateKeys,
 } from "./horizon";
-import { DEFAULT_MAX_BOOKING_MONTHS, DEFAULT_TIMEZONE, DEFAULT_WEEK_DAYS } from "./rules";
+import {
+  DEFAULT_MAX_BOOKING_MONTHS,
+  DEFAULT_OPEN_HOUR,
+  DEFAULT_STEP_MINUTES,
+  DEFAULT_TIMEZONE,
+  DEFAULT_WEEK_DAYS,
+} from "./rules";
 import { addCalendarMonths, calendarDateKey, zonedDateTimeToUtc } from "./zoned-time";
 import type { SchedulingHours } from "./config";
 
@@ -19,10 +25,10 @@ function et(year: number, month: number, day: number, hour: number, minute = 0) 
 
 const HOURS: SchedulingHours = {
   timeZone: DEFAULT_TIMEZONE,
-  openHour: 8,
+  openHour: 10,
   closeHour: 18,
   slotMinutes: 90,
-  stepMinutes: 30,
+  stepMinutes: 15,
   daysAhead: 14,
   minLeadMinutes: 120,
 };
@@ -75,6 +81,11 @@ test("hoursForNow extends daysAhead to cover the 3-month horizon", () => {
   const hours = hoursForNow(now);
   assert.ok(hours.daysAhead >= bookingHorizonDays(now, DEFAULT_TIMEZONE));
   assert.ok(hours.daysAhead >= 90);
+  assert.equal(DEFAULT_OPEN_HOUR, 10);
+  assert.equal(DEFAULT_STEP_MINUTES, 15);
+  assert.equal(hours.openHour, 10);
+  assert.equal(hours.stepMinutes, 15);
+  assert.equal(hours.closeHour, 18);
 });
 
 test("addCalendarMonths clamps the day when the target month is shorter", () => {
