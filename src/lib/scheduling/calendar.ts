@@ -345,8 +345,10 @@ export async function deleteCalendarBooking(eventId: string): Promise<boolean> {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (res.status === 204 || res.ok) return true;
-  await throwCalendarHttpError(res, "Google Calendar delete");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Google Calendar delete");
+  }
+  return true;
 }
 
 /**
