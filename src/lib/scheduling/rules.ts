@@ -12,13 +12,13 @@
  *    bookings are always busy too, and are written to the work calendar when
  *    that write hook is live. Singular `GOOGLE_CALENDAR_ID` is still accepted.
  * 2. Address first. Never compute or show times until a shoot address is known.
- * 3. Travel hard-block: live drive time between the prior job address and the
- *    new address, plus {@link TRAVEL_PAD_MINUTES}. Same check against the next
- *    busy block / job (Calendar free/busy, located events, portal bookings).
- *    Exclusive end times still count — a slot ending at noon is not free to
- *    start elsewhere at noon. Example that must never be offered: Philly at
- *    noon, Shore at 1pm. If the neighbor has no location, still require the
- *    15-minute pad (refuse zero-gap abutment).
+ * 3. Travel hard-block: live drive time only between the prior job address
+ *    and the new address. Same check against the next located job. Exclusive
+ *    end times still count when Maps reports a drive — a slot ending at noon
+ *    is not free to start elsewhere at noon if the ETA is greater than zero.
+ *    Example that must never be offered: Philly at noon, Shore at 1pm.
+ *    {@link TRAVEL_PAD_MINUTES} is 0 (Billy, 2026-09-20): no extra pad.
+ *    Location-less neighbors do not invent travel minutes.
  * 4. Do not fake geography. If a travel check is required (two different known
  *    addresses) and drive time cannot be measured, refuse the slot. Never
  *    assume 0 minutes or a guessed duration.
@@ -36,7 +36,8 @@
  *    even if the computed end runs past 6:00pm.
  */
 
-export const TRAVEL_PAD_MINUTES = 15;
+/** Locked at 0 — live Maps ETA only, no extra minutes (Billy, 2026-09-20). */
+export const TRAVEL_PAD_MINUTES = 0;
 export const TRAVEL_PAD_MS = TRAVEL_PAD_MINUTES * 60 * 1000;
 
 export const DEFAULT_TIMEZONE = "America/New_York";

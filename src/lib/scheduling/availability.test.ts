@@ -41,11 +41,25 @@ test("Philly noon + Shore 1pm is refused when drive time is real", () => {
   });
   assert.equal(verdict.ok, false);
   if (!verdict.ok) {
-    assert.match(verdict.reason, /15-minute pad/);
+    assert.match(verdict.reason, /Travel from the prior job does not fit/);
   }
 });
 
-test("a later Shore slot is offered when live drive + pad fits", () => {
+test("a Shore slot that fits live drive time with no pad is offered", () => {
+  const prior = { start: et(2026, 9, 21, 12), end: et(2026, 9, 21, 13), address: PHILLY };
+  const slot = { start: et(2026, 9, 21, 14, 30), end: et(2026, 9, 21, 16) };
+  const verdict = travelFits({
+    slot,
+    newAddress: SHORE,
+    prior,
+    next: null,
+    driveSeconds: () => 90 * 60,
+  });
+  assert.equal(verdict.ok, true);
+  if (verdict.ok) assert.equal(verdict.driveSecondsFromPrior, 90 * 60);
+});
+
+test("a later Shore slot is offered when live drive time fits", () => {
   const prior = { start: et(2026, 9, 21, 12), end: et(2026, 9, 21, 13), address: PHILLY };
   const slot = { start: et(2026, 9, 21, 15), end: et(2026, 9, 21, 16, 30) };
   const verdict = travelFits({
@@ -73,9 +87,20 @@ test("unknown drive time refuses the slot instead of guessing geography", () => 
   if (!verdict.ok) assert.match(verdict.reason, /could not be measured/);
 });
 
-test("same-address jobs only need the 15-minute pad", () => {
+test("same-address jobs can start when the prior job ends", () => {
   const prior = { start: et(2026, 9, 21, 9), end: et(2026, 9, 21, 10, 30), address: PHILLY };
-  const tooSoon = travelFits({
+  const abutting = travelFits({
+    slot: { start: et(2026, 9, 21, 10, 30), end: et(2026, 9, 21, 12) },
+    newAddress: PHILLY,
+    prior,
+    next: null,
+    driveSeconds: () => {
+      throw new Error("should not measure same-address travel");
+    },
+  });
+  assert.equal(abutting.ok, true);
+
+  const gap = travelFits({
     slot: { start: et(2026, 9, 21, 10, 40), end: et(2026, 9, 21, 12, 10) },
     newAddress: PHILLY,
     prior,
@@ -84,18 +109,7 @@ test("same-address jobs only need the 15-minute pad", () => {
       throw new Error("should not measure same-address travel");
     },
   });
-  assert.equal(tooSoon.ok, false);
-
-  const ok = travelFits({
-    slot: { start: et(2026, 9, 21, 10, 45), end: et(2026, 9, 21, 12, 15) },
-    newAddress: PHILLY,
-    prior,
-    next: null,
-    driveSeconds: () => {
-      throw new Error("should not measure same-address travel");
-    },
-  });
-  assert.equal(ok.ok, true);
+  assert.equal(gap.ok, true);
 });
 
 test("offerSlotsForAddress never returns times without a valid address", async () => {
@@ -141,7 +155,7 @@ test("engine hides Lansdale 11:15–12:00 when Cherry Hill starts at noon", asyn
   assert.ok(ten);
 });
 
-test("engine hides a noon-abutting slot from free/busy even without a job location", async () => {
+test("engine offers a noon-abutting slot when the next busy block has no location", async () => {
   const now = et(2026, 9, 20, 9);
   const result = await offerSlotsForAddress(
     LANSDALE,
@@ -158,7 +172,7 @@ test("engine hides a noon-abutting slot from free/busy even without a job locati
     ["Real Estate · Photography"],
   );
   const elevenFifteen = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 24, 11, 15).getTime());
-  assert.equal(elevenFifteen, undefined);
+  assert.ok(elevenFifteen);
 });
 
 test("engine hides Shore 1pm after a Philly noon job", async () => {
@@ -276,10 +290,10 @@ test("Lansdale 11:15–12:00 is refused when Cherry Hill starts at noon", () => 
     driveSeconds: () => 50 * 60,
   });
   assert.equal(verdict.ok, false);
-  if (!verdict.ok) assert.match(verdict.reason, /next job plus the 15-minute pad/);
+  if (!verdict.ok) assert.match(verdict.reason, /Travel to the next job does not fit/);
 });
 
-test("a no-location prior event still refuses a slot that starts when it ends", () => {
+test("a no-location prior event allows a slot that starts when it ends", () => {
   const verdict = travelFits({
     slot: { start: et(2026, 9, 24, 12), end: et(2026, 9, 24, 12, 45) },
     newAddress: LANSDALE,
@@ -289,11 +303,10 @@ test("a no-location prior event still refuses a slot that starts when it ends", 
       throw new Error("should not measure travel without a location");
     },
   });
-  assert.equal(verdict.ok, false);
-  if (!verdict.ok) assert.match(verdict.reason, /15 minutes after the prior busy time/);
+  assert.equal(verdict.ok, true);
 });
 
-test("a no-location noon event still refuses a slot that ends at noon", () => {
+test("a no-location noon event allows a slot that ends at noon", () => {
   const slot = { start: et(2026, 9, 24, 11, 15), end: et(2026, 9, 24, 12) };
   const verdict = travelFits({
     slot,
@@ -304,8 +317,7 @@ test("a no-location noon event still refuses a slot that ends at noon", () => {
       throw new Error("should not measure travel without a location");
     },
   });
-  assert.equal(verdict.ok, false);
-  if (!verdict.ok) assert.match(verdict.reason, /15 minutes before the next busy time/);
+  assert.equal(verdict.ok, true);
 });
 
 test("overlapping no-location event cannot hide a Cherry Hill travel check", () => {
@@ -328,7 +340,7 @@ test("overlapping no-location event cannot hide a Cherry Hill travel check", () 
     driveSeconds: () => 50 * 60,
   });
   assert.equal(verdict.ok, false);
-  if (!verdict.ok) assert.match(verdict.reason, /next job plus the 15-minute pad|next busy time/);
+  if (!verdict.ok) assert.match(verdict.reason, /Travel to the next job does not fit/);
 });
 
 test("a slot is busy if either availability calendar is busy", async () => {
@@ -387,8 +399,8 @@ test("env hooks stay off when Calendar/Maps credentials are missing", () => {
   restoreEnv(previous);
 });
 
-test("travel pad is locked at 15 minutes", () => {
-  assert.equal(TRAVEL_PAD_MINUTES, 15);
+test("travel pad is locked at 0 minutes", () => {
+  assert.equal(TRAVEL_PAD_MINUTES, 0);
 });
 
 test("offered slots carry a date key and a 3-month bookable window", async () => {

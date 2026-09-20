@@ -22,7 +22,7 @@ function asJobList(job: TravelJob | readonly TravelJob[] | null | undefined): Tr
   return isJobList(job) ? [...job] : [job];
 }
 
-/** Busy blocks become location-less jobs so abutment / pad still apply. */
+/** Busy blocks become location-less jobs so they can sit next to located neighbors. */
 export function travelJobsWithBusy(jobs: readonly TravelJob[], busy: readonly Interval[]): TravelJob[] {
   return [
     ...jobs,
@@ -93,13 +93,13 @@ export function travelFits(input: {
   for (const prior of asJobList(input.prior)) {
     if (!prior.address) {
       if (!padAfterPriorFits(prior.end, input.slot.start)) {
-        return { ok: false, reason: "Need 15 minutes after the prior busy time." };
+        return { ok: false, reason: "This slot overlaps the prior busy time." };
       }
       continue;
     }
     if (sameAddress(prior.address, input.newAddress)) {
       if (!padAfterPriorFits(prior.end, input.slot.start)) {
-        return { ok: false, reason: "Need 15 minutes after the prior job at this address." };
+        return { ok: false, reason: "This slot overlaps the prior job at this address." };
       }
     } else {
       const seconds = input.driveSeconds(prior.address, input.newAddress);
@@ -111,7 +111,7 @@ export function travelFits(input: {
       if (readyAt > input.slot.start.getTime()) {
         return {
           ok: false,
-          reason: "Travel from the prior job plus the 15-minute pad does not fit.",
+          reason: "Travel from the prior job does not fit.",
         };
       }
     }
@@ -120,13 +120,13 @@ export function travelFits(input: {
   for (const next of asJobList(input.next)) {
     if (!next.address) {
       if (!padBeforeNextFits(input.slot.end, next.start)) {
-        return { ok: false, reason: "Need 15 minutes before the next busy time." };
+        return { ok: false, reason: "This slot overlaps the next busy time." };
       }
       continue;
     }
     if (sameAddress(next.address, input.newAddress)) {
       if (!padBeforeNextFits(input.slot.end, next.start)) {
-        return { ok: false, reason: "Need 15 minutes before the next job at this address." };
+        return { ok: false, reason: "This slot overlaps the next job at this address." };
       }
     } else {
       const seconds = input.driveSeconds(input.newAddress, next.address);
@@ -137,7 +137,7 @@ export function travelFits(input: {
       if (arriveNext > next.start.getTime()) {
         return {
           ok: false,
-          reason: "Travel to the next job plus the 15-minute pad does not fit.",
+          reason: "Travel to the next job does not fit.",
         };
       }
     }
