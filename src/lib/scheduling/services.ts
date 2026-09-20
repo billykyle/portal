@@ -52,13 +52,16 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Construction · Video": 45,
   "Podcast · 1 episode": 60,
   "Podcast · 2 episodes": 105,
-} as const satisfies Record<SchedulingService, number>;
+} as const;
 
 /** Sum of selected option minutes. Empty / unknown → existing default slot. */
 export function bookingSlotMinutes(services: readonly string[]): number {
   const parsed = parseSchedulingServices(services);
   if (parsed.length === 0) return DEFAULT_SLOT_MINUTES;
-  return parsed.reduce((total, service) => total + SCHEDULING_SERVICE_MINUTES[service], 0);
+  return parsed.reduce((total, service) => {
+    const minutes = SCHEDULING_SERVICE_MINUTES[service as keyof typeof SCHEDULING_SERVICE_MINUTES];
+    return total + (minutes ?? DEFAULT_SLOT_MINUTES);
+  }, 0);
 }
 
 const SERVICE_SET = new Set<string>(SCHEDULING_SERVICES);
