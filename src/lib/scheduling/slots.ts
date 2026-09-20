@@ -47,3 +47,17 @@ export function formatBookingWhen(start: Date, end: Date, timeZone: string) {
   const { dateLabel, timeLabel } = formatSlotRange(start, end, timeZone);
   return `${dateLabel} · ${timeLabel}`;
 }
+
+export function formatBookingDuration(start: Date, end: Date) {
+  const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000));
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const hourLabel = `${hours} hour${hours === 1 ? "" : "s"}`;
+  if (rest === 0) return hourLabel;
+  return `${hourLabel} ${rest} minute${rest === 1 ? "" : "s"}`;
+}
+
+export function formatBookingTimeZone(timeZone: string) {
+  return timeZone === "America/New_York" ? "Eastern" : timeZone;
+}

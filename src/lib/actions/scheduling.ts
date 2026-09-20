@@ -21,7 +21,7 @@ import { sendBookingConfirmation, sendBookingModification } from "@/lib/scheduli
 import { tryReplaceCalendarBooking, tryWriteCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
-import { schedulingBookHref, schedulingTimesHref } from "@/lib/scheduling/urls";
+import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "@/lib/scheduling/urls";
 
 export async function createBooking(formData: FormData) {
   const session = await getSession();
@@ -157,10 +157,14 @@ export async function createBooking(formData: FormData) {
     }
   }
 
+  if (!created) {
+    failTimes("Booking could not be completed.");
+  }
+
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  redirect(schedulingBookHref({ booked: "1" }));
+  redirect(schedulingConfirmedHref(created.bookingId));
 }
 
 export async function updateBooking(formData: FormData) {
@@ -320,10 +324,14 @@ export async function updateBooking(formData: FormData) {
     }
   }
 
+  if (!updated) {
+    failTimes("Booking could not be updated.");
+  }
+
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  redirect(schedulingBookHref({ modified: "1" }));
+  redirect(schedulingConfirmedHref(updated.bookingId, { updated: true }));
 }
 
 export async function cancelBooking(formData: FormData) {

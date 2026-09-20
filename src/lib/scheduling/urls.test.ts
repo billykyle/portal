@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "../routes";
-import { schedulingBookHref, schedulingTimesHref } from "./urls";
+import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "../routes";
+import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "./urls";
 
 test("book and times hrefs keep a single address field plus services", () => {
   assert.equal(schedulingBookHref(), CLIENT_SCHEDULING);
@@ -15,8 +15,12 @@ test("book and times hrefs keep a single address field plus services", () => {
     `${CLIENT_SCHEDULING_TIMES}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&placeId=ChIJ123&service=Real+Estate+%C2%B7+Photography&service=Construction+%C2%B7+Video&notes=Lockbox+on+the+porch`,
   );
   assert.equal(
-    schedulingBookHref({ booked: "1" }),
-    `${CLIENT_SCHEDULING}?booked=1`,
+    schedulingConfirmedHref("11111111-1111-4111-8111-111111111111"),
+    `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111`,
+  );
+  assert.equal(
+    schedulingConfirmedHref("11111111-1111-4111-8111-111111111111", { updated: true }),
+    `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111?updated=1`,
   );
   assert.equal(
     schedulingTimesHref({
@@ -35,5 +39,4 @@ test("book and times hrefs keep a single address field plus services", () => {
     }),
     `${CLIENT_SCHEDULING}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&service=Real+Estate+%C2%B7+Photography&notes=Lockbox&modify=11111111-1111-4111-8111-111111111111`,
   );
-  assert.equal(schedulingBookHref({ modified: "1" }), `${CLIENT_SCHEDULING}?modified=1`);
 });

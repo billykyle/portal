@@ -23,9 +23,7 @@ export default async function SchedulingPage({
     placeId?: string;
     service?: string | string[];
     notes?: string;
-    booked?: string;
     cancelled?: string;
-    modified?: string;
     modify?: string;
     error?: string;
   }>;
@@ -40,9 +38,7 @@ export default async function SchedulingPage({
     placeId: rawPlaceId = "",
     service: rawService,
     notes: rawNotes = "",
-    booked,
     cancelled,
-    modified,
     modify: rawModify = "",
     error,
   } = await searchParams;
@@ -66,8 +62,6 @@ export default async function SchedulingPage({
       <ClientHeader />
       <div className="mb-8 lg:mb-10">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
-        {booked ? <p className="mt-3 text-sm text-white">You&apos;re booked.</p> : null}
-        {modified ? <p className="mt-3 text-sm text-white">Booking updated.</p> : null}
         {cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
         {error ? (
           <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
