@@ -43,7 +43,6 @@ export function uniqueEmails(values: Array<string | null | undefined>) {
 
 export type SendEmailInput = {
   to: string | string[];
-  bcc?: string | string[];
   subject: string;
   text: string;
   html?: string;
@@ -65,7 +64,6 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 
   const to = asList(input.to);
   if (to.length === 0) return { sent: false, reason: "no-recipients" };
-  const bcc = asList(input.bcc).filter((email) => !to.includes(email));
 
   try {
     const res = await fetch(RESEND_ENDPOINT, {
@@ -77,7 +75,6 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       body: JSON.stringify({
         from: emailFrom(),
         to,
-        ...(bcc.length > 0 ? { bcc } : {}),
         subject: input.subject,
         text: input.text,
         ...(input.html ? { html: input.html } : {}),

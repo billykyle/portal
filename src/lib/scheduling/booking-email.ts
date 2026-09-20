@@ -20,11 +20,12 @@ export type BookingConfirmationInput = {
 };
 
 export function bookingConfirmationRecipients(clientEmail: string) {
-  const [to] = uniqueEmails([clientEmail]);
-  const notify = bookingNotifyEmail();
-  if (!to) return { to: [] as string[], bcc: [] as string[] };
-  const bcc = uniqueEmails([notify]).filter((email) => email !== to);
-  return { to: [to], bcc };
+  const [client] = uniqueEmails([clientEmail]);
+  const [notify] = uniqueEmails([bookingNotifyEmail()]);
+  return {
+    client: client ?? null,
+    notify: notify ?? null,
+  };
 }
 
 function escapeHtml(value: string) {
@@ -35,65 +36,65 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
-function optionalLines(notes: string | null | undefined, accessCodes: string | null | undefined) {
-  const lines: string[] = [];
-  if (notes?.trim()) {
-    lines.push("", "Notes", notes.trim());
-  }
-  if (accessCodes?.trim()) {
-    lines.push("", "Access codes", accessCodes.trim());
-  }
+function bookingDetails(input: BookingConfirmationInput) {
+  const when = formatBookingWhen(input.start, input.end, input.timeZone);
+  const services = formatBookingServices(input.services) || "Shoot";
+  const notes = input.notes?.trim() || "";
+  const accessCodes = input.accessCodes?.trim() || "";
+  return { when, services, notes, accessCodes };
+}
+
+function wrapHtml(blocks: string[]) {
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#ffffff;color:#000000;font-family:Georgia,Times,serif;font-size:16px;line-height:1.5;">
+${blocks.join("\n")}
+</body>
+</html>`;
+}
+
+function detailHtml(when: string, timeZone: string, address: string, services: string, notes: string, accessCodes: string) {
+  const blocks = [
+    `<p><strong>When</strong><br>${escapeHtml(when)} (${escapeHtml(timeZone)})</p>`,
+    `<p><strong>Where</strong><br>${escapeHtml(address)}</p>`,
+    `<p><strong>Services</strong><br>${escapeHtml(services)}</p>`,
+  ];
+  if (notes) blocks.push(`<p><strong>Notes</strong><br>${escapeHtml(notes)}</p>`);
+  if (accessCodes) blocks.push(`<p><strong>Access codes</strong><br>${escapeHtml(accessCodes)}</p>`);
+  return blocks;
+}
+
+function detailText(when: string, timeZone: string, address: string, services: string, notes: string, accessCodes: string) {
+  const lines = ["When", `${when} (${timeZone})`, "", "Where", address, "", "Services", services];
+  if (notes) lines.push("", "Notes", notes);
+  if (accessCodes) lines.push("", "Access codes", accessCodes);
   return lines;
 }
 
+/** Client-facing confirmation. Email #1. */
 export function buildBookingConfirmation(input: BookingConfirmationInput) {
-  const when = formatBookingWhen(input.start, input.end, input.timeZone);
-  const services = formatBookingServices(input.services) || "Shoot";
+  const { when, services, notes, accessCodes } = bookingDetails(input);
   const greeting = input.clientName?.trim() ? `Hi ${input.clientName.trim()},` : "Hi,";
-  const extras = optionalLines(input.notes, input.accessCodes);
 
   const text = [
     greeting,
     "",
     "Your shoot with Billy Kyle is confirmed.",
     "",
-    "When",
-    `${when} (${input.timeZone})`,
-    "",
-    "Where",
-    input.address,
-    "",
-    "Services",
-    services,
-    ...extras,
+    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
     "",
     "Reply to this email if you need to change anything.",
     "",
     "— Billy Kyle",
   ].join("\n");
 
-  const htmlBlocks = [
+  const html = wrapHtml([
     `<p>${escapeHtml(greeting)}</p>`,
     "<p>Your shoot with Billy Kyle is confirmed.</p>",
-    `<p><strong>When</strong><br>${escapeHtml(when)} (${escapeHtml(input.timeZone)})</p>`,
-    `<p><strong>Where</strong><br>${escapeHtml(input.address)}</p>`,
-    `<p><strong>Services</strong><br>${escapeHtml(services)}</p>`,
-  ];
-  if (input.notes?.trim()) {
-    htmlBlocks.push(`<p><strong>Notes</strong><br>${escapeHtml(input.notes.trim())}</p>`);
-  }
-  if (input.accessCodes?.trim()) {
-    htmlBlocks.push(`<p><strong>Access codes</strong><br>${escapeHtml(input.accessCodes.trim())}</p>`);
-  }
-  htmlBlocks.push("<p>Reply to this email if you need to change anything.</p>");
-  htmlBlocks.push("<p>— Billy Kyle</p>");
-
-  const html = `<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:24px;background:#ffffff;color:#000000;font-family:Georgia,Times,serif;font-size:16px;line-height:1.5;">
-${htmlBlocks.join("\n")}
-</body>
-</html>`;
+    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
+    "<p>Reply to this email if you need to change anything.</p>",
+    "<p>— Billy Kyle</p>",
+  ]);
 
   return {
     subject: `Shoot confirmed — ${when}`,
@@ -102,21 +103,75 @@ ${htmlBlocks.join("\n")}
   };
 }
 
-/**
- * Confirm the booking to the logged-in client and Billy.
- * Soft-fails: never throws, never rolls back the booking.
- */
-export async function sendBookingConfirmation(input: BookingConfirmationInput) {
-  if (!emailConfigured()) return { sent: false as const, reason: "resend-unconfigured" };
-  const { to, bcc } = bookingConfirmationRecipients(input.clientEmail);
-  if (to.length === 0) return { sent: false as const, reason: "no-recipients" };
+/** Billy's own booking alert. Email #2. */
+export function buildBookingNotify(input: BookingConfirmationInput) {
+  const { when, services, notes, accessCodes } = bookingDetails(input);
+  const clientLabel = [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
 
-  const message = buildBookingConfirmation(input);
-  return sendEmail({
-    to,
-    bcc,
-    subject: message.subject,
-    text: message.text,
-    html: message.html,
-  });
+  const text = [
+    "New booking on the portal.",
+    "",
+    "Client",
+    clientLabel || input.clientEmail,
+    "",
+    ...detailText(when, input.timeZone, input.address, services, notes, accessCodes),
+  ].join("\n");
+
+  const html = wrapHtml([
+    "<p>New booking on the portal.</p>",
+    `<p><strong>Client</strong><br>${escapeHtml(clientLabel || input.clientEmail)}</p>`,
+    ...detailHtml(when, input.timeZone, input.address, services, notes, accessCodes),
+  ]);
+
+  return {
+    subject: `New booking: ${when}`,
+    text,
+    html,
+  };
+}
+
+export type BookingEmailSendResult = {
+  sent: boolean;
+  client: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
+  notify: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
+};
+
+/**
+ * Two separate Resend sends after a successful booking:
+ * 1. Client confirmation → session email
+ * 2. Billy's copy → BOOKING_NOTIFY_EMAIL (default billy@billyhere.com)
+ *
+ * No CC/BCC. Soft-fails: never throws, never rolls back the booking.
+ * One failed send does not skip the other.
+ */
+export async function sendBookingConfirmation(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
+  if (!emailConfigured()) {
+    const skipped = { sent: false as const, reason: "resend-unconfigured" };
+    return { sent: false, client: skipped, notify: skipped };
+  }
+
+  const recipients = bookingConfirmationRecipients(input.clientEmail);
+  const clientMessage = buildBookingConfirmation(input);
+  const notifyMessage = buildBookingNotify(input);
+
+  const [client, notify] = await Promise.all([
+    recipients.client
+      ? sendEmail({
+          to: recipients.client,
+          subject: clientMessage.subject,
+          text: clientMessage.text,
+          html: clientMessage.html,
+        })
+      : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
+    recipients.notify
+      ? sendEmail({
+          to: recipients.notify,
+          subject: notifyMessage.subject,
+          text: notifyMessage.text,
+          html: notifyMessage.html,
+        })
+      : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
+  ]);
+
+  return { sent: client.sent && notify.sent, client, notify };
 }

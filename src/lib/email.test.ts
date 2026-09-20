@@ -65,7 +65,7 @@ test("sendEmail is a no-op without RESEND_API_KEY", async () => {
   assert.deepEqual(result, { sent: false, reason: "resend-unconfigured" });
 });
 
-test("sendEmail posts to Resend with From, To, and BCC", async () => {
+test("sendEmail posts to Resend with From and To only", async () => {
   process.env.RESEND_API_KEY = "re_test";
   process.env.EMAIL_FROM = "Billy Kyle <billy@billyhere.com>";
 
@@ -79,7 +79,6 @@ test("sendEmail posts to Resend with From, To, and BCC", async () => {
   try {
     const result = await sendEmail({
       to: "sam@example.com",
-      bcc: "billy@billyhere.com",
       subject: "Shoot confirmed",
       text: "Confirmed.",
     });
@@ -91,7 +90,8 @@ test("sendEmail posts to Resend with From, To, and BCC", async () => {
     const body = JSON.parse(String(calls[0]?.init.body));
     assert.equal(body.from, "Billy Kyle <billy@billyhere.com>");
     assert.deepEqual(body.to, ["sam@example.com"]);
-    assert.deepEqual(body.bcc, ["billy@billyhere.com"]);
+    assert.equal(body.bcc, undefined);
+    assert.equal(body.cc, undefined);
     assert.equal(body.subject, "Shoot confirmed");
     assert.equal(body.text, "Confirmed.");
   } finally {
