@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppHeader } from "@/components/app-header";
 import { AuthHeader } from "@/components/auth-header";
 import { SigninForm } from "@/components/forms/signin-form";
-import { BkMark } from "@/components/logo";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
 import { CLIENT_HOME } from "@/lib/routes";
@@ -28,13 +28,13 @@ export default async function SigninPage() {
       {inviteCode ? (
         <AuthHeader clientName={clientName} />
       ) : (
-        <div className="flex items-center justify-between py-6">
-          <Link href="/" className="text-sm text-[#8e8e93]">
-            Back
-          </Link>
-          <BkMark size="header" />
-          <span className="w-10" />
-        </div>
+        <AppHeader
+          left={
+            <Link href="/" className="text-sm text-[#8e8e93]">
+              Back
+            </Link>
+          }
+        />
       )}
       <h1 className="mb-6 text-2xl font-medium">Sign in</h1>
       <FormColumn>

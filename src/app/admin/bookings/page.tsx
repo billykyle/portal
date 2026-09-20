@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BookingList } from "@/components/booking-list";
-import { BkMark } from "@/components/logo";
+import { AppHeader } from "@/components/app-header";
 import { PhoneShell } from "@/components/phone-shell";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -27,18 +27,17 @@ export default async function AdminBookingsPage({
 
   return (
     <PhoneShell wide>
-      <header className="flex items-center justify-between gap-4 py-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <BkMark size="header" className="shrink-0" />
-          <h1 className="text-2xl font-medium">Bookings</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/admin/clients" className="text-sm text-[#8e8e93]">
-            Clients
-          </Link>
-          <SignOutButton admin />
-        </div>
-      </header>
+      <AppHeader
+        left={<h1 className="truncate text-2xl font-medium">Bookings</h1>}
+        right={
+          <>
+            <Link href="/admin/clients" className="text-sm text-[#8e8e93]">
+              Clients
+            </Link>
+            <SignOutButton admin />
+          </>
+        }
+      />
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
       <section className="mb-12">
