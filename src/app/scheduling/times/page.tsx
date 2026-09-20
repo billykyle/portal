@@ -102,7 +102,12 @@ export default async function SchedulingTimesPage({
 
   return (
     <TimesShell changeHref={changeHref} error={error}>
-      <BookTimesForm availability={availability} services={selectedServices} notes={notes} />
+      <BookTimesForm
+        availability={availability}
+        services={selectedServices}
+        notes={notes}
+        error={error}
+      />
     </TimesShell>
   );
 }
@@ -121,7 +126,11 @@ function TimesShell({
       <ClientHeader backHref={changeHref} backLabel="Address" />
       <div className="mb-8 lg:mb-10">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
-        {error ? <p className="mt-3 text-sm text-[#a1a1a1]">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
+            {error}
+          </p>
+        ) : null}
       </div>
       <FormColumn className="pb-16">{children}</FormColumn>
     </PhoneShell>

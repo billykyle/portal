@@ -2,13 +2,15 @@
 
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { SubmitButton } from "@/components/field";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useFormStatus } from "react-dom";
+import { FormError, SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
 import { TimesHelpNote } from "@/components/times-help-note";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
+import { readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import {
   formatDateKeyLabel,
   formatWeekDayListLabel,
@@ -21,10 +23,12 @@ export function BookTimesForm({
   availability,
   services,
   notes = "",
+  error,
 }: {
   availability: AvailabilityResult;
   services: string[];
   notes?: string;
+  error?: string;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
@@ -37,7 +41,6 @@ export function BookTimesForm({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState("");
   const [slotError, setSlotError] = useState("");
-  const formRef = useRef<HTMLFormElement>(null);
 
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
   const changeHref = schedulingBookHref({
@@ -45,19 +48,21 @@ export function BookTimesForm({
     services,
     notes: notes || null,
   });
+  const submitError = slotError || error;
 
   useEffect(() => {
-    const form = formRef.current;
-    if (!form) return;
-    function onSubmit(event: Event) {
-      if (!selectedSlot) {
-        event.preventDefault();
-        setSlotError("Pick a time.");
-      }
+    if (!error) return;
+    document.getElementById("book-shoot-error")?.scrollIntoView({ block: "center" });
+  }, [error]);
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    if (readBookingFormSlot(new FormData(event.currentTarget))) {
+      setSlotError("");
+      return;
     }
-    form.addEventListener("submit", onSubmit);
-    return () => form.removeEventListener("submit", onSubmit);
-  }, [selectedSlot]);
+    event.preventDefault();
+    setSlotError("Pick a time.");
+  }
 
   function focusDate(dateKey: string) {
     if (!datesWithSlots.has(dateKey)) return;
@@ -100,13 +105,13 @@ export function BookTimesForm({
         <p className="mb-4 text-sm text-[#8e8e93]">No times fit this address right now.</p>
       ) : null}
 
-      <form ref={formRef} action={createBooking} className="flex flex-col gap-6">
+      <form action={createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
         <input type="hidden" name="address" value={availability.address} />
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
         ))}
         <input type="hidden" name="notes" value={notes} />
-        <input type="hidden" name="slot" value={selectedSlot} />
+        {selectedSlot ? <input type="hidden" name="slot" value={selectedSlot} /> : null}
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Choose a date and time</legend>
           <ul className="flex flex-col gap-2">
@@ -158,7 +163,7 @@ export function BookTimesForm({
                           }`}
                         />
                       </CollapsibleTrigger>
-                      <CollapsibleContent>
+                      <CollapsibleContent keepMounted>
                         <div className="px-3 pb-3">
                           <ul className="grid gap-2 sm:grid-cols-2">
                             {slots.map((slot) => {
@@ -169,6 +174,8 @@ export function BookTimesForm({
                                   <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
                                     <input
                                       type="radio"
+                                      name="slot"
+                                      value={value}
                                       checked={checked}
                                       onChange={() => {
                                         setSelectedSlot(value);
@@ -198,8 +205,10 @@ export function BookTimesForm({
         >
           Further Date Options
         </button>
-        {slotError ? <p className="text-sm text-[#a1a1a1]">{slotError}</p> : null}
-        <SubmitButton>Book shoot</SubmitButton>
+        <div id="book-shoot-error">
+          <FormError message={submitError} />
+        </div>
+        <BookShootSubmit />
       </form>
 
       <MonthCalendarDialog
@@ -223,6 +232,11 @@ function groupSlotsByDate(slots: OfferedSlot[]) {
     else groups.set(slot.dateKey, [slot]);
   }
   return groups;
+}
+
+function BookShootSubmit() {
+  const { pending } = useFormStatus();
+  return <SubmitButton disabled={pending}>{pending ? "Booking…" : "Book shoot"}</SubmitButton>;
 }
 
 function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {

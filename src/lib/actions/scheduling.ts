@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -14,6 +14,7 @@ import {
   offerSlotsForAddress,
   slotStillOffered,
 } from "@/lib/scheduling/availability";
+import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { sendBookingConfirmation } from "@/lib/scheduling/booking-email";
 import { writeCalendarBooking } from "@/lib/scheduling/calendar";
@@ -26,96 +27,98 @@ export async function createBooking(formData: FormData) {
   if (!session) {
     redirect("/");
   }
-  await ensureDb();
   const address = String(formData.get("address") ?? "");
   const services = parseSchedulingServices(formData.getAll("service"));
-  const slot = String(formData.get("slot") ?? "");
-  const [startIso, endIso] = slot.split("|");
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
-  if (services.length === 0) {
-    redirect(schedulingBookHref({ address, notes, error: "Pick at least one service." }));
-  }
-  if (!startIso || !endIso) {
-    redirect(schedulingTimesHref({ address, services, notes, error: "Pick a time." }));
-  }
+  const parsedSlot = readBookingFormSlot(formData);
 
-  const portalJobs = await loadConfirmedPortalJobs();
-  const sources = await loadLiveAvailabilitySources({
-    portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
-    portalJobs,
-  });
-  if ("error" in sources) {
-    redirect(schedulingTimesHref({ address, services, notes, error: sources.error }));
-  }
-  const availability = await offerSlotsForAddress(address, sources, services);
-  if (availability.error) {
-    redirect(schedulingBookHref({ services, notes, error: availability.error }));
-  }
-  if (!slotStillOffered(availability, startIso, endIso)) {
-    redirect(
-      schedulingTimesHref({
+  const failTimes = (error: string, nextAddress = address): never => {
+    redirect(schedulingTimesHref({ address: nextAddress, services, notes, error }));
+  };
+
+  try {
+    await ensureDb();
+    if (services.length === 0) {
+      redirect(schedulingBookHref({ address, notes, error: "Pick at least one service." }));
+    }
+    if (!parsedSlot) {
+      failTimes("Pick a time.");
+    }
+
+    const { startIso, endIso } = parsedSlot;
+    const portalJobs = await loadConfirmedPortalJobs();
+    const sources = await loadLiveAvailabilitySources({
+      portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
+      portalJobs,
+    });
+    if ("error" in sources) {
+      failTimes(sources.error);
+    }
+    const availability = await offerSlotsForAddress(address, sources, services);
+    if (availability.error) {
+      redirect(schedulingBookHref({ services, notes, error: availability.error }));
+    }
+    if (!slotStillOffered(availability, startIso, endIso)) {
+      failTimes("That time is no longer available. Pick another.", availability.address);
+    }
+
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
+    const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
+    const hours = schedulingHours();
+
+    let calendarEventId: string | null = null;
+    if (availability.calendarConfigured) {
+      try {
+        calendarEventId = await writeCalendarBooking({
+          address: availability.address,
+          start,
+          end,
+          timeZone: hours.timeZone,
+          summary: `${formatBookingServices(services)} — ${client?.displayName ?? session.email}`,
+          description: [formatBookingServices(services), notes, accessCodes ? `Access: ${accessCodes}` : ""]
+            .filter(Boolean)
+            .join("\n"),
+        });
+      } catch (error) {
+        failTimes(bookingUserError(error, "Google Calendar write failed."), availability.address);
+      }
+    }
+
+    await db.insert(bookings).values({
+      clientId: session.clientId,
+      createdByUserId: session.userId,
+      address: availability.address,
+      services,
+      startsAt: start,
+      endsAt: end,
+      status: "confirmed",
+      notes,
+      accessCodes,
+      calendarEventId,
+      driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
+    });
+
+    try {
+      await sendBookingConfirmation({
+        clientEmail: session.email,
+        clientName: client?.displayName ?? null,
         address: availability.address,
         services,
-        notes,
-        error: "That time is no longer available. Pick another.",
-      }),
-    );
-  }
-
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
-  const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
-  const hours = schedulingHours();
-
-  let calendarEventId: string | null = null;
-  if (availability.calendarConfigured) {
-    try {
-      calendarEventId = await writeCalendarBooking({
-        address: availability.address,
         start,
         end,
         timeZone: hours.timeZone,
-        summary: `${formatBookingServices(services)} — ${client?.displayName ?? session.email}`,
-        description: [formatBookingServices(services), notes, accessCodes ? `Access: ${accessCodes}` : ""]
-          .filter(Boolean)
-          .join("\n"),
+        notes,
+        accessCodes,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Google Calendar write failed.";
-      redirect(schedulingTimesHref({ address: availability.address, services, notes, error: message }));
+      console.error("Booking confirmation email failed", error);
     }
-  }
-
-  await db.insert(bookings).values({
-    clientId: session.clientId,
-    createdByUserId: session.userId,
-    address: availability.address,
-    services,
-    startsAt: start,
-    endsAt: end,
-    status: "confirmed",
-    notes,
-    accessCodes,
-    calendarEventId,
-    driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
-  });
-
-  try {
-    await sendBookingConfirmation({
-      clientEmail: session.email,
-      clientName: client?.displayName ?? null,
-      address: availability.address,
-      services,
-      start,
-      end,
-      timeZone: hours.timeZone,
-      notes,
-      accessCodes,
-    });
   } catch (error) {
-    console.error("Booking confirmation email failed", error);
+    unstable_rethrow(error);
+    failTimes(bookingUserError(error));
   }
 
   revalidatePath(CLIENT_SCHEDULING);

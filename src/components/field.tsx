@@ -49,5 +49,9 @@ export function SubmitButton({
 
 export function FormError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="text-sm text-[#a1a1a1]">{message}</p>;
+  return (
+    <p role="alert" className="text-sm text-[#a1a1a1]">
+      {message}
+    </p>
+  );
 }

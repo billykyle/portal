@@ -53,7 +53,11 @@ export default async function SchedulingPage({
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
         {booked ? <p className="mt-3 text-sm text-white">You&apos;re booked.</p> : null}
         {cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
-        {error ? <p className="mt-3 text-sm text-[#a1a1a1]">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
+            {error}
+          </p>
+        ) : null}
       </div>
       <div className="grid gap-12 pb-16 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
         <section>
