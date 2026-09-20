@@ -2,7 +2,8 @@
 
 import { randomBytes } from "node:crypto";
 import { compare, hash } from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -10,6 +11,7 @@ import {
   clearSession,
   createSession,
   getInviteCookie,
+  getSession,
   setInviteCookie,
 } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -17,12 +19,13 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, passwordResetTokens, users } from "@/lib/db/schema";
 import { emailConfigured, sendEmail } from "@/lib/email";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
-import { CLIENT_HOME } from "@/lib/routes";
-import { parseSignupProfile } from "@/lib/signup-fields";
+import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
+import { parseAccountProfile, parsePasswordChange, parseSignupProfile } from "@/lib/signup-fields";
 
 export type ActionState = {
   error?: string;
   resetUrl?: string;
+  success?: string;
 };
 
 export async function redeemInvite(_prev: ActionState | undefined, formData: FormData) {
@@ -126,6 +129,73 @@ export async function signIn(_prev: ActionState | undefined, formData: FormData)
 export async function signOut() {
   await clearSession();
   redirect("/");
+}
+
+async function requireClientUser() {
+  const session = await getSession();
+  if (!session) {
+    redirect("/");
+  }
+  await ensureDb();
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, session.userId), eq(users.clientId, session.clientId)))
+    .limit(1);
+  if (!user) {
+    await clearSession();
+    redirect("/");
+  }
+  return { session, user };
+}
+
+export async function updateProfile(_prev: ActionState | undefined, formData: FormData) {
+  const { session, user } = await requireClientUser();
+  const profile = parseAccountProfile({
+    firstName: String(formData.get("firstName") ?? ""),
+    lastName: String(formData.get("lastName") ?? ""),
+    companyName: String(formData.get("companyName") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+  });
+  if (!profile.ok) {
+    return { error: profile.error };
+  }
+
+  await db
+    .update(users)
+    .set({
+      firstName: profile.value.firstName,
+      lastName: profile.value.lastName,
+      phone: profile.value.phone,
+    })
+    .where(eq(users.id, user.id));
+  await db
+    .update(clients)
+    .set({ company: profile.value.companyName })
+    .where(eq(clients.id, session.clientId));
+
+  revalidatePath(CLIENT_ACCOUNT);
+  revalidatePath(CLIENT_HOME);
+  revalidatePath(CLIENT_LIBRARY);
+  return { success: "Profile saved." };
+}
+
+export async function changePassword(_prev: ActionState | undefined, formData: FormData) {
+  const { user } = await requireClientUser();
+  const parsed = parsePasswordChange({
+    currentPassword: String(formData.get("currentPassword") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    confirm: String(formData.get("confirm") ?? ""),
+  });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+  if (!(await compare(parsed.value.currentPassword, user.passwordHash))) {
+    return { error: "Current password is incorrect." };
+  }
+
+  await db.update(users).set({ passwordHash: await hash(parsed.value.password, 10) }).where(eq(users.id, user.id));
+  return { success: "Password updated." };
 }
 
 export async function requestPasswordReset(_prev: ActionState | undefined, formData: FormData) {

@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { AccountControl } from "@/components/account-control";
 import { AppHeader } from "@/components/app-header";
-import { SignOutButton } from "@/components/sign-out-button";
 import { CLIENT_HOME } from "@/lib/routes";
 
 export function ClientHeader({
@@ -19,7 +19,7 @@ export function ClientHeader({
           </Link>
         ) : undefined
       }
-      right={<SignOutButton />}
+      right={<AccountControl />}
     />
   );
 }
