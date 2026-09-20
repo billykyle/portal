@@ -10,9 +10,15 @@
  *    `bkyle015@gmail.com`. A slot is busy if either calendar is busy. Do
  *    not use US Holidays. Portal
  *    bookings are always busy too, and are written to the work calendar when
- *    that write hook is live. A Calendar write failure (including 403 writer
- *    access) is logged and leaves `calendarEventId` null — Book shoot still
- *    confirms. Singular `GOOGLE_CALENDAR_ID` is still accepted.
+ *    that write hook is live. Event title is
+ *    `{First Last} - {Services} (notes)` using user first+last (displayName
+ *    only if those are missing — never company). Title parens are the notes
+ *    value as typed; omit them when notes are empty. Do not use accessCodes
+ *    for the title. Description is a labeled client list ending with
+ *    `Booked through your portal`. Location stays the shoot address. A
+ *    Calendar write failure (including 403 writer access) is logged and
+ *    leaves `calendarEventId` null — Book shoot still confirms. Singular
+ *    `GOOGLE_CALENDAR_ID` is still accepted.
  * 2. Address first. Never compute or show times until a shoot address is known.
  * 3. Travel hard-block: live drive time only between the prior job address
  *    and the new address. Same check against the next located job. Exclusive
@@ -36,6 +42,9 @@
  *    Cancel (`cancelBooking`) sends the same two Resend emails after the
  *    status flip: client “Shoot cancelled” (Scheduling link only — not
  *    modify that booking) and Billy “Booking cancelled”. Soft-fail mail.
+ *    When `calendarEventId` is present, also DELETE the Work calendar event
+ *    (same `writeCalendarId` as create). 403/404/auth is logged and does
+ *    not roll back the cancel or emails. Missing event id skips quietly.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.

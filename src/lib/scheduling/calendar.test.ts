@@ -6,8 +6,12 @@ import {
   collectFreeBusyIntervals,
   formatCalendarHttpError,
   parseCalendarApiError,
+  hasStoredCalendarEventId,
+  settleCalendarDelete,
   settleCalendarWrite,
   splitQueryWindows,
+  tryDeleteCalendarBooking,
+  deleteCalendarBooking,
 } from "./calendar";
 import { DEFAULT_TIMEZONE } from "./rules";
 import { bookingHorizonDays } from "./horizon";
@@ -354,6 +358,110 @@ test("settleCalendarWrite keeps the event id on success and null on 403", async 
     console.error = previous;
   }
   assert.equal(errors.length, 1);
+});
+
+test("formatCalendarHttpError surfaces a 403/404 Calendar delete", () => {
+  assert.equal(
+    formatCalendarHttpError(
+      403,
+      JSON.stringify({
+        error: {
+          code: 403,
+          message: "You need to have writer access to this calendar.",
+          errors: [{ reason: "requiredAccessLevel", message: "You need to have writer access to this calendar." }],
+        },
+      }),
+      "Google Calendar delete",
+    ),
+    "Google Calendar delete 403 (requiredAccessLevel: You need to have writer access to this calendar.)",
+  );
+  assert.equal(
+    formatCalendarHttpError(
+      404,
+      JSON.stringify({
+        error: {
+          code: 404,
+          message: "Not Found",
+          errors: [{ reason: "notFound", message: "Not Found" }],
+        },
+      }),
+      "Google Calendar delete",
+    ),
+    "Google Calendar delete 404 (notFound: Not Found)",
+  );
+});
+
+test("settleCalendarDelete keeps true on success and false on 403/404", async () => {
+  assert.equal(await settleCalendarDelete(async () => true), true);
+  const errors: unknown[] = [];
+  const previous = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  try {
+    assert.equal(
+      await settleCalendarDelete(async () => {
+        throw new Error("Google Calendar delete 403 (requiredAccessLevel: You need to have writer access to this calendar.)");
+      }),
+      false,
+    );
+    assert.equal(
+      await settleCalendarDelete(async () => {
+        throw new Error("Google Calendar delete 404 (notFound: Not Found)");
+      }),
+      false,
+    );
+  } finally {
+    console.error = previous;
+  }
+  assert.equal(errors.length, 2);
+  assert.match(String(errors[0]), /booking still cancelled/);
+});
+
+test("tryDeleteCalendarBooking skips quietly when create never stored an event id", async () => {
+  const errors: unknown[] = [];
+  const previous = console.error;
+  const originalFetch = globalThis.fetch;
+  let fetched = false;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  globalThis.fetch = (async () => {
+    fetched = true;
+    return new Response("should not run", { status: 500 });
+  }) as typeof fetch;
+  try {
+    assert.equal(hasStoredCalendarEventId(null), false);
+    assert.equal(hasStoredCalendarEventId(""), false);
+    assert.equal(hasStoredCalendarEventId("   "), false);
+    assert.equal(hasStoredCalendarEventId("evt_1"), true);
+    assert.equal(await tryDeleteCalendarBooking(null), false);
+    assert.equal(await tryDeleteCalendarBooking(""), false);
+    assert.equal(await tryDeleteCalendarBooking("   "), false);
+  } finally {
+    console.error = previous;
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(fetched, false);
+  assert.equal(errors.length, 0);
+});
+
+test("deleteCalendarBooking is a no-op without calendar credentials", async () => {
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  const originalFetch = globalThis.fetch;
+  let fetched = false;
+  globalThis.fetch = (async () => {
+    fetched = true;
+    return new Response("", { status: 204 });
+  }) as typeof fetch;
+  try {
+    assert.equal(await deleteCalendarBooking("evt_1"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv(previous);
+  }
+  assert.equal(fetched, false);
 });
 
 test("parseCalendarApiError surfaces Google timeRangeTooLong details", () => {
