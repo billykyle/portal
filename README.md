@@ -84,7 +84,7 @@ The first server boot also creates tables and seeds an empty database.
 | ------ | ------------- |
 | Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234`. Empty DBs seed this client with **no shoots**. |
 | Sam Lepore | Invite minted on first NAS sync, or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
-| Admin  | `/admin` with `ADMIN_PASSWORD` (example: `atmos-admin`) |
+| Admin  | Production: `https://admin.billy-kyle.com` (`ADMIN_PASSWORD`, example: `atmos-admin`). Local: `/admin` on the same `next dev` origin. `https://portal.billy-kyle.com/admin` redirects to the admin host. |
 
 Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View Drive stills are proxied from `Final/`. Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
 
@@ -94,7 +94,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | -------- | ------- |
 | `DATABASE_URL` | Postgres connection string. Neon or Vercel Postgres work as-is. |
 | `JWT_SECRET` | Signs client and admin cookies. Use a long random string in production. |
-| `ADMIN_PASSWORD` | Shared password for `/admin`. Billy only. |
+| `ADMIN_PASSWORD` | Shared password for the Billy-only admin app. |
 | `DEMO_PASSWORD` | Password for the seeded `demo@example.com` user. |
 | `NAS_ENABLED` | `true` serves NAS-backed media through the server proxy (`/api/media/[id]`). Required for attach and sync. |
 | `NAS_SHARE_HOST` | UGOS share host after the ug.link redirect, e.g. `https://10128873.us15.ug.link`. |
@@ -106,7 +106,8 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `NAS_SYNC_INTERVAL_MINUTES` | How often a long-running Node process walks the share. Default `10`. `0` disables the timer. Ignored on Vercel. |
 | `NAS_SYNC_ENABLED` | `false` turns off the in-process timer. Manual sync is unchanged. |
 | `CRON_SECRET` | Bearer token for `GET /api/cron/nas-sync`. Required on Vercel. |
-| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot links in webhooks and admin. Production: `https://portal.billy-kyle.com`. |
+| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot `/s/…` links in webhooks and admin copy links. Production: `https://portal.billy-kyle.com`. Not the admin entry. |
+| `ADMIN_PUBLIC_URL` | Absolute origin for the Billy-only admin app. Production: `https://admin.billy-kyle.com`. Unset locally so `/admin` stays on `next dev`. |
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset and booking-confirmation email. Not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. Default: `Billy Kyle <billy@billyhere.com>`. |
@@ -140,7 +141,7 @@ Any managed Postgres that gives you a connection string is fine:
 
 Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual mint is for demo clients or people who are not on the share yet.
 
-1. Open `/admin` and enter `ADMIN_PASSWORD`.
+1. Open `https://admin.billy-kyle.com` (or local `/admin`) and enter `ADMIN_PASSWORD`.
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
 4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Photos import from Final or Photos; floor plans and video come along from the same shoot folder. There is no placeholder-media option.
@@ -150,7 +151,7 @@ Give the invite code to the client. Anyone with that code can create an account 
 
 ## Edit or remove a client
 
-Open a client from `/admin` (the list is titled **Admin**). Invite `BK#####` is the client key and is never edited.
+Open a client from admin (the list is titled **Admin**). Invite `BK#####` is the client key and is never edited.
 
 - **Client info** — change display name, primary contact email, company, and internal notes, then **Save client**. Those persist to Postgres. Do not rename someone whose NAS folder still uses the old name — sync matches by display name and would mint a new BK code.
 - **Teammate logins** — each email/password account that redeemed the invite. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
@@ -214,7 +215,7 @@ DATABASE_URL='postgresql://…' npm run db:clear-demo-shoots -- --invite BK00001
 
 That keeps the BK00001 client and logins. It deletes Whitfield/Austin placeholder shoots and any 0-file portal shoots. Pass `--keep-empty` to leave empty shoots alone.
 
-Or in `/admin`: open the client → **Delete shoot** on that project (confirm in the dialog). The BK invite stays. After deploy, **Sync from NAS** also drops portal-only and empty shoots.
+Or in admin: open the client → **Delete shoot** on that project (confirm in the dialog). The BK invite stays. After deploy, **Sync from NAS** also drops portal-only and empty shoots.
 
 Example that is already on the share:
 
@@ -230,7 +231,7 @@ The same walk runs from:
 - the running app, every **10 minutes** (`NAS_SYNC_INTERVAL_MINUTES`)
 - first boot, once, when `NAS_ENABLED=true`
 - `npm run nas:sync`
-- **Sync from NAS** in `/admin`
+- **Sync from NAS** in admin
 
 Drop a folder on the share and wait up to 10 minutes, or sync now with the script or the admin button. Overlapping runs are skipped (one lock). Logs look like `NAS sync start (interval)` and `NAS sync done (interval) … +clients / +shoots / +stills`.
 
@@ -280,8 +281,8 @@ Import this Origin repo into the **billy-kyle** Vercel Pro team. Do not mirror t
 
 Vercel can already see the **billykyle** Origin namespace, but it will show **No Git Repositories Found** until this Cloud Agent `tmp-*` workspace is published as a real Origin repo (**Create repo** in Cursor, or **New** at [cursor.com/codebase](https://cursor.com/codebase)). Then grant the Vercel app that repo (**Settings → Apps → Manage Apps**, and Vercel **Settings → Git → Origin → Manage on Cursor**).
 
-Framework: Next.js. Build: `next build`. Production URL: `https://portal.billy-kyle.com`.
+Framework: Next.js. Build: `next build`. Client URL: `https://portal.billy-kyle.com`. Admin URL: `https://admin.billy-kyle.com` (same Vercel project; Flynn adds the domain + Squarespace CNAME).
 
-Set `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PASSWORD`, `PORTAL_PUBLIC_URL=https://portal.billy-kyle.com`, the `NAS_*` share values, and `CRON_SECRET` before the first production deploy. Placeholders live in `.env.example`.
+Set `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PASSWORD`, `PORTAL_PUBLIC_URL=https://portal.billy-kyle.com`, `ADMIN_PUBLIC_URL=https://admin.billy-kyle.com`, the `NAS_*` share values, and `CRON_SECRET` before the first production deploy. Placeholders live in `.env.example`.
 
 Exact click-path, env table, and serverless sync notes: [docs/vercel.md](docs/vercel.md).

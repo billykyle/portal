@@ -1,6 +1,6 @@
 # Deploy the portal on Vercel (Origin, no GitHub)
 
-This app is a Next.js 16 App Router project. Production domain: `https://portal.billy-kyle.com`.
+This app is a Next.js 16 App Router project. Client domain: `https://portal.billy-kyle.com`. Admin domain: `https://admin.billy-kyle.com` (same project; Flynn adds the Vercel domain + Squarespace CNAME). `https://portal.billy-kyle.com/admin` redirects to the admin host.
 
 Do **not** mirror this repo to GitHub just to ship. Vercel already supports Cursor Origin on the **billy-kyle** Pro team.
 
@@ -48,7 +48,7 @@ Connecting the namespace in Vercel Team Git settings is the first half. The Curs
 5. Framework Preset: **Next.js**. Root directory: `.`  Install / build: leave default (`npm install`, `next build`).
 6. **Add environment variables** from the table below *before* the first production deploy. `DATABASE_URL` is required at runtime.
 7. Deploy.
-8. Project → **Settings → Domains** → add `portal.billy-kyle.com` (DNS at your registrar: CNAME to `cname.vercel-dns.com`, or follow Vercel’s instructions).
+8. Project → **Settings → Domains** → add `portal.billy-kyle.com` and `admin.billy-kyle.com` (DNS at Squarespace / the registrar: CNAME to `cname.vercel-dns.com`, or follow Vercel’s instructions). Flynn adds the admin CNAME separately.
 
 ### 4. Do not use MCP `create_git_project` again until the repo is listable
 
@@ -69,9 +69,10 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | ---- | ---------------- | ----- |
 | `DATABASE_URL` | `postgresql://USER:PASSWORD@HOST/DB?sslmode=require` | Neon or Vercel Postgres. Required. First request creates tables and seeds if empty. |
 | `JWT_SECRET` | long random string | Signs client + admin cookies. |
-| `ADMIN_PASSWORD` | your admin password | `/admin` gate. Do not use the local example. |
+| `ADMIN_PASSWORD` | your admin password | Admin gate at `https://admin.billy-kyle.com`. Do not use the local example. |
 | `DEMO_PASSWORD` | optional random string | Only used when the empty-DB seed creates `demo@example.com`. |
-| `PORTAL_PUBLIC_URL` | `https://portal.billy-kyle.com` | Absolute `/s/…` links in admin + webhooks. |
+| `PORTAL_PUBLIC_URL` | `https://portal.billy-kyle.com` | Absolute `/s/…` links in admin + webhooks. Not the admin entry. |
+| `ADMIN_PUBLIC_URL` | `https://admin.billy-kyle.com` | Absolute origin for admin emails and portal `/admin` redirects. |
 | `NAS_ENABLED` | `true` | Server-side UGOS proxy. |
 | `NAS_SHARE_HOST` | `https://YOUR-UGOS-HOST` | API host after the ug.link redirect, not the marketing SPA. |
 | `NAS_SHARE_ID` | share id | From `?id=` on the share-download URL. |
@@ -99,7 +100,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 
 Calendar production wiring (OIDC + WIF, no SA JSON key): [docs/google-calendar.md](google-calendar.md).
 
-After the first deploy, open `/admin` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
+After the first deploy, open `https://admin.billy-kyle.com` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
 
 To remove leftover Whitfield / `/samples/` test projects from production without deleting the client:
 
@@ -107,7 +108,7 @@ To remove leftover Whitfield / `/samples/` test projects from production without
 DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run db:clear-demo-shoots -- --invite BK00001
 ```
 
-Or delete each test shoot from `/admin`. The next successful NAS sync also prunes portal-only shoots.
+Or delete each test shoot from admin. The next successful NAS sync also prunes portal-only shoots.
 
 ## How sync works in production
 
@@ -125,5 +126,5 @@ Shoot **Download** streams one zip from `GET /api/shoots/[id]/zip` (logged-in) o
 
 1. Confirm the Git section shows Origin + the named repo + production branch `main`.
 2. Confirm a production deployment is **Ready**.
-3. Add `portal.billy-kyle.com`.
-4. Sign in on the custom domain, open a public `/s/…` link, and run one admin NAS sync.
+3. Add `portal.billy-kyle.com` and `admin.billy-kyle.com`.
+4. Sign in on the client domain, open a public `/s/…` link, open admin on `https://admin.billy-kyle.com`, and run one NAS sync. Confirm `https://portal.billy-kyle.com/admin` redirects to the admin host.

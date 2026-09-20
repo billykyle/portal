@@ -2,6 +2,7 @@ import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_COOKIE } from "@/lib/admin-auth";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { resolveHostRedirect } from "@/lib/hosts";
 import { CLIENT_HOME } from "@/lib/routes";
 
 function secret() {
@@ -19,7 +20,16 @@ async function valid(token: string | undefined) {
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
+  const hostRedirect = resolveHostRedirect({
+    hostname: request.headers.get("host") ?? request.nextUrl.host,
+    pathname,
+    search,
+  });
+  if (hostRedirect) {
+    return NextResponse.redirect(hostRedirect.location, hostRedirect.status);
+  }
+
   const session = await valid(request.cookies.get(SESSION_COOKIE)?.value);
   const admin = await valid(request.cookies.get(ADMIN_COOKIE)?.value);
 
@@ -46,12 +56,18 @@ export const config = {
     "/",
     "/signup",
     "/signin",
+    "/forgot-password",
+    "/reset-password",
     "/hub",
     "/hub/:path*",
     "/scheduling",
     "/scheduling/:path*",
+    "/library",
     "/library/:path*",
+    "/s",
+    "/s/:path*",
     "/shoots/:path*",
+    "/admin",
     "/admin/:path*",
   ],
 };
