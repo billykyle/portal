@@ -37,24 +37,66 @@ export function schedulingHours(): SchedulingHours {
   };
 }
 
+export const WORK_CALENDAR_ID = "billy@atmosimagery.com";
+export const PERSONAL_CALENDAR_ID = "bkyle015@gmail.com";
+
 export type CalendarCredentials = {
-  calendarId: string;
+  calendarIds: string[];
+  writeCalendarId: string;
   clientEmail: string;
   privateKey: string;
 };
+
+const HOLIDAY_CALENDAR = /#holiday@|holiday@group\.v\.calendar\.google\.com/i;
+
+export function isUsHolidayCalendar(id: string) {
+  return HOLIDAY_CALENDAR.test(id.trim());
+}
+
+/**
+ * Prefer `GOOGLE_CALENDAR_IDS` (comma-separated). Fall back to singular
+ * `GOOGLE_CALENDAR_ID`. US Holidays calendars are dropped — never queried.
+ */
+export function parseCalendarIds(raw: string | string[] | null | undefined): string[] {
+  const parts = (Array.isArray(raw) ? raw : String(raw ?? "").split(/[,;\n]/))
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const id of parts) {
+    if (isUsHolidayCalendar(id)) continue;
+    const key = id.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ids.push(id);
+  }
+  return ids;
+}
+
+export function readCalendarIds(): string[] {
+  const many = process.env.GOOGLE_CALENDAR_IDS?.trim();
+  if (many) return parseCalendarIds(many);
+  return parseCalendarIds(process.env.GOOGLE_CALENDAR_ID);
+}
 
 /**
  * Env hooks for Google Calendar (read free/busy + write events).
  *
  * Required together:
- * - `GOOGLE_CALENDAR_ID`
+ * - `GOOGLE_CALENDAR_IDS` = `billy@atmosimagery.com,bkyle015@gmail.com`
+ *   (work + personal). A slot is busy if either calendar is busy.
+ *   Singular `GOOGLE_CALENDAR_ID` still works as a fallback.
+ *   Do not include US Holidays.
  * - service account JSON in `GOOGLE_SERVICE_ACCOUNT_JSON`
  *   or `GOOGLE_CLIENT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_EMAIL`
  *     + `GOOGLE_PRIVATE_KEY` (PKCS8, `\n` escaped newlines are fine)
+ *
+ * Bookings are written to the first ID (work). Both calendars must be shared
+ * with the service-account email.
  */
 export function readCalendarCredentials(): CalendarCredentials | null {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID?.trim();
-  if (!calendarId) return null;
+  const calendarIds = readCalendarIds();
+  if (calendarIds.length === 0) return null;
 
   let clientEmail =
     process.env.GOOGLE_CLIENT_EMAIL?.trim() || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() || "";
@@ -71,15 +113,24 @@ export function readCalendarCredentials(): CalendarCredentials | null {
     }
   }
 
-  if (!clientEmail || !privateKey.includes("BEGIN")) return null;
-  return { calendarId, clientEmail, privateKey };
+  const writeCalendarId = calendarIds[0];
+  if (!clientEmail || !privateKey.includes("BEGIN") || !writeCalendarId) return null;
+  return { calendarIds, writeCalendarId, clientEmail, privateKey };
 }
 
 export function calendarConfigured() {
   return readCalendarCredentials() != null;
 }
 
-/** Env hook for live drive time. Empty = do not invent travel; refuse slots that need it. */
+/**
+ * Env hook for Maps (server-only). One key covers:
+ * - Distance Matrix — live drive time
+ * - Places Autocomplete + Place Details — book-form suggestions
+ * - Address Validation — format a typed address when no suggestion was picked
+ *
+ * Empty = do not invent travel or addresses. The book form shows a clear
+ * message instead of fake suggestions; slots that need travel are refused.
+ */
 export function mapsApiKey() {
   return process.env.GOOGLE_MAPS_API_KEY?.trim() || "";
 }
@@ -88,14 +139,20 @@ export function driveTimeConfigured() {
   return Boolean(mapsApiKey());
 }
 
+export function placesConfigured() {
+  return Boolean(mapsApiKey());
+}
+
 export type SchedulingIntegrations = {
   calendarConfigured: boolean;
   driveTimeConfigured: boolean;
+  placesConfigured: boolean;
 };
 
 export function schedulingIntegrations(): SchedulingIntegrations {
   return {
     calendarConfigured: calendarConfigured(),
     driveTimeConfigured: driveTimeConfigured(),
+    placesConfigured: placesConfigured(),
   };
 }

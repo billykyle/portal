@@ -75,31 +75,78 @@ export async function fetchCalendarBusy(range: Interval, timeZone: string): Prom
       timeMin: range.start.toISOString(),
       timeMax: range.end.toISOString(),
       timeZone,
-      items: [{ id: creds.calendarId }],
+      items: creds.calendarIds.map((id) => ({ id })),
     }),
   });
   if (!res.ok) {
     throw new Error(`Google Calendar free/busy ${res.status}`);
   }
   const body = (await res.json()) as {
-    calendars?: Record<string, { busy?: Array<{ start: string; end: string }> }>;
+    calendars?: Record<string, FreeBusyCalendar>;
   };
-  const busy = body.calendars?.[creds.calendarId]?.busy ?? [];
-  return busy
-    .map((block) => {
-      const start = new Date(block.start);
-      const end = new Date(block.end);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-      return { start, end };
-    })
-    .filter((item): item is Interval => item != null);
+  return collectFreeBusyIntervals(body.calendars, creds.calendarIds);
+}
+
+type FreeBusyCalendar = {
+  busy?: Array<{ start?: string; end?: string }>;
+  errors?: unknown[];
+};
+
+function findReturnedCalendar(calendars: Record<string, FreeBusyCalendar> | undefined, id: string) {
+  if (!calendars) return undefined;
+  if (calendars[id]) return calendars[id];
+  const lower = id.toLowerCase();
+  for (const [key, value] of Object.entries(calendars)) {
+    if (key.toLowerCase() === lower) return value;
+  }
+  return undefined;
+}
+
+/**
+ * Union busy blocks from every requested calendar. A slot is busy if either
+ * calendar is busy. Missing or erroring calendars fail closed — never treat
+ * an unread calendar as free.
+ */
+export function collectFreeBusyIntervals(
+  calendars: Record<string, FreeBusyCalendar> | undefined,
+  calendarIds: string[],
+): Interval[] {
+  const out: Interval[] = [];
+  for (const id of calendarIds) {
+    const calendar = findReturnedCalendar(calendars, id);
+    if (!calendar) {
+      throw new Error(`Google Calendar free/busy did not return ${id}.`);
+    }
+    if (calendar.errors && calendar.errors.length > 0) {
+      throw new Error(`Google Calendar free/busy failed for ${id}.`);
+    }
+    for (const block of calendar.busy ?? []) {
+      const start = new Date(String(block.start ?? ""));
+      const end = new Date(String(block.end ?? ""));
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) continue;
+      out.push({ start, end });
+    }
+  }
+  return out;
 }
 
 export async function fetchCalendarJobs(range: Interval, timeZone: string): Promise<TravelJob[]> {
   const creds = readCalendarCredentials();
   if (!creds) return [];
   const token = await accessToken(creds);
-  const url = new URL(calendarUrl(creds.calendarId, "/events"));
+  const batches = await Promise.all(
+    creds.calendarIds.map((calendarId) => fetchCalendarJobsForId(token, calendarId, range, timeZone)),
+  );
+  return batches.flat();
+}
+
+async function fetchCalendarJobsForId(
+  token: string,
+  calendarId: string,
+  range: Interval,
+  timeZone: string,
+): Promise<TravelJob[]> {
+  const url = new URL(calendarUrl(calendarId, "/events"));
   url.searchParams.set("timeMin", range.start.toISOString());
   url.searchParams.set("timeMax", range.end.toISOString());
   url.searchParams.set("singleEvents", "true");
@@ -110,7 +157,7 @@ export async function fetchCalendarJobs(range: Interval, timeZone: string): Prom
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    throw new Error(`Google Calendar events ${res.status}`);
+    throw new Error(`Google Calendar events ${res.status} for ${calendarId}`);
   }
   const body = (await res.json()) as {
     items?: Array<{ start?: GoogleDate; end?: GoogleDate; location?: string; status?: string }>;
@@ -137,7 +184,7 @@ export async function writeCalendarBooking(input: {
   const creds = readCalendarCredentials();
   if (!creds) return null;
   const token = await accessToken(creds);
-  const res = await fetch(calendarUrl(creds.calendarId, "/events"), {
+  const res = await fetch(calendarUrl(creds.writeCalendarId, "/events"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

@@ -6,9 +6,8 @@ import { BookShootForm } from "@/components/forms/book-shoot-form";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { loadLiveAvailabilitySources, offerSlotsForAddress } from "@/lib/scheduling/availability";
-import { loadConfirmedPortalJobs, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
-import { schedulingHours } from "@/lib/scheduling/config";
+import { listClientUpcomingBookings } from "@/lib/scheduling/bookings";
+import { schedulingHours, placesConfigured } from "@/lib/scheduling/config";
 import { parseSchedulingServices } from "@/lib/scheduling/services";
 
 export const metadata: Metadata = {
@@ -20,6 +19,7 @@ export default async function SchedulingPage({
 }: {
   searchParams: Promise<{
     address?: string;
+    placeId?: string;
     service?: string | string[];
     booked?: string;
     cancelled?: string;
@@ -31,32 +31,18 @@ export default async function SchedulingPage({
     redirect("/");
   }
   await ensureDb();
-  const { address: rawAddress = "", service: rawService, booked, cancelled, error } = await searchParams;
+  const {
+    address: rawAddress = "",
+    placeId: rawPlaceId = "",
+    service: rawService,
+    booked,
+    cancelled,
+    error,
+  } = await searchParams;
   const selectedServices = parseSchedulingServices(rawService);
   const hours = schedulingHours();
-  const [upcoming, portalJobs] = await Promise.all([
-    listClientUpcomingBookings(session.clientId),
-    loadConfirmedPortalJobs(),
-  ]);
-
-  let availability = null;
-  let addressError: string | undefined;
+  const upcoming = await listClientUpcomingBookings(session.clientId);
   const typedAddress = rawAddress.trim();
-  if (typedAddress) {
-    const sources = await loadLiveAvailabilitySources({
-      portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
-      portalJobs,
-    });
-    if ("error" in sources) {
-      addressError = sources.error;
-    } else {
-      availability = await offerSlotsForAddress(typedAddress, sources);
-      if (availability.error) {
-        addressError = availability.error;
-        availability = null;
-      }
-    }
-  }
 
   return (
     <PhoneShell>
@@ -82,9 +68,9 @@ export default async function SchedulingPage({
           <FormColumn>
             <BookShootForm
               address={typedAddress}
+              placeId={rawPlaceId.trim()}
               services={selectedServices}
-              addressError={addressError}
-              availability={availability}
+              placesConfigured={placesConfigured()}
             />
           </FormColumn>
         </section>

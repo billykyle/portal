@@ -174,18 +174,40 @@ test("prior job is the latest job that ends before the slot", () => {
   assert.equal(prior?.address, SHORE);
 });
 
+test("a slot is busy if either availability calendar is busy", async () => {
+  const now = et(2026, 9, 20, 9);
+  const workBusy = { start: et(2026, 9, 21, 9), end: et(2026, 9, 21, 10) };
+  const personalBusy = { start: et(2026, 9, 21, 14), end: et(2026, 9, 21, 15) };
+  const result = await offerSlotsForAddress(PHILLY, {
+    now,
+    busy: [workBusy, personalBusy],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  });
+  const nine = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+  const two = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 14).getTime());
+  const eleven = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 11).getTime());
+  assert.equal(nine, undefined);
+  assert.equal(two, undefined);
+  assert.ok(eleven);
+});
+
 test("sameAddress ignores punctuation and country suffix", () => {
   assert.equal(sameAddress("1500 Market St., Philadelphia, PA, USA", "1500 Market St, Philadelphia, PA"), true);
 });
 
 test("env hooks stay off when Calendar/Maps credentials are missing", () => {
   const previous = {
+    GOOGLE_CALENDAR_IDS: process.env.GOOGLE_CALENDAR_IDS,
     GOOGLE_CALENDAR_ID: process.env.GOOGLE_CALENDAR_ID,
     GOOGLE_CLIENT_EMAIL: process.env.GOOGLE_CLIENT_EMAIL,
     GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
     GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
   };
+  delete process.env.GOOGLE_CALENDAR_IDS;
   delete process.env.GOOGLE_CALENDAR_ID;
   delete process.env.GOOGLE_CLIENT_EMAIL;
   delete process.env.GOOGLE_PRIVATE_KEY;
@@ -194,6 +216,7 @@ test("env hooks stay off when Calendar/Maps credentials are missing", () => {
   const integrations = schedulingIntegrations();
   assert.equal(integrations.calendarConfigured, false);
   assert.equal(integrations.driveTimeConfigured, false);
+  assert.equal(integrations.placesConfigured, false);
   restoreEnv(previous);
 });
 
