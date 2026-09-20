@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseShootAddress, sameAddress } from "./address";
-import { offerSlotsForAddress, publicCalendarError } from "./availability";
+import { offerSlotsForAddress, publicCalendarError, withoutOwnBooking } from "./availability";
 import { schedulingIntegrations } from "./config";
-import { mergeIntervals, overlaps } from "./intervals";
+import { mergeIntervals, overlaps, subtractInterval } from "./intervals";
 import { DEFAULT_TIMEZONE, TRAVEL_PAD_MINUTES } from "./rules";
 import { generateCandidateSlots } from "./slots";
 import { pickNextJob, pickNextJobs, pickPriorJob, travelFits } from "./travel";
@@ -455,6 +455,74 @@ test("offered slots use the summed service duration instead of 90 minutes", asyn
   const podcastSlot = podcast.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 10).getTime());
   assert.ok(podcastSlot);
   assert.equal(startMs(podcastSlot.end), et(2026, 9, 21, 11, 45).getTime());
+});
+
+test("modifying a booking does not let its own window block the same slot", async () => {
+  const now = et(2026, 9, 20, 9);
+  const own = { start: et(2026, 9, 25, 14), end: et(2026, 9, 25, 15) };
+  const neighbor = {
+    start: et(2026, 9, 25, 16),
+    end: et(2026, 9, 25, 17),
+    address: SHORE,
+  };
+  const sources = withoutOwnBooking(
+    {
+      now,
+      busy: [own, { start: neighbor.start, end: neighbor.end }],
+      jobs: [{ ...own, address: PHILLY }, neighbor],
+      calendarConfigured: true,
+      driveTimeConfigured: true,
+      driveSeconds: async () => 20 * 60,
+    },
+    own,
+  );
+  assert.equal(
+    sources.busy.some((block) => block.start.getTime() === own.start.getTime() && block.end.getTime() === own.end.getTime()),
+    false,
+  );
+  assert.equal(
+    sources.jobs.some((job) => job.start.getTime() === own.start.getTime() && job.end.getTime() === own.end.getTime()),
+    false,
+  );
+
+  const result = await offerSlotsForAddress(PHILLY, sources, ["Podcast · 1 episode"], {
+    retainStarts: [own.start],
+  });
+  const kept = result.slots.find((slot) => startMs(slot.start) === own.start.getTime());
+  assert.ok(kept);
+  assert.equal(startMs(kept.end), own.end.getTime());
+});
+
+test("retainStarts keeps a booking inside the lead window when modifying", () => {
+  const now = et(2026, 9, 21, 14);
+  const retain = et(2026, 9, 21, 15);
+  const slots = generateCandidateSlots({
+    now,
+    timeZone: DEFAULT_TIMEZONE,
+    openHour: 10,
+    closeHour: 18,
+    slotMinutes: 60,
+    stepMinutes: 15,
+    daysAhead: 1,
+    minLeadMinutes: 120,
+    retainStarts: [retain],
+  });
+  assert.ok(slots.some((slot) => slot.start.getTime() === retain.getTime()));
+  assert.equal(
+    slots.some((slot) => slot.start.getTime() === et(2026, 9, 21, 14, 15).getTime()),
+    false,
+  );
+});
+
+test("subtractInterval punches only the booking window out of a merged busy block", () => {
+  const own = { start: et(2026, 9, 25, 14), end: et(2026, 9, 25, 15) };
+  const leftover = subtractInterval(
+    [{ start: et(2026, 9, 25, 14), end: et(2026, 9, 25, 17) }],
+    own,
+  );
+  assert.equal(leftover.length, 1);
+  assert.equal(leftover[0]?.start.getTime(), et(2026, 9, 25, 15).getTime());
+  assert.equal(leftover[0]?.end.getTime(), et(2026, 9, 25, 17).getTime());
 });
 
 test("publicCalendarError hides STS audience mismatch details", () => {

@@ -13,14 +13,15 @@ import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
   slotStillOffered,
+  withoutOwnBooking,
 } from "@/lib/scheduling/availability";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
-import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
-import { sendBookingConfirmation } from "@/lib/scheduling/booking-email";
-import { tryWriteCalendarBooking } from "@/lib/scheduling/calendar";
+import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
+import { sendBookingConfirmation, sendBookingModification } from "@/lib/scheduling/booking-email";
+import { tryReplaceCalendarBooking, tryWriteCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
-import { schedulingBookHref, schedulingTimesHref } from "@/lib/scheduling/urls";
+import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "@/lib/scheduling/urls";
 
 export async function createBooking(formData: FormData) {
   const session = await getSession();
@@ -156,10 +157,181 @@ export async function createBooking(formData: FormData) {
     }
   }
 
+  if (!created) {
+    failTimes("Booking could not be completed.");
+  }
+
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  redirect(schedulingBookHref({ booked: "1" }));
+  redirect(schedulingConfirmedHref(created.bookingId));
+}
+
+export async function updateBooking(formData: FormData) {
+  const session = await getSession();
+  if (!session) {
+    redirect("/");
+  }
+  const bookingId = String(formData.get("bookingId") ?? formData.get("modify") ?? "").trim();
+  const address = String(formData.get("address") ?? "");
+  const services = parseSchedulingServices(formData.getAll("service"));
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const parsedSlot = readBookingFormSlot(formData);
+
+  function failBook(error: string): never {
+    redirect(schedulingBookHref({ address, services, notes, modify: bookingId || null, error }));
+  }
+
+  function failTimes(error: string, nextAddress = address): never {
+    redirect(schedulingTimesHref({ address: nextAddress, services, notes, modify: bookingId || null, error }));
+  }
+
+  let updated:
+    | {
+        bookingId: string;
+        address: string;
+        start: Date;
+        end: Date;
+        timeZone: string;
+        clientName: string | null;
+        calendarConfigured: boolean;
+        calendarEventId: string | null;
+        accessCodes: string | null;
+      }
+    | undefined;
+
+  try {
+    await ensureDb();
+    if (!bookingId) {
+      failBook("Booking is required.");
+    }
+    const booking = await getClientBooking(session.clientId, bookingId);
+    if (!booking || !canModifyBooking(booking, session.clientId)) {
+      failBook("That booking cannot be modified.");
+    }
+    if (services.length === 0) {
+      failBook("Pick at least one service.");
+    }
+    if (!parsedSlot) {
+      failTimes("Pick a time.");
+    }
+
+    const { startIso, endIso } = parsedSlot;
+    const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: booking.id });
+    const loaded = await loadLiveAvailabilitySources({
+      portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
+      portalJobs,
+    });
+    if ("error" in loaded) {
+      failTimes(loaded.error);
+    }
+    const sources = withoutOwnBooking(loaded, { start: booking.startsAt, end: booking.endsAt });
+    const availability = await offerSlotsForAddress(address, sources, services, {
+      retainStarts: [booking.startsAt],
+    });
+    if (availability.error) {
+      failBook(availability.error);
+    }
+    if (!slotStillOffered(availability, startIso, endIso)) {
+      failTimes("That time is no longer available. Pick another.", availability.address);
+    }
+
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
+    const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
+    const hours = schedulingHours();
+
+    const [saved] = await db
+      .update(bookings)
+      .set({
+        address: availability.address,
+        services,
+        startsAt: start,
+        endsAt: end,
+        notes,
+        driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(bookings.id, booking.id),
+          eq(bookings.clientId, session.clientId),
+          eq(bookings.status, "confirmed"),
+        ),
+      )
+      .returning({ id: bookings.id });
+    if (!saved) {
+      failTimes("Booking could not be updated.");
+    }
+
+    try {
+      await sendBookingModification({
+        clientEmail: session.email,
+        clientName: client?.displayName ?? null,
+        address: availability.address,
+        services,
+        start,
+        end,
+        timeZone: hours.timeZone,
+        notes,
+        accessCodes: booking.accessCodes,
+      });
+    } catch (error) {
+      console.error("Booking modification email failed", error);
+    }
+
+    updated = {
+      bookingId: booking.id,
+      address: availability.address,
+      start,
+      end,
+      timeZone: hours.timeZone,
+      clientName: client?.displayName ?? null,
+      calendarConfigured: availability.calendarConfigured,
+      calendarEventId: booking.calendarEventId,
+      accessCodes: booking.accessCodes,
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+    failTimes(bookingUserError(error, "Booking could not be updated."));
+  }
+
+  if (updated?.calendarConfigured) {
+    try {
+      const calendarEventId = await tryReplaceCalendarBooking(updated.calendarEventId, {
+        address: updated.address,
+        start: updated.start,
+        end: updated.end,
+        timeZone: updated.timeZone,
+        summary: `${formatBookingServices(services)} — ${updated.clientName ?? session.email}`,
+        description: [
+          formatBookingServices(services),
+          notes,
+          updated.accessCodes ? `Access: ${updated.accessCodes}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      });
+      if (calendarEventId && calendarEventId !== updated.calendarEventId) {
+        await db
+          .update(bookings)
+          .set({ calendarEventId, updatedAt: new Date() })
+          .where(eq(bookings.id, updated.bookingId));
+      }
+    } catch (error) {
+      console.error("Google Calendar write failed; booking still updated", error);
+    }
+  }
+
+  if (!updated) {
+    failTimes("Booking could not be updated.");
+  }
+
+  revalidatePath(CLIENT_SCHEDULING);
+  revalidatePath(CLIENT_SCHEDULING_TIMES);
+  revalidatePath("/admin/bookings");
+  redirect(schedulingConfirmedHref(updated.bookingId, { updated: true }));
 }
 
 export async function cancelBooking(formData: FormData) {

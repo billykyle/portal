@@ -30,7 +30,9 @@
  *    `BOOKING_NOTIFY_EMAIL`). Do not require Pepper. Soft-fail: never roll
  *    back the calendar event or DB insert if mail fails. Calendar write is
  *    also soft-fail after the DB insert (and emails): try the Work insert,
- *    but a 403 must not fail the client confirm.
+ *    but a 403 must not fail the client confirm. Modify (`updateBooking`)
+ *    uses the same two-send + Calendar soft-fail pattern, excluding the
+ *    booking being edited from availability so its own slot stays offered.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.
