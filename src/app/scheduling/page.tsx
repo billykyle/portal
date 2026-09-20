@@ -5,10 +5,7 @@ import { ClientHeader } from "@/components/client-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { loadLiveAvailabilitySources, offerSlotsForAddress } from "@/lib/scheduling/availability";
 import { loadConfirmedPortalJobs, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
 import { schedulingHours } from "@/lib/scheduling/config";
@@ -37,12 +34,10 @@ export default async function SchedulingPage({
   const { address: rawAddress = "", service: rawService, booked, cancelled, error } = await searchParams;
   const selectedServices = parseSchedulingServices(rawService);
   const hours = schedulingHours();
-  const [clientRows, upcoming, portalJobs] = await Promise.all([
-    db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1),
+  const [upcoming, portalJobs] = await Promise.all([
     listClientUpcomingBookings(session.clientId),
     loadConfirmedPortalJobs(),
   ]);
-  const [client] = clientRows;
 
   let availability = null;
   let addressError: string | undefined;
@@ -68,10 +63,6 @@ export default async function SchedulingPage({
       <ClientHeader />
       <div className="mb-8 lg:mb-10">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
-        <p className="mt-2 text-sm leading-6 text-[#8e8e93]">
-          Pick one or more services and an address, then available times.{" "}
-          {client?.displayName ?? "Your"} upcoming shoots stay here.
-        </p>
         {booked ? <p className="mt-3 text-sm text-white">You&apos;re booked.</p> : null}
         {cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
         {error ? <p className="mt-3 text-sm text-[#a1a1a1]">{error}</p> : null}
