@@ -264,6 +264,12 @@ test("publicCalendarError hides STS audience mismatch details", () => {
     "Google Calendar authentication failed.",
   );
   assert.equal(publicCalendarError(new Error("Google Calendar free/busy 403")), "Google Calendar free/busy 403");
+  assert.equal(
+    publicCalendarError(
+      new Error("Google Calendar free/busy 400 (timeRangeTooLong: The requested time range is too long.)"),
+    ),
+    "Google Calendar free/busy 400 (timeRangeTooLong: The requested time range is too long.)",
+  );
 });
 
 function startMs(iso: string) {

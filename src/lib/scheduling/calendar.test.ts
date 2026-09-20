@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { collectFreeBusyIntervals } from "./calendar";
+import {
+  FREEBUSY_MAX_MS,
+  availabilityWindow,
+  collectFreeBusyIntervals,
+  formatCalendarHttpError,
+  parseCalendarApiError,
+  splitQueryWindows,
+} from "./calendar";
+import { DEFAULT_TIMEZONE } from "./rules";
+import { bookingHorizonDays } from "./horizon";
+import { zonedDateTimeToUtc } from "./zoned-time";
 import {
   GCP_PROJECT_ID_KNOWN,
   PERSONAL_CALENDAR_ID,
@@ -282,6 +292,52 @@ test("malformed GOOGLE_SERVICE_ACCOUNT_JSON does not block WIF", () => {
   restoreEnv(previous);
 });
 
+test("availabilityWindow for the 3-month horizon exceeds one freeBusy query", () => {
+  const now = zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year: 2026, month: 9, day: 20, hour: 9, minute: 0 });
+  const range = availabilityWindow(now, bookingHorizonDays(now, DEFAULT_TIMEZONE), DEFAULT_TIMEZONE);
+  assert.ok(range.end.getTime() - range.start.getTime() > FREEBUSY_MAX_MS);
+  assert.ok(range.end.getTime() - range.start.getTime() > 90 * 24 * 60 * 60 * 1000);
+});
+
+test("splitQueryWindows keeps each freeBusy chunk under the 3-month cap", () => {
+  const now = zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year: 2026, month: 9, day: 20, hour: 9, minute: 0 });
+  const range = availabilityWindow(now, bookingHorizonDays(now, DEFAULT_TIMEZONE), DEFAULT_TIMEZONE);
+  const windows = splitQueryWindows(range);
+  assert.ok(windows.length >= 2);
+  assert.equal(windows[0]?.start.getTime(), range.start.getTime());
+  assert.equal(windows[windows.length - 1]?.end.getTime(), range.end.getTime());
+  for (let i = 0; i < windows.length; i += 1) {
+    const window = windows[i];
+    assert.ok(window);
+    assert.ok(window.end.getTime() - window.start.getTime() <= FREEBUSY_MAX_MS);
+    if (i > 0) assert.equal(window.start.getTime(), windows[i - 1]?.end.getTime());
+  }
+  assert.deepEqual(splitQueryWindows({ start: now, end: now }), []);
+});
+
+test("parseCalendarApiError surfaces Google timeRangeTooLong details", () => {
+  assert.equal(
+    parseCalendarApiError(
+      JSON.stringify({
+        error: {
+          code: 400,
+          message: "The requested time range is too long.",
+          errors: [{ reason: "timeRangeTooLong", message: "The requested time range is too long." }],
+        },
+      }),
+    ),
+    "timeRangeTooLong: The requested time range is too long.",
+  );
+  assert.equal(
+    formatCalendarHttpError(
+      400,
+      JSON.stringify({ error: { message: "The requested time range is too long." } }),
+      "Google Calendar free/busy",
+    ),
+    "Google Calendar free/busy 400 (The requested time range is too long.)",
+  );
+});
+
 test("collectFreeBusyIntervals unions both calendars and fails closed", () => {
   const workBusy = { start: "2026-09-21T13:00:00.000Z", end: "2026-09-21T14:00:00.000Z" };
   const personalBusy = { start: "2026-09-21T18:00:00.000Z", end: "2026-09-21T19:00:00.000Z" };
@@ -309,7 +365,7 @@ test("collectFreeBusyIntervals unions both calendars and fails closed", () => {
         },
         [WORK, PERSONAL],
       ),
-    /failed for bkyle015@gmail.com/,
+    /failed for bkyle015@gmail.com \(notFound\)/,
   );
 });
 

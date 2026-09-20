@@ -2,10 +2,61 @@ import { readCalendarCredentials } from "./config";
 import { getCalendarAccessToken } from "./google-auth";
 import type { Interval } from "./intervals";
 import type { TravelJob } from "./travel";
-import { addCalendarDays, zonedDateTimeToUtc } from "./zoned-time";
+import { addCalendarDays, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 
 function calendarUrl(calendarId: string, suffix: string) {
   return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}${suffix}`;
+}
+
+/**
+ * Google `freeBusy` rejects a single query longer than ~3 months
+ * (`timeRangeTooLong`, HTTP 400). The bookable horizon is 3 calendar months
+ * plus lead/travel padding, so requests must be split. 60 days leaves room
+ * if Google tightens the undocumented cap.
+ */
+export const FREEBUSY_MAX_MS = 60 * 24 * 60 * 60 * 1000;
+
+type GoogleErrorBody = {
+  error?: {
+    message?: string;
+    errors?: Array<{ reason?: string; message?: string }>;
+  };
+};
+
+export function parseCalendarApiError(text: string): string {
+  try {
+    const body = JSON.parse(text) as GoogleErrorBody;
+    const reason = body.error?.errors?.[0]?.reason;
+    const message = body.error?.message;
+    if (reason && message && reason !== message) return `${reason}: ${message}`;
+    return message || reason || "";
+  } catch {
+    return text.trim().slice(0, 200);
+  }
+}
+
+export function formatCalendarHttpError(status: number, bodyText: string, label: string): string {
+  const detail = parseCalendarApiError(bodyText);
+  return detail ? `${label} ${status} (${detail})` : `${label} ${status}`;
+}
+
+async function throwCalendarHttpError(res: Response, label: string): Promise<never> {
+  const text = await res.text();
+  throw new Error(formatCalendarHttpError(res.status, text, label));
+}
+
+/** Split a lookup window into adjacent chunks no longer than `maxMs`. */
+export function splitQueryWindows(range: Interval, maxMs = FREEBUSY_MAX_MS): Interval[] {
+  if (range.end.getTime() <= range.start.getTime()) return [];
+  if (maxMs <= 0) return [range];
+  const windows: Interval[] = [];
+  let start = range.start;
+  while (start.getTime() < range.end.getTime()) {
+    const chunkEndMs = Math.min(start.getTime() + maxMs, range.end.getTime());
+    windows.push({ start, end: new Date(chunkEndMs) });
+    start = new Date(chunkEndMs);
+  }
+  return windows;
 }
 
 type GoogleDate = { dateTime?: string; date?: string; timeZone?: string };
@@ -33,7 +84,23 @@ function parseGoogleInterval(start: GoogleDate | undefined, end: GoogleDate | un
 export async function fetchCalendarBusy(range: Interval, timeZone: string): Promise<Interval[]> {
   const creds = readCalendarCredentials();
   if (!creds) return [];
+  if (range.end.getTime() <= range.start.getTime()) {
+    throw new Error("Google Calendar free/busy range is empty.");
+  }
   const token = await getCalendarAccessToken(creds.auth);
+  const windows = splitQueryWindows(range);
+  const batches = await Promise.all(
+    windows.map((window) => fetchFreeBusyWindow(token, creds.calendarIds, window, timeZone)),
+  );
+  return batches.flat();
+}
+
+async function fetchFreeBusyWindow(
+  token: string,
+  calendarIds: string[],
+  range: Interval,
+  timeZone: string,
+): Promise<Interval[]> {
   const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
     method: "POST",
     headers: {
@@ -44,16 +111,16 @@ export async function fetchCalendarBusy(range: Interval, timeZone: string): Prom
       timeMin: range.start.toISOString(),
       timeMax: range.end.toISOString(),
       timeZone,
-      items: creds.calendarIds.map((id) => ({ id })),
+      items: calendarIds.map((id) => ({ id })),
     }),
   });
   if (!res.ok) {
-    throw new Error(`Google Calendar free/busy ${res.status}`);
+    await throwCalendarHttpError(res, "Google Calendar free/busy");
   }
   const body = (await res.json()) as {
     calendars?: Record<string, FreeBusyCalendar>;
   };
-  return collectFreeBusyIntervals(body.calendars, creds.calendarIds);
+  return collectFreeBusyIntervals(body.calendars, calendarIds);
 }
 
 type FreeBusyCalendar = {
@@ -87,7 +154,15 @@ export function collectFreeBusyIntervals(
       throw new Error(`Google Calendar free/busy did not return ${id}.`);
     }
     if (calendar.errors && calendar.errors.length > 0) {
-      throw new Error(`Google Calendar free/busy failed for ${id}.`);
+      const detail = calendar.errors
+        .map((err) => {
+          if (err && typeof err === "object" && "reason" in err) {
+            return String((err as { reason?: unknown }).reason ?? "error");
+          }
+          return "error";
+        })
+        .join(", ");
+      throw new Error(`Google Calendar free/busy failed for ${id} (${detail}).`);
     }
     for (const block of calendar.busy ?? []) {
       const start = new Date(String(block.start ?? ""));
@@ -126,7 +201,7 @@ async function fetchCalendarJobsForId(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    throw new Error(`Google Calendar events ${res.status} for ${calendarId}`);
+    await throwCalendarHttpError(res, `Google Calendar events for ${calendarId}`);
   }
   const body = (await res.json()) as {
     items?: Array<{ start?: GoogleDate; end?: GoogleDate; location?: string; status?: string }>;
@@ -168,7 +243,7 @@ export async function writeCalendarBooking(input: {
     }),
   });
   if (!res.ok) {
-    throw new Error(`Google Calendar write ${res.status}`);
+    await throwCalendarHttpError(res, "Google Calendar write");
   }
   const body = (await res.json()) as { id?: string };
   return body.id ?? null;
@@ -176,14 +251,8 @@ export async function writeCalendarBooking(input: {
 
 /** Window used when asking Calendar for free/busy around the offered days. */
 export function availabilityWindow(now: Date, daysAhead: number, timeZone: string): Interval {
-  const endDate = addCalendarDays(
-    {
-      year: now.getUTCFullYear(),
-      month: now.getUTCMonth() + 1,
-      day: now.getUTCDate(),
-    },
-    daysAhead + 2,
-  );
+  const today = utcToZonedParts(now, timeZone);
+  const endDate = addCalendarDays(today, daysAhead + 2);
   return {
     start: new Date(now.getTime() - 36 * 60 * 60 * 1000),
     end: zonedDateTimeToUtc(timeZone, { ...endDate, hour: 23, minute: 59 }),
