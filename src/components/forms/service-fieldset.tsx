@@ -15,17 +15,18 @@ export function ServiceFieldset({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const form = fieldsetRef.current?.form;
-    if (!form) return;
+    const maybeForm = fieldsetRef.current?.form;
+    if (!maybeForm) return;
+    const owner: HTMLFormElement = maybeForm;
     function onSubmit(event: Event) {
-      const checked = form.querySelectorAll(`input[name="${name}"]:checked`);
+      const checked = owner.querySelectorAll(`input[name="${name}"]:checked`);
       if (checked.length === 0) {
         event.preventDefault();
         setError("Pick at least one service.");
       }
     }
-    form.addEventListener("submit", onSubmit);
-    return () => form.removeEventListener("submit", onSubmit);
+    owner.addEventListener("submit", onSubmit);
+    return () => owner.removeEventListener("submit", onSubmit);
   }, [name]);
 
   return (
