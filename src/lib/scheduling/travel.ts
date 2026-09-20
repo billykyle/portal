@@ -13,9 +13,13 @@ export type TravelVerdict =
   | { ok: true; driveSecondsFromPrior: number | null }
   | { ok: false; reason: string };
 
+function isJobList(job: TravelJob | readonly TravelJob[]): job is readonly TravelJob[] {
+  return Array.isArray(job);
+}
+
 function asJobList(job: TravelJob | readonly TravelJob[] | null | undefined): TravelJob[] {
-  if (!job) return [];
-  return Array.isArray(job) ? [...job] : [job];
+  if (job == null) return [];
+  return isJobList(job) ? [...job] : [job];
 }
 
 /** Busy blocks become location-less jobs so abutment / pad still apply. */
