@@ -22,7 +22,11 @@ import {
   sendBookingConfirmation,
   sendBookingModification,
 } from "@/lib/scheduling/booking-email";
-import { tryReplaceCalendarBooking, tryWriteCalendarBooking } from "@/lib/scheduling/calendar";
+import {
+  tryDeleteCalendarBooking,
+  tryReplaceCalendarBooking,
+  tryWriteCalendarBooking,
+} from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingServiceList, formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
 import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "@/lib/scheduling/urls";
@@ -419,6 +423,17 @@ export async function cancelBooking(formData: FormData) {
       }
     } catch (error) {
       console.error("Booking cancellation email failed", error);
+    }
+
+    // Calendar delete is best-effort after the status flip and emails. A
+    // 403/404/auth failure must not undo cancel or skip cancellation mail.
+    // If create never stored an event id, skip quietly.
+    if (booking.calendarEventId) {
+      try {
+        await tryDeleteCalendarBooking(booking.calendarEventId);
+      } catch (error) {
+        console.error("Google Calendar delete failed; booking still cancelled", error);
+      }
     }
   }
 

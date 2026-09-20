@@ -332,6 +332,47 @@ export async function tryReplaceCalendarBooking(
   return settleCalendarWrite(() => replaceCalendarBooking(eventId, input));
 }
 
+/**
+ * Delete a booking from the Work calendar (`writeCalendarId`).
+ * Same calendar create/update write to. 204/200 succeed; anything else throws
+ * so the cancel action can soft-fail without rolling back status or mail.
+ */
+export async function deleteCalendarBooking(eventId: string): Promise<boolean> {
+  const creds = readCalendarCredentials();
+  if (!creds) return false;
+  const token = await getCalendarAccessToken(creds.auth);
+  const res = await fetch(calendarUrl(creds.writeCalendarId, `/events/${encodeURIComponent(eventId)}`), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 204 || res.ok) return true;
+  await throwCalendarHttpError(res, "Google Calendar delete");
+}
+
+/**
+ * Attempt a Calendar delete without failing cancel.
+ * Success returns true; 403/404/auth (or any other error) is logged and
+ * returns false so the booking stays cancelled and emails still go out.
+ */
+export async function settleCalendarDelete(del: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await del();
+  } catch (error) {
+    console.error("Google Calendar delete failed; booking still cancelled", error);
+    return false;
+  }
+}
+
+/** Skip quietly when create never stored an event id. */
+export function hasStoredCalendarEventId(eventId: string | null | undefined): eventId is string {
+  return Boolean(eventId?.trim());
+}
+
+export async function tryDeleteCalendarBooking(eventId: string | null | undefined): Promise<boolean> {
+  if (!hasStoredCalendarEventId(eventId)) return false;
+  return settleCalendarDelete(() => deleteCalendarBooking(eventId));
+}
+
 /** Window used when asking Calendar for free/busy around the offered days. */
 export function availabilityWindow(now: Date, daysAhead: number, timeZone: string): Interval {
   const today = utcToZonedParts(now, timeZone);

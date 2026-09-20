@@ -36,6 +36,9 @@
  *    Cancel (`cancelBooking`) sends the same two Resend emails after the
  *    status flip: client “Shoot cancelled” (Scheduling link only — not
  *    modify that booking) and Billy “Booking cancelled”. Soft-fail mail.
+ *    When `calendarEventId` is present, also DELETE the Work calendar event
+ *    (same `writeCalendarId` as create). 403/404/auth is logged and does
+ *    not roll back the cancel or emails. Missing event id skips quietly.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.
