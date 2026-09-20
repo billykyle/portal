@@ -18,9 +18,11 @@ import { schedulingBookHref } from "@/lib/scheduling/urls";
 export function BookTimesForm({
   availability,
   services,
+  notes = "",
 }: {
   availability: AvailabilityResult;
   services: string[];
+  notes?: string;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
@@ -37,6 +39,7 @@ export function BookTimesForm({
   const changeHref = schedulingBookHref({
     address: availability.address,
     services,
+    notes: notes || null,
   });
 
   useEffect(() => {
@@ -96,6 +99,7 @@ export function BookTimesForm({
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
         ))}
+        <input type="hidden" name="notes" value={notes} />
         <input type="hidden" name="slot" value={selectedSlot} />
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Choose a date and time</legend>
@@ -177,7 +181,6 @@ export function BookTimesForm({
           Pick a date
         </button>
         {slotError ? <p className="text-sm text-[#a1a1a1]">{slotError}</p> : null}
-        <Field id="notes" name="notes" label="Notes (optional)" placeholder="Lockbox, contact, …" />
         <Field id="accessCodes" name="accessCodes" label="Access codes (optional)" />
         <SubmitButton>Book shoot</SubmitButton>
       </form>
