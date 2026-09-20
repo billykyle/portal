@@ -34,6 +34,7 @@ export async function listAdminBookings() {
       id: bookings.id,
       address: bookings.address,
       service: bookings.service,
+      services: bookings.services,
       startsAt: bookings.startsAt,
       endsAt: bookings.endsAt,
       status: bookings.status,

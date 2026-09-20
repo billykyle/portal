@@ -99,6 +99,7 @@ async function createTables() {
       created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
       address text NOT NULL,
       service text,
+      services text[],
       starts_at timestamptz NOT NULL,
       ends_at timestamptz NOT NULL,
       status booking_status NOT NULL DEFAULT 'confirmed',
@@ -111,6 +112,12 @@ async function createTables() {
     )
   `;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service text`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS services text[]`;
+  await sql`
+    UPDATE bookings
+    SET services = ARRAY[service]
+    WHERE services IS NULL AND service IS NOT NULL AND btrim(service) <> ''
+  `;
   await sql`CREATE INDEX IF NOT EXISTS bookings_client_starts_idx ON bookings (client_id, starts_at)`;
   await sql`CREATE INDEX IF NOT EXISTS bookings_starts_idx ON bookings (starts_at)`;
 }
