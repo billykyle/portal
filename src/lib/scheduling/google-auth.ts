@@ -1,7 +1,7 @@
 import { getVercelOidcToken } from "@vercel/oidc";
 import { ExternalAccountClient, GoogleAuth } from "google-auth-library";
 import { SignJWT, importPKCS8 } from "jose";
-import type { CalendarAuth, WorkloadIdentityConfig } from "./config";
+import { isVercelTeamAudience, type CalendarAuth, type WorkloadIdentityConfig } from "./config";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
@@ -14,6 +14,19 @@ export function wifClientOptions(cfg: WorkloadIdentityConfig) {
     token_url: "https://sts.googleapis.com/v1/token",
     service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${cfg.serviceAccountEmail}:generateAccessToken`,
   };
+}
+
+/**
+ * STS `audience` is always the WIF provider resource (`//iam.googleapis.com/…`).
+ * The Vercel subject token `aud` is separate: default Team-issuer tokens already
+ * have `https://vercel.com/{team}`, which matches GCP Allowed audiences.
+ * Passing that URL into getVercelOidcToken would trigger a custom-audience
+ * exchange. Only exchange when Flynn set GCP_AUDIENCE to a non-team value
+ * (GCP Default audience / IAM provider https URL).
+ */
+export function vercelOidcTokenOptions(oidcAudience: string) {
+  if (!oidcAudience || isVercelTeamAudience(oidcAudience)) return undefined;
+  return { audience: oidcAudience };
 }
 
 let cachedWif: { key: string; auth: GoogleAuth } | null = null;
@@ -41,10 +54,10 @@ export async function calendarGoogleAuth(cfg: WorkloadIdentityConfig): Promise<G
   const authClient = ExternalAccountClient.fromJSON({
     ...wifClientOptions(cfg),
     subject_token_supplier: {
-      getSubjectToken: async () =>
-        getVercelOidcToken({
-          audience: cfg.oidcAudience,
-        }),
+      getSubjectToken: async () => {
+        const oidc = vercelOidcTokenOptions(cfg.oidcAudience);
+        return oidc ? getVercelOidcToken(oidc) : getVercelOidcToken();
+      },
     },
   });
   if (!authClient) {
