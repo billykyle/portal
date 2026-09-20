@@ -87,6 +87,9 @@ export function BookTimesForm({
           {notice}
         </p>
       ))}
+      {availability.slots.length === 0 ? (
+        <p className="mb-4 text-sm text-[#8e8e93]">No times fit this address right now.</p>
+      ) : null}
 
       <form ref={formRef} action={createBooking} className="flex flex-col gap-6">
         <input type="hidden" name="address" value={availability.address} />
