@@ -128,39 +128,40 @@ test("engine hides Shore 1pm after a Philly noon job", async () => {
   assert.ok(threePm);
 });
 
-test("candidate slots stay inside working hours in America/New_York", () => {
+test("candidate slots are 10:00–18:00 starts on 15-minute steps in America/New_York", () => {
   const slots = generateCandidateSlots({
     now: et(2026, 9, 21, 6),
     timeZone: DEFAULT_TIMEZONE,
-    openHour: 8,
+    openHour: 10,
     closeHour: 18,
     slotMinutes: 90,
-    stepMinutes: 30,
+    stepMinutes: 15,
     daysAhead: 1,
     minLeadMinutes: 0,
   });
   assert.ok(slots.length > 0);
-  assert.equal(slots[0].start.getTime(), et(2026, 9, 21, 8).getTime());
+  assert.equal(slots[0].start.getTime(), et(2026, 9, 21, 10).getTime());
+  assert.equal(slots[1].start.getTime(), et(2026, 9, 21, 10, 15).getTime());
   const last = slots[slots.length - 1];
-  assert.equal(last.start.getTime(), et(2026, 9, 21, 16, 30).getTime());
-  assert.equal(last.end.getTime(), et(2026, 9, 21, 18).getTime());
+  assert.equal(last.start.getTime(), et(2026, 9, 21, 18).getTime());
+  assert.equal(last.end.getTime(), et(2026, 9, 21, 19, 30).getTime());
 });
 
-test("candidate slot length can be shorter than the 30-minute start step", () => {
+test("a 6:00pm start is offered even when the job end runs past close", () => {
   const slots = generateCandidateSlots({
     now: et(2026, 9, 21, 6),
     timeZone: DEFAULT_TIMEZONE,
-    openHour: 8,
+    openHour: 10,
     closeHour: 18,
     slotMinutes: 15,
-    stepMinutes: 30,
+    stepMinutes: 15,
     daysAhead: 1,
     minLeadMinutes: 0,
   });
   assert.equal(slots[0].end.getTime() - slots[0].start.getTime(), 15 * 60 * 1000);
   const last = slots[slots.length - 1];
-  assert.equal(last.start.getTime(), et(2026, 9, 21, 17, 30).getTime());
-  assert.equal(last.end.getTime(), et(2026, 9, 21, 17, 45).getTime());
+  assert.equal(last.start.getTime(), et(2026, 9, 21, 18).getTime());
+  assert.equal(last.end.getTime(), et(2026, 9, 21, 18, 15).getTime());
 });
 
 test("zoned noon Eastern is 16:00 UTC in September", () => {
@@ -282,27 +283,27 @@ test("offered slots use the summed service duration instead of 90 minutes", asyn
     driveSeconds: async () => null,
   };
   const zillow = await offerSlotsForAddress(PHILLY, sources, ["Real Estate · Zillow 360"]);
-  const zillowSlot = zillow.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  const zillowSlot = zillow.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 10).getTime());
   assert.ok(zillowSlot);
-  assert.equal(startMs(zillowSlot.end), et(2026, 9, 21, 8, 15).getTime());
+  assert.equal(startMs(zillowSlot.end), et(2026, 9, 21, 10, 15).getTime());
 
   const aerial = await offerSlotsForAddress(PHILLY, sources, ["Real Estate · Aerial Photos"]);
-  const aerialSlot = aerial.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  const aerialSlot = aerial.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 10).getTime());
   assert.ok(aerialSlot);
-  assert.equal(startMs(aerialSlot.end), et(2026, 9, 21, 8, 15).getTime());
+  assert.equal(startMs(aerialSlot.end), et(2026, 9, 21, 10, 15).getTime());
 
   const combo = await offerSlotsForAddress(PHILLY, sources, [
     "Real Estate · Photography",
     "Real Estate · Video",
   ]);
-  const comboSlot = combo.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  const comboSlot = combo.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 10).getTime());
   assert.ok(comboSlot);
-  assert.equal(startMs(comboSlot.end), et(2026, 9, 21, 9, 15).getTime());
+  assert.equal(startMs(comboSlot.end), et(2026, 9, 21, 11, 15).getTime());
 
   const podcast = await offerSlotsForAddress(PHILLY, sources, ["Podcast · 2 episodes"]);
-  const podcastSlot = podcast.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 8).getTime());
+  const podcastSlot = podcast.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 10).getTime());
   assert.ok(podcastSlot);
-  assert.equal(startMs(podcastSlot.end), et(2026, 9, 21, 9, 45).getTime());
+  assert.equal(startMs(podcastSlot.end), et(2026, 9, 21, 11, 45).getTime());
 });
 
 test("publicCalendarError hides STS audience mismatch details", () => {

@@ -25,8 +25,7 @@ export function lastBookableDate(
 export function firstBookableDate(now: Date, hours: SchedulingHours): CalendarDate {
   const today = todayInZone(now, hours.timeZone);
   const minStart = now.getTime() + hours.minLeadMinutes * 60 * 1000;
-  const duration = Math.max(5, hours.slotMinutes);
-  const lastStartMinute = hours.closeHour * 60 - duration;
+  const lastStartMinute = hours.closeHour * 60;
   const lastStart = zonedDateTimeToUtc(hours.timeZone, {
     ...today,
     hour: Math.floor(lastStartMinute / 60),
