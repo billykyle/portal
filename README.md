@@ -117,7 +117,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `GCP_WORKLOAD_IDENTITY_POOL_ID` | Production WIF. Pool id Flynn creates (example: `vercel`). |
 | `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | Production WIF. OIDC provider id (example: `vercel`). |
 | `GCP_SERVICE_ACCOUNT_EMAIL` | Production WIF. Impersonated SA: `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com`. Alias: `GOOGLE_SERVICE_ACCOUNT_EMAIL`. |
-| `GCP_AUDIENCE` | Optional. OIDC token `aud`. Empty = IAM provider https URL (GCP Default audience). Set `https://vercel.com/[TEAM]` if the provider uses Allowed audiences. |
+| `GCP_AUDIENCE` | Optional. Leave empty for Team-issuer + GCP Allowed audiences (`https://vercel.com/billy-kyle`). Set to the IAM provider https URL only if the WIF provider uses GCP Default audience. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Local/dev fallback only. Downloadable SA JSON keys are blocked on this GCP project. Or `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY`. |
 | `GOOGLE_MAPS_API_KEY` | Optional, server-only. Distance Matrix (travel) plus Places Autocomplete / Place Details / Address Validation (book-form suggestions). Enable those APIs on the same Google Cloud key. Empty = no invented suggestions or drive times; the address field shows a clear message. Separate from Calendar WIF. |
 

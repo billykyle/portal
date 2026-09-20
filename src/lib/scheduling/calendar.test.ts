@@ -5,16 +5,23 @@ import {
   GCP_PROJECT_ID_KNOWN,
   PERSONAL_CALENDAR_ID,
   PORTAL_SCHEDULING_SA_EMAIL,
+  VERCEL_TEAM_SLUG_KNOWN,
   WORK_CALENDAR_ID,
   iamProviderAudiences,
   isUsHolidayCalendar,
+  isVercelTeamAudience,
   parseCalendarIds,
   readCalendarAuth,
   readCalendarCredentials,
   readCalendarIds,
+  readVercelTeamSlug,
   readWorkloadIdentityConfig,
+  teamSlugFromOidcIssuer,
+  teamSlugFromOidcToken,
+  vercelTeamOidcAudience,
+  vercelTeamOidcIssuer,
 } from "./config";
-import { wifClientOptions } from "./google-auth";
+import { vercelOidcTokenOptions, wifClientOptions } from "./google-auth";
 
 const WORK = WORK_CALENDAR_ID;
 const PERSONAL = PERSONAL_CALENDAR_ID;
@@ -64,6 +71,8 @@ const WIF_ENV = [
   "GCP_AUDIENCE",
   "VERCEL",
   "VERCEL_OIDC_TOKEN",
+  "VERCEL_OIDC_TEAM_SLUG",
+  "GCP_OIDC_TEAM_SLUG",
 ] as const;
 
 function snapshotAuthEnv() {
@@ -123,10 +132,8 @@ test("WIF env configures Calendar without a private key", () => {
       creds.auth.stsAudience,
       "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/vercel/providers/vercel",
     );
-    assert.equal(
-      creds.auth.oidcAudience,
-      "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/vercel/providers/vercel",
-    );
+    assert.equal(creds.auth.oidcAudience, vercelTeamOidcAudience(VERCEL_TEAM_SLUG_KNOWN));
+    assert.equal(vercelOidcTokenOptions(creds.auth.oidcAudience), undefined);
   }
 
   restoreEnv(previous);
@@ -157,6 +164,59 @@ test("WIF wins on Vercel even if a local private key is also set", () => {
   restoreEnv(previous);
 });
 
+test("empty GCP_AUDIENCE uses the Team-issuer Vercel aud, not the IAM provider URL", () => {
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  process.env.GCP_PROJECT_NUMBER = "199448014322";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_ID = "vercel";
+  process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID = "vercel";
+  process.env.GCP_SERVICE_ACCOUNT_EMAIL = PORTAL_SCHEDULING_SA_EMAIL;
+
+  const cfg = readWorkloadIdentityConfig();
+  assert.equal(cfg?.oidcAudience, "https://vercel.com/billy-kyle");
+  assert.equal(
+    cfg?.stsAudience,
+    "//iam.googleapis.com/projects/199448014322/locations/global/workloadIdentityPools/vercel/providers/vercel",
+  );
+  assert.notEqual(cfg?.oidcAudience, `https:${cfg?.stsAudience}`);
+  assert.equal(vercelOidcTokenOptions(cfg?.oidcAudience ?? ""), undefined);
+
+  restoreEnv(previous);
+});
+
+test("Team issuer token and env slug win over the known-team fallback", () => {
+  assert.equal(VERCEL_TEAM_SLUG_KNOWN, "billy-kyle");
+  assert.equal(vercelTeamOidcIssuer("billy-kyle"), "https://oidc.vercel.com/billy-kyle");
+  assert.equal(teamSlugFromOidcIssuer("https://oidc.vercel.com/billy-kyle"), "billy-kyle");
+  assert.equal(isVercelTeamAudience("https://vercel.com/billy-kyle"), true);
+  assert.equal(
+    isVercelTeamAudience(
+      "https://iam.googleapis.com/projects/199448014322/locations/global/workloadIdentityPools/vercel/providers/vercel",
+    ),
+    false,
+  );
+
+  const token = [
+    Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url"),
+    Buffer.from(
+      JSON.stringify({
+        iss: "https://oidc.vercel.com/other-team",
+        aud: "https://vercel.com/other-team",
+      }),
+    ).toString("base64url"),
+    "sig",
+  ].join(".");
+  assert.equal(teamSlugFromOidcToken(token), "other-team");
+
+  const previous = snapshotAuthEnv();
+  clearAuthEnv();
+  process.env.VERCEL_OIDC_TOKEN = token;
+  assert.equal(readVercelTeamSlug(), "other-team");
+  process.env.VERCEL_OIDC_TEAM_SLUG = "explicit-team";
+  assert.equal(readVercelTeamSlug(), "explicit-team");
+  restoreEnv(previous);
+});
+
 test("GCP_AUDIENCE overrides the OIDC token aud and can supply the STS audience", () => {
   const previous = snapshotAuthEnv();
   clearAuthEnv();
@@ -168,6 +228,7 @@ test("GCP_AUDIENCE overrides the OIDC token aud and can supply the STS audience"
 
   const vercelAud = readWorkloadIdentityConfig();
   assert.equal(vercelAud?.oidcAudience, "https://vercel.com/billy-kyle");
+  assert.equal(vercelOidcTokenOptions(vercelAud?.oidcAudience ?? ""), undefined);
   assert.equal(
     vercelAud?.stsAudience,
     "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/portal/providers/vercel",
@@ -181,6 +242,9 @@ test("GCP_AUDIENCE overrides the OIDC token aud and can supply the STS audience"
     iamAud?.stsAudience,
     "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/portal/providers/vercel",
   );
+  assert.deepEqual(vercelOidcTokenOptions(iamAud?.oidcAudience ?? ""), {
+    audience: process.env.GCP_AUDIENCE,
+  });
 
   restoreEnv(previous);
 });

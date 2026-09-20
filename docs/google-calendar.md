@@ -4,8 +4,8 @@ Production Calendar auth does **not** use a downloadable service-account JSON ke
 
 The runtime path:
 
-1. Vercel injects a short-lived OIDC token (`getVercelOidcToken` from `@vercel/oidc`).
-2. Google STS exchanges that token via Workload Identity Federation.
+1. Vercel injects a short-lived **Team-issuer** OIDC token (`iss` `https://oidc.vercel.com/billy-kyle`, default `aud` `https://vercel.com/billy-kyle`).
+2. The app sends that token to Google STS. STS `audience` is the WIF provider resource (`//iam.googleapis.com/projects/…/providers/vercel`) — that is **not** the OIDC token `aud`.
 3. The federation impersonates `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com`.
 4. That SA calls Calendar `freeBusy` (work + personal) and writes bookings to the first ID (work).
 
@@ -25,7 +25,7 @@ Set these on the Vercel project (Production + Preview). Flynn creates the WIF po
 | `GCP_WORKLOAD_IDENTITY_POOL_ID` | yes | Pool id, e.g. `vercel` |
 | `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | yes | Provider id, e.g. `vercel` |
 | `GCP_SERVICE_ACCOUNT_EMAIL` | yes | `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com` (alias: `GOOGLE_SERVICE_ACCOUNT_EMAIL`) |
-| `GCP_AUDIENCE` | no | Empty = IAM provider `https://iam.googleapis.com/projects/…/providers/…` (GCP **Default audience**). If the provider uses **Allowed audiences**, set `https://vercel.com/billy-kyle`. |
+| `GCP_AUDIENCE` | no | **Leave empty** for the production WIF provider (Allowed audiences `https://vercel.com/billy-kyle`). The app uses the default Team-issuer token. Set this only if Flynn switches the provider to GCP **Default audience**, then paste the IAM `https://iam.googleapis.com/projects/199448014322/locations/global/workloadIdentityPools/vercel/providers/vercel` URL. |
 
 Aliases also accepted: `GOOGLE_WORKLOAD_IDENTITY_POOL_ID`, `GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID`.
 
@@ -41,11 +41,13 @@ Use the existing SA. Do not create a JSON key.
    Name/id example: `Vercel` / `vercel`.  
    Issuer (team mode): `https://oidc.vercel.com/billy-kyle`  
    Leave the JWK file empty.
-3. **Audience**
-   - **Default audience** (recommended): copy the generated  
-     `https://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID`  
-     Leave `GCP_AUDIENCE` empty in Vercel (the app mints that `aud`).
-   - **Allowed audiences**: `https://vercel.com/billy-kyle`, and set `GCP_AUDIENCE` to that same URL.
+3. **Audience — use Allowed audiences (this is the production pairing)**
+   - **Allowed audiences**: `https://vercel.com/billy-kyle`.  
+     Leave `GCP_AUDIENCE` empty. The default Vercel token already has this `aud`; no custom-audience exchange.
+   - **Do not** leave the provider on Allowed audiences *and* mint an IAM-provider `aud` (that is `invalid_grant: The audience in ID Token [https://iam.googleapis.com/…] does not match the expected audience`).
+   - **Default audience** (optional alternative): GCP generates  
+     `https://iam.googleapis.com/projects/199448014322/locations/global/workloadIdentityPools/vercel/providers/vercel`.  
+     If Flynn switches to this, set Vercel `GCP_AUDIENCE` to that **same https URL** so `getVercelOidcToken({ audience })` exchanges the Team token.
 4. Attribute mapping: `google.subject` → `assertion.sub`. Save.
 5. Grant the Vercel principal permission to impersonate the existing SA  
    (`roles/iam.workloadIdentityUser` on `portal-scheduling@…`).  
@@ -61,3 +63,17 @@ Use the existing SA. Do not create a JSON key.
 7. In Google Calendar, share **both** calendars with `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com` (Make changes to events on work so bookings can be written). Do not share US Holidays.
 
 OIDC is automatic on Vercel. Locally, `vercel env pull` writes a `VERCEL_OIDC_TOKEN` (~12h) if you want to exercise WIF without a private key.
+
+## Flynn checklist (production `invalid_grant` audience)
+
+The portal now matches the Team-issuer + Allowed-audiences pairing. Confirm — do **not** invent a new pool.
+
+| Place | Required value | Action |
+| ----- | -------------- | ------ |
+| GCP WIF provider issuer | `https://oidc.vercel.com/billy-kyle` | Already set — keep it. |
+| GCP WIF provider audience | **Allowed audiences** = `https://vercel.com/billy-kyle` | Already set — keep it. Do not switch to Default audience unless you also set `GCP_AUDIENCE`. |
+| Vercel `GCP_AUDIENCE` | empty / unset | Keep empty. Do **not** set the IAM `https://iam.googleapis.com/projects/199448014322/…` URL while Allowed audiences is `https://vercel.com/billy-kyle`. |
+| Vercel `GCP_PROJECT_NUMBER` | `199448014322` | Keep. |
+| Vercel pool / provider ids | `vercel` / `vercel` | Keep. |
+
+Redeploy after this code change. No GCP console edit is required if the provider already uses Allowed audiences `https://vercel.com/billy-kyle`.

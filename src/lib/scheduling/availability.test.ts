@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseShootAddress, sameAddress } from "./address";
-import { offerSlotsForAddress } from "./availability";
+import { offerSlotsForAddress, publicCalendarError } from "./availability";
 import { schedulingIntegrations } from "./config";
 import { mergeIntervals, overlaps } from "./intervals";
 import { DEFAULT_TIMEZONE, TRAVEL_PAD_MINUTES } from "./rules";
@@ -232,6 +232,18 @@ test("env hooks stay off when Calendar/Maps credentials are missing", () => {
 
 test("travel pad is locked at 15 minutes", () => {
   assert.equal(TRAVEL_PAD_MINUTES, 15);
+});
+
+test("publicCalendarError hides STS audience mismatch details", () => {
+  assert.equal(
+    publicCalendarError(
+      new Error(
+        "Error code invalid_grant: The audience in ID Token [https://iam.googleapis.com/projects/199448014322/locations/global/workloadIdentityPools/vercel/providers/vercel] does not match the expected audience.",
+      ),
+    ),
+    "Google Calendar authentication failed.",
+  );
+  assert.equal(publicCalendarError(new Error("Google Calendar free/busy 403")), "Google Calendar free/busy 403");
 });
 
 function startMs(iso: string) {

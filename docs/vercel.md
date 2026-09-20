@@ -92,7 +92,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `GCP_WORKLOAD_IDENTITY_POOL_ID` | pool id (e.g. `vercel`) | Required for production Calendar. Flynn creates the pool. |
 | `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | provider id (e.g. `vercel`) | Required for production Calendar. |
 | `GCP_SERVICE_ACCOUNT_EMAIL` | `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com` | Impersonated SA. Alias: `GOOGLE_SERVICE_ACCOUNT_EMAIL`. No private key. |
-| `GCP_AUDIENCE` | empty or provider / Vercel URL | Optional. Empty = IAM provider https URL (GCP Default audience). |
+| `GCP_AUDIENCE` | leave empty | Optional. Empty = default Team-issuer token `aud` `https://vercel.com/billy-kyle` (matches GCP Allowed audiences). Set to the IAM `https://iam.googleapis.com/projects/…/providers/…` URL only if the WIF provider uses GCP Default audience. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | leave empty on Vercel | Local/dev fallback only. This GCP project blocks new SA key creation. |
 | `GOOGLE_MAPS_API_KEY` | Maps Platform key | Optional, server-only. Enable **Places API (New)** (or Places API), **Address Validation**, and **Distance Matrix** on this key. Used for address autocomplete and live drive time. Empty = no invented suggestions or travel; the book form shows a clear message. Separate from Calendar WIF. |
 

@@ -45,6 +45,9 @@ export const PORTAL_SCHEDULING_SA_EMAIL =
   "portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com";
 export const GCP_PROJECT_ID_KNOWN = "glassy-polymer-509203-r1";
 
+/** Vercel team slug (Team OIDC issuer). Default token `aud` is `https://vercel.com/{slug}`. */
+export const VERCEL_TEAM_SLUG_KNOWN = "billy-kyle";
+
 function env(name: string) {
   return process.env[name]?.trim() || "";
 }
@@ -55,9 +58,13 @@ export type WorkloadIdentityConfig = {
   serviceAccountEmail: string;
   poolId: string;
   providerId: string;
-  /** Passed to getVercelOidcToken. Default: IAM provider https URL. */
+  /**
+   * Vercel OIDC token `aud`. Default: `https://vercel.com/{team}` (Team issuer).
+   * Only exchanged via getVercelOidcToken({ audience }) when this is a custom
+   * value such as the IAM provider https URL (GCP Default audience).
+   */
   oidcAudience: string;
-  /** ExternalAccountClient audience. Always the //iam.googleapis.com/… form. */
+  /** ExternalAccountClient / STS audience. Always the //iam.googleapis.com/… form. */
   stsAudience: string;
 };
 
@@ -139,6 +146,56 @@ export function iamProviderAudiences(projectNumber: string, poolId: string, prov
   };
 }
 
+export function vercelTeamOidcAudience(teamSlug: string) {
+  return `https://vercel.com/${teamSlug}`;
+}
+
+export function vercelTeamOidcIssuer(teamSlug: string) {
+  return `https://oidc.vercel.com/${teamSlug}`;
+}
+
+export function isVercelTeamAudience(value: string) {
+  return /^https:\/\/vercel\.com\/[^/]+$/.test(value.trim());
+}
+
+export function teamSlugFromOidcIssuer(issuer: string) {
+  const match = issuer.trim().match(/^https:\/\/oidc\.vercel\.com\/([^/]+)$/);
+  return match?.[1] ?? null;
+}
+
+/** Read `iss` / `aud` from a Vercel OIDC JWT without verifying the signature. */
+export function teamSlugFromOidcToken(token: string) {
+  const payload = token.trim().split(".")[1];
+  if (!payload) return null;
+  try {
+    const json = Buffer.from(payload, "base64url").toString("utf8");
+    const claims = JSON.parse(json) as { iss?: unknown; aud?: unknown };
+    if (typeof claims.iss === "string") {
+      const fromIssuer = teamSlugFromOidcIssuer(claims.iss);
+      if (fromIssuer) return fromIssuer;
+    }
+    const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+    for (const value of audiences) {
+      if (typeof value !== "string") continue;
+      const match = value.trim().match(/^https:\/\/vercel\.com\/([^/]+)$/);
+      if (match?.[1]) return match[1];
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Team slug for the default Vercel OIDC audience.
+ * Prefers an explicit slug, then the injected token's issuer/aud, then billy-kyle.
+ */
+export function readVercelTeamSlug() {
+  const explicit = env("VERCEL_OIDC_TEAM_SLUG") || env("GCP_OIDC_TEAM_SLUG");
+  if (explicit) return explicit;
+  return teamSlugFromOidcToken(env("VERCEL_OIDC_TOKEN")) || VERCEL_TEAM_SLUG_KNOWN;
+}
+
 /**
  * Vercel OIDC → GCP Workload Identity Federation.
  *
@@ -150,9 +207,10 @@ export function iamProviderAudiences(projectNumber: string, poolId: string, prov
  *
  * Optional:
  * - `GCP_PROJECT_ID` (display / GoogleAuth project)
- * - `GCP_AUDIENCE` — OIDC token `aud`. Leave empty to use the IAM provider
- *   https URL (GCP “Default audience”). Set to `https://vercel.com/[TEAM]`
- *   if the provider uses “Allowed audiences” instead.
+ * - `GCP_AUDIENCE` — custom OIDC token `aud`. Leave empty when the WIF
+ *   provider uses **Allowed audiences** `https://vercel.com/[TEAM]` (the
+ *   Team-issuer default token). Set to the IAM provider https URL only if
+ *   the provider uses GCP **Default audience**.
  */
 export function readWorkloadIdentityConfig(): WorkloadIdentityConfig | null {
   const projectNumber = env("GCP_PROJECT_NUMBER");
@@ -166,7 +224,7 @@ export function readWorkloadIdentityConfig(): WorkloadIdentityConfig | null {
 
   const constructed = iamProviderAudiences(projectNumber, poolId, providerId);
   const audienceOverride = env("GCP_AUDIENCE");
-  const oidcAudience = audienceOverride || constructed.oidcAudience;
+  const oidcAudience = audienceOverride || vercelTeamOidcAudience(readVercelTeamSlug());
   const stsAudience =
     audienceOverride && isIamProviderAudience(audienceOverride)
       ? toStsAudience(audienceOverride)

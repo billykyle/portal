@@ -140,6 +140,15 @@ export function slotStillOffered(result: AvailabilityResult, startIso: string, e
   return result.slots.some((slot) => slot.start === startIso && slot.end === endIso);
 }
 
+/** Keep STS / OIDC internals off the scheduling times page. */
+export function publicCalendarError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "Google Calendar is unavailable.";
+  if (/invalid_grant|expected audience|workloadIdentityPools|oidc|sts\.googleapis/i.test(message)) {
+    return "Google Calendar authentication failed.";
+  }
+  return message;
+}
+
 export async function loadLiveAvailabilitySources(options: {
   portalBusy: Interval[];
   portalJobs: TravelJob[];
@@ -161,8 +170,7 @@ export async function loadLiveAvailabilitySources(options: {
       busy.push(...calendarBusy);
       jobs.push(...calendarJobs);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Google Calendar is unavailable.";
-      return { error: message };
+      return { error: publicCalendarError(error) };
     }
   }
 
