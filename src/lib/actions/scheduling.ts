@@ -33,9 +33,9 @@ export async function createBooking(formData: FormData) {
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
   const parsedSlot = readBookingFormSlot(formData);
 
-  const failTimes = (error: string, nextAddress = address): never => {
+  function failTimes(error: string, nextAddress = address): never {
     redirect(schedulingTimesHref({ address: nextAddress, services, notes, error }));
-  };
+  }
 
   try {
     await ensureDb();
