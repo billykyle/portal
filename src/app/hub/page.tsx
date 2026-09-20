@@ -33,7 +33,7 @@ export default async function HubPage() {
         {client?.company ? <p className="mt-1 text-sm text-[#8e8e93]">{client.company}</p> : null}
       </div>
       <nav aria-label="Portal" className="grid gap-3 pb-16 lg:grid-cols-2 lg:gap-4">
-        <HubOption href={CLIENT_LIBRARY} title="My Content" subtitle="Shoots and downloads" />
+        <HubOption href={CLIENT_LIBRARY} title="My Content" subtitle="View and download your media" />
         <HubOption href={CLIENT_SCHEDULING} title="Scheduling" subtitle="Book or manage shoots" />
       </nav>
     </PhoneShell>
