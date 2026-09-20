@@ -1,7 +1,7 @@
 import { AddressAutocomplete } from "@/components/forms/address-autocomplete";
+import { BookTimesNavigation } from "@/components/forms/book-times-navigation";
 import { ServiceFieldset } from "@/components/forms/service-fieldset";
 import { Field, SubmitButton } from "@/components/field";
-import { CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 export function BookShootForm({
   address,
@@ -19,7 +19,7 @@ export function BookShootForm({
   placesConfigured: boolean;
 }) {
   return (
-    <form action={CLIENT_SCHEDULING_TIMES} method="get" className="flex flex-col gap-4">
+    <BookTimesNavigation>
       <p className="text-sm text-[#8e8e93]">Step 1 of 2 — address and services</p>
       <AddressAutocomplete
         defaultValue={address}
@@ -36,6 +36,6 @@ export function BookShootForm({
       />
       <ServiceFieldset selected={services} />
       <SubmitButton>Continue</SubmitButton>
-    </form>
+    </BookTimesNavigation>
   );
 }
