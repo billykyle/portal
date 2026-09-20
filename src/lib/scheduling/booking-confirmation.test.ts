@@ -16,17 +16,38 @@ test("formatBookingDuration names hours and leftover minutes", () => {
   assert.equal(formatBookingTimeZone("America/New_York"), "Eastern");
 });
 
+const bookingId = "11111111-1111-4111-8111-111111111111";
+const clientId = "client-1";
+
+function futureBooking(overrides: Record<string, unknown> = {}) {
+  return {
+    id: bookingId,
+    address: "644 Plumrun Dr, West Chester, PA",
+    services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
+    startsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+    endsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
+    notes: "1234",
+    status: "confirmed",
+    clientId,
+    ...overrides,
+  };
+}
+
 test("book confirmation is a centered hero with the shoot details", () => {
   const html = renderToStaticMarkup(
     createElement(BookingConfirmation, {
       booking: {
+        id: bookingId,
         address: "644 Plumrun Dr, West Chester, PA",
         services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
         startsAt,
         endsAt,
         notes: "1234",
+        status: "confirmed",
+        clientId,
       },
       timeZone: "America/New_York",
+      clientId,
     }),
   );
   assert.match(html, /You(?:'|&#x27;)re booked\./);
@@ -43,21 +64,41 @@ test("book confirmation is a centered hero with the shoot details", () => {
   assert.doesNotMatch(html, /Shoot updated/);
 });
 
+test("confirmation page puts Modify and Cancel first as primary actions", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookingConfirmation, {
+      booking: futureBooking(),
+      timeZone: "America/New_York",
+      clientId,
+    }),
+  );
+  const modifyAt = html.indexOf(">Modify<");
+  const cancelAt = html.indexOf(">Cancel<");
+  const schedulingAt = html.indexOf(">Back to Scheduling<");
+  assert.ok(modifyAt >= 0, "expected a Modify button");
+  assert.ok(cancelAt > modifyAt, "Modify should come before Cancel");
+  assert.ok(schedulingAt > cancelAt, "Scheduling should stay a secondary link");
+  assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /name="bookingId"/);
+  assert.match(html, /11111111-1111-4111-8111-111111111111/);
+});
+
 test("modify confirmation uses the updated hero and skips Book another", () => {
   const html = renderToStaticMarkup(
     createElement(BookingConfirmation, {
-      booking: {
-        address: "644 Plumrun Dr, West Chester, PA",
+      booking: futureBooking({
         services: ["Real Estate · Photography"],
-        startsAt,
-        endsAt,
-      },
+        notes: null,
+      }),
       timeZone: "America/New_York",
       updated: true,
+      clientId,
     }),
   );
   assert.match(html, /Shoot updated\./);
   assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);
   assert.doesNotMatch(html, /Book another/);
   assert.match(html, /Back to Scheduling/);
+  assert.match(html, />Modify</);
+  assert.match(html, />Cancel</);
 });
