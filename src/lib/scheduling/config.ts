@@ -79,7 +79,15 @@ export function calendarConfigured() {
   return readCalendarCredentials() != null;
 }
 
-/** Env hook for live drive time. Empty = do not invent travel; refuse slots that need it. */
+/**
+ * Env hook for Maps (server-only). One key covers:
+ * - Distance Matrix — live drive time
+ * - Places Autocomplete + Place Details — book-form suggestions
+ * - Address Validation — format a typed address when no suggestion was picked
+ *
+ * Empty = do not invent travel or addresses. The book form shows a clear
+ * message instead of fake suggestions; slots that need travel are refused.
+ */
 export function mapsApiKey() {
   return process.env.GOOGLE_MAPS_API_KEY?.trim() || "";
 }
@@ -88,14 +96,20 @@ export function driveTimeConfigured() {
   return Boolean(mapsApiKey());
 }
 
+export function placesConfigured() {
+  return Boolean(mapsApiKey());
+}
+
 export type SchedulingIntegrations = {
   calendarConfigured: boolean;
   driveTimeConfigured: boolean;
+  placesConfigured: boolean;
 };
 
 export function schedulingIntegrations(): SchedulingIntegrations {
   return {
     calendarConfigured: calendarConfigured(),
     driveTimeConfigured: driveTimeConfigured(),
+    placesConfigured: placesConfigured(),
   };
 }

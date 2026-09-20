@@ -194,6 +194,7 @@ test("env hooks stay off when Calendar/Maps credentials are missing", () => {
   const integrations = schedulingIntegrations();
   assert.equal(integrations.calendarConfigured, false);
   assert.equal(integrations.driveTimeConfigured, false);
+  assert.equal(integrations.placesConfigured, false);
   restoreEnv(previous);
 });
 

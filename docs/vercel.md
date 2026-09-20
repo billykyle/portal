@@ -87,7 +87,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `EMAIL_FROM` | `Billy Kyle Client Portal <noreply@billy-kyle.com>` | Used only when Resend is set. |
 | `GOOGLE_CALENDAR_ID` | Billy’s calendar id | Optional. Free/busy + event write for scheduling. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | service account JSON | Optional. Share the calendar with that account. |
-| `GOOGLE_MAPS_API_KEY` | Distance Matrix key | Optional. Live drive time. Empty = hide slots that need travel instead of guessing. |
+| `GOOGLE_MAPS_API_KEY` | Maps Platform key | Optional, server-only. Enable **Places API (New)** (or Places API), **Address Validation**, and **Distance Matrix** on this key. Used for address autocomplete and live drive time. Empty = no invented suggestions or travel; the book form shows a clear message. |
 
 After the first deploy, open `/admin` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
 

@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients } from "@/lib/db/schema";
-import { CLIENT_SCHEDULING } from "@/lib/routes";
+import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
@@ -18,25 +18,7 @@ import { loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
 import { writeCalendarBooking } from "@/lib/scheduling/calendar";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { formatBookingServices, parseSchedulingServices } from "@/lib/scheduling/services";
-
-function schedulingUrl(params: {
-  address?: string | null;
-  services?: readonly string[] | null;
-  error?: string | null;
-  booked?: string | null;
-  cancelled?: string | null;
-}) {
-  const query = new URLSearchParams();
-  if (params.address) query.set("address", params.address);
-  for (const service of params.services ?? []) {
-    query.append("service", service);
-  }
-  if (params.error) query.set("error", params.error);
-  if (params.booked) query.set("booked", params.booked);
-  if (params.cancelled) query.set("cancelled", params.cancelled);
-  const qs = query.toString();
-  return qs ? `${CLIENT_SCHEDULING}?${qs}` : CLIENT_SCHEDULING;
-}
+import { schedulingBookHref, schedulingTimesHref } from "@/lib/scheduling/urls";
 
 export async function createBooking(formData: FormData) {
   const session = await getSession();
@@ -51,10 +33,10 @@ export async function createBooking(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
   if (services.length === 0) {
-    redirect(schedulingUrl({ address, error: "Pick at least one service." }));
+    redirect(schedulingBookHref({ address, error: "Pick at least one service." }));
   }
   if (!startIso || !endIso) {
-    redirect(schedulingUrl({ address, services, error: "Pick a time." }));
+    redirect(schedulingTimesHref({ address, services, error: "Pick a time." }));
   }
 
   const portalJobs = await loadConfirmedPortalJobs();
@@ -63,15 +45,15 @@ export async function createBooking(formData: FormData) {
     portalJobs,
   });
   if ("error" in sources) {
-    redirect(schedulingUrl({ address, services, error: sources.error }));
+    redirect(schedulingTimesHref({ address, services, error: sources.error }));
   }
   const availability = await offerSlotsForAddress(address, sources);
   if (availability.error) {
-    redirect(schedulingUrl({ services, error: availability.error }));
+    redirect(schedulingBookHref({ services, error: availability.error }));
   }
   if (!slotStillOffered(availability, startIso, endIso)) {
     redirect(
-      schedulingUrl({
+      schedulingTimesHref({
         address: availability.address,
         services,
         error: "That time is no longer available. Pick another.",
@@ -100,7 +82,7 @@ export async function createBooking(formData: FormData) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Google Calendar write failed.";
-      redirect(schedulingUrl({ address: availability.address, services, error: message }));
+      redirect(schedulingTimesHref({ address: availability.address, services, error: message }));
     }
   }
 
@@ -119,8 +101,9 @@ export async function createBooking(formData: FormData) {
   });
 
   revalidatePath(CLIENT_SCHEDULING);
+  revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  redirect(schedulingUrl({ booked: "1" }));
+  redirect(schedulingBookHref({ booked: "1" }));
 }
 
 export async function cancelBooking(formData: FormData) {
@@ -132,14 +115,14 @@ export async function cancelBooking(formData: FormData) {
   await ensureDb();
   const bookingId = String(formData.get("bookingId") ?? "");
   if (!bookingId) {
-    redirect(admin ? "/admin/bookings?error=Booking%20is%20required." : schedulingUrl({ error: "Booking is required." }));
+    redirect(admin ? "/admin/bookings?error=Booking%20is%20required." : schedulingBookHref({ error: "Booking is required." }));
   }
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
   if (!booking) {
-    redirect(admin ? "/admin/bookings?error=Booking%20was%20not%20found." : schedulingUrl({ error: "Booking was not found." }));
+    redirect(admin ? "/admin/bookings?error=Booking%20was%20not%20found." : schedulingBookHref({ error: "Booking was not found." }));
   }
   if (!admin && booking.clientId !== session?.clientId) {
-    redirect(schedulingUrl({ error: "Booking was not found." }));
+    redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   if (booking.status === "cancelled") {
     redirect(admin ? "/admin/bookings" : CLIENT_SCHEDULING);
@@ -151,6 +134,7 @@ export async function cancelBooking(formData: FormData) {
     .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")));
 
   revalidatePath(CLIENT_SCHEDULING);
+  revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
   if (admin && formData.get("fromAdmin") === "1") {
     const clientId = String(formData.get("clientId") ?? booking.clientId);
@@ -159,5 +143,5 @@ export async function cancelBooking(formData: FormData) {
   if (admin && !session) {
     redirect("/admin/bookings?cancelled=1");
   }
-  redirect(schedulingUrl({ cancelled: "1" }));
+  redirect(schedulingBookHref({ cancelled: "1" }));
 }
