@@ -2,7 +2,7 @@ import { desc } from "drizzle-orm";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BkMark } from "@/components/logo";
+import { AppHeader } from "@/components/app-header";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { PhoneShell } from "@/components/phone-shell";
@@ -56,18 +56,17 @@ export default async function AdminClientsPage({
 
   return (
     <PhoneShell wide>
-      <header className="flex items-center justify-between gap-4 py-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <BkMark size="header" className="shrink-0" />
-          <h1 className="text-2xl font-medium">Admin</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/admin/bookings" className="text-sm text-[#8e8e93]">
-            Bookings
-          </Link>
-          <SignOutButton admin />
-        </div>
-      </header>
+      <AppHeader
+        left={<h1 className="truncate text-2xl font-medium">Admin</h1>}
+        right={
+          <>
+            <Link href="/admin/bookings" className="text-sm text-[#8e8e93]">
+              Bookings
+            </Link>
+            <SignOutButton admin />
+          </>
+        }
+      />
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {removed ? (
         <p className="mb-6 text-sm text-white">

@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { BkMark } from "@/components/logo";
+import { AppHeader } from "@/components/app-header";
 import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
 import { PhoneShell } from "@/components/phone-shell";
@@ -68,15 +68,16 @@ export default async function ShootPage({
 
   return (
     <PhoneShell>
-      <div className="flex items-center justify-between py-6">
-        <Link
-          href={admin ? `/admin/clients/${shoot.clientId}` : "/library"}
-          className="text-sm text-[#8e8e93]"
-        >
-          {admin ? "Client" : "Library"}
-        </Link>
-        <BkMark size="header" />
-      </div>
+      <AppHeader
+        left={
+          <Link
+            href={admin ? `/admin/clients/${shoot.clientId}` : "/library"}
+            className="text-sm text-[#8e8e93]"
+          >
+            {admin ? "Client" : "Library"}
+          </Link>
+        }
+      />
       {admin ? (
         <div className="mb-4 flex flex-wrap items-center gap-3 lg:mb-6">
           {!shoot.deliveredAt ? (

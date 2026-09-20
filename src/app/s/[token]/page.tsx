@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BkMark } from "@/components/logo";
+import { AppHeader } from "@/components/app-header";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
 import { db } from "@/lib/db";
@@ -52,9 +52,7 @@ export default async function PublicShootPage({
 
   return (
     <PhoneShell>
-      <header className="flex justify-center py-6 lg:justify-start">
-        <BkMark size="header" />
-      </header>
+      <AppHeader />
       <ShootDetail
         basePath={publicShootPath(shoot.publicToken)}
         viewId={view}

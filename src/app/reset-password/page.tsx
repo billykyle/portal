@@ -1,5 +1,5 @@
+import { AppHeader } from "@/components/app-header";
 import { ResetPasswordForm } from "@/components/forms/reset-password-form";
-import { BkMark } from "@/components/logo";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
 
 export default async function ResetPasswordPage({
@@ -10,9 +10,7 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
   return (
     <PhoneShell>
-      <div className="flex items-center justify-center py-6">
-        <BkMark size="header" />
-      </div>
+      <AppHeader />
       <h1 className="mb-6 text-2xl font-medium">Reset password</h1>
       <FormColumn>
         <ResetPasswordForm token={token ?? ""} />

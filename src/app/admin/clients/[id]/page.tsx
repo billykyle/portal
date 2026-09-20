@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { BkMark } from "@/components/logo";
+import { AppHeader } from "@/components/app-header";
 import { AttachShootForm } from "@/components/forms/attach-shoot-form";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
@@ -67,12 +67,13 @@ export default async function AdminClientPage({
 
   return (
     <PhoneShell wide>
-      <div className="flex items-center justify-between py-6">
-        <Link href="/admin/clients" className="text-sm text-[#8e8e93]">
-          Clients
-        </Link>
-        <BkMark size="header" />
-      </div>
+      <AppHeader
+        left={
+          <Link href="/admin/clients" className="text-sm text-[#8e8e93]">
+            Clients
+          </Link>
+        }
+      />
       <header className="mb-8">
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">{client.displayName}</h1>
