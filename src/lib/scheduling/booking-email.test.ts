@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import { BOOKING_EMAIL_LOGO_URL, EMAIL_SIGNATURE_LINKS } from "@/lib/email-brand";
 import {
   bookingConfirmationRecipients,
+  bookingShootManageUrl,
   buildBookingConfirmation,
   buildBookingModified,
   buildBookingModifiedNotify,
@@ -10,7 +12,7 @@ import {
   sendBookingModification,
 } from "./booking-email";
 
-const EMAIL_ENV = ["RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFY_EMAIL"] as const;
+const EMAIL_ENV = ["RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFY_EMAIL", "PORTAL_PUBLIC_URL"] as const;
 
 function snapshotEmailEnv() {
   return Object.fromEntries(EMAIL_ENV.map((key) => [key, process.env[key]]));
@@ -28,6 +30,40 @@ afterEach(() => restoreEmailEnv(previous));
 
 const start = new Date("2026-09-22T14:00:00.000Z");
 const end = new Date("2026-09-22T15:30:00.000Z");
+const bookingId = "11111111-1111-4111-8111-111111111111";
+
+function sampleInput(overrides: Record<string, unknown> = {}) {
+  return {
+    bookingId,
+    clientEmail: "sam@example.com",
+    clientName: "Sam Lepore",
+    address: "12 Wood View Drive, Princeton, NJ",
+    services: ["Real Estate · Photography", "Construction · Video"],
+    start,
+    end,
+    timeZone: "America/New_York",
+    notes: "Park in the driveway.",
+    accessCodes: "Gate 4455",
+    ...overrides,
+  };
+}
+
+function assertOnBrandHtml(html: string) {
+  assert.match(html, /background:#ffffff/);
+  assert.match(html, /color:#000000/);
+  assert.match(html, /SF Pro Text/);
+  assert.match(html, /max-width:600px/);
+  assert.match(html, /role="presentation"/);
+  assert.match(html, new RegExp(BOOKING_EMAIL_LOGO_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(html, /Georgia|Times/);
+  assert.doesNotMatch(html, /Reply to this email/i);
+  assert.doesNotMatch(html, /need to change anything/i);
+  for (const link of EMAIL_SIGNATURE_LINKS) {
+    assert.match(html, new RegExp(`href="${link.href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+    assert.match(html, new RegExp(`>${link.label}<`));
+    assert.doesNotMatch(html, new RegExp(`${link.label}</a>\\s*${link.href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  }
+}
 
 test("booking confirmation recipients are two separate To addresses", () => {
   delete process.env.BOOKING_NOTIFY_EMAIL;
@@ -54,17 +90,8 @@ test("BOOKING_NOTIFY_EMAIL overrides Billy's copy address", () => {
 });
 
 test("confirmation body is confirmed, Eastern time, and includes optional notes", () => {
-  const message = buildBookingConfirmation({
-    clientEmail: "sam@example.com",
-    clientName: "Sam Lepore",
-    address: "12 Wood View Drive, Princeton, NJ",
-    services: ["Real Estate · Photography", "Construction · Video"],
-    start,
-    end,
-    timeZone: "America/New_York",
-    notes: "Park in the driveway.",
-    accessCodes: "Gate 4455",
-  });
+  delete process.env.PORTAL_PUBLIC_URL;
+  const message = buildBookingConfirmation(sampleInput());
 
   assert.match(message.subject, /Shoot confirmed/);
   assert.match(message.subject, /Tue/);
@@ -75,28 +102,26 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assert.match(message.text, /Real Estate · Photography, Construction · Video/);
   assert.match(message.text, /Park in the driveway\./);
   assert.match(message.text, /Gate 4455/);
-  assert.match(message.html, /background:#ffffff/);
-  assert.match(message.html, /color:#000000/);
+  assert.match(message.text, /Modify or cancel this shoot/);
+  assert.match(message.text, /https:\/\/portal\.billy-kyle\.com\/scheduling\/confirmed\/11111111-1111-4111-8111-111111111111/);
+  assert.match(message.html, /Modify or cancel this shoot/);
   assert.match(message.html, /12 Wood View Drive, Princeton, NJ/);
+  assertOnBrandHtml(message.html);
 });
 
 test("Billy's copy uses a New booking subject and names the client", () => {
-  const message = buildBookingNotify({
-    clientEmail: "sam@example.com",
-    clientName: "Sam Lepore",
-    address: "12 Wood View Drive, Princeton, NJ",
-    services: ["Real Estate · Photography"],
-    start,
-    end,
-    timeZone: "America/New_York",
-  });
+  const message = buildBookingNotify(sampleInput({ services: ["Real Estate · Photography"] }));
   assert.match(message.subject, /^New booking:/);
   assert.match(message.text, /New booking on the portal/);
   assert.match(message.text, /Sam Lepore · sam@example.com/);
   assert.match(message.text, /12 Wood View Drive, Princeton, NJ/);
+  assert.match(message.text, /View bookings/);
   assert.match(message.text, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.match(message.html, /sam@example.com/);
+  assert.match(message.html, /View bookings/);
   assert.match(message.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assert.doesNotMatch(message.html, /<strong>Admin<\/strong>/);
+  assertOnBrandHtml(message.html);
 });
 
 test("confirmation body omits empty notes and access codes", () => {
@@ -117,26 +142,41 @@ test("confirmation body omits empty notes and access codes", () => {
 });
 
 test("modification emails use updated copy for client and Billy", () => {
-  const input = {
-    clientEmail: "sam@example.com",
-    clientName: "Sam Lepore",
+  delete process.env.PORTAL_PUBLIC_URL;
+  const input = sampleInput({
     address: "644 Plumrun Dr, West Chester, PA",
     services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
-    start,
-    end,
-    timeZone: "America/New_York",
     notes: "Code 1234",
-  };
+    accessCodes: null,
+  });
   const client = buildBookingModified(input);
   const notify = buildBookingModifiedNotify(input);
   assert.match(client.subject, /Shoot updated/);
   assert.match(client.text, /has been updated/);
   assert.match(client.text, /644 Plumrun Dr/);
   assert.match(client.text, /Code 1234/);
+  assert.match(client.text, /Modify or cancel this shoot/);
+  assert.match(client.html, /updated=1/);
   assert.match(notify.subject, /^Booking updated:/);
   assert.match(notify.text, /modified on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
+  assert.match(notify.html, /View bookings/);
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assertOnBrandHtml(client.html);
+  assertOnBrandHtml(notify.html);
+});
+
+test("client manage URL uses the confirmation page when a booking id is known", () => {
+  delete process.env.PORTAL_PUBLIC_URL;
+  assert.equal(
+    bookingShootManageUrl(bookingId),
+    "https://portal.billy-kyle.com/scheduling/confirmed/11111111-1111-4111-8111-111111111111",
+  );
+  assert.equal(
+    bookingShootManageUrl(bookingId, { updated: true }),
+    "https://portal.billy-kyle.com/scheduling/confirmed/11111111-1111-4111-8111-111111111111?updated=1",
+  );
+  assert.equal(bookingShootManageUrl(null), "https://portal.billy-kyle.com/scheduling");
 });
 
 test("sendBookingConfirmation is a no-op without Resend", async () => {

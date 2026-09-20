@@ -104,6 +104,7 @@ export async function createBooking(formData: FormData) {
 
     try {
       await sendBookingConfirmation({
+        bookingId: booking.id,
         clientEmail: session.email,
         clientName: client?.displayName ?? null,
         address: availability.address,
@@ -267,6 +268,7 @@ export async function updateBooking(formData: FormData) {
 
     try {
       await sendBookingModification({
+        bookingId: booking.id,
         clientEmail: session.email,
         clientName: client?.displayName ?? null,
         address: availability.address,
