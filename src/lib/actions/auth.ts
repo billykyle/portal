@@ -15,6 +15,7 @@ import {
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, passwordResetTokens, users } from "@/lib/db/schema";
+import { emailConfigured, sendEmail } from "@/lib/email";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 import { CLIENT_HOME } from "@/lib/routes";
 
@@ -133,21 +134,11 @@ export async function requestPasswordReset(_prev: ActionState | undefined, formD
     );
     const proto = headerStore.get("x-forwarded-proto") || "http";
     const resetUrl = `${proto}://${host}/reset-password?token=${token}`;
-    const resendKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM ?? "Billy Kyle Client Portal <noreply@localhost>";
-    if (resendKey) {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: [user.email],
-          subject: "Reset your Client Portal password",
-          text: `Reset your password:\n${resetUrl}\n\nThis link expires in one hour.`,
-        }),
+    if (emailConfigured()) {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Client Portal password",
+        text: `Reset your password:\n${resetUrl}\n\nThis link expires in one hour.`,
       });
       return result;
     }

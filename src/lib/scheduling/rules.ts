@@ -18,6 +18,11 @@
  * 4. Do not fake geography. If a travel check is required (two different known
  *    addresses) and drive time cannot be measured, refuse the slot. Never
  *    assume 0 minutes or a guessed duration.
+ * 5. After a successful Book shoot (`createBooking`), send two Resend emails
+ *    (no CC/BCC): client confirmation to the session email, and a
+ *    `New booking: …` alert to Billy (`billy@billyhere.com` /
+ *    `BOOKING_NOTIFY_EMAIL`). Do not require Pepper. Soft-fail: never roll
+ *    back the calendar event or DB insert if mail fails.
  */
 
 export const TRAVEL_PAD_MINUTES = 15;
