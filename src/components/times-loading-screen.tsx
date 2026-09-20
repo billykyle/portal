@@ -12,7 +12,7 @@ export function TimesLoadingScreen() {
         aria-busy="true"
       >
         <span
-          className="size-10 animate-spin rounded-full border-2 border-white/20 border-t-white lg:size-12"
+          className="size-11 animate-spin rounded-full border-[3px] border-white/15 border-t-white lg:size-12"
           aria-hidden
         />
         <p className="mt-6 text-[17px] font-medium text-white lg:text-[19px]">{TIMES_LOADING_COPY}</p>
