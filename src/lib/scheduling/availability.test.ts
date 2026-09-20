@@ -205,6 +205,11 @@ test("env hooks stay off when Calendar/Maps credentials are missing", () => {
     GOOGLE_CLIENT_EMAIL: process.env.GOOGLE_CLIENT_EMAIL,
     GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
     GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+    GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    GCP_SERVICE_ACCOUNT_EMAIL: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+    GCP_PROJECT_NUMBER: process.env.GCP_PROJECT_NUMBER,
+    GCP_WORKLOAD_IDENTITY_POOL_ID: process.env.GCP_WORKLOAD_IDENTITY_POOL_ID,
+    GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID: process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID,
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
   };
   delete process.env.GOOGLE_CALENDAR_IDS;
@@ -212,6 +217,11 @@ test("env hooks stay off when Calendar/Maps credentials are missing", () => {
   delete process.env.GOOGLE_CLIENT_EMAIL;
   delete process.env.GOOGLE_PRIVATE_KEY;
   delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  delete process.env.GCP_SERVICE_ACCOUNT_EMAIL;
+  delete process.env.GCP_PROJECT_NUMBER;
+  delete process.env.GCP_WORKLOAD_IDENTITY_POOL_ID;
+  delete process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID;
   delete process.env.GOOGLE_MAPS_API_KEY;
   const integrations = schedulingIntegrations();
   assert.equal(integrations.calendarConfigured, false);

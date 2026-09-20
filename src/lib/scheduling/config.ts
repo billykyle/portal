@@ -40,11 +40,41 @@ export function schedulingHours(): SchedulingHours {
 export const WORK_CALENDAR_ID = "billy@atmosimagery.com";
 export const PERSONAL_CALENDAR_ID = "bkyle015@gmail.com";
 
+/** Existing Calendar SA. Impersonated via WIF — no downloadable JSON key. */
+export const PORTAL_SCHEDULING_SA_EMAIL =
+  "portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com";
+export const GCP_PROJECT_ID_KNOWN = "glassy-polymer-509203-r1";
+
+function env(name: string) {
+  return process.env[name]?.trim() || "";
+}
+
+export type WorkloadIdentityConfig = {
+  projectId: string;
+  projectNumber: string;
+  serviceAccountEmail: string;
+  poolId: string;
+  providerId: string;
+  /** Passed to getVercelOidcToken. Default: IAM provider https URL. */
+  oidcAudience: string;
+  /** ExternalAccountClient audience. Always the //iam.googleapis.com/… form. */
+  stsAudience: string;
+};
+
+export type WorkloadIdentityAuth = WorkloadIdentityConfig & { kind: "wif" };
+
+export type ServiceAccountKeyAuth = {
+  kind: "service-account-key";
+  clientEmail: string;
+  privateKey: string;
+};
+
+export type CalendarAuth = WorkloadIdentityAuth | ServiceAccountKeyAuth;
+
 export type CalendarCredentials = {
   calendarIds: string[];
   writeCalendarId: string;
-  clientEmail: string;
-  privateKey: string;
+  auth: CalendarAuth;
 };
 
 const HOLIDAY_CALENDAR = /#holiday@|holiday@group\.v\.calendar\.google\.com/i;
@@ -79,6 +109,129 @@ export function readCalendarIds(): string[] {
   return parseCalendarIds(process.env.GOOGLE_CALENDAR_ID);
 }
 
+export function readServiceAccountEmail() {
+  return (
+    env("GCP_SERVICE_ACCOUNT_EMAIL") ||
+    env("GOOGLE_SERVICE_ACCOUNT_EMAIL") ||
+    env("GOOGLE_CLIENT_EMAIL")
+  );
+}
+
+function isIamProviderAudience(value: string) {
+  return /^(https:)?\/\/iam\.googleapis\.com\/projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(
+    value,
+  );
+}
+
+export function toStsAudience(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("https://iam.googleapis.com/")) {
+    return trimmed.replace("https://", "//");
+  }
+  return trimmed;
+}
+
+export function iamProviderAudiences(projectNumber: string, poolId: string, providerId: string) {
+  const path = `iam.googleapis.com/projects/${projectNumber}/locations/global/workloadIdentityPools/${poolId}/providers/${providerId}`;
+  return {
+    oidcAudience: `https://${path}`,
+    stsAudience: `//${path}`,
+  };
+}
+
+/**
+ * Vercel OIDC → GCP Workload Identity Federation.
+ *
+ * Required:
+ * - `GCP_PROJECT_NUMBER`
+ * - `GCP_WORKLOAD_IDENTITY_POOL_ID`
+ * - `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID`
+ * - `GCP_SERVICE_ACCOUNT_EMAIL` or `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+ *
+ * Optional:
+ * - `GCP_PROJECT_ID` (display / GoogleAuth project)
+ * - `GCP_AUDIENCE` — OIDC token `aud`. Leave empty to use the IAM provider
+ *   https URL (GCP “Default audience”). Set to `https://vercel.com/[TEAM]`
+ *   if the provider uses “Allowed audiences” instead.
+ */
+export function readWorkloadIdentityConfig(): WorkloadIdentityConfig | null {
+  const projectNumber = env("GCP_PROJECT_NUMBER");
+  const poolId = env("GCP_WORKLOAD_IDENTITY_POOL_ID") || env("GOOGLE_WORKLOAD_IDENTITY_POOL_ID");
+  const providerId =
+    env("GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID") || env("GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID");
+  const serviceAccountEmail = readServiceAccountEmail();
+  if (!projectNumber || !poolId || !providerId || !serviceAccountEmail.includes("@")) {
+    return null;
+  }
+
+  const constructed = iamProviderAudiences(projectNumber, poolId, providerId);
+  const audienceOverride = env("GCP_AUDIENCE");
+  const oidcAudience = audienceOverride || constructed.oidcAudience;
+  const stsAudience =
+    audienceOverride && isIamProviderAudience(audienceOverride)
+      ? toStsAudience(audienceOverride)
+      : constructed.stsAudience;
+
+  return {
+    projectId: env("GCP_PROJECT_ID") || env("GOOGLE_CLOUD_PROJECT"),
+    projectNumber,
+    serviceAccountEmail,
+    poolId,
+    providerId,
+    oidcAudience,
+    stsAudience,
+  };
+}
+
+/**
+ * Local/dev fallback. Production should not use a downloadable SA JSON key
+ * (`iam.managed.disableServiceAccountKeyCreation` is enforced).
+ */
+export function readServiceAccountKey(): ServiceAccountKeyAuth | null {
+  let clientEmail = readServiceAccountEmail();
+  let privateKey = (process.env.GOOGLE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n").trim();
+
+  const json = env("GOOGLE_SERVICE_ACCOUNT_JSON");
+  if (json) {
+    try {
+      const parsed = JSON.parse(json) as {
+        type?: string;
+        client_email?: string;
+        private_key?: string;
+      };
+      if (parsed.type === "external_account") {
+        // WIF JSON is not a private key. Ignore it here.
+      } else if (parsed.private_key || parsed.client_email) {
+        clientEmail = clientEmail || String(parsed.client_email ?? "").trim();
+        privateKey = privateKey || String(parsed.private_key ?? "").replace(/\\n/g, "\n").trim();
+      }
+    } catch {
+      // Malformed JSON must not block the WIF path.
+    }
+  }
+
+  if (!clientEmail.includes("@") || !privateKey.includes("BEGIN")) return null;
+  return { kind: "service-account-key", clientEmail, privateKey };
+}
+
+/**
+ * Prefer WIF on Vercel (or whenever a Vercel OIDC token is present).
+ * Fall back to a PKCS8 key for local/dev.
+ */
+export function readCalendarAuth(): CalendarAuth | null {
+  const wif = readWorkloadIdentityConfig();
+  const key = readServiceAccountKey();
+  const onVercel = Boolean(env("VERCEL"));
+  const hasOidc = Boolean(env("VERCEL_OIDC_TOKEN"));
+
+  if (wif && (onVercel || hasOidc || !key)) {
+    return { kind: "wif", ...wif };
+  }
+  if (key) return key;
+  if (wif) return { kind: "wif", ...wif };
+  return null;
+}
+
 /**
  * Env hooks for Google Calendar (read free/busy + write events).
  *
@@ -87,9 +240,11 @@ export function readCalendarIds(): string[] {
  *   (work + personal). A slot is busy if either calendar is busy.
  *   Singular `GOOGLE_CALENDAR_ID` still works as a fallback.
  *   Do not include US Holidays.
- * - service account JSON in `GOOGLE_SERVICE_ACCOUNT_JSON`
- *   or `GOOGLE_CLIENT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_EMAIL`
- *     + `GOOGLE_PRIVATE_KEY` (PKCS8, `\n` escaped newlines are fine)
+ * - Production auth: Vercel OIDC + GCP WIF impersonating
+ *   `portal-scheduling@…` (`GCP_PROJECT_NUMBER`, pool/provider IDs,
+ *   `GCP_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_EMAIL`).
+ * - Local/dev fallback: `GOOGLE_SERVICE_ACCOUNT_JSON` or
+ *   `GOOGLE_CLIENT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`.
  *
  * Bookings are written to the first ID (work). Both calendars must be shared
  * with the service-account email.
@@ -97,25 +252,11 @@ export function readCalendarIds(): string[] {
 export function readCalendarCredentials(): CalendarCredentials | null {
   const calendarIds = readCalendarIds();
   if (calendarIds.length === 0) return null;
-
-  let clientEmail =
-    process.env.GOOGLE_CLIENT_EMAIL?.trim() || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() || "";
-  let privateKey = (process.env.GOOGLE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n").trim();
-
-  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
-  if (json) {
-    try {
-      const parsed = JSON.parse(json) as { client_email?: string; private_key?: string };
-      clientEmail = clientEmail || String(parsed.client_email ?? "").trim();
-      privateKey = privateKey || String(parsed.private_key ?? "").replace(/\\n/g, "\n").trim();
-    } catch {
-      return null;
-    }
-  }
-
   const writeCalendarId = calendarIds[0];
-  if (!clientEmail || !privateKey.includes("BEGIN") || !writeCalendarId) return null;
-  return { calendarIds, writeCalendarId, clientEmail, privateKey };
+  if (!writeCalendarId) return null;
+  const auth = readCalendarAuth();
+  if (!auth) return null;
+  return { calendarIds, writeCalendarId, auth };
 }
 
 export function calendarConfigured() {

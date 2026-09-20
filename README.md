@@ -111,9 +111,17 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `RESEND_API_KEY` | Optional. Sends password-reset email only — not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. |
 | `GOOGLE_CALENDAR_IDS` | Optional. Comma-separated availability calendars. Locked: work `billy@atmosimagery.com` + personal `bkyle015@gmail.com`. Free/busy unions both — a slot is busy if either is busy. Do not include US Holidays. Bookings write to the first ID. Share both with the service-account email. |
-| `GOOGLE_CALENDAR_ID` | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. Same service-account auth. |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Optional. Service account JSON (share both calendars with that email). Or set `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY`. |
-| `GOOGLE_MAPS_API_KEY` | Optional, server-only. Distance Matrix (travel) plus Places Autocomplete / Place Details / Address Validation (book-form suggestions). Enable those APIs on the same Google Cloud key. Empty = no invented suggestions or drive times; the address field shows a clear message. |
+| `GOOGLE_CALENDAR_ID` | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. Same Calendar auth. |
+| `GCP_PROJECT_ID` | Optional. GCP project id (`glassy-polymer-509203-r1`). |
+| `GCP_PROJECT_NUMBER` | Production WIF. Numeric project number from IAM & Admin → Settings. |
+| `GCP_WORKLOAD_IDENTITY_POOL_ID` | Production WIF. Pool id Flynn creates (example: `vercel`). |
+| `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | Production WIF. OIDC provider id (example: `vercel`). |
+| `GCP_SERVICE_ACCOUNT_EMAIL` | Production WIF. Impersonated SA: `portal-scheduling@glassy-polymer-509203-r1.iam.gserviceaccount.com`. Alias: `GOOGLE_SERVICE_ACCOUNT_EMAIL`. |
+| `GCP_AUDIENCE` | Optional. OIDC token `aud`. Empty = IAM provider https URL (GCP Default audience). Set `https://vercel.com/[TEAM]` if the provider uses Allowed audiences. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Local/dev fallback only. Downloadable SA JSON keys are blocked on this GCP project. Or `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY`. |
+| `GOOGLE_MAPS_API_KEY` | Optional, server-only. Distance Matrix (travel) plus Places Autocomplete / Place Details / Address Validation (book-form suggestions). Enable those APIs on the same Google Cloud key. Empty = no invented suggestions or drive times; the address field shows a clear message. Separate from Calendar WIF. |
+
+Production Calendar auth is Vercel OIDC + GCP Workload Identity Federation (no downloadable SA key). Pool setup and env table: [docs/google-calendar.md](docs/google-calendar.md).
 
 Scheduling rules live in `src/lib/scheduling/rules.ts`: address first (times only on `/scheduling/times` after a street address), Calendar as source of truth when wired (work + personal; busy if either is busy; no US Holidays), travel = live drive + 15 minutes, never fake geography. Address suggestions come from Places Autocomplete via the same `GOOGLE_MAPS_API_KEY` — the book form never invents streets. The locked starter catalog in `src/lib/scheduling/services.ts` is Real Estate (Photography, Video, Aerial Photos, Zillow 360) and Construction (Photography, Video) — industry accordions, multi-select.
 

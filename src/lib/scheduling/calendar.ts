@@ -1,39 +1,8 @@
-import { SignJWT, importPKCS8 } from "jose";
-import { readCalendarCredentials, type CalendarCredentials } from "./config";
+import { readCalendarCredentials } from "./config";
+import { getCalendarAccessToken } from "./google-auth";
 import type { Interval } from "./intervals";
 import type { TravelJob } from "./travel";
 import { addCalendarDays, zonedDateTimeToUtc } from "./zoned-time";
-
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
-
-async function accessToken(creds: CalendarCredentials) {
-  const key = await importPKCS8(creds.privateKey, "RS256");
-  const assertion = await new SignJWT({ scope: CALENDAR_SCOPE })
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-    .setIssuer(creds.clientEmail)
-    .setAudience(TOKEN_URL)
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(key);
-
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Google Calendar token ${res.status}`);
-  }
-  const body = (await res.json()) as { access_token?: string };
-  if (!body.access_token) {
-    throw new Error("Google Calendar token response was empty.");
-  }
-  return body.access_token;
-}
 
 function calendarUrl(calendarId: string, suffix: string) {
   return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}${suffix}`;
@@ -64,7 +33,7 @@ function parseGoogleInterval(start: GoogleDate | undefined, end: GoogleDate | un
 export async function fetchCalendarBusy(range: Interval, timeZone: string): Promise<Interval[]> {
   const creds = readCalendarCredentials();
   if (!creds) return [];
-  const token = await accessToken(creds);
+  const token = await getCalendarAccessToken(creds.auth);
   const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
     method: "POST",
     headers: {
@@ -133,7 +102,7 @@ export function collectFreeBusyIntervals(
 export async function fetchCalendarJobs(range: Interval, timeZone: string): Promise<TravelJob[]> {
   const creds = readCalendarCredentials();
   if (!creds) return [];
-  const token = await accessToken(creds);
+  const token = await getCalendarAccessToken(creds.auth);
   const batches = await Promise.all(
     creds.calendarIds.map((calendarId) => fetchCalendarJobsForId(token, calendarId, range, timeZone)),
   );
@@ -183,7 +152,7 @@ export async function writeCalendarBooking(input: {
 }): Promise<string | null> {
   const creds = readCalendarCredentials();
   if (!creds) return null;
-  const token = await accessToken(creds);
+  const token = await getCalendarAccessToken(creds.auth);
   const res = await fetch(calendarUrl(creds.writeCalendarId, "/events"), {
     method: "POST",
     headers: {
