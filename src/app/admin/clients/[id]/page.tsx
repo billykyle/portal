@@ -134,37 +134,39 @@ export default async function AdminClientPage({
             <AttachShootForm clientId={client.id} />
           </section>
         </div>
-        <section className="mb-10">
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Bookings</h2>
-          <BookingList
-            bookings={bookingRows.map((booking) => ({ ...booking, clientId: client.id }))}
-            emptyLabel="No bookings yet."
-            timeZone={hours.timeZone}
-            allowCancel
-            allowModify
-            admin
-          />
-        </section>
-        <section className="mb-10">
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
-          <ShootList
-            variant="admin"
-            emptyLabel="No shoots attached yet."
-            shoots={shootRows.map((shoot) => {
-              const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
-              return {
-                id: shoot.id,
-                href: `/shoots/${shoot.id}`,
-                address: shoot.address,
-                shotDate: shoot.shotDate,
-                dateLabel: formatShootDate(shoot.shotDate),
-                clientId: client.id,
-                fileCount: count,
-                publicToken: shoot.publicToken,
-              };
-            })}
-          />
-        </section>
+        <div className="min-w-0">
+          <section className="mb-10">
+            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Bookings</h2>
+            <BookingList
+              bookings={bookingRows.map((booking) => ({ ...booking, clientId: client.id }))}
+              emptyLabel="No bookings yet."
+              timeZone={hours.timeZone}
+              allowCancel
+              allowModify
+              admin
+            />
+          </section>
+          <section className="mb-10">
+            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
+            <ShootList
+              variant="admin"
+              emptyLabel="No shoots attached yet."
+              shoots={shootRows.map((shoot) => {
+                const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
+                return {
+                  id: shoot.id,
+                  href: `/shoots/${shoot.id}`,
+                  address: shoot.address,
+                  shotDate: shoot.shotDate,
+                  dateLabel: formatShootDate(shoot.shotDate),
+                  clientId: client.id,
+                  fileCount: count,
+                  publicToken: shoot.publicToken,
+                };
+              })}
+            />
+          </section>
+        </div>
       </div>
       <section className="pb-16 md:max-w-md">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Delete client</h2>

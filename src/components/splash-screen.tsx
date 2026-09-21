@@ -18,7 +18,7 @@ export function SplashScreen({
             {subtitle}
           </p>
         </div>
-        <div className="mt-16 w-full lg:mt-0 lg:max-w-sm">{children}</div>
+        <div className="mt-16 w-full lg:mt-0 lg:max-w-md">{children}</div>
       </div>
     </PhoneShell>
   );

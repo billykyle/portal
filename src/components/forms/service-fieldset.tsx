@@ -115,7 +115,7 @@ export function ServiceFieldset({
                     />
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <ul className="flex flex-col gap-2 px-3 pb-3">
+                    <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
                       {group.options.map((option) => {
                         const value = schedulingServiceId(group.industry, option);
                         const checked = picked.includes(value);

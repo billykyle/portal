@@ -1,4 +1,5 @@
 import { BookingModifyCancelActions } from "@/components/booking-actions";
+import { cn } from "@/lib/utils";
 import { canAdminModifyBooking, canModifyBooking } from "@/lib/scheduling/bookings";
 import { adminBookingNotices } from "@/lib/scheduling/booking-sync";
 import { bookingServiceList, formatBookingServices } from "@/lib/scheduling/services";
@@ -31,6 +32,7 @@ export function BookingList({
   allowModify = false,
   admin = false,
   clientId,
+  columns = 1,
 }: {
   bookings: BookingListItem[];
   emptyLabel: string;
@@ -40,13 +42,15 @@ export function BookingList({
   allowModify?: boolean;
   admin?: boolean;
   clientId?: string;
+  /** 2 puts cards side by side on desktop. Mobile stays a single stack. */
+  columns?: 1 | 2;
 }) {
   if (bookings.length === 0) {
     return <p className="text-sm text-[#8e8e93]">{emptyLabel}</p>;
   }
 
   return (
-    <ul>
+    <ul className={columns === 2 ? "lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-12" : undefined}>
       {bookings.map((booking) => {
         const upcoming = booking.status === "confirmed" && booking.startsAt.getTime() > Date.now();
         const services = bookingServiceList(booking);
@@ -68,7 +72,7 @@ export function BookingList({
               clientId ?? "",
             );
         return (
-          <li key={booking.id} className="border-b border-white/10 py-4">
+          <li key={booking.id} className={cn("border-b border-white/10 py-4", columns === 2 && "min-w-0")}>
             <p className="text-[15px] font-medium">{booking.address}</p>
             <p className="mt-0.5 text-[15px]">
               {formatBookingWhen(booking.startsAt, booking.endsAt, timeZone)}

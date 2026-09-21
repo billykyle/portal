@@ -154,3 +154,25 @@ test("admin upcoming cards show Modify next to Cancel and link to the admin modi
   assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111"/);
   assert.doesNotMatch(html, /modify=11111111-1111-4111-8111-111111111111/);
 });
+
+test("desktop booking columns stay a single stack until the lg grid", () => {
+  const startsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const html = renderToStaticMarkup(
+    createElement(BookingList, {
+      bookings: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          address: "3900 City Ave, Philadelphia, PA",
+          startsAt,
+          endsAt,
+          status: "confirmed",
+        },
+      ],
+      emptyLabel: "No upcoming bookings.",
+      timeZone: "America/New_York",
+      columns: 2,
+    }),
+  );
+  assert.match(html, /lg:grid lg:grid-cols-2/);
+});

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { BookTimesPanel } from "@/components/forms/book-times-panel";
-import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { FormColumn, pageTitleClass, PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { parseShootAddress } from "@/lib/scheduling/address";
@@ -86,14 +86,14 @@ export default async function AdminModifyBookingTimesPage({
         }
       />
       <div className="mb-8 lg:mb-10">
-        <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Modify shoot</h1>
+        <h1 className={pageTitleClass}>Modify shoot</h1>
         {query.error ? (
           <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
             {query.error}
           </p>
         ) : null}
       </div>
-      <FormColumn className="pb-16">
+      <FormColumn className="pb-16 lg:max-w-none">
         <BookTimesPanel
           address={parsed.address}
           placeId={fields.placeId || undefined}

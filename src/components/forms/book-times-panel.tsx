@@ -3,15 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BookTimesForm } from "@/components/forms/book-times-form";
-import { TimesHelpNote } from "@/components/times-help-note";
-import { TimesStepSummary } from "@/components/times-step-summary";
+import { TimesStepHeader } from "@/components/times-step-summary";
 import { TimesLoadingStatus } from "@/components/times-loading-screen";
 import { lastGoodAvailability, peekAvailability, requestAvailability } from "@/lib/scheduling/availability-cache";
 import type { AvailabilityResult } from "@/lib/scheduling/availability";
 import type { OfferedAvailabilityFailureKind } from "@/lib/scheduling/load-offered-availability";
 import { availabilityQueryKey, displayedTimesState, type AvailabilityQuery } from "@/lib/scheduling/times-prefetch";
 import { schedulingEditorHref } from "@/lib/scheduling/urls";
-import Link from "next/link";
 
 export function BookTimesPanel({
   address,
@@ -139,11 +137,7 @@ function TimesUnavailable({
 }) {
   return (
     <div>
-      <TimesStepSummary address={address} services={services} />
-      <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
-        Change services or address
-      </Link>
-      <TimesHelpNote />
+      <TimesStepHeader address={address} services={services} changeHref={changeHref} />
       <p className="mt-8 text-sm text-[#8e8e93]">
         {message?.trim() || "Times cannot be loaded until calendar lookup is back."}
       </p>

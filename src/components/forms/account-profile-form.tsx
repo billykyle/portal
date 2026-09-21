@@ -21,22 +21,24 @@ export function AccountProfileForm({
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <Field
-        id="firstName"
-        name="firstName"
-        label="First name"
-        autoComplete="given-name"
-        defaultValue={firstName}
-        required
-      />
-      <Field
-        id="lastName"
-        name="lastName"
-        label="Last name"
-        autoComplete="family-name"
-        defaultValue={lastName}
-        required
-      />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Field
+          id="firstName"
+          name="firstName"
+          label="First name"
+          autoComplete="given-name"
+          defaultValue={firstName}
+          required
+        />
+        <Field
+          id="lastName"
+          name="lastName"
+          label="Last name"
+          autoComplete="family-name"
+          defaultValue={lastName}
+          required
+        />
+      </div>
       <Field
         id="companyName"
         name="companyName"

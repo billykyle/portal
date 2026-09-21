@@ -1,13 +1,12 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { FormError, SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
-import { TimesHelpNote } from "@/components/times-help-note";
-import { TimesStepSummary } from "@/components/times-step-summary";
+import { TimesStepHeader } from "@/components/times-step-summary";
+import { sectionLabelClass } from "@/components/phone-shell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking, updateBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
@@ -93,13 +92,9 @@ export function BookTimesForm({
 
   return (
     <div>
-      <TimesStepSummary address={availability.address} services={services} />
-      <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
-        Change services or address
-      </Link>
-      <TimesHelpNote />
+      <TimesStepHeader address={availability.address} services={services} changeHref={changeHref} />
 
-      <h2 className="mt-8 mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
+      <h2 className={`${sectionLabelClass} mt-8`}>Available times</h2>
       {refreshing ? (
         <p className="mb-4 text-sm text-[#8e8e93]" role="status" aria-live="polite" aria-busy="true">
           {TIMES_LOADING_COPY}
@@ -126,7 +121,7 @@ export function BookTimesForm({
         {selectedSlot ? <input type="hidden" name="slot" value={selectedSlot} /> : null}
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Choose a date and time</legend>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
             {weekKeys.map((dateKey) => {
               const slots = slotsByDate.get(dateKey) ?? [];
               const hasSlots = slots.length > 0;
@@ -214,17 +209,19 @@ export function BookTimesForm({
             })}
           </ul>
         </fieldset>
-        <button
-          type="button"
-          onClick={() => setCalendarOpen(true)}
-          className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 text-[15px]"
-        >
-          Date options further out
-        </button>
-        <div id="book-shoot-error">
+        <div id="book-shoot-error" className="flex flex-col gap-3">
           <FormError message={submitError} />
+          <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-3">
+            <button
+              type="button"
+              onClick={() => setCalendarOpen(true)}
+              className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 text-[15px]"
+            >
+              Date options further out
+            </button>
+            <BookShootSubmit modify={Boolean(modifyBookingId)} disabled={stale} />
+          </div>
         </div>
-        <BookShootSubmit modify={Boolean(modifyBookingId)} disabled={stale} />
       </form>
 
       <MonthCalendarDialog
