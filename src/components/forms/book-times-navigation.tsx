@@ -11,7 +11,13 @@ import { CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
  * GET to /scheduling/times via the Next.js Form so the times route
  * (and its loading UI) takes over immediately after Continue.
  */
-export function BookTimesNavigation({ children }: { children: ReactNode }) {
+export function BookTimesNavigation({
+  children,
+  action = CLIENT_SCHEDULING_TIMES,
+}: {
+  children: ReactNode;
+  action?: string;
+}) {
   const [loading, setLoading] = useState(false);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -28,7 +34,7 @@ export function BookTimesNavigation({ children }: { children: ReactNode }) {
           <TimesLoadingScreen />
         </div>
       ) : null}
-      <Form action={CLIENT_SCHEDULING_TIMES} onSubmit={onSubmit} className="flex flex-col gap-4">
+      <Form action={action} onSubmit={onSubmit} className="flex flex-col gap-4">
         {children}
       </Form>
     </>

@@ -18,7 +18,7 @@ import {
   weekDateKeys,
 } from "@/lib/scheduling/horizon";
 import { TIMES_LOADING_COPY } from "@/lib/scheduling/times-loading";
-import { schedulingBookHref } from "@/lib/scheduling/urls";
+import { adminBookingHref, schedulingBookHref } from "@/lib/scheduling/urls";
 
 export function BookTimesForm({
   availability,
@@ -29,6 +29,7 @@ export function BookTimesForm({
   currentSlot,
   refreshing = false,
   stale = false,
+  fromAdmin = false,
 }: {
   availability: AvailabilityResult;
   services: string[];
@@ -38,6 +39,7 @@ export function BookTimesForm({
   currentSlot?: string;
   refreshing?: boolean;
   stale?: boolean;
+  fromAdmin?: boolean;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
@@ -60,12 +62,19 @@ export function BookTimesForm({
   const [slotError, setSlotError] = useState("");
 
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
-  const changeHref = schedulingBookHref({
-    address: availability.address,
-    services,
-    notes: notes || null,
-    modify: modifyBookingId || null,
-  });
+  const changeHref =
+    fromAdmin && modifyBookingId
+      ? adminBookingHref(modifyBookingId, {
+          address: availability.address,
+          services,
+          notes: notes || null,
+        })
+      : schedulingBookHref({
+          address: availability.address,
+          services,
+          notes: notes || null,
+          modify: modifyBookingId || null,
+        });
   const submitError = slotError || error;
 
   useEffect(() => {
@@ -127,6 +136,7 @@ export function BookTimesForm({
 
       <form action={modifyBookingId ? updateBooking : createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
         {modifyBookingId ? <input type="hidden" name="bookingId" value={modifyBookingId} /> : null}
+        {fromAdmin ? <input type="hidden" name="fromAdmin" value="1" /> : null}
         <input type="hidden" name="address" value={availability.address} />
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />

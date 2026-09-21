@@ -11,9 +11,12 @@ import {
   buildBookingCancelled,
   buildBookingCancelledNotify,
   buildBookingConfirmation,
+  bookingFieldChanges,
+  bookingThreadMessageId,
   buildBookingModified,
   buildBookingModifiedNotify,
   buildBookingNotify,
+  emailThreadingHeaders,
   sendBookingCancellation,
   sendBookingConfirmation,
   sendBookingModification,
@@ -43,7 +46,7 @@ const start = new Date("2026-09-22T14:00:00.000Z");
 const end = new Date("2026-09-22T15:30:00.000Z");
 const bookingId = "11111111-1111-4111-8111-111111111111";
 
-function sampleInput(overrides: Record<string, unknown> = {}) {
+function sampleInput(overrides: Partial<Parameters<typeof buildBookingModified>[0]> = {}) {
   return {
     bookingId,
     clientEmail: "sam@example.com",
@@ -216,7 +219,7 @@ test("confirmation body omits empty notes and access codes", () => {
   assert.equal(message.attachments, undefined);
 });
 
-test("modification emails use updated copy for client and Billy", () => {
+test("modification emails use Shoot changes copy for client and Billy", () => {
   delete process.env.PORTAL_PUBLIC_URL;
   const input = sampleInput({
     address: "644 Plumrun Dr, West Chester, PA",
@@ -226,8 +229,8 @@ test("modification emails use updated copy for client and Billy", () => {
   });
   const client = buildBookingModified(input);
   const notify = buildBookingModifiedNotify(input);
-  assert.match(client.subject, /Shoot updated/);
-  assert.match(client.text, /has been updated/);
+  assert.match(client.subject, /Shoot changes/);
+  assert.match(client.text, /has been changed/);
   assert.match(client.text, /644 Plumrun Dr/);
   assert.match(client.text, /Code 1234/);
   assert.match(client.text, /Modify or cancel this shoot/);
@@ -238,16 +241,16 @@ test("modification emails use updated copy for client and Billy", () => {
   assertNoCalendarCtas(notify);
   assertClientHeadingHasNoWhen(
     client.html,
-    "Shoot updated",
+    "Shoot changes",
     formatBookingWhen(start, end, "America/New_York"),
   );
   assertNotifyHeadingHasNoIntro(
     notify.html,
-    "Shoot updated",
+    "Shoot changes",
     formatBookingWhen(start, end, "America/New_York"),
     "A shoot was modified on the portal.",
   );
-  assert.match(notify.subject, /^Shoot updated:/);
+  assert.match(notify.subject, /^Shoot changes:/);
   assert.doesNotMatch(notify.text, /modified on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
   assert.match(notify.html, /View bookings/);
@@ -255,6 +258,58 @@ test("modification emails use updated copy for client and Billy", () => {
   assertPepperNote(notify, PEPPER_NOTIFY_UPDATED);
   assertOnBrandHtml(client.html);
   assertOnBrandHtml(notify.html);
+});
+
+test("change emails highlight only the fields that changed", () => {
+  const later = new Date("2026-09-23T15:00:00.000Z");
+  const laterEnd = new Date("2026-09-23T16:30:00.000Z");
+  const input = sampleInput({
+    address: "644 Plumrun Dr, West Chester, PA",
+    notes: "Code 1234",
+    previous: {
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Photography", "Construction · Video"],
+      start,
+      end,
+      timeZone: "America/New_York",
+      notes: "Park in the driveway.",
+    },
+    start: later,
+    end: laterEnd,
+  });
+  const changes = bookingFieldChanges(input, input.previous);
+  assert.deepEqual(
+    changes.map((change) => change.key),
+    ["when", "where", "notes"],
+  );
+  const client = buildBookingModified(input);
+  assert.match(client.text, /What changed/);
+  assert.match(client.text, /Where/);
+  assert.match(client.html, /What changed/);
+  assert.match(client.html, /Where · Changed/);
+  assert.match(client.html, /When · Changed/);
+  assert.match(client.html, /Notes · Changed/);
+  assert.doesNotMatch(client.html, /Services · Changed/);
+  assert.match(client.html, /background:#fff6cc/);
+  assert.match(client.html, /font-weight:700/);
+  assert.match(client.text, /\(was: 12 Wood View Drive, Princeton, NJ\)/);
+});
+
+test("change emails thread to the original confirmation when a Message-ID is stored", () => {
+  const messageId = bookingThreadMessageId(bookingId);
+  const input = sampleInput({
+    thread: {
+      inReplyTo: messageId,
+      references: messageId,
+      originalSubject: "Shoot confirmed — Tue, Sep 22 · 10:00 AM – 11:30 AM",
+    },
+  });
+  const client = buildBookingModified(input);
+  assert.equal(client.subject, "Re: Shoot confirmed — Tue, Sep 22 · 10:00 AM – 11:30 AM");
+  assert.deepEqual(emailThreadingHeaders(input.thread), {
+    "In-Reply-To": messageId,
+    References: messageId,
+  });
 });
 
 test("client manage URL uses the confirmation page when a booking id is known", () => {
@@ -402,6 +457,7 @@ test("sendBookingConfirmation posts two separate Resend emails with no CC/BCC", 
     assert.equal(notify.bcc, undefined);
     assert.equal(client.cc, undefined);
     assert.equal(notify.cc, undefined);
+    assert.equal((client.headers as Record<string, string> | undefined)?.["Message-ID"], bookingThreadMessageId(bookingId));
     assert.match(String(client.subject), /Shoot confirmed/);
     assert.match(String(notify.subject), /^New shoot:/);
     assert.match(String(client.text), /is confirmed/);
@@ -450,12 +506,51 @@ test("sendBookingModification posts two separate Resend emails with no CC/BCC", 
     assert.deepEqual(notify.to, ["billy@billyhere.com"]);
     assert.equal(client.cc, undefined);
     assert.equal(notify.cc, undefined);
-    assert.match(String(client.subject), /Shoot updated/);
-    assert.match(String(notify.subject), /^Shoot updated:/);
+    assert.match(String(client.subject), /Shoot changes/);
+    assert.match(String(notify.subject), /^Shoot changes:/);
     assert.match(String(notify.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_UPDATED)));
     assert.doesNotMatch(String(notify.text), /Add to calendar/);
     assert.ok(Array.isArray(client.attachments) && client.attachments.length === 1);
     assert.equal(notify.attachments, undefined);
+    assert.equal(client.headers, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sendBookingModification threads to the stored confirmation Message-ID", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  const messageId = bookingThreadMessageId(bookingId);
+  const calls: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const result = await sendBookingModification({
+      bookingId,
+      clientEmail: "sam@example.com",
+      address: "644 Plumrun Dr, West Chester, PA",
+      services: ["Real Estate · Photography"],
+      start,
+      end,
+      timeZone: "America/New_York",
+      thread: {
+        inReplyTo: messageId,
+        references: messageId,
+        originalSubject: "Shoot confirmed — Tue, Sep 22 · 10:00 AM – 11:30 AM",
+      },
+    });
+    assert.equal(result.sent, true);
+    const client = calls.find((body) => Array.isArray(body.to) && body.to.includes("sam@example.com"));
+    assert.ok(client);
+    assert.deepEqual(client.headers, {
+      "In-Reply-To": messageId,
+      References: messageId,
+    });
+    assert.match(String(client.subject), /^Re: Shoot confirmed/);
   } finally {
     globalThis.fetch = originalFetch;
   }

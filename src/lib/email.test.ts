@@ -82,7 +82,8 @@ test("sendEmail posts to Resend with From and To only", async () => {
       subject: "Shoot confirmed",
       text: "Confirmed.",
     });
-    assert.deepEqual(result, { sent: true });
+    assert.equal(result.sent, true);
+    if (result.sent) assert.equal(result.id, "msg_1");
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.url, "https://api.resend.com/emails");
     const headers = new Headers(calls[0]?.init.headers);
@@ -94,6 +95,38 @@ test("sendEmail posts to Resend with From and To only", async () => {
     assert.equal(body.cc, undefined);
     assert.equal(body.subject, "Shoot confirmed");
     assert.equal(body.text, "Confirmed.");
+    assert.equal(body.headers, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sendEmail posts custom headers and returns the Message-ID", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    assert.deepEqual(body.headers, {
+      "Message-ID": "<booking-1@portal.billy-kyle.com>",
+      "In-Reply-To": "<booking-1@portal.billy-kyle.com>",
+    });
+    return new Response(JSON.stringify({ id: "re_123" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendEmail({
+      to: "sam@example.com",
+      subject: "Shoot changes",
+      text: "Changed.",
+      headers: {
+        "Message-ID": "<booking-1@portal.billy-kyle.com>",
+        "In-Reply-To": "<booking-1@portal.billy-kyle.com>",
+      },
+    });
+    assert.deepEqual(result, {
+      sent: true,
+      id: "re_123",
+      messageId: "<booking-1@portal.billy-kyle.com>",
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }

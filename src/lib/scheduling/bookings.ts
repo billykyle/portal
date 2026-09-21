@@ -49,6 +49,11 @@ export function canModifyBooking(
   );
 }
 
+/** Admin may edit any confirmed shoot that has not started. Same time gate as the client. */
+export function canAdminModifyBooking(booking: { status: string; startsAt: Date }, now = new Date()) {
+  return booking.status === "confirmed" && booking.startsAt.getTime() > now.getTime();
+}
+
 export async function loadConfirmedPortalBusy(): Promise<Interval[]> {
   const jobs = await loadConfirmedPortalJobs();
   return jobs.map((job) => ({ start: job.start, end: job.end }));

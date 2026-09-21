@@ -16,12 +16,24 @@ import {
   withoutOwnBooking,
 } from "@/lib/scheduling/availability";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
-import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
+import {
+  canAdminModifyBooking,
+  canModifyBooking,
+  getBookingById,
+  getClientBooking,
+  loadConfirmedPortalJobs,
+} from "@/lib/scheduling/bookings";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
-import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "@/lib/scheduling/urls";
+import {
+  adminBookingHref,
+  adminBookingTimesHref,
+  schedulingBookHref,
+  schedulingConfirmedHref,
+  schedulingTimesHref,
+} from "@/lib/scheduling/urls";
 
 export async function createBooking(formData: FormData) {
   const session = await getSession();
@@ -183,9 +195,14 @@ export async function createBooking(formData: FormData) {
 }
 
 export async function updateBooking(formData: FormData) {
+  const admin = await getAdminSession();
   const session = await getSession();
-  if (!session) {
+  const fromAdmin = Boolean(admin && formData.get("fromAdmin") === "1");
+  if (!fromAdmin && !session) {
     redirect("/");
+  }
+  if (fromAdmin && !admin) {
+    redirect("/admin");
   }
   const bookingId = String(formData.get("bookingId") ?? formData.get("modify") ?? "").trim();
   const address = String(formData.get("address") ?? "");
@@ -194,10 +211,16 @@ export async function updateBooking(formData: FormData) {
   const parsedSlot = readBookingFormSlot(formData);
 
   function failBook(error: string): never {
+    if (fromAdmin && bookingId) {
+      redirect(adminBookingHref(bookingId, { address, services, notes, error }));
+    }
     redirect(schedulingBookHref({ address, services, notes, modify: bookingId || null, error }));
   }
 
   function failTimes(error: string, nextAddress = address): never {
+    if (fromAdmin && bookingId) {
+      redirect(adminBookingTimesHref(bookingId, { address: nextAddress, services, notes, error }));
+    }
     redirect(schedulingTimesHref({ address: nextAddress, services, notes, modify: bookingId || null, error }));
   }
 
@@ -217,6 +240,19 @@ export async function updateBooking(formData: FormData) {
         calendarDescription: string;
         services: string[];
         notes: string | null;
+        previous: {
+          address: string;
+          services: string[];
+          start: Date;
+          end: Date;
+          timeZone: string;
+          notes: string | null;
+        };
+        thread: {
+          inReplyTo: string | null;
+          references: string | null;
+          originalSubject: string | null;
+        };
       }
     | undefined;
 
@@ -225,8 +261,15 @@ export async function updateBooking(formData: FormData) {
     if (!bookingId) {
       failBook("Booking is required.");
     }
-    const booking = await getClientBooking(session.clientId, bookingId);
-    if (!booking || !canModifyBooking(booking, session.clientId)) {
+    const booking = fromAdmin
+      ? await getBookingById(bookingId)
+      : session
+        ? await getClientBooking(session.clientId, bookingId)
+        : null;
+    if (
+      !booking ||
+      (fromAdmin ? !canAdminModifyBooking(booking) : !session || !canModifyBooking(booking, session.clientId))
+    ) {
       failBook("That booking cannot be modified.");
     }
     if (services.length === 0) {
@@ -263,14 +306,30 @@ export async function updateBooking(formData: FormData) {
     const start = new Date(startIso);
     const end = new Date(endIso);
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
-    const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
-    const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
+    const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
+    let [user] =
+      session && !fromAdmin
+        ? await db.select().from(users).where(eq(users.id, session.userId)).limit(1)
+        : [undefined];
+    if (!user && booking.createdByUserId) {
+      [user] = await db.select().from(users).where(eq(users.id, booking.createdByUserId)).limit(1);
+    }
+    if (!user) {
+      [user] = await db.select().from(users).where(eq(users.clientId, booking.clientId)).limit(1);
+    }
+    const clientEmail = fromAdmin
+      ? await resolveCancelledBookingEmail({
+          clientId: booking.clientId,
+          createdByUserId: booking.createdByUserId,
+          primaryEmail: client?.primaryEmail,
+        })
+      : session?.email ?? "";
     const hours = schedulingHours();
     const calendar = calendarEventCopy({
       firstName: user?.firstName,
       lastName: user?.lastName,
       displayName: client?.displayName,
-      email: user?.email ?? session.email,
+      email: user?.email ?? clientEmail,
       phone: user?.phone,
       company: client?.company,
       address: availability.address,
@@ -291,11 +350,13 @@ export async function updateBooking(formData: FormData) {
         updatedAt: new Date(),
       })
       .where(
-        and(
-          eq(bookings.id, booking.id),
-          eq(bookings.clientId, session.clientId),
-          eq(bookings.status, "confirmed"),
-        ),
+        fromAdmin
+          ? and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed"))
+          : and(
+              eq(bookings.id, booking.id),
+              eq(bookings.clientId, session?.clientId ?? booking.clientId),
+              eq(bookings.status, "confirmed"),
+            ),
       )
       .returning({ id: bookings.id });
     if (!saved) {
@@ -309,7 +370,7 @@ export async function updateBooking(formData: FormData) {
       end,
       timeZone: hours.timeZone,
       clientName: client?.displayName ?? null,
-      clientEmail: session.email,
+      clientEmail,
       calendarConfigured: availability.calendarConfigured,
       calendarEventId: booking.calendarEventId,
       accessCodes: booking.accessCodes,
@@ -317,6 +378,19 @@ export async function updateBooking(formData: FormData) {
       calendarDescription: calendar.description,
       services,
       notes,
+      previous: {
+        address: booking.address,
+        services: bookingServiceList(booking),
+        start: booking.startsAt,
+        end: booking.endsAt,
+        timeZone: hours.timeZone,
+        notes: booking.notes,
+      },
+      thread: {
+        inReplyTo: booking.clientEmailMessageId,
+        references: booking.clientEmailReferences,
+        originalSubject: booking.clientEmailSubject,
+      },
     };
   } catch (error) {
     unstable_rethrow(error);
@@ -351,12 +425,22 @@ export async function updateBooking(formData: FormData) {
       timeZone: updated.timeZone,
       notes: updated.notes,
       accessCodes: updated.accessCodes,
+      previous: updated.previous,
+      thread: updated.thread,
     },
   });
 
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
+  revalidatePath(`/admin/bookings/${updated.bookingId}`);
+  if (fromAdmin) {
+    redirect(
+      `/admin/bookings?updated=1${settled.issues.calendar ? "&calendar=failed" : ""}${
+        settled.issues.email ? "&email=failed" : ""
+      }`,
+    );
+  }
   redirect(
     schedulingConfirmedHref(updated.bookingId, {
       updated: true,

@@ -53,9 +53,12 @@ export type SendEmailInput = {
   text: string;
   html?: string;
   attachments?: EmailAttachment[];
+  headers?: Record<string, string>;
 };
 
-export type SendEmailResult = { sent: true } | { sent: false; reason: string };
+export type SendEmailResult =
+  | { sent: true; id?: string; messageId?: string }
+  | { sent: false; reason: string };
 
 function asList(value: string | string[] | undefined) {
   return uniqueEmails(Array.isArray(value) ? value : [value]);
@@ -94,6 +97,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
               })),
             }
           : {}),
+        ...(input.headers && Object.keys(input.headers).length > 0 ? { headers: input.headers } : {}),
       }),
     });
     if (!res.ok) {
@@ -101,7 +105,13 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       console.error(`Resend ${res.status}${body ? `: ${body}` : ""}`);
       return { sent: false, reason: `resend-${res.status}` };
     }
-    return { sent: true };
+    const payload = (await res.json().catch(() => ({}))) as { id?: string };
+    const headerMessageId = input.headers?.["Message-ID"] ?? input.headers?.["Message-Id"];
+    return {
+      sent: true,
+      ...(payload.id ? { id: payload.id } : {}),
+      ...(headerMessageId ? { messageId: headerMessageId } : {}),
+    };
   } catch (error) {
     console.error("Resend send failed", error);
     return { sent: false, reason: "resend-error" };

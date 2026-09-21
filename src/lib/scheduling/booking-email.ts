@@ -26,6 +26,21 @@ import { formatBookingServices } from "./services";
 import { formatBookingWhen } from "./slots";
 import { schedulingConfirmedHref } from "./urls";
 
+export type BookingSnapshot = {
+  address: string;
+  services: readonly string[];
+  start: Date;
+  end: Date;
+  timeZone: string;
+  notes?: string | null;
+};
+
+export type BookingEmailThread = {
+  inReplyTo?: string | null;
+  references?: string | null;
+  originalSubject?: string | null;
+};
+
 export type BookingConfirmationInput = {
   clientEmail: string;
   clientName?: string | null;
@@ -37,7 +52,38 @@ export type BookingConfirmationInput = {
   timeZone: string;
   notes?: string | null;
   accessCodes?: string | null;
+  previous?: BookingSnapshot | null;
+  thread?: BookingEmailThread | null;
 };
+
+export function normalizeEmailMessageId(raw: string | null | undefined) {
+  const id = String(raw ?? "").trim();
+  if (!id) return "";
+  return id.startsWith("<") && id.endsWith(">") ? id : `<${id.replace(/^<|>$/g, "")}>`;
+}
+
+export function bookingThreadMessageId(bookingId: string) {
+  return `<booking-${bookingId}@portal.billy-kyle.com>`;
+}
+
+export function emailThreadingHeaders(thread?: BookingEmailThread | null) {
+  const inReplyTo = normalizeEmailMessageId(thread?.inReplyTo);
+  if (!inReplyTo) return undefined;
+  const references = String(thread?.references ?? "")
+    .split(/\s+/)
+    .map((part) => normalizeEmailMessageId(part))
+    .filter(Boolean);
+  return {
+    "In-Reply-To": inReplyTo,
+    References: (references.length > 0 ? references : [inReplyTo]).join(" "),
+  };
+}
+
+export function replySubject(originalSubject: string | null | undefined, fallback: string) {
+  const original = originalSubject?.trim();
+  if (!original) return fallback;
+  return /^re:\s*/i.test(original) ? original : `Re: ${original}`;
+}
 
 export function bookingConfirmationRecipients(clientEmail: string) {
   const [client] = uniqueEmails([clientEmail]);
@@ -80,7 +126,50 @@ export function bookingSchedulingUrl() {
   return `${publicPortalOrigin()}${CLIENT_SCHEDULING}`;
 }
 
-type DetailRow = { label: string; value: string };
+type DetailRow = { label: string; value: string; changed?: boolean };
+
+export type BookingFieldChange = {
+  key: "when" | "where" | "services" | "notes";
+  label: string;
+  previous: string;
+  current: string;
+};
+
+export function bookingFieldChanges(
+  current: BookingConfirmationInput,
+  previous?: BookingSnapshot | null,
+): BookingFieldChange[] {
+  if (!previous) return [];
+  const next = bookingDetails(current);
+  const prior = bookingDetails({ ...current, ...previous, bookingId: current.bookingId });
+  const rows: BookingFieldChange[] = [
+    {
+      key: "when",
+      label: "When",
+      previous: `${prior.when} (${previous.timeZone})`,
+      current: `${next.when} (${current.timeZone})`,
+    },
+    {
+      key: "where",
+      label: "Where",
+      previous: previous.address,
+      current: current.address,
+    },
+    {
+      key: "services",
+      label: "Services",
+      previous: prior.services,
+      current: next.services,
+    },
+    {
+      key: "notes",
+      label: "Notes",
+      previous: previous.notes?.trim() || "",
+      current: current.notes?.trim() || "",
+    },
+  ];
+  return rows.filter((row) => row.previous !== row.current);
+}
 
 function detailRows(rows: DetailRow[]) {
   return rows.filter((row) => row.value);
@@ -94,16 +183,46 @@ function detailHtml(rows: DetailRow[]) {
   const present = detailRows(rows);
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #000000;border-collapse:collapse;">
 ${present
-  .map(
-    (row, index) => `  <tr>
-    <td style="padding:16px 18px;${index < present.length - 1 ? "border-bottom:1px solid #000000;" : ""}font-family:${EMAIL_FONT_STACK};color:#000000;">
-      <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:#000000;">${escapeHtml(row.label)}</div>
-      <div style="margin-top:6px;font-size:16px;line-height:1.45;color:#000000;">${escapeHtml(row.value).replaceAll("\n", "<br>")}</div>
+  .map((row, index) => {
+    const highlight = row.changed ? "background:#fff6cc;" : "";
+    const valueWeight = row.changed ? "font-weight:700;" : "";
+    const label = row.changed ? `${row.label} · Changed` : row.label;
+    return `  <tr>
+    <td style="padding:16px 18px;${highlight}${index < present.length - 1 ? "border-bottom:1px solid #000000;" : ""}font-family:${EMAIL_FONT_STACK};color:#000000;">
+      <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:#000000;">${escapeHtml(label)}</div>
+      <div style="margin-top:6px;font-size:16px;line-height:1.45;color:#000000;${valueWeight}">${escapeHtml(row.value).replaceAll("\n", "<br>")}</div>
     </td>
-  </tr>`,
-  )
+  </tr>`;
+  })
   .join("\n")}
 </table>`;
+}
+
+function changeSummaryText(changes: BookingFieldChange[]) {
+  if (changes.length === 0) return [];
+  return [
+    "What changed",
+    ...changes.flatMap((change) => [
+      "",
+      change.label,
+      change.current || "(none)",
+      `(was: ${change.previous || "none"})`,
+    ]),
+    "",
+  ];
+}
+
+function changeSummaryHtml(changes: BookingFieldChange[]) {
+  if (changes.length === 0) return "";
+  return `<p style="margin:0 0 12px;font-family:${EMAIL_FONT_STACK};font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;color:#000000;">What changed</p>
+${detailHtml(
+  changes.map((change) => ({
+    label: change.label,
+    value: `${change.current || "(none)"}\n(was: ${change.previous || "none"})`,
+    changed: true,
+  })),
+)}
+<div style="height:20px;line-height:20px;font-size:0;">&nbsp;</div>`;
 }
 
 function headingHtml(title: string, subtitle?: string) {
@@ -119,12 +238,13 @@ function paragraphHtml(text: string) {
 
 function sharedDetailRows(input: BookingConfirmationInput, extras: DetailRow[] = []) {
   const { when, services, notes, accessCodes } = bookingDetails(input);
+  const changed = new Set(bookingFieldChanges(input, input.previous).map((change) => change.label));
   return [
     ...extras,
-    { label: "When", value: `${when} (${input.timeZone})` },
-    { label: "Where", value: input.address },
-    { label: "Services", value: services },
-    { label: "Notes", value: notes },
+    { label: "When", value: `${when} (${input.timeZone})`, changed: changed.has("When") },
+    { label: "Where", value: input.address, changed: changed.has("Where") },
+    { label: "Services", value: services, changed: changed.has("Services") },
+    { label: "Notes", value: notes, changed: changed.has("Notes") },
     { label: "Access codes", value: accessCodes },
   ];
 }
@@ -193,10 +313,12 @@ function buildClientMessage(
     updated?: boolean;
     includeCalendar?: boolean;
     cta?: { label: string; href: string };
+    subject?: string;
   },
 ) {
   const { when } = bookingDetails(input);
   const greeting = clientGreeting(input);
+  const changes = bookingFieldChanges(input, input.previous);
   const rows = sharedDetailRows(input);
   const cta = copy.cta ?? clientCta(input, Boolean(copy.updated));
   const bookingId = input.bookingId?.trim();
@@ -228,6 +350,7 @@ function buildClientMessage(
     "",
     copy.intro,
     "",
+    ...changeSummaryText(changes),
     ...detailText(rows),
     "",
     ...(calendar ? ["Add to calendar", calendar.icsUrl, "", "Google Calendar", calendar.googleUrl, ""] : []),
@@ -244,6 +367,7 @@ function buildClientMessage(
       headingHtml(copy.title),
       paragraphHtml(greeting),
       paragraphHtml(copy.intro),
+      changeSummaryHtml(changes),
       detailHtml(rows),
       `<div style="padding:28px 0 8px;">${calendar ? calendarCtaHtml(calendar.icsUrl, calendar.googleUrl) : ""}${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
       `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
@@ -251,7 +375,7 @@ function buildClientMessage(
   });
 
   return {
-    subject: `${copy.subjectPrefix} — ${when}`,
+    subject: copy.subject ?? `${copy.subjectPrefix} — ${when}`,
     text,
     html,
     attachments,
@@ -263,11 +387,13 @@ function buildNotifyMessage(
   copy: { title: string; subjectPrefix: string; pepperNote?: string },
 ) {
   const { when } = bookingDetails(input);
+  const changes = bookingFieldChanges(input, input.previous);
   const rows = sharedDetailRows(input, [{ label: "Client", value: clientLabel(input) || input.clientEmail }]);
   const cta = notifyCta();
   const pepperNote = copy.pepperNote?.trim() || "";
 
   const text = [
+    ...changeSummaryText(changes),
     ...detailText(rows),
     "",
     cta.label,
@@ -282,6 +408,7 @@ function buildNotifyMessage(
     preheader: when,
     body: [
       headingHtml(copy.title),
+      changeSummaryHtml(changes),
       detailHtml(rows),
       `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
       ...(pepperNote ? [`<div style="padding:8px 0 0;">${pepperNoteHtml(pepperNote)}</div>`] : []),
@@ -318,10 +445,12 @@ export function buildBookingNotify(input: BookingConfirmationInput) {
 
 /** Client-facing modification confirmation. Email #1. */
 export function buildBookingModified(input: BookingConfirmationInput) {
+  const { when } = bookingDetails(input);
   return buildClientMessage(input, {
-    title: "Shoot updated",
-    intro: "Your shoot with Billy Kyle has been updated.",
-    subjectPrefix: "Shoot updated",
+    title: "Shoot changes",
+    intro: "Your shoot with Billy Kyle has been changed.",
+    subjectPrefix: "Shoot changes",
+    subject: replySubject(input.thread?.originalSubject, `Shoot changes — ${when}`),
     updated: true,
     includeCalendar: true,
   });
@@ -330,8 +459,8 @@ export function buildBookingModified(input: BookingConfirmationInput) {
 /** Billy's modification alert. Email #2. */
 export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
-    title: "Shoot updated",
-    subjectPrefix: "Shoot updated",
+    title: "Shoot changes",
+    subjectPrefix: "Shoot changes",
     pepperNote: PEPPER_NOTIFY_UPDATED,
   });
 }
@@ -362,6 +491,8 @@ export type BookingEmailSendResult = {
   sent: boolean;
   client: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
   notify: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
+  clientMessageId?: string;
+  clientSubject?: string;
 };
 
 export type BookingEmailSendOptions = {
@@ -381,15 +512,21 @@ export async function sendBookingConfirmation(
   input: BookingConfirmationInput,
   options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingConfirmation(input), buildBookingNotify(input), options);
+  const bookingId = input.bookingId?.trim();
+  const messageId = bookingId ? bookingThreadMessageId(bookingId) : undefined;
+  return sendBookingPair(input, buildBookingConfirmation(input), buildBookingNotify(input), options, {
+    clientHeaders: messageId ? { "Message-ID": messageId } : undefined,
+  });
 }
 
-/** Same two-send pattern after a client modifies an upcoming booking. */
+/** Same two-send pattern after a client or admin modifies an upcoming booking. */
 export async function sendBookingModification(
   input: BookingConfirmationInput,
   options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input), options);
+  return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input), options, {
+    clientHeaders: emailThreadingHeaders(input.thread),
+  });
 }
 
 /** Same two-send pattern after a client or Billy cancels a confirmed booking. */
@@ -477,6 +614,7 @@ async function sendBookingPair(
   clientMessage: { subject: string; text: string; html: string; attachments?: EmailAttachment[] },
   notifyMessage: { subject: string; text: string; html: string },
   options?: BookingEmailSendOptions,
+  sendMeta?: { clientHeaders?: Record<string, string> },
 ): Promise<BookingEmailSendResult> {
   if (!emailConfigured()) {
     const skipped = { sent: false as const, reason: "resend-unconfigured" };
@@ -494,6 +632,7 @@ async function sendBookingPair(
           text: clientMessage.text,
           html: clientMessage.html,
           attachments: clientMessage.attachments,
+          headers: sendMeta?.clientHeaders,
         })
       : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
     skipNotify
@@ -508,5 +647,13 @@ async function sendBookingPair(
         : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
   ]);
 
-  return { sent: client.sent && (skipNotify || notify.sent), client, notify };
+  return {
+    sent: client.sent && (skipNotify || notify.sent),
+    client,
+    notify,
+    clientMessageId: client.sent
+      ? ("messageId" in client ? client.messageId : undefined) ?? sendMeta?.clientHeaders?.["Message-ID"]
+      : undefined,
+    clientSubject: client.sent ? clientMessage.subject : undefined,
+  };
 }

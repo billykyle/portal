@@ -65,6 +65,7 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.doesNotMatch(html, /Step \d+ of \d+/);
   assert.doesNotMatch(html, /Book shoot/);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.doesNotMatch(html, /name="fromAdmin"/);
   assert.match(html, /checked/);
   assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
 });
@@ -98,6 +99,21 @@ test("only the selected time is wrapped in a bordered box", () => {
   assert.equal(unselected.length, 1);
   assert.doesNotMatch(unselected[0], /border/);
   assert.doesNotMatch(html, /has-\[:checked\]:border-white/);
+});
+
+test("admin times form posts fromAdmin and keeps the admin change link", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability,
+      services: ["Real Estate · Photography"],
+      modifyBookingId: "11111111-1111-4111-8111-111111111111",
+      currentSlot: `${start}|${end}`,
+      fromAdmin: true,
+    }),
+  );
+  assert.match(html, /name="fromAdmin"/);
+  assert.match(html, /value="1"/);
+  assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111/);
 });
 
 test("refreshing keeps the last slots and the loading sentence", () => {

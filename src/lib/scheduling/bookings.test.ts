@@ -8,7 +8,7 @@ import {
   bookingSecondaryButtonClass,
 } from "../../components/booking-actions";
 import { BookingList } from "../../components/booking-list";
-import { adminCalendarGapNotice, canModifyBooking } from "./bookings";
+import { adminCalendarGapNotice, canAdminModifyBooking, canModifyBooking } from "./bookings";
 import { formatBookingServices } from "./services";
 import { formatBookingWhen } from "./slots";
 
@@ -41,6 +41,14 @@ test("canModifyBooking is only the owner of a confirmed shoot that has not start
     false,
   );
   assert.equal(canModifyBooking({ ...upcoming, startsAt: now }, owner, now), false);
+});
+
+test("canAdminModifyBooking is any confirmed shoot that has not started", () => {
+  const now = new Date("2026-09-20T18:00:00.000Z");
+  const upcoming = { status: "confirmed", startsAt: new Date("2026-09-25T18:00:00.000Z") };
+  assert.equal(canAdminModifyBooking(upcoming, now), true);
+  assert.equal(canAdminModifyBooking({ ...upcoming, status: "cancelled" }, now), false);
+  assert.equal(canAdminModifyBooking({ ...upcoming, startsAt: now }, now), false);
 });
 
 test("client upcoming cards show address, when, then services on one line", () => {
@@ -108,4 +116,40 @@ test("client upcoming cards show address, when, then services on one line", () =
     ),
     />Modify</,
   );
+});
+
+test("admin upcoming cards show Modify next to Cancel and link to the admin modify path", () => {
+  const startsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const html = renderToStaticMarkup(
+    createElement(BookingList, {
+      bookings: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          address: "3900 City Ave, Philadelphia, PA",
+          services: ["Real Estate · Photography"],
+          startsAt,
+          endsAt,
+          status: "confirmed",
+          clientId: "client-1",
+          clientName: "Billy Kyle",
+          inviteCode: "BK00001",
+        },
+      ],
+      emptyLabel: "No upcoming bookings.",
+      timeZone: "America/New_York",
+      allowCancel: true,
+      allowModify: true,
+      admin: true,
+      showClient: true,
+    }),
+  );
+  const modifyAt = html.indexOf(">Modify<");
+  const cancelAt = html.indexOf(">Cancel<");
+  assert.ok(modifyAt >= 0, "expected a Modify action");
+  assert.ok(cancelAt > modifyAt, "Modify should be paired before Cancel");
+  assert.equal(actionClass(html, "Modify"), bookingPrimaryButtonClass);
+  assert.equal(actionClass(html, "Cancel"), bookingSecondaryButtonClass);
+  assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111"/);
+  assert.doesNotMatch(html, /modify=11111111-1111-4111-8111-111111111111/);
 });
