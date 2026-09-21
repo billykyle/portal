@@ -50,7 +50,7 @@ test("book confirmation is a centered hero with the shoot details", () => {
       clientId,
     }),
   );
-  assert.match(html, /You(?:'|&#x27;)re booked\./);
+  assert.match(html, /You(?:'|&#x27;)re all set\./);
   assert.match(html, /Real Estate · Photography/);
   assert.match(html, /Real Estate · Aerial Photos/);
   assert.match(html, /644 Plumrun Dr/);
@@ -97,8 +97,34 @@ test("modify confirmation uses the updated hero and skips Book another", () => {
   );
   assert.match(html, /Shoot updated\./);
   assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);
+  assert.doesNotMatch(html, /You(?:'|&#x27;)re all set/);
   assert.doesNotMatch(html, /Book another/);
   assert.match(html, /Back to Scheduling/);
   assert.match(html, />Modify</);
   assert.match(html, />Cancel</);
+});
+
+test("cancelled confirmation uses cancelled hero and hides modify/cancel", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookingConfirmation, {
+      booking: futureBooking({
+        status: "cancelled",
+        services: ["Real Estate · Photography"],
+      }),
+      timeZone: "America/New_York",
+      clientId,
+    }),
+  );
+  assert.match(html, /Shoot cancelled\./);
+  assert.match(html, /Your appointment with Billy Kyle has been cancelled\./);
+  assert.match(html, /Real Estate · Photography/);
+  assert.match(html, /644 Plumrun Dr/);
+  assert.match(html, /Back to Scheduling/);
+  assert.match(html, /Book another/);
+  assert.match(html, new RegExp(`href="${CLIENT_HOME}"`));
+  assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
+  assert.doesNotMatch(html, />Modify</);
+  assert.doesNotMatch(html, />Cancel</);
+  assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);
+  assert.doesNotMatch(html, /You(?:'|&#x27;)re all set/);
 });

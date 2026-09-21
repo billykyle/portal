@@ -41,11 +41,18 @@ export function uniqueEmails(values: Array<string | null | undefined>) {
   return emails;
 }
 
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+  contentType?: string;
+};
+
 export type SendEmailInput = {
   to: string | string[];
   subject: string;
   text: string;
   html?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendEmailResult = { sent: true } | { sent: false; reason: string };
@@ -78,6 +85,15 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         subject: input.subject,
         text: input.text,
         ...(input.html ? { html: input.html } : {}),
+        ...(input.attachments?.length
+          ? {
+              attachments: input.attachments.map((file) => ({
+                filename: file.filename,
+                content: file.content,
+                ...(file.contentType ? { content_type: file.contentType } : {}),
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) {

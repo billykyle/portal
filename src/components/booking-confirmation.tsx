@@ -51,6 +51,13 @@ export function BookingConfirmation({
       ownerId ?? "",
     );
   const showCancel = upcoming;
+  const cancelled = (booking.status ?? "confirmed") === "cancelled";
+  const title = cancelled ? "Shoot cancelled." : updated ? "Shoot updated." : "You're all set.";
+  const subtitle = cancelled
+    ? "Your appointment with Billy Kyle has been cancelled."
+    : updated
+      ? "Your upcoming shoot has been changed."
+      : "Your shoot with Billy Kyle is confirmed.";
   const modifyHref = schedulingBookHref({
     modify: booking.id,
     address: booking.address,
@@ -60,12 +67,8 @@ export function BookingConfirmation({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
-      <h1 className="text-[32px] font-bold leading-tight lg:text-[40px]">
-        {updated ? "Shoot updated." : "You're booked."}
-      </h1>
-      <p className="mt-3 text-sm text-[#8e8e93]">
-        {updated ? "Your upcoming shoot has been changed." : "Your shoot with Billy Kyle is confirmed."}
-      </p>
+      <h1 className="text-[32px] font-bold leading-tight lg:text-[40px]">{title}</h1>
+      <p className="mt-3 text-sm text-[#8e8e93]">{subtitle}</p>
 
       <dl className="mt-10 w-full text-left">
         {services.length > 0 ? (
@@ -136,7 +139,7 @@ export function BookingConfirmation({
           <Link href={CLIENT_HOME} className="text-sm text-[#8e8e93]">
             Home
           </Link>
-          {updated ? null : (
+          {updated && !cancelled ? null : (
             <Link href={CLIENT_SCHEDULING} className="text-sm text-[#8e8e93]">
               Book another
             </Link>

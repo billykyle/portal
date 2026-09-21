@@ -414,7 +414,14 @@ export async function cancelBooking(formData: FormData) {
     redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   if (booking.status === "cancelled") {
-    redirect(admin ? "/admin/bookings" : CLIENT_SCHEDULING);
+    if (admin && formData.get("fromAdmin") === "1") {
+      const clientId = String(formData.get("clientId") ?? booking.clientId);
+      redirect(`/admin/clients/${clientId}?bookingCancelled=1`);
+    }
+    if (admin && !session) {
+      redirect("/admin/bookings");
+    }
+    redirect(schedulingConfirmedHref(booking.id));
   }
 
   const [cancelled] = await db
@@ -466,6 +473,7 @@ export async function cancelBooking(formData: FormData) {
 
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
+  revalidatePath(schedulingConfirmedHref(booking.id));
   revalidatePath("/admin/bookings");
   if (admin && formData.get("fromAdmin") === "1") {
     const clientId = String(formData.get("clientId") ?? booking.clientId);
@@ -474,5 +482,5 @@ export async function cancelBooking(formData: FormData) {
   if (admin && !session) {
     redirect("/admin/bookings?cancelled=1");
   }
-  redirect(schedulingBookHref({ cancelled: "1" }));
+  redirect(schedulingConfirmedHref(booking.id));
 }
