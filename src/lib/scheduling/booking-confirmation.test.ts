@@ -18,6 +18,16 @@ test("formatBookingDuration names hours and leftover minutes", () => {
 
 const bookingId = "11111111-1111-4111-8111-111111111111";
 const clientId = "client-1";
+const primaryButtonClass =
+  "flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black";
+const secondaryButtonClass =
+  "flex h-12 w-full items-center justify-center rounded-xl border border-white text-base font-medium text-white";
+
+function actionClass(html: string, label: string) {
+  const match = html.match(new RegExp(`class="([^"]+)"[^>]*>${label}<`));
+  assert.ok(match, `expected ${label} action`);
+  return match[1];
+}
 
 function futureBooking(overrides: Record<string, unknown> = {}) {
   return {
@@ -61,6 +71,9 @@ test("book confirmation is a centered hero with the shoot details", () => {
   assert.match(html, /Book another/);
   assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
   assert.match(html, new RegExp(`href="${CLIENT_HOME}"`));
+  assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
+  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
+  assert.equal(actionClass(html, "Book another"), secondaryButtonClass);
   assert.doesNotMatch(html, /Shoot updated/);
 });
 
@@ -77,7 +90,12 @@ test("confirmation page puts Modify and Cancel first as primary actions", () => 
   const schedulingAt = html.indexOf(">Back to Scheduling<");
   assert.ok(modifyAt >= 0, "expected a Modify button");
   assert.ok(cancelAt > modifyAt, "Modify should come before Cancel");
-  assert.ok(schedulingAt > cancelAt, "Scheduling should stay a secondary link");
+  assert.ok(schedulingAt > cancelAt, "Scheduling should stay after Modify and Cancel");
+  assert.equal(actionClass(html, "Modify"), primaryButtonClass);
+  assert.equal(actionClass(html, "Cancel"), secondaryButtonClass);
+  assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
+  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
+  assert.equal(actionClass(html, "Book another"), secondaryButtonClass);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
   assert.match(html, /name="bookingId"/);
   assert.match(html, /11111111-1111-4111-8111-111111111111/);
@@ -99,9 +117,10 @@ test("modify confirmation uses the updated hero and skips Book another", () => {
   assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);
   assert.doesNotMatch(html, /You(?:'|&#x27;)re all set/);
   assert.doesNotMatch(html, /Book another/);
-  assert.match(html, /Back to Scheduling/);
-  assert.match(html, />Modify</);
-  assert.match(html, />Cancel</);
+  assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
+  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
+  assert.equal(actionClass(html, "Modify"), primaryButtonClass);
+  assert.equal(actionClass(html, "Cancel"), secondaryButtonClass);
 });
 
 test("cancelled confirmation uses cancelled hero and hides modify/cancel", () => {
@@ -123,6 +142,9 @@ test("cancelled confirmation uses cancelled hero and hides modify/cancel", () =>
   assert.match(html, /Book another/);
   assert.match(html, new RegExp(`href="${CLIENT_HOME}"`));
   assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
+  assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
+  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
+  assert.equal(actionClass(html, "Book another"), secondaryButtonClass);
   assert.doesNotMatch(html, />Modify</);
   assert.doesNotMatch(html, />Cancel</);
   assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);

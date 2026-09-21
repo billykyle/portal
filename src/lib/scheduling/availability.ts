@@ -49,11 +49,23 @@ export type AvailabilitySources = {
   driveTimeConfigured: boolean;
 };
 
-export function withoutOwnBooking(sources: AvailabilitySources, window: Interval): AvailabilitySources {
+export function withoutOwnBooking(
+  sources: AvailabilitySources,
+  window: Interval,
+  options?: { calendarEventId?: string | null },
+): AvailabilitySources {
+  const eventId = options?.calendarEventId?.trim() || "";
+  const ownJobs = sources.jobs.filter(
+    (job) => sameInterval(job, window) || (eventId !== "" && job.eventId === eventId),
+  );
+  let busy = subtractInterval(sources.busy, window);
+  for (const job of ownJobs) {
+    busy = subtractInterval(busy, job);
+  }
   return {
     ...sources,
-    busy: subtractInterval(sources.busy, window),
-    jobs: sources.jobs.filter((job) => !sameInterval(job, window)),
+    busy,
+    jobs: sources.jobs.filter((job) => !ownJobs.includes(job)),
   };
 }
 
@@ -173,9 +185,36 @@ export async function offerSlotsForAddress(
     calendarConfigured: sources.calendarConfigured,
     driveTimeConfigured: sources.driveTimeConfigured,
     ...window,
-    slots,
+    slots: keepRetainedStarts(slots, options?.retainStarts, hours.slotMinutes, hours.timeZone),
     notices,
   };
+}
+
+/** Modify: always offer the original start, even if a longer duration overlaps other busy time. */
+export function keepRetainedStarts(
+  slots: OfferedSlot[],
+  retainStarts: readonly Date[] | undefined,
+  slotMinutes: number,
+  timeZone: string,
+): OfferedSlot[] {
+  if (!retainStarts?.length) return slots;
+  const existing = new Set(slots.map((slot) => new Date(slot.start).getTime()));
+  const extra: OfferedSlot[] = [];
+  for (const start of retainStarts) {
+    if (existing.has(start.getTime())) continue;
+    const end = new Date(start.getTime() + Math.max(5, slotMinutes) * 60 * 1000);
+    const labels = formatSlotRange(start, end, timeZone);
+    extra.push({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      dateKey: labels.dateKey,
+      dateLabel: labels.dateLabel,
+      timeLabel: labels.timeLabel,
+      driveSecondsFromPrior: null,
+    });
+  }
+  if (extra.length === 0) return slots;
+  return [...slots, ...extra].sort((a, b) => a.start.localeCompare(b.start));
 }
 
 export function slotStillOffered(result: AvailabilityResult, startIso: string, endIso: string) {

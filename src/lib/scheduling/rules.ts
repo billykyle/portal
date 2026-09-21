@@ -40,6 +40,8 @@
  *    but a 403 must not fail the client confirm. Modify (`updateBooking`)
  *    uses the same two-send + Calendar soft-fail pattern, excluding the
  *    booking being edited from availability so its own slot stays offered.
+ *    Modify always keeps the original start selectable and pre-selected,
+ *    even when added services make that start overlap another busy block.
  *    Cancel (`cancelBooking`) sends the same two Resend emails after the
  *    status flip: client “Shoot cancelled” (Scheduling link only — not
  *    modify that booking) and Billy “Booking cancelled”. Soft-fail mail.

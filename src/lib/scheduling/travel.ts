@@ -7,6 +7,8 @@ export type TravelJob = {
   end: Date;
   /** Null when Calendar marks busy time with no location — time-block only. */
   address: string | null;
+  /** Google Calendar event id when the job came from a listed event. */
+  eventId?: string | null;
 };
 
 export type TravelVerdict =

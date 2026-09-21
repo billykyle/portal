@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseShootAddress, sameAddress } from "./address";
-import { offerSlotsForAddress, publicCalendarError, withoutOwnBooking } from "./availability";
+import { keepRetainedStarts, offerSlotsForAddress, publicCalendarError, withoutOwnBooking } from "./availability";
 import { schedulingIntegrations } from "./config";
 import { mergeIntervals, overlaps, subtractInterval } from "./intervals";
 import { DEFAULT_TIMEZONE, TRAVEL_PAD_MINUTES } from "./rules";
@@ -493,6 +493,58 @@ test("modifying a booking does not let its own window block the same slot", asyn
   assert.equal(startMs(kept.end), own.end.getTime());
 });
 
+test("modify keeps the original start when a longer duration overlaps another shoot", async () => {
+  const now = et(2026, 9, 20, 9);
+  const own = { start: et(2026, 9, 25, 14), end: et(2026, 9, 25, 15) };
+  const nextShoot = {
+    start: et(2026, 9, 25, 15),
+    end: et(2026, 9, 25, 16),
+    address: SHORE,
+  };
+  const sources = withoutOwnBooking(
+    {
+      now,
+      busy: [own, { start: nextShoot.start, end: nextShoot.end }],
+      jobs: [{ ...own, address: PHILLY, eventId: "evt-own" }, nextShoot],
+      calendarConfigured: true,
+      driveTimeConfigured: true,
+      driveSeconds: async () => 20 * 60,
+    },
+    own,
+    { calendarEventId: "evt-own" },
+  );
+  assert.equal(
+    sources.jobs.some((job) => job.eventId === "evt-own"),
+    false,
+  );
+
+  const result = await offerSlotsForAddress(PHILLY, sources, ["Real Estate · Photography", "Real Estate · Video"], {
+    retainStarts: [own.start],
+  });
+  const kept = result.slots.find((slot) => startMs(slot.start) === own.start.getTime());
+  assert.ok(kept, "original start must stay offered on modify");
+  assert.equal(startMs(kept.end), et(2026, 9, 25, 15, 15).getTime());
+  const twoFifteen = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 25, 14, 15).getTime());
+  assert.equal(twoFifteen, undefined);
+});
+
+test("keepRetainedStarts inserts a missing original start without dropping other slots", () => {
+  const existing = [
+    {
+      start: "2026-09-25T15:00:00.000Z",
+      end: "2026-09-25T16:00:00.000Z",
+      dateKey: "2026-09-25",
+      dateLabel: "Friday, Sep 25",
+      timeLabel: "11:00 AM – 12:00 PM",
+      driveSecondsFromPrior: null,
+    },
+  ];
+  const kept = keepRetainedStarts(existing, [et(2026, 9, 25, 10)], 45, DEFAULT_TIMEZONE);
+  assert.equal(kept.length, 2);
+  assert.equal(kept[0]?.start, et(2026, 9, 25, 10).toISOString());
+  assert.equal(kept[1]?.start, existing[0]?.start);
+});
+
 test("retainStarts keeps a booking inside the lead window when modifying", () => {
   const now = et(2026, 9, 21, 14);
   const retain = et(2026, 9, 21, 15);
@@ -512,6 +564,30 @@ test("retainStarts keeps a booking inside the lead window when modifying", () =>
     slots.some((slot) => slot.start.getTime() === et(2026, 9, 21, 14, 15).getTime()),
     false,
   );
+});
+
+test("withoutOwnBooking drops a calendar event by id even when its times differ", () => {
+  const own = { start: et(2026, 9, 25, 14), end: et(2026, 9, 25, 15) };
+  const calendarCopy = {
+    start: et(2026, 9, 25, 14),
+    end: et(2026, 9, 25, 15, 10),
+    address: PHILLY,
+    eventId: "evt-own",
+  };
+  const sources = withoutOwnBooking(
+    {
+      now: et(2026, 9, 20, 9),
+      busy: [own, { start: calendarCopy.start, end: calendarCopy.end }],
+      jobs: [calendarCopy],
+      calendarConfigured: true,
+      driveTimeConfigured: true,
+      driveSeconds: async () => null,
+    },
+    own,
+    { calendarEventId: "evt-own" },
+  );
+  assert.equal(sources.jobs.length, 0);
+  assert.equal(sources.busy.length, 0);
 });
 
 test("subtractInterval punches only the booking window out of a merged busy block", () => {
