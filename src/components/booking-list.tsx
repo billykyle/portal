@@ -99,12 +99,7 @@ export function BookingList({
                     showModify
                       ? admin
                         ? adminBookingHref(booking.id)
-                        : schedulingBookHref({
-                            modify: booking.id,
-                            address: booking.address,
-                            services,
-                            notes: booking.notes,
-                          })
+                        : schedulingBookHref({ modify: booking.id })
                       : undefined
                   }
                   bookingId={booking.id}

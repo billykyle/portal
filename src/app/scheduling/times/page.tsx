@@ -8,8 +8,15 @@ import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { parseShootAddress } from "@/lib/scheduling/address";
 import { canModifyBooking, getClientBooking } from "@/lib/scheduling/bookings";
-import { parseSchedulingServices } from "@/lib/scheduling/services";
-import { schedulingBookHref } from "@/lib/scheduling/urls";
+import {
+  firstQueryValue,
+  isLegacySchedulingQuery,
+  schedulingFlowFields,
+  type LegacySchedulingQuery,
+} from "@/lib/scheduling/draft";
+import { migrateLegacySchedulingDraft, readSchedulingDraft } from "@/lib/scheduling/draft-store";
+import { bookingServiceList } from "@/lib/scheduling/services";
+import { schedulingBookHref, schedulingEditorHref } from "@/lib/scheduling/urls";
 
 export const metadata: Metadata = {
   title: "Available times",
@@ -18,79 +25,70 @@ export const metadata: Metadata = {
 export default async function SchedulingTimesPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    address?: string;
-    placeId?: string;
-    service?: string | string[];
-    notes?: string;
-    error?: string;
-    modify?: string;
-  }>;
+  searchParams: Promise<LegacySchedulingQuery & { error?: string; modify?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
     redirect("/");
   }
   await ensureDb();
-  const {
-    address: rawAddress = "",
-    placeId: rawPlaceId = "",
-    service: rawService,
-    notes: rawNotes = "",
-    error,
-    modify: rawModify = "",
-  } = await searchParams;
-  const selectedServices = parseSchedulingServices(rawService);
-  const typedAddress = rawAddress.trim();
-  const placeId = rawPlaceId.trim();
-  const notes = rawNotes.trim();
-  const modifyId = rawModify.trim();
-  const modifying = modifyId ? await getClientBooking(session.clientId, modifyId) : null;
+  const params = await searchParams;
+  if (isLegacySchedulingQuery(params)) {
+    redirect(
+      await migrateLegacySchedulingDraft({
+        scope: "client",
+        to: "times",
+        clientId: session.clientId,
+        userId: session.userId,
+        address: firstQueryValue(params.address),
+        placeId: firstQueryValue(params.placeId),
+        service: params.service,
+        notes: firstQueryValue(params.notes),
+        modify: params.modify,
+        error: params.error,
+      }),
+    );
+  }
+
+  const modifyId = (params.modify ?? "").trim();
+  const [draft, modifying] = await Promise.all([
+    readSchedulingDraft("client", session.clientId),
+    modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
+  ]);
   if (modifyId && (!modifying || !canModifyBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
   }
 
-  if (selectedServices.length === 0) {
-    redirect(
-      schedulingBookHref({
-        address: typedAddress || null,
-        placeId: placeId || null,
-        notes: notes || null,
-        modify: modifying?.id ?? null,
-        error: "Pick at least one service.",
-      }),
-    );
+  const fields = schedulingFlowFields(
+    draft,
+    modifyId,
+    modifying
+      ? {
+          address: modifying.address,
+          notes: modifying.notes,
+          services: bookingServiceList(modifying),
+          updatedAt: modifying.updatedAt,
+        }
+      : null,
+  );
+  if (fields.services.length === 0) {
+    redirect(schedulingBookHref({ modify: modifying?.id ?? null, error: "Pick at least one service." }));
   }
-
-  const parsed = parseShootAddress(typedAddress);
+  const parsed = parseShootAddress(fields.address);
   if (!parsed.ok) {
-    redirect(
-      schedulingBookHref({
-        address: typedAddress || null,
-        placeId: placeId || null,
-        services: selectedServices,
-        notes: notes || null,
-        modify: modifying?.id ?? null,
-        error: parsed.error,
-      }),
-    );
+    redirect(schedulingBookHref({ modify: modifying?.id ?? null, error: parsed.error }));
   }
 
-  const changeHref = schedulingBookHref({
-    address: parsed.address,
-    services: selectedServices,
-    notes: notes || null,
-    modify: modifying?.id ?? null,
-  });
+  const changeHref = schedulingEditorHref({ bookingId: modifying?.id });
 
   return (
-    <TimesShell changeHref={changeHref} error={error}>
+    <TimesShell changeHref={changeHref} error={params.error}>
       <BookTimesPanel
         address={parsed.address}
-        placeId={placeId || undefined}
-        services={selectedServices}
-        notes={notes}
-        error={error}
+        placeId={fields.placeId || undefined}
+        services={fields.services}
+        notes={fields.notes}
+        error={params.error}
         modifyBookingId={modifying?.id}
         currentSlot={
           modifying ? `${modifying.startsAt.toISOString()}|${modifying.endsAt.toISOString()}` : undefined

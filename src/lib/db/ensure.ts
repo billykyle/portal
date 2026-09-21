@@ -130,6 +130,23 @@ async function createTables() {
   `;
   await sql`CREATE INDEX IF NOT EXISTS bookings_client_starts_idx ON bookings (client_id, starts_at)`;
   await sql`CREATE INDEX IF NOT EXISTS bookings_starts_idx ON bookings (starts_at)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS booking_drafts (
+      id text PRIMARY KEY,
+      scope text NOT NULL,
+      client_id uuid REFERENCES clients(id) ON DELETE CASCADE,
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      address text NOT NULL DEFAULT '',
+      place_id text,
+      services text[],
+      notes text,
+      modify_booking_id text,
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS booking_drafts_expires_idx ON booking_drafts (expires_at)`;
 }
 
 export async function ensureDb() {

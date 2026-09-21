@@ -1,61 +1,48 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ADMIN_BOOKINGS, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "../routes";
-import { adminBookingHref, adminBookingTimesHref, schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "./urls";
+import {
+  adminBookingHref,
+  adminBookingTimesHref,
+  schedulingBookHref,
+  schedulingConfirmedHref,
+  schedulingEditorHref,
+  schedulingTimesHref,
+} from "./urls";
 
-test("book and times hrefs keep a single address field plus services", () => {
+const bookingId = "11111111-1111-4111-8111-111111111111";
+
+test("book and times hrefs stay short", () => {
   assert.equal(schedulingBookHref(), CLIENT_SCHEDULING);
+  assert.equal(schedulingTimesHref(), CLIENT_SCHEDULING_TIMES);
+  assert.equal(schedulingTimesHref({ error: "Pick a time." }), `${CLIENT_SCHEDULING_TIMES}?error=Pick+a+time.`);
+  assert.equal(schedulingBookHref({ modify: bookingId }), `${CLIENT_SCHEDULING}?modify=${bookingId}`);
   assert.equal(
-    schedulingTimesHref({
-      address: "12 Wood View Drive, Princeton, NJ, USA",
-      placeId: "ChIJ123",
-      services: ["Real Estate · Photography", "Construction · Video"],
-      notes: "Lockbox on the porch",
-    }),
-    `${CLIENT_SCHEDULING_TIMES}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&placeId=ChIJ123&service=Real+Estate+%C2%B7+Photography&service=Construction+%C2%B7+Video&notes=Lockbox+on+the+porch`,
+    schedulingTimesHref({ modify: bookingId, error: "Pick a time." }),
+    `${CLIENT_SCHEDULING_TIMES}?error=Pick+a+time.&modify=${bookingId}`,
+  );
+  assert.equal(schedulingBookHref({ cancelled: "1" }), `${CLIENT_SCHEDULING}?cancelled=1`);
+  assert.equal(schedulingConfirmedHref(bookingId), `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`);
+  assert.equal(
+    schedulingConfirmedHref(bookingId, { updated: true }),
+    `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}?updated=1`,
   );
   assert.equal(
-    schedulingConfirmedHref("11111111-1111-4111-8111-111111111111"),
-    `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111`,
+    schedulingConfirmedHref(bookingId, { calendar: "failed", email: "failed" }),
+    `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}?calendar=failed&email=failed`,
   );
-  assert.equal(
-    schedulingConfirmedHref("11111111-1111-4111-8111-111111111111", { updated: true }),
-    `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111?updated=1`,
-  );
-  assert.equal(
-    schedulingConfirmedHref("11111111-1111-4111-8111-111111111111", {
-      calendar: "failed",
-      email: "failed",
-    }),
-    `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111?calendar=failed&email=failed`,
-  );
-  assert.equal(
-    schedulingTimesHref({
-      address: "12 Wood View Drive, Princeton, NJ, USA",
-      services: ["Real Estate · Photography"],
-      error: "Pick a time.",
-    }),
-    `${CLIENT_SCHEDULING_TIMES}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&service=Real+Estate+%C2%B7+Photography&error=Pick+a+time.`,
-  );
-  assert.equal(
-    schedulingBookHref({
-      modify: "11111111-1111-4111-8111-111111111111",
-      address: "12 Wood View Drive, Princeton, NJ, USA",
-      services: ["Real Estate · Photography"],
-      notes: "Lockbox",
-    }),
-    `${CLIENT_SCHEDULING}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&service=Real+Estate+%C2%B7+Photography&notes=Lockbox&modify=11111111-1111-4111-8111-111111111111`,
-  );
+  assert.doesNotMatch(schedulingTimesHref({ modify: bookingId, error: "Pick a time." }), /address|service|notes|placeId/);
+  assert.doesNotMatch(schedulingBookHref({ modify: bookingId }), /address|service|notes|placeId/);
 });
 
 test("admin modify hrefs stay under /admin/bookings/{id}", () => {
-  assert.equal(adminBookingHref("11111111-1111-4111-8111-111111111111"), `${ADMIN_BOOKINGS}/11111111-1111-4111-8111-111111111111`);
+  assert.equal(adminBookingHref(bookingId), `${ADMIN_BOOKINGS}/${bookingId}`);
+  assert.equal(adminBookingTimesHref(bookingId), `${ADMIN_BOOKINGS}/${bookingId}/times`);
   assert.equal(
-    adminBookingTimesHref("11111111-1111-4111-8111-111111111111", {
-      address: "12 Wood View Drive",
-      services: ["Real Estate · Photography"],
-      notes: "Lockbox",
-    }),
-    `${ADMIN_BOOKINGS}/11111111-1111-4111-8111-111111111111/times?address=12+Wood+View+Drive&service=Real+Estate+%C2%B7+Photography&notes=Lockbox`,
+    adminBookingTimesHref(bookingId, { error: "Pick a time." }),
+    `${ADMIN_BOOKINGS}/${bookingId}/times?error=Pick+a+time.`,
   );
+  assert.equal(schedulingEditorHref({ fromAdmin: true, bookingId }), `${ADMIN_BOOKINGS}/${bookingId}`);
+  assert.equal(schedulingEditorHref({ bookingId }), `${CLIENT_SCHEDULING}?modify=${bookingId}`);
+  assert.equal(schedulingEditorHref({}), CLIENT_SCHEDULING);
 });

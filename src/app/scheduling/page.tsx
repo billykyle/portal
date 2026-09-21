@@ -8,7 +8,14 @@ import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { canModifyBooking, getClientBooking, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
 import { schedulingHours, placesConfigured } from "@/lib/scheduling/config";
-import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
+import {
+  firstQueryValue,
+  isLegacySchedulingQuery,
+  schedulingFlowFields,
+  type LegacySchedulingQuery,
+} from "@/lib/scheduling/draft";
+import { migrateLegacySchedulingDraft, readSchedulingDraft } from "@/lib/scheduling/draft-store";
+import { bookingServiceList } from "@/lib/scheduling/services";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export const metadata: Metadata = {
@@ -18,54 +25,70 @@ export const metadata: Metadata = {
 export default async function SchedulingPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    address?: string;
-    placeId?: string;
-    service?: string | string[];
-    notes?: string;
-    cancelled?: string;
-    modify?: string;
-    error?: string;
-  }>;
+  searchParams: Promise<
+    LegacySchedulingQuery & {
+      cancelled?: string;
+      modify?: string;
+      error?: string;
+    }
+  >;
 }) {
   const session = await getSession();
   if (!session) {
     redirect("/");
   }
   await ensureDb();
-  const {
-    address: rawAddress = "",
-    placeId: rawPlaceId = "",
-    service: rawService,
-    notes: rawNotes = "",
-    cancelled,
-    modify: rawModify = "",
-    error,
-  } = await searchParams;
-  const modifyId = rawModify.trim();
-  const [modifying, upcoming] = await Promise.all([
+  const params = await searchParams;
+  if (isLegacySchedulingQuery(params)) {
+    redirect(
+      await migrateLegacySchedulingDraft({
+        scope: "client",
+        to: "book",
+        clientId: session.clientId,
+        userId: session.userId,
+        address: firstQueryValue(params.address),
+        placeId: firstQueryValue(params.placeId),
+        service: params.service,
+        notes: firstQueryValue(params.notes),
+        modify: params.modify,
+        error: params.error,
+        cancelled: params.cancelled,
+      }),
+    );
+  }
+
+  const modifyId = (params.modify ?? "").trim();
+  const [draft, modifying, upcoming] = await Promise.all([
+    readSchedulingDraft("client", session.clientId),
     modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
     listClientUpcomingBookings(session.clientId),
   ]);
   if (modifyId && (!modifying || !canModifyBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
   }
-  const selectedServices = parseSchedulingServices(
-    rawService ?? (modifying ? bookingServiceList(modifying) : undefined),
+  const fields = schedulingFlowFields(
+    draft,
+    modifyId,
+    modifying
+      ? {
+          address: modifying.address,
+          notes: modifying.notes,
+          services: bookingServiceList(modifying),
+          updatedAt: modifying.updatedAt,
+        }
+      : null,
   );
   const hours = schedulingHours();
-  const typedAddress = rawAddress.trim() || modifying?.address || "";
-  const typedNotes = rawNotes.trim() || modifying?.notes || "";
 
   return (
     <PhoneShell>
       <ClientHeader />
       <div className="mb-8 lg:mb-10">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
-        {cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
-        {error ? (
+        {params.cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
+        {params.error ? (
           <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
-            {error}
+            {params.error}
           </p>
         ) : null}
       </div>
@@ -87,11 +110,11 @@ export default async function SchedulingPage({
           </h2>
           <FormColumn>
             <BookShootForm
-              key={modifying?.id ?? "book"}
-              address={typedAddress}
-              placeId={rawPlaceId.trim()}
-              services={selectedServices}
-              notes={typedNotes}
+              key={`${modifying?.id ?? "book"}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
+              address={fields.address}
+              placeId={fields.placeId}
+              services={fields.services}
+              notes={fields.notes}
               placesConfigured={placesConfigured()}
               modifyBookingId={modifying?.id}
             />

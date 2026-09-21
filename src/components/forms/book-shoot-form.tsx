@@ -16,7 +16,6 @@ export function BookShootForm({
   addressError,
   placesConfigured,
   modifyBookingId,
-  timesAction,
   fromAdmin = false,
 }: {
   address: string;
@@ -26,7 +25,6 @@ export function BookShootForm({
   addressError?: string;
   placesConfigured: boolean;
   modifyBookingId?: string;
-  timesAction?: string;
   fromAdmin?: boolean;
 }) {
   const [typedAddress, setTypedAddress] = useState(address);
@@ -52,7 +50,7 @@ export function BookShootForm({
   }, [queryKey, query]);
 
   return (
-    <BookTimesNavigation action={timesAction}>
+    <BookTimesNavigation>
       {modifyBookingId ? <input type="hidden" name="modify" value={modifyBookingId} /> : null}
       {fromAdmin ? <input type="hidden" name="fromAdmin" value="1" /> : null}
       <AddressAutocomplete

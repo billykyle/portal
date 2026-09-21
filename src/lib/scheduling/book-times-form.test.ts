@@ -106,7 +106,8 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, /Save changes/);
   assert.doesNotMatch(html, /Step \d+ of \d+/);
   assert.doesNotMatch(html, /Book shoot/);
-  assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /href="\/scheduling\?modify=11111111-1111-4111-8111-111111111111"/);
+  assert.doesNotMatch(html, /href="[^"]*(?:address|notes|service|placeId)=/);
   assert.doesNotMatch(html, /name="fromAdmin"/);
   assert.match(html, /checked/);
   assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
@@ -182,7 +183,8 @@ test("admin times form posts fromAdmin and keeps the admin change link", () => {
   );
   assert.match(html, /name="fromAdmin"/);
   assert.match(html, /value="1"/);
-  assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111"/);
+  assert.doesNotMatch(html, /href="[^"]*(?:address|notes|service|placeId)=/);
 });
 
 test("refreshing keeps the last slots and the loading sentence", () => {

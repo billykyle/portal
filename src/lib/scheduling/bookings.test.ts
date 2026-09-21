@@ -94,7 +94,8 @@ test("client upcoming cards show address, when, then services on one line", () =
   assert.equal(actionClass(html, "Cancel"), bookingSecondaryButtonClass);
   assert.match(html, new RegExp(`class="${bookingActionRowClass}"`));
   assert.doesNotMatch(html, /class="text-sm text-\[#8e8e93\]"[^>]*>Modify</);
-  assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /href="\/scheduling\?modify=11111111-1111-4111-8111-111111111111"/);
+  assert.doesNotMatch(html, /href="[^"]*(?:address|notes|service|placeId)=/);
   assert.doesNotMatch(
     renderToStaticMarkup(
       createElement(BookingList, {
