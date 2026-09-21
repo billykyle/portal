@@ -102,3 +102,39 @@ test("modify confirmation uses the updated hero and skips Book another", () => {
   assert.match(html, />Modify</);
   assert.match(html, />Cancel</);
 });
+
+test("cancelled confirmation matches the booked layout without Modify or Cancel", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookingConfirmation, {
+      booking: futureBooking({
+        services: ["Real Estate · Photography"],
+        notes: null,
+        status: "cancelled",
+      }),
+      timeZone: "America/New_York",
+      cancelled: true,
+      clientId,
+    }),
+  );
+  assert.match(html, /Shoot cancelled\./);
+  assert.match(html, /Your appointment with Billy Kyle has been cancelled\./);
+  assert.match(html, /Real Estate · Photography/);
+  assert.match(html, /644 Plumrun Dr/);
+  assert.match(html, /When/);
+  assert.match(html, /Eastern/);
+  assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);
+  assert.doesNotMatch(html, /Shoot updated/);
+  assert.doesNotMatch(html, />Modify</);
+  assert.doesNotMatch(html, />Cancel</);
+  assert.doesNotMatch(html, /name="bookingId"/);
+  const primaryScheduling = html.indexOf("rounded-xl bg-white");
+  const primaryBookAnother = html.indexOf("rounded-xl border border-white");
+  const quietHome = html.indexOf(`>${"Home"}<`);
+  assert.ok(primaryScheduling >= 0, "expected a primary Back to Scheduling button");
+  assert.ok(primaryBookAnother > primaryScheduling, "Book another should sit with the primary actions");
+  assert.ok(quietHome > primaryBookAnother, "Home should stay a quieter link");
+  assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
+  assert.match(html, new RegExp(`href="${CLIENT_HOME}"`));
+  assert.equal(html.match(/Back to Scheduling/g)?.length, 2);
+  assert.equal(html.match(/Book another/g)?.length, 2);
+});

@@ -38,7 +38,11 @@ export function schedulingTimesHref(params: SchedulingQuery = {}) {
   return schedulingHref(CLIENT_SCHEDULING_TIMES, params);
 }
 
-export function schedulingConfirmedHref(bookingId: string, options?: { updated?: boolean }) {
+export function schedulingConfirmedHref(
+  bookingId: string,
+  options?: { updated?: boolean; cancelled?: boolean },
+) {
   const path = `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`;
+  if (options?.cancelled) return `${path}?cancelled=1`;
   return options?.updated ? `${path}?updated=1` : path;
 }

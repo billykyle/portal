@@ -10,11 +10,20 @@ import { schedulingHours } from "@/lib/scheduling/config";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export async function generateMetadata({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ updated?: string }>;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ updated?: string; cancelled?: string }>;
 }): Promise<Metadata> {
-  const { updated } = await searchParams;
+  const [{ id }, { updated, cancelled }] = await Promise.all([params, searchParams]);
+  if (cancelled) return { title: "Shoot cancelled" };
+  const session = await getSession();
+  if (session) {
+    await ensureDb();
+    const booking = await getClientBooking(session.clientId, id);
+    if (booking?.status === "cancelled") return { title: "Shoot cancelled" };
+  }
   return { title: updated ? "Shoot updated" : "Shoot confirmed" };
 }
 
@@ -23,7 +32,7 @@ export default async function SchedulingConfirmedPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string }>;
+  searchParams: Promise<{ updated?: string; cancelled?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
@@ -32,10 +41,11 @@ export default async function SchedulingConfirmedPage({
   await ensureDb();
   const [{ id }, { updated }] = await Promise.all([params, searchParams]);
   const booking = await getClientBooking(session.clientId, id);
-  if (!booking || booking.status === "cancelled") {
+  if (!booking) {
     redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   const hours = schedulingHours();
+  const cancelled = booking.status === "cancelled";
 
   return (
     <PhoneShell>
@@ -44,7 +54,8 @@ export default async function SchedulingConfirmedPage({
         <BookingConfirmation
           booking={booking}
           timeZone={hours.timeZone}
-          updated={Boolean(updated)}
+          updated={Boolean(updated) && !cancelled}
+          cancelled={cancelled}
           clientId={session.clientId}
         />
       </div>

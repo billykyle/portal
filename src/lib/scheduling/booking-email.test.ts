@@ -15,6 +15,7 @@ import {
   sendBookingConfirmation,
   sendBookingModification,
 } from "./booking-email";
+import { formatBookingWhen } from "./slots";
 
 const EMAIL_ENV = ["RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFY_EMAIL", "PORTAL_PUBLIC_URL"] as const;
 
@@ -50,6 +51,15 @@ function sampleInput(overrides: Record<string, unknown> = {}) {
     accessCodes: "Gate 4455",
     ...overrides,
   };
+}
+
+function assertClientHeadingOmitsWhen(html: string, title: string) {
+  const when = formatBookingWhen(start, end, "America/New_York");
+  const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedWhen = when.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.doesNotMatch(html, new RegExp(`<h1[^>]*>${escapedTitle}</h1>\\s*<p[^>]*>${escapedWhen}`));
+  assert.match(html, />When</);
+  assert.match(html, new RegExp(escapedWhen));
 }
 
 function assertOnBrandHtml(html: string) {
@@ -110,6 +120,7 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assert.match(message.text, /https:\/\/portal\.billy-kyle\.com\/scheduling\/confirmed\/11111111-1111-4111-8111-111111111111/);
   assert.match(message.html, /Modify or cancel this shoot/);
   assert.match(message.html, /12 Wood View Drive, Princeton, NJ/);
+  assertClientHeadingOmitsWhen(message.html, "Shoot confirmed");
   assertOnBrandHtml(message.html);
 });
 
@@ -125,6 +136,10 @@ test("Billy's copy uses a New booking subject and names the client", () => {
   assert.match(message.html, /View bookings/);
   assert.match(message.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.doesNotMatch(message.html, /<strong>Admin<\/strong>/);
+  assert.match(
+    message.html,
+    /<h1[^>]*>New booking<\/h1>\s*<p[^>]*>Tuesday, Sep 22 · 10:00 AM – 11:30 AM/,
+  );
   assertOnBrandHtml(message.html);
 });
 
@@ -166,6 +181,7 @@ test("modification emails use updated copy for client and Billy", () => {
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
   assert.match(notify.html, /View bookings/);
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assertClientHeadingOmitsWhen(client.html, "Shoot updated");
   assertOnBrandHtml(client.html);
   assertOnBrandHtml(notify.html);
 });
@@ -207,6 +223,7 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
   assert.doesNotMatch(client.html, /scheduling\/confirmed/);
   assert.match(client.html, /Back to Scheduling/);
   assert.match(client.html, /https:\/\/portal\.billy-kyle\.com\/scheduling/);
+  assertClientHeadingOmitsWhen(client.html, "Shoot cancelled");
 
   assert.match(notify.subject, /^Booking cancelled:/);
   assert.match(notify.text, /cancelled on the portal/);

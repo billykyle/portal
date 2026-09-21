@@ -23,11 +23,13 @@ export function BookingConfirmation({
   booking,
   timeZone,
   updated = false,
+  cancelled = false,
   clientId,
 }: {
   booking: BookingConfirmationDetails;
   timeZone: string;
   updated?: boolean;
+  cancelled?: boolean;
   clientId?: string;
 }) {
   const services = bookingServiceList(booking);
@@ -37,8 +39,11 @@ export function BookingConfirmation({
   const notes = booking.notes?.trim() || "";
   const accessCodes = booking.accessCodes?.trim() || "";
   const ownerId = clientId ?? booking.clientId;
+  const isCancelled = cancelled || booking.status === "cancelled";
   const upcoming =
-    (booking.status ?? "confirmed") === "confirmed" && booking.startsAt.getTime() > Date.now();
+    !isCancelled &&
+    (booking.status ?? "confirmed") === "confirmed" &&
+    booking.startsAt.getTime() > Date.now();
   const showModify =
     upcoming &&
     Boolean(ownerId) &&
@@ -51,6 +56,12 @@ export function BookingConfirmation({
       ownerId ?? "",
     );
   const showCancel = upcoming;
+  const title = isCancelled ? "Shoot cancelled." : updated ? "Shoot updated." : "You're booked.";
+  const subtitle = isCancelled
+    ? "Your appointment with Billy Kyle has been cancelled."
+    : updated
+      ? "Your upcoming shoot has been changed."
+      : "Your shoot with Billy Kyle is confirmed.";
   const modifyHref = schedulingBookHref({
     modify: booking.id,
     address: booking.address,
@@ -60,12 +71,8 @@ export function BookingConfirmation({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
-      <h1 className="text-[32px] font-bold leading-tight lg:text-[40px]">
-        {updated ? "Shoot updated." : "You're booked."}
-      </h1>
-      <p className="mt-3 text-sm text-[#8e8e93]">
-        {updated ? "Your upcoming shoot has been changed." : "Your shoot with Billy Kyle is confirmed."}
-      </p>
+      <h1 className="text-[32px] font-bold leading-tight lg:text-[40px]">{title}</h1>
+      <p className="mt-3 text-sm text-[#8e8e93]">{subtitle}</p>
 
       <dl className="mt-10 w-full text-left">
         {services.length > 0 ? (
@@ -110,7 +117,22 @@ export function BookingConfirmation({
       </dl>
 
       <div className="mt-10 flex w-full flex-col items-center gap-4">
-        {showModify || showCancel ? (
+        {isCancelled ? (
+          <div className="flex w-full flex-col gap-3 sm:flex-row">
+            <Link
+              href={CLIENT_SCHEDULING}
+              className="flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black"
+            >
+              Back to Scheduling
+            </Link>
+            <Link
+              href={CLIENT_SCHEDULING}
+              className="flex h-12 w-full items-center justify-center rounded-xl border border-white text-base font-medium text-white"
+            >
+              Book another
+            </Link>
+          </div>
+        ) : showModify || showCancel ? (
           <div className="flex w-full flex-col gap-3 sm:flex-row">
             {showModify ? (
               <Link
@@ -136,7 +158,7 @@ export function BookingConfirmation({
           <Link href={CLIENT_HOME} className="text-sm text-[#8e8e93]">
             Home
           </Link>
-          {updated ? null : (
+          {updated && !isCancelled ? null : (
             <Link href={CLIENT_SCHEDULING} className="text-sm text-[#8e8e93]">
               Book another
             </Link>

@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
@@ -414,7 +414,7 @@ export async function cancelBooking(formData: FormData) {
     redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   if (booking.status === "cancelled") {
-    redirect(admin ? "/admin/bookings" : CLIENT_SCHEDULING);
+    redirect(admin ? "/admin/bookings" : schedulingConfirmedHref(booking.id, { cancelled: true }));
   }
 
   const [cancelled] = await db
@@ -466,6 +466,7 @@ export async function cancelBooking(formData: FormData) {
 
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
+  revalidatePath(`${CLIENT_SCHEDULING_CONFIRMED}/${booking.id}`);
   revalidatePath("/admin/bookings");
   if (admin && formData.get("fromAdmin") === "1") {
     const clientId = String(formData.get("clientId") ?? booking.clientId);
@@ -474,5 +475,5 @@ export async function cancelBooking(formData: FormData) {
   if (admin && !session) {
     redirect("/admin/bookings?cancelled=1");
   }
-  redirect(schedulingBookHref({ cancelled: "1" }));
+  redirect(schedulingConfirmedHref(booking.id, { cancelled: true }));
 }
