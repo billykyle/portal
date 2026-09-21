@@ -97,8 +97,10 @@ ${present
 </table>`;
 }
 
-function headingHtml(title: string, subtitle: string) {
-  return `<h1 style="margin:0 0 8px;font-family:${EMAIL_FONT_STACK};font-size:28px;line-height:1.2;font-weight:700;color:#000000;">${escapeHtml(title)}</h1>
+function headingHtml(title: string, subtitle?: string) {
+  const titleBlock = `<h1 style="margin:0 0 ${subtitle ? "8px" : "28px"};font-family:${EMAIL_FONT_STACK};font-size:28px;line-height:1.2;font-weight:700;color:#000000;">${escapeHtml(title)}</h1>`;
+  if (!subtitle) return titleBlock;
+  return `${titleBlock}
 <p style="margin:0 0 28px;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.45;color:#000000;">${escapeHtml(subtitle)}</p>`;
 }
 
@@ -169,7 +171,7 @@ function buildClientMessage(
     title: copy.title,
     preheader: copy.intro,
     body: [
-      headingHtml(copy.title, when),
+      headingHtml(copy.title),
       paragraphHtml(greeting),
       paragraphHtml(copy.intro),
       detailHtml(rows),

@@ -10,11 +10,21 @@ import { schedulingHours } from "@/lib/scheduling/config";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export async function generateMetadata({
+  params,
   searchParams,
 }: {
+  params: Promise<{ id: string }>;
   searchParams: Promise<{ updated?: string }>;
 }): Promise<Metadata> {
-  const { updated } = await searchParams;
+  const [{ id }, { updated }] = await Promise.all([params, searchParams]);
+  const session = await getSession();
+  if (session) {
+    await ensureDb();
+    const booking = await getClientBooking(session.clientId, id);
+    if (booking?.status === "cancelled") {
+      return { title: "Shoot cancelled" };
+    }
+  }
   return { title: updated ? "Shoot updated" : "Shoot confirmed" };
 }
 
@@ -32,7 +42,7 @@ export default async function SchedulingConfirmedPage({
   await ensureDb();
   const [{ id }, { updated }] = await Promise.all([params, searchParams]);
   const booking = await getClientBooking(session.clientId, id);
-  if (!booking || booking.status === "cancelled") {
+  if (!booking) {
     redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   const hours = schedulingHours();

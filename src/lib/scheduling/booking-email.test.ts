@@ -15,6 +15,7 @@ import {
   sendBookingConfirmation,
   sendBookingModification,
 } from "./booking-email";
+import { formatBookingWhen } from "./slots";
 
 const EMAIL_ENV = ["RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFY_EMAIL", "PORTAL_PUBLIC_URL"] as const;
 
@@ -50,6 +51,16 @@ function sampleInput(overrides: Record<string, unknown> = {}) {
     accessCodes: "Gate 4455",
     ...overrides,
   };
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertClientHeadingHasNoWhen(html: string, title: string, when: string) {
+  assert.doesNotMatch(html, new RegExp(`${escapeRegExp(title)}</h1>\\s*<p[^>]*>${escapeRegExp(when)}`));
+  assert.match(html, />When</);
+  assert.match(html, new RegExp(escapeRegExp(when)));
 }
 
 function assertOnBrandHtml(html: string) {
@@ -110,6 +121,11 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assert.match(message.text, /https:\/\/portal\.billy-kyle\.com\/scheduling\/confirmed\/11111111-1111-4111-8111-111111111111/);
   assert.match(message.html, /Modify or cancel this shoot/);
   assert.match(message.html, /12 Wood View Drive, Princeton, NJ/);
+  assertClientHeadingHasNoWhen(
+    message.html,
+    "Shoot confirmed",
+    formatBookingWhen(start, end, "America/New_York"),
+  );
   assertOnBrandHtml(message.html);
 });
 
@@ -161,6 +177,11 @@ test("modification emails use updated copy for client and Billy", () => {
   assert.match(client.text, /Code 1234/);
   assert.match(client.text, /Modify or cancel this shoot/);
   assert.match(client.html, /updated=1/);
+  assertClientHeadingHasNoWhen(
+    client.html,
+    "Shoot updated",
+    formatBookingWhen(start, end, "America/New_York"),
+  );
   assert.match(notify.subject, /^Booking updated:/);
   assert.match(notify.text, /modified on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
@@ -207,6 +228,11 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
   assert.doesNotMatch(client.html, /scheduling\/confirmed/);
   assert.match(client.html, /Back to Scheduling/);
   assert.match(client.html, /https:\/\/portal\.billy-kyle\.com\/scheduling/);
+  assertClientHeadingHasNoWhen(
+    client.html,
+    "Shoot cancelled",
+    formatBookingWhen(start, end, "America/New_York"),
+  );
 
   assert.match(notify.subject, /^Booking cancelled:/);
   assert.match(notify.text, /cancelled on the portal/);
