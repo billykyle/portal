@@ -17,6 +17,7 @@ import {
   parseRequiredDateKey,
   weekDateKeys,
 } from "@/lib/scheduling/horizon";
+import { TIMES_LOADING_COPY } from "@/lib/scheduling/times-loading";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export function BookTimesForm({
@@ -26,6 +27,8 @@ export function BookTimesForm({
   error,
   modifyBookingId,
   currentSlot,
+  refreshing = false,
+  stale = false,
 }: {
   availability: AvailabilityResult;
   services: string[];
@@ -33,6 +36,8 @@ export function BookTimesForm({
   error?: string;
   modifyBookingId?: string;
   currentSlot?: string;
+  refreshing?: boolean;
+  stale?: boolean;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
@@ -109,12 +114,17 @@ export function BookTimesForm({
       </div>
 
       <h2 className="mt-8 mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
+      {refreshing ? (
+        <p className="mb-4 text-sm text-[#8e8e93]" role="status" aria-live="polite" aria-busy="true">
+          {TIMES_LOADING_COPY}
+        </p>
+      ) : null}
       {availability.notices.map((notice) => (
         <p key={notice} className="mb-4 text-sm leading-6 text-[#c7c7cc]">
           {notice}
         </p>
       ))}
-      {availability.slots.length === 0 ? (
+      {availability.slots.length === 0 && !refreshing ? (
         <p className="mb-4 text-sm text-[#8e8e93]">No times fit this address right now.</p>
       ) : null}
 
@@ -222,7 +232,7 @@ export function BookTimesForm({
         <div id="book-shoot-error">
           <FormError message={submitError} />
         </div>
-        <BookShootSubmit modify={Boolean(modifyBookingId)} />
+        <BookShootSubmit modify={Boolean(modifyBookingId)} disabled={stale} />
       </form>
 
       <MonthCalendarDialog
@@ -248,10 +258,10 @@ function groupSlotsByDate(slots: OfferedSlot[]) {
   return groups;
 }
 
-function BookShootSubmit({ modify }: { modify?: boolean }) {
+function BookShootSubmit({ modify, disabled }: { modify?: boolean; disabled?: boolean }) {
   const { pending } = useFormStatus();
   const label = modify ? (pending ? "Saving…" : "Save changes") : pending ? "Booking…" : "Book shoot";
-  return <SubmitButton disabled={pending}>{label}</SubmitButton>;
+  return <SubmitButton disabled={pending || disabled}>{label}</SubmitButton>;
 }
 
 function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {

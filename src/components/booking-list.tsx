@@ -1,5 +1,6 @@
 import { BookingModifyCancelActions } from "@/components/booking-actions";
-import { adminCalendarGapNotice, canModifyBooking } from "@/lib/scheduling/bookings";
+import { canModifyBooking } from "@/lib/scheduling/bookings";
+import { adminBookingNotices } from "@/lib/scheduling/booking-sync";
 import { bookingServiceList, formatBookingServices } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
@@ -15,6 +16,7 @@ export type BookingListItem = {
   notes?: string | null;
   accessCodes?: string | null;
   calendarEventId?: string | null;
+  syncIssue?: string | null;
   clientName?: string;
   inviteCode?: string;
   clientId?: string;
@@ -48,7 +50,7 @@ export function BookingList({
       {bookings.map((booking) => {
         const upcoming = booking.status === "confirmed" && booking.startsAt.getTime() > Date.now();
         const services = bookingServiceList(booking);
-        const calendarGap = (admin || showClient) ? adminCalendarGapNotice(booking) : null;
+        const notices = admin || showClient ? adminBookingNotices(booking) : [];
         const showModify =
           Boolean(allowModify) &&
           Boolean(clientId) &&
@@ -56,7 +58,7 @@ export function BookingList({
             {
               status: booking.status,
               startsAt: booking.startsAt,
-              clientId: booking.clientId ?? clientId,
+              clientId: booking.clientId ?? clientId ?? "",
             },
             clientId ?? "",
           );
@@ -80,7 +82,11 @@ export function BookingList({
             {booking.accessCodes ? (
               <p className="text-sm text-[#8e8e93]">Access: {booking.accessCodes}</p>
             ) : null}
-            {calendarGap ? <p className="text-sm text-[#8e8e93]">{calendarGap}</p> : null}
+            {notices.map((notice) => (
+              <p key={notice} className="text-sm text-[#8e8e93]">
+                {notice}
+              </p>
+            ))}
             {allowCancel && upcoming ? (
               <div className="mt-3">
                 <BookingModifyCancelActions

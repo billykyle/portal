@@ -13,9 +13,11 @@ import {
 export function ServiceFieldset({
   selected,
   name = "service",
+  onSelectedChange,
 }: {
   selected: string[];
   name?: string;
+  onSelectedChange?: (services: string[]) => void;
 }) {
   const fieldsetRef = useRef<HTMLFieldSetElement>(null);
   const [picked, setPicked] = useState(selected);
@@ -41,7 +43,11 @@ export function ServiceFieldset({
   }, []);
 
   function toggle(value: string) {
-    setPicked((current) => toggleSchedulingService(current, value));
+    setPicked((current) => {
+      const next = toggleSchedulingService(current, value);
+      onSelectedChange?.(next);
+      return next;
+    });
     setError("");
   }
 

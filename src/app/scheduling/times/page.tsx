@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ClientHeader } from "@/components/client-header";
-import { BookTimesForm } from "@/components/forms/book-times-form";
+import { BookTimesPanel } from "@/components/forms/book-times-panel";
 import { FormColumn, PhoneShell } from "@/components/phone-shell";
-import { TimesHelpNote } from "@/components/times-help-note";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { loadLiveAvailabilitySources, offerSlotsForAddress, withoutOwnBooking } from "@/lib/scheduling/availability";
-import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
-import { resolveBookAddress } from "@/lib/scheduling/places";
+import { parseShootAddress } from "@/lib/scheduling/address";
+import { canModifyBooking, getClientBooking } from "@/lib/scheduling/bookings";
 import { parseSchedulingServices } from "@/lib/scheduling/services";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
@@ -65,8 +62,8 @@ export default async function SchedulingTimesPage({
     );
   }
 
-  const resolved = await resolveBookAddress(typedAddress, placeId || null);
-  if (!resolved.ok) {
+  const parsed = parseShootAddress(typedAddress);
+  if (!parsed.ok) {
     redirect(
       schedulingBookHref({
         address: typedAddress || null,
@@ -74,56 +71,23 @@ export default async function SchedulingTimesPage({
         services: selectedServices,
         notes: notes || null,
         modify: modifying?.id ?? null,
-        error: resolved.error,
+        error: parsed.error,
       }),
     );
   }
 
   const changeHref = schedulingBookHref({
-    address: resolved.address,
+    address: parsed.address,
     services: selectedServices,
     notes: notes || null,
     modify: modifying?.id ?? null,
   });
-  const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: modifying?.id });
-  const loaded = await loadLiveAvailabilitySources({
-    portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
-    portalJobs,
-  });
-  if ("error" in loaded) {
-    return (
-      <TimesShell changeHref={changeHref} error={loaded.error}>
-        <TimesUnavailable address={resolved.address} services={selectedServices} changeHref={changeHref} />
-      </TimesShell>
-    );
-  }
-
-  const sources = modifying
-    ? withoutOwnBooking(
-        loaded,
-        { start: modifying.startsAt, end: modifying.endsAt },
-        { calendarEventId: modifying.calendarEventId },
-      )
-    : loaded;
-  const availability = await offerSlotsForAddress(resolved.address, sources, selectedServices, {
-    retainStarts: modifying ? [modifying.startsAt] : undefined,
-  });
-  if (availability.error) {
-    redirect(
-      schedulingBookHref({
-        address: typedAddress || null,
-        services: selectedServices,
-        notes: notes || null,
-        modify: modifying?.id ?? null,
-        error: availability.error,
-      }),
-    );
-  }
 
   return (
     <TimesShell changeHref={changeHref} error={error}>
-      <BookTimesForm
-        availability={availability}
+      <BookTimesPanel
+        address={parsed.address}
+        placeId={placeId || undefined}
         services={selectedServices}
         notes={notes}
         error={error}
@@ -158,34 +122,5 @@ function TimesShell({
       </div>
       <FormColumn className="pb-16">{children}</FormColumn>
     </PhoneShell>
-  );
-}
-
-function TimesUnavailable({
-  address,
-  services,
-  changeHref,
-}: {
-  address: string;
-  services: string[];
-  changeHref: string;
-}) {
-  return (
-    <div>
-      <p className="text-sm text-[#8e8e93]">Step 2 of 2 — available times</p>
-      <ul className="mt-3 flex flex-col gap-0.5">
-        {services.map((service) => (
-          <li key={service} className="text-[15px]">
-            {service}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1 text-sm text-[#8e8e93]">{address}</p>
-      <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
-        Change services or address
-      </Link>
-      <TimesHelpNote />
-      <p className="mt-8 text-sm text-[#8e8e93]">Times cannot be loaded until calendar lookup is back.</p>
-    </div>
   );
 }

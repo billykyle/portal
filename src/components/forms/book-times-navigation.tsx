@@ -3,6 +3,8 @@
 import Form from "next/form";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { TimesLoadingScreen } from "@/components/times-loading-screen";
+import { prefetchAvailability } from "@/lib/scheduling/availability-cache";
+import { canPrefetchAvailability, readAvailabilityQuery } from "@/lib/scheduling/times-prefetch";
 import { CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 /**
@@ -13,11 +15,10 @@ export function BookTimesNavigation({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
-    const services = new FormData(event.currentTarget)
-      .getAll("service")
-      .filter((value) => String(value).trim());
-    if (services.length === 0) return;
+    const query = readAvailabilityQuery(new FormData(event.currentTarget));
+    if (!canPrefetchAvailability(query)) return;
     setLoading(true);
+    void prefetchAvailability(query);
   }
 
   return (

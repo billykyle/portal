@@ -6,6 +6,7 @@ import { PhoneShell } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { getClientBooking } from "@/lib/scheduling/bookings";
+import { mergeSyncIssue } from "@/lib/scheduling/booking-sync";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
@@ -14,7 +15,7 @@ export async function generateMetadata({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string }>;
+  searchParams: Promise<{ updated?: string; calendar?: string; email?: string }>;
 }): Promise<Metadata> {
   const [{ id }, { updated }] = await Promise.all([params, searchParams]);
   const session = await getSession();
@@ -33,19 +34,20 @@ export default async function SchedulingConfirmedPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string }>;
+  searchParams: Promise<{ updated?: string; calendar?: string; email?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
     redirect("/");
   }
   await ensureDb();
-  const [{ id }, { updated }] = await Promise.all([params, searchParams]);
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const booking = await getClientBooking(session.clientId, id);
   if (!booking) {
     redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   const hours = schedulingHours();
+  const issue = mergeSyncIssue(booking.syncIssue, query);
 
   return (
     <PhoneShell>
@@ -54,8 +56,10 @@ export default async function SchedulingConfirmedPage({
         <BookingConfirmation
           booking={booking}
           timeZone={hours.timeZone}
-          updated={Boolean(updated)}
+          updated={Boolean(query.updated)}
           clientId={session.clientId}
+          issue={issue}
+          billyNotified={!issue.alertFailed}
         />
       </div>
     </PhoneShell>

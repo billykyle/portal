@@ -224,7 +224,45 @@ export type CalendarWriteInput = {
   timeZone: string;
   summary: string;
   description?: string;
+  /** Deterministic Work-calendar event id (base32hex / UUID hex). */
+  eventId?: string;
 };
+
+export type CalendarMutationResult =
+  | { status: "written"; eventId: string }
+  | { status: "skipped"; reason: "unconfigured" | "no-event-id" }
+  | { status: "failed"; error: string };
+
+/** UUID hex without hyphens — valid Google Calendar event id, stable per booking. */
+export function portalCalendarEventId(bookingId: string): string {
+  const hex = bookingId.replace(/-/g, "").toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(hex)) {
+    throw new Error("Booking id is not a UUID.");
+  }
+  return hex;
+}
+
+export function calendarEventWriteBody(input: CalendarWriteInput) {
+  return {
+    ...(input.eventId ? { id: input.eventId } : {}),
+    summary: input.summary,
+    location: input.address,
+    description: input.description ?? "",
+    start: { dateTime: input.start.toISOString(), timeZone: input.timeZone },
+    end: { dateTime: input.end.toISOString(), timeZone: input.timeZone },
+  };
+}
+
+/** 409 + a requested id means the event already exists — reuse it, do not insert again. */
+export function calendarIdFromWriteResponse(
+  status: number,
+  body: { id?: string } | null | undefined,
+  requestedId?: string,
+): string | null {
+  if (status === 409 && requestedId) return requestedId;
+  if (status >= 200 && status < 300) return body?.id ?? requestedId ?? null;
+  return null;
+}
 
 /**
  * Insert a booking on the Work calendar (`writeCalendarId`).
@@ -246,19 +284,16 @@ export async function writeCalendarBooking(input: CalendarWriteInput): Promise<s
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      summary: input.summary,
-      location: input.address,
-      description: input.description ?? "",
-      start: { dateTime: input.start.toISOString(), timeZone: input.timeZone },
-      end: { dateTime: input.end.toISOString(), timeZone: input.timeZone },
-    }),
+    body: JSON.stringify(calendarEventWriteBody(input)),
   });
+  if (res.status === 409 && input.eventId) {
+    return input.eventId;
+  }
   if (!res.ok) {
     await throwCalendarHttpError(res, "Google Calendar write");
   }
   const body = (await res.json()) as { id?: string };
-  return body.id ?? null;
+  return calendarIdFromWriteResponse(res.status, body, input.eventId);
 }
 
 /**
@@ -298,16 +333,10 @@ export async function updateCalendarBooking(
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      summary: input.summary,
-      location: input.address,
-      description: input.description ?? "",
-      start: { dateTime: input.start.toISOString(), timeZone: input.timeZone },
-      end: { dateTime: input.end.toISOString(), timeZone: input.timeZone },
-    }),
+    body: JSON.stringify(calendarEventWriteBody({ ...input, eventId: undefined })),
   });
   if (res.status === 404) {
-    return writeCalendarBooking(input);
+    return writeCalendarBooking({ ...input, eventId: eventId || input.eventId });
   }
   if (!res.ok) {
     await throwCalendarHttpError(res, "Google Calendar write");
@@ -330,6 +359,25 @@ export async function tryReplaceCalendarBooking(
   input: CalendarWriteInput,
 ): Promise<string | null> {
   return settleCalendarWrite(() => replaceCalendarBooking(eventId, input));
+}
+
+export async function attemptReplaceCalendarBooking(
+  eventId: string | null | undefined,
+  input: CalendarWriteInput,
+): Promise<CalendarMutationResult> {
+  const creds = readCalendarCredentials();
+  if (!creds) return { status: "skipped", reason: "unconfigured" };
+  try {
+    const written = await replaceCalendarBooking(eventId, input);
+    if (!written) return { status: "failed", error: "Google Calendar write returned no event id." };
+    return { status: "written", eventId: written };
+  } catch (error) {
+    console.error("Google Calendar write failed; booking still confirmed", error);
+    return {
+      status: "failed",
+      error: error instanceof Error ? error.message : "Google Calendar write failed.",
+    };
+  }
 }
 
 /**

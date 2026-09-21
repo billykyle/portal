@@ -23,6 +23,13 @@ test("book and times hrefs keep a single address field plus services", () => {
     `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111?updated=1`,
   );
   assert.equal(
+    schedulingConfirmedHref("11111111-1111-4111-8111-111111111111", {
+      calendar: "failed",
+      email: "failed",
+    }),
+    `${CLIENT_SCHEDULING_CONFIRMED}/11111111-1111-4111-8111-111111111111?calendar=failed&email=failed`,
+  );
+  assert.equal(
     schedulingTimesHref({
       address: "12 Wood View Drive, Princeton, NJ, USA",
       services: ["Real Estate · Photography"],

@@ -5,6 +5,7 @@ import {
 } from "@/components/booking-actions";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { canModifyBooking } from "@/lib/scheduling/bookings";
+import { bookingConfirmationCopy, type BookingSyncIssue } from "@/lib/scheduling/booking-sync";
 import { bookingServiceList } from "@/lib/scheduling/services";
 import { formatBookingDuration, formatBookingTimeZone, formatBookingWhen } from "@/lib/scheduling/slots";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
@@ -27,11 +28,15 @@ export function BookingConfirmation({
   timeZone,
   updated = false,
   clientId,
+  issue,
+  billyNotified = true,
 }: {
   booking: BookingConfirmationDetails;
   timeZone: string;
   updated?: boolean;
   clientId?: string;
+  issue?: BookingSyncIssue | null;
+  billyNotified?: boolean;
 }) {
   const services = bookingServiceList(booking);
   const when = formatBookingWhen(booking.startsAt, booking.endsAt, timeZone);
@@ -55,12 +60,14 @@ export function BookingConfirmation({
     );
   const showCancel = upcoming;
   const cancelled = (booking.status ?? "confirmed") === "cancelled";
-  const title = cancelled ? "Shoot cancelled." : updated ? "Shoot updated." : "You're all set.";
-  const subtitle = cancelled
-    ? "Your appointment with Billy Kyle has been cancelled."
-    : updated
-      ? "Your upcoming shoot has been changed."
-      : "Your shoot with Billy Kyle is confirmed.";
+  const copy = bookingConfirmationCopy({
+    cancelled,
+    updated,
+    issue,
+    billyNotified,
+  });
+  const title = copy.title;
+  const subtitle = copy.subtitle;
   const modifyHref = schedulingBookHref({
     modify: booking.id,
     address: booking.address,
@@ -72,6 +79,15 @@ export function BookingConfirmation({
     <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
       <h1 className="text-[32px] font-bold leading-tight lg:text-[40px]">{title}</h1>
       <p className="mt-3 text-sm text-[#8e8e93]">{subtitle}</p>
+      {copy.notices.map((notice) => (
+        <p
+          key={notice}
+          role="alert"
+          className="mt-5 w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-left text-[15px] text-white"
+        >
+          {notice}
+        </p>
+      ))}
 
       <dl className="mt-10 w-full text-left">
         {services.length > 0 ? (

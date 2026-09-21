@@ -67,6 +67,19 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
 });
 
+test("refreshing keeps the last slots and the loading sentence", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability,
+      services: ["Real Estate · Photography"],
+      refreshing: true,
+    }),
+  );
+  assert.match(html, /Loading your available times…/);
+  assert.match(html, /10:00 AM/);
+  assert.doesNotMatch(html, /No times fit this address right now/);
+});
+
 test("modify pre-selects the current start when duration changes", () => {
   const longerEnd = "2026-09-21T14:15:00.000Z";
   const html = renderToStaticMarkup(
