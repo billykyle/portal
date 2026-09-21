@@ -18,6 +18,7 @@ import {
   weekDateKeys,
 } from "@/lib/scheduling/horizon";
 import { TIMES_LOADING_COPY } from "@/lib/scheduling/times-loading";
+import { initialExpandedDate, initialWeekStart } from "@/lib/scheduling/times-focus";
 import { adminBookingHref, schedulingBookHref } from "@/lib/scheduling/urls";
 
 export function BookTimesForm({
@@ -50,11 +51,18 @@ export function BookTimesForm({
     ? availability.slots.find((slot) => `${slot.start}|${slot.end}` === currentSlot) ??
       availability.slots.find((slot) => slot.start === currentStart)
     : undefined;
-  const firstKey = offeredCurrent?.dateKey ?? availability.firstBookableDate;
+  const expandedDate = initialExpandedDate({
+    suggestedDate: availability.suggestedDate,
+    currentDateKey: offeredCurrent?.dateKey,
+    datesWithSlots,
+  });
+  const firstKey = initialWeekStart({
+    expandedDate,
+    firstBookableDate: availability.firstBookableDate,
+    lastBookableDate: availability.lastBookableDate,
+  });
   const [weekStart, setWeekStart] = useState(firstKey);
-  const [openDates, setOpenDates] = useState<string[]>(() =>
-    firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots),
-  );
+  const [openDates, setOpenDates] = useState<string[]>(() => (expandedDate ? [expandedDate] : []));
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(
     offeredCurrent ? `${offeredCurrent.start}|${offeredCurrent.end}` : "",
@@ -279,9 +287,4 @@ function BookShootSubmit({ modify, disabled }: { modify?: boolean; disabled?: bo
   const { pending } = useFormStatus();
   const label = modify ? (pending ? "Saving…" : "Save changes") : pending ? "Booking…" : "Book shoot";
   return <SubmitButton disabled={pending || disabled}>{label}</SubmitButton>;
-}
-
-function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {
-  const first = weekKeys.find((key) => datesWithSlots.has(key));
-  return first ? [first] : [];
 }

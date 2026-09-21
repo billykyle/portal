@@ -72,11 +72,29 @@
  *    selectable (even if that day is today or a blocked weekday) and does
  *    not invent other slots on a blocked day. Create/update reject a new
  *    start on a blocked day so the API cannot bypass the list.
+ * 9. Soft geographic stacking is presentation only (Billy, 2026-09-21).
+ *    After a slot is legal, score it against same-day located calendar
+ *    events (ignore events with no address). Lower live drive time to the
+ *    immediate located neighbor before or after the slot is a better
+ *    score. Sort times within a date by score, then clock time. Never hide
+ *    a legal cross-town slot. Auto-open the soonest date that has a strong
+ *    stack ({@link STACK_STRONG_DRIVE_SECONDS}); if none, the soonest date
+ *    with any slot. Do not auto-select a clock time. Modify still keeps
+ *    the current start available and preselected even when its score is
+ *    weak. Maps: only score same-day located events and reuse travel-gate
+ *    drive times when the pair was already measured.
  */
 
 /** Locked at 0 — live Maps ETA only, no extra minutes (Billy, 2026-09-20). */
 export const TRAVEL_PAD_MINUTES = 0;
 export const TRAVEL_PAD_MS = TRAVEL_PAD_MINUTES * 60 * 1000;
+
+/**
+ * Soft stack: a day has a good route fit when at least one legal slot's
+ * drive to same-day located work is at or under this many seconds.
+ */
+export const STACK_STRONG_DRIVE_MINUTES = 45;
+export const STACK_STRONG_DRIVE_SECONDS = STACK_STRONG_DRIVE_MINUTES * 60;
 
 export const DEFAULT_TIMEZONE = "America/New_York";
 export const DEFAULT_OPEN_HOUR = 9;
