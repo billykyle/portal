@@ -6,6 +6,11 @@ import { bookingServiceList } from "@/lib/scheduling/services";
 import { formatBookingDuration, formatBookingTimeZone, formatBookingWhen } from "@/lib/scheduling/slots";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
+const confirmationPrimaryButtonClass =
+  "flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black";
+const confirmationSecondaryButtonClass =
+  "flex h-12 w-full items-center justify-center rounded-xl border border-white text-base font-medium text-white";
+
 export type BookingConfirmationDetails = {
   id: string;
   address: string;
@@ -116,10 +121,7 @@ export function BookingConfirmation({
         {showModify || showCancel ? (
           <div className="flex w-full flex-col gap-3 sm:flex-row">
             {showModify ? (
-              <Link
-                href={modifyHref}
-                className="flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black"
-              >
+              <Link href={modifyHref} className={confirmationPrimaryButtonClass}>
                 Modify
               </Link>
             ) : null}
@@ -127,20 +129,20 @@ export function BookingConfirmation({
               <CancelBookingForm
                 bookingId={booking.id}
                 clientId={booking.clientId}
-                className="flex h-12 w-full items-center justify-center rounded-xl border border-white text-base font-medium text-white"
+                className={confirmationSecondaryButtonClass}
               />
             ) : null}
           </div>
         ) : null}
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <Link href={CLIENT_SCHEDULING} className="text-sm text-[#8e8e93]">
+        <div className="flex w-full flex-col gap-3 sm:flex-row">
+          <Link href={CLIENT_SCHEDULING} className={confirmationPrimaryButtonClass}>
             Back to Scheduling
           </Link>
-          <Link href={CLIENT_HOME} className="text-sm text-[#8e8e93]">
+          <Link href={CLIENT_HOME} className={confirmationSecondaryButtonClass}>
             Home
           </Link>
           {updated && !cancelled ? null : (
-            <Link href={CLIENT_SCHEDULING} className="text-sm text-[#8e8e93]">
+            <Link href={CLIENT_SCHEDULING} className={confirmationSecondaryButtonClass}>
               Book another
             </Link>
           )}
