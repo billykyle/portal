@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CancelBookingForm } from "@/components/forms/cancel-booking-form";
-import { CLIENT_HOME, CLIENT_SCHEDULING } from "@/lib/routes";
+import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { canModifyBooking } from "@/lib/scheduling/bookings";
 import { bookingServiceList } from "@/lib/scheduling/services";
 import { formatBookingDuration, formatBookingTimeZone, formatBookingWhen } from "@/lib/scheduling/slots";
@@ -10,6 +10,8 @@ const confirmationPrimaryButtonClass =
   "flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black";
 const confirmationSecondaryButtonClass =
   "flex h-12 w-full items-center justify-center rounded-xl border border-white text-base font-medium text-white";
+const confirmationActionRowClass = "flex w-full flex-row gap-3";
+const confirmationActionSlotClass = "min-w-0 flex-1";
 
 export type BookingConfirmationDetails = {
   id: string;
@@ -117,36 +119,30 @@ export function BookingConfirmation({
         ) : null}
       </dl>
 
-      <div className="mt-10 flex w-full flex-col items-center gap-4">
+      <div className="mt-10 flex w-full flex-col items-center gap-3">
         {showModify || showCancel ? (
-          <div className="flex w-full flex-col gap-3 sm:flex-row">
+          <div className={confirmationActionRowClass}>
             {showModify ? (
-              <Link href={modifyHref} className={confirmationPrimaryButtonClass}>
-                Modify
-              </Link>
+              <div className={confirmationActionSlotClass}>
+                <Link href={modifyHref} className={confirmationPrimaryButtonClass}>
+                  Modify
+                </Link>
+              </div>
             ) : null}
             {showCancel ? (
-              <CancelBookingForm
-                bookingId={booking.id}
-                clientId={booking.clientId}
-                className={confirmationSecondaryButtonClass}
-              />
+              <div className={confirmationActionSlotClass}>
+                <CancelBookingForm
+                  bookingId={booking.id}
+                  clientId={booking.clientId}
+                  className={confirmationSecondaryButtonClass}
+                />
+              </div>
             ) : null}
           </div>
         ) : null}
-        <div className="flex w-full flex-col gap-3">
-          <Link href={CLIENT_SCHEDULING} className={confirmationPrimaryButtonClass}>
-            Back to Scheduling
-          </Link>
-          <Link href={CLIENT_HOME} className={confirmationSecondaryButtonClass}>
-            Home
-          </Link>
-          {updated && !cancelled ? null : (
-            <Link href={CLIENT_SCHEDULING} className={confirmationSecondaryButtonClass}>
-              Book another
-            </Link>
-          )}
-        </div>
+        <Link href={CLIENT_SCHEDULING} className={confirmationPrimaryButtonClass}>
+          Back to Scheduling
+        </Link>
       </div>
     </div>
   );
