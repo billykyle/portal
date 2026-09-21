@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureDb } from "@/lib/db/ensure";
-import { nasEnabled } from "@/lib/nas";
+import { nasEnabled } from "@/lib/nas-flags";
 import { runLockedNasSync } from "@/lib/nas-scheduler";
 
 export const runtime = "nodejs";

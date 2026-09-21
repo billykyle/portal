@@ -1,4 +1,4 @@
-import { nasEnabled } from "./nas";
+import { nasEnabled } from "./nas-flags";
 import { syncNasShare, type NasSyncResult } from "./nas-import";
 import { nasSyncIntervalMinutes } from "./nas-sync-config";
 import { useInProcessNasScheduler } from "./runtime";

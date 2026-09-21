@@ -12,11 +12,11 @@ import {
   getNasConfig,
   listNasDirectories,
   listNasMedia,
-  nasEnabled,
   nasShareRoot,
   resolveNasPath,
   type NasMediaFile,
 } from "./nas";
+import { nasEnabled } from "./nas-flags";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "./delivery";
 import { clientFolderRelPath, parseShootFolderName, pendingClientEmail } from "./nas-folder";
 import { createPublicToken } from "./public-link";
