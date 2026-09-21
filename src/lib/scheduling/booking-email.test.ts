@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { BOOKING_EMAIL_LOGO_URL, EMAIL_SIGNATURE_LINKS } from "@/lib/email-brand";
 import {
+  PEPPER_NOTIFY_CANCELLED,
+  PEPPER_NOTIFY_NEW,
+  PEPPER_NOTIFY_UPDATED,
   bookingConfirmationRecipients,
   bookingSchedulingUrl,
   bookingShootManageUrl,
@@ -61,6 +64,31 @@ function assertClientHeadingHasNoWhen(html: string, title: string, when: string)
   assert.doesNotMatch(html, new RegExp(`${escapeRegExp(title)}</h1>\\s*<p[^>]*>${escapeRegExp(when)}`));
   assert.match(html, />When</);
   assert.match(html, new RegExp(escapeRegExp(when)));
+}
+
+function assertNotifyHeadingHasWhen(html: string, title: string, when: string) {
+  assert.match(html, new RegExp(`${escapeRegExp(title)}</h1>\\s*<p[^>]*>${escapeRegExp(when)}`));
+}
+
+function assertNoCalendarCtas(message: { text: string; html: string; attachments?: unknown }) {
+  assert.doesNotMatch(message.text, /Add to calendar/);
+  assert.doesNotMatch(message.html, /Add to calendar/);
+  assert.doesNotMatch(message.html, /Google Calendar/);
+  assert.doesNotMatch(message.text, /Google Calendar/);
+  assert.doesNotMatch(message.html, /api\/scheduling\/ics/);
+  assert.doesNotMatch(message.text, /api\/scheduling\/ics/);
+  assert.equal(message.attachments, undefined);
+}
+
+function assertPepperNote(message: { text: string; html: string }, note: string) {
+  assert.match(message.text, new RegExp(escapeRegExp(note)));
+  const { label, body } = (() => {
+    const separator = " - ";
+    const index = note.indexOf(separator);
+    return { label: note.slice(0, index), body: note.slice(index + separator.length) };
+  })();
+  assert.match(message.html, new RegExp(escapeRegExp(label)));
+  assert.match(message.html, new RegExp(escapeRegExp(body)));
 }
 
 function assertOnBrandHtml(html: string) {
@@ -138,10 +166,15 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assertOnBrandHtml(message.html);
 });
 
-test("Billy's copy uses a New booking subject and names the client", () => {
+test("Billy's copy uses a New shoot subject, when under the title, and Pepper instructions", () => {
   const message = buildBookingNotify(sampleInput({ services: ["Real Estate · Photography"] }));
-  assert.match(message.subject, /^New booking:/);
-  assert.match(message.text, /New booking on the portal/);
+  const when = formatBookingWhen(start, end, "America/New_York");
+  assert.match(message.subject, /^New shoot:/);
+  assert.match(message.subject, new RegExp(escapeRegExp(when)));
+  assert.match(message.html, /<title>New shoot<\/title>/);
+  assert.match(message.html, /New shoot<\/h1>/);
+  assertNotifyHeadingHasWhen(message.html, "New shoot", when);
+  assert.match(message.text, /New shoot on the portal/);
   assert.match(message.text, /Sam Lepore · sam@example.com/);
   assert.match(message.text, /12 Wood View Drive, Princeton, NJ/);
   assert.match(message.text, /View bookings/);
@@ -150,9 +183,12 @@ test("Billy's copy uses a New booking subject and names the client", () => {
   assert.match(message.html, /View bookings/);
   assert.match(message.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.doesNotMatch(message.html, /<strong>Admin<\/strong>/);
-  assert.doesNotMatch(message.text, /Add to calendar/);
-  assert.doesNotMatch(message.html, /Add to calendar/);
-  assert.doesNotMatch(message.html, /api\/scheduling\/ics/);
+  assert.doesNotMatch(message.subject, /New booking/);
+  assert.doesNotMatch(message.text, /New booking/);
+  assert.doesNotMatch(message.html, /New booking/);
+  assertPepperNote(message, PEPPER_NOTIFY_NEW);
+  assert.match(message.text, new RegExp(`${escapeRegExp(PEPPER_NOTIFY_NEW)}\\n\\n—\\nBilly Kyle`));
+  assertNoCalendarCtas(message);
   assertOnBrandHtml(message.html);
 });
 
@@ -194,18 +230,19 @@ test("modification emails use updated copy for client and Billy", () => {
   assert.match(client.html, /Add to calendar/);
   assert.match(client.html, /updated=1/);
   assert.equal(client.attachments?.length, 1);
-  assert.doesNotMatch(notify.text, /Add to calendar/);
-  assert.doesNotMatch(notify.html, /Add to calendar/);
+  assertNoCalendarCtas(notify);
   assertClientHeadingHasNoWhen(
     client.html,
     "Shoot updated",
     formatBookingWhen(start, end, "America/New_York"),
   );
-  assert.match(notify.subject, /^Booking updated:/);
+  assertNotifyHeadingHasWhen(notify.html, "Shoot updated", formatBookingWhen(start, end, "America/New_York"));
+  assert.match(notify.subject, /^Shoot updated:/);
   assert.match(notify.text, /modified on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
   assert.match(notify.html, /View bookings/);
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assertPepperNote(notify, PEPPER_NOTIFY_UPDATED);
   assertOnBrandHtml(client.html);
   assertOnBrandHtml(notify.html);
 });
@@ -265,6 +302,9 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
   assert.match(notify.text, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.match(notify.html, /View bookings/);
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
+  assertNotifyHeadingHasWhen(notify.html, "Booking cancelled", formatBookingWhen(start, end, "America/New_York"));
+  assertPepperNote(notify, PEPPER_NOTIFY_CANCELLED);
+  assertNoCalendarCtas(notify);
   assertOnBrandHtml(client.html);
   assertOnBrandHtml(notify.html);
 });
@@ -342,9 +382,11 @@ test("sendBookingConfirmation posts two separate Resend emails with no CC/BCC", 
     assert.equal(client.cc, undefined);
     assert.equal(notify.cc, undefined);
     assert.match(String(client.subject), /Shoot confirmed/);
-    assert.match(String(notify.subject), /^New booking:/);
+    assert.match(String(notify.subject), /^New shoot:/);
     assert.match(String(client.text), /is confirmed/);
-    assert.match(String(notify.text), /New booking on the portal/);
+    assert.match(String(notify.text), /New shoot on the portal/);
+    assert.match(String(notify.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_NEW)));
+    assert.doesNotMatch(String(notify.text), /Add to calendar/);
     assert.ok(Array.isArray(client.attachments) && client.attachments.length === 1);
     assert.equal(notify.attachments, undefined);
   } finally {
@@ -388,7 +430,9 @@ test("sendBookingModification posts two separate Resend emails with no CC/BCC", 
     assert.equal(client.cc, undefined);
     assert.equal(notify.cc, undefined);
     assert.match(String(client.subject), /Shoot updated/);
-    assert.match(String(notify.subject), /^Booking updated:/);
+    assert.match(String(notify.subject), /^Shoot updated:/);
+    assert.match(String(notify.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_UPDATED)));
+    assert.doesNotMatch(String(notify.text), /Add to calendar/);
     assert.ok(Array.isArray(client.attachments) && client.attachments.length === 1);
     assert.equal(notify.attachments, undefined);
   } finally {
@@ -440,6 +484,9 @@ test("sendBookingCancellation posts two separate Resend emails with no CC/BCC", 
     assert.doesNotMatch(String(client.text), /Add to calendar/);
     assert.equal(client.attachments, undefined);
     assert.match(String(notify.text), /cancelled on the portal/);
+    assert.match(String(notify.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_CANCELLED)));
+    assert.doesNotMatch(String(notify.text), /Add to calendar/);
+    assert.equal(notify.attachments, undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }
