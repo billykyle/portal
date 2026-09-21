@@ -34,7 +34,7 @@ export function BookShootForm({
         id="notes"
         name="notes"
         label="Notes (optional)"
-        placeholder="Lockbox, contact, …"
+        placeholder="Access info, lockbox, or other information"
         defaultValue={notes}
       />
       <ServiceFieldset selected={services} />
