@@ -134,7 +134,7 @@ export function BookingConfirmation({
             ) : null}
           </div>
         ) : null}
-        <div className="flex w-full flex-col gap-3 sm:flex-row">
+        <div className="flex w-full flex-col gap-3">
           <Link href={CLIENT_SCHEDULING} className={confirmationPrimaryButtonClass}>
             Back to Scheduling
           </Link>
