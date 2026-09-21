@@ -15,7 +15,6 @@ const availability: AvailabilityResult = {
   driveTimeConfigured: false,
   firstBookableDate: "2026-09-21",
   lastBookableDate: "2026-12-21",
-  suggestedDate: "2026-09-21",
   notices: [],
   slots: [
     {
@@ -25,7 +24,6 @@ const availability: AvailabilityResult = {
       dateLabel: "Monday, Sep 21",
       timeLabel: "10:00 AM",
       driveSecondsFromPrior: null,
-      stackDriveSeconds: null,
     },
   ],
 };
@@ -41,7 +39,7 @@ test("new bookings do not auto-select a clock time", () => {
   assert.doesNotMatch(html, /checked/);
 });
 
-test("suggestedDate day is expanded when an earlier empty-area day also has slots", () => {
+test("the first day with a slot in the opening week is expanded", () => {
   const laterStart = "2026-09-25T14:00:00.000Z";
   const laterEnd = "2026-09-25T14:45:00.000Z";
   const html = renderToStaticMarkup(
@@ -50,7 +48,6 @@ test("suggestedDate day is expanded when an earlier empty-area day also has slot
         ...availability,
         firstBookableDate: "2026-09-20",
         lastBookableDate: "2026-12-20",
-        suggestedDate: "2026-09-25",
         slots: [
           availability.slots[0],
           {
@@ -60,7 +57,6 @@ test("suggestedDate day is expanded when an earlier empty-area day also has slot
             dateLabel: "Friday, Sep 25",
             timeLabel: "10:00 AM – 10:45 AM",
             driveSecondsFromPrior: null,
-            stackDriveSeconds: 10 * 60,
           },
         ],
       },
@@ -69,8 +65,8 @@ test("suggestedDate day is expanded when an earlier empty-area day also has slot
   );
   assert.match(html, /Monday, Sep 21/);
   assert.match(html, /Friday, Sep 25/);
-  assert.match(html, /aria-label="Friday, Sep 25"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-label="Friday, Sep 25"/);
-  assert.match(html, /aria-label="Monday, Sep 21"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="Monday, Sep 21"/);
+  assert.match(html, /aria-label="Monday, Sep 21"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-label="Monday, Sep 21"/);
+  assert.match(html, /aria-label="Friday, Sep 25"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="Friday, Sep 25"/);
   assert.doesNotMatch(html, /checked/);
 });
 
@@ -212,7 +208,6 @@ test("modify on a blocked weekday still preselects the existing start", () => {
             dateLabel: "Tuesday, Sep 22",
             timeLabel: "2:00 PM – 2:45 PM",
             driveSecondsFromPrior: null,
-            stackDriveSeconds: null,
           },
         ],
       },
