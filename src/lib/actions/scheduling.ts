@@ -401,6 +401,8 @@ export async function updateBooking(formData: FormData) {
     failTimes("Booking could not be updated.");
   }
 
+  // Client portal modify and admin Bookings modify both send the same Shoot changes
+  // email (changed-field highlight + thread to the original confirmation).
   const settled = await settleBookingIntegrations({
     action: "modify",
     bookingId: updated.bookingId,
