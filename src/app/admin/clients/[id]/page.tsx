@@ -141,6 +141,7 @@ export default async function AdminClientPage({
             emptyLabel="No bookings yet."
             timeZone={hours.timeZone}
             allowCancel
+            allowModify
             admin
           />
         </section>

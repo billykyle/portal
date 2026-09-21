@@ -34,6 +34,11 @@ export function readBookingFormSlot(formData: FormData): ParsedBookingSlot | nul
   return parseBookingSlot(formData.getAll("slot"));
 }
 
+/** Tap an already-selected time to clear it; tap another time to select it. */
+export function toggleSelectedSlot(current: string, tapped: string) {
+  return current === tapped ? "" : tapped;
+}
+
 export function bookingUserError(error: unknown, fallback = "Booking could not be completed.") {
   const message = error instanceof Error ? error.message.trim() : "";
   const text = message || fallback;

@@ -10,7 +10,7 @@ import { TimesHelpNote } from "@/components/times-help-note";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking, updateBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
-import { readBookingFormSlot } from "@/lib/scheduling/booking-form";
+import { readBookingFormSlot, toggleSelectedSlot } from "@/lib/scheduling/booking-form";
 import {
   formatDateKeyLabel,
   formatWeekDayListLabel,
@@ -18,7 +18,7 @@ import {
   weekDateKeys,
 } from "@/lib/scheduling/horizon";
 import { TIMES_LOADING_COPY } from "@/lib/scheduling/times-loading";
-import { schedulingBookHref } from "@/lib/scheduling/urls";
+import { adminBookingHref, schedulingBookHref } from "@/lib/scheduling/urls";
 
 export function BookTimesForm({
   availability,
@@ -29,6 +29,7 @@ export function BookTimesForm({
   currentSlot,
   refreshing = false,
   stale = false,
+  fromAdmin = false,
 }: {
   availability: AvailabilityResult;
   services: string[];
@@ -38,6 +39,7 @@ export function BookTimesForm({
   currentSlot?: string;
   refreshing?: boolean;
   stale?: boolean;
+  fromAdmin?: boolean;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
@@ -60,12 +62,19 @@ export function BookTimesForm({
   const [slotError, setSlotError] = useState("");
 
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
-  const changeHref = schedulingBookHref({
-    address: availability.address,
-    services,
-    notes: notes || null,
-    modify: modifyBookingId || null,
-  });
+  const changeHref =
+    fromAdmin && modifyBookingId
+      ? adminBookingHref(modifyBookingId, {
+          address: availability.address,
+          services,
+          notes: notes || null,
+        })
+      : schedulingBookHref({
+          address: availability.address,
+          services,
+          notes: notes || null,
+          modify: modifyBookingId || null,
+        });
   const submitError = slotError || error;
 
   useEffect(() => {
@@ -93,25 +102,22 @@ export function BookTimesForm({
 
   return (
     <div>
-      <p className="text-sm text-[#8e8e93]">Step 2 of 2 — available times</p>
-      <div className="mt-3">
-        {services.length > 0 ? (
-          <ul className="flex flex-col gap-0.5">
-            {services.map((service) => (
-              <li key={service} className="text-[15px]">
-                {service}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <p className={services.length > 0 ? "mt-1 text-sm text-[#8e8e93]" : "text-[15px]"}>
-          {availability.address}
-        </p>
-        <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
-          Change services or address
-        </Link>
-        <TimesHelpNote />
-      </div>
+      {services.length > 0 ? (
+        <ul className="flex flex-col gap-0.5">
+          {services.map((service) => (
+            <li key={service} className="text-[15px]">
+              {service}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className={services.length > 0 ? "mt-1 text-sm text-[#8e8e93]" : "text-[15px]"}>
+        {availability.address}
+      </p>
+      <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
+        Change services or address
+      </Link>
+      <TimesHelpNote />
 
       <h2 className="mt-8 mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
       {refreshing ? (
@@ -130,6 +136,7 @@ export function BookTimesForm({
 
       <form action={modifyBookingId ? updateBooking : createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
         {modifyBookingId ? <input type="hidden" name="bookingId" value={modifyBookingId} /> : null}
+        {fromAdmin ? <input type="hidden" name="fromAdmin" value="1" /> : null}
         <input type="hidden" name="address" value={availability.address} />
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
@@ -195,12 +202,22 @@ export function BookTimesForm({
                               const checked = selectedSlot === value;
                               return (
                                 <li key={slot.start}>
-                                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
+                                  <label
+                                    className={
+                                      checked
+                                        ? "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border border-white bg-white/5 px-4 py-3"
+                                        : "flex min-h-12 w-full cursor-pointer items-center gap-3 py-2"
+                                    }
+                                  >
                                     <input
                                       type="radio"
                                       name="slot"
                                       value={value}
                                       checked={checked}
+                                      onClick={() => {
+                                        setSelectedSlot((current) => toggleSelectedSlot(current, value));
+                                        setSlotError("");
+                                      }}
                                       onChange={() => {
                                         setSelectedSlot(value);
                                         setSlotError("");

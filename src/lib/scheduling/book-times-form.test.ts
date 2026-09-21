@@ -43,6 +43,7 @@ test("book times radios post a named slot value the server can read", () => {
   assert.match(html, /That time is no longer available/);
   assert.match(html, /id="book-shoot-error"/);
   assert.match(html, /Date options further out/);
+  assert.doesNotMatch(html, /Step \d+ of \d+/);
   assert.doesNotMatch(html, /Date Options Further Out/);
   assert.doesNotMatch(html, /Further Date Options/);
   assert.doesNotMatch(html, /type="hidden"[^>]*name="slot"/);
@@ -61,10 +62,58 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, /name="bookingId"/);
   assert.match(html, /11111111-1111-4111-8111-111111111111/);
   assert.match(html, /Save changes/);
+  assert.doesNotMatch(html, /Step \d+ of \d+/);
   assert.doesNotMatch(html, /Book shoot/);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.doesNotMatch(html, /name="fromAdmin"/);
   assert.match(html, /checked/);
   assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
+});
+
+test("only the selected time is wrapped in a bordered box", () => {
+  const laterStart = "2026-09-21T15:00:00.000Z";
+  const laterEnd = "2026-09-21T15:45:00.000Z";
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability: {
+        ...availability,
+        slots: [
+          availability.slots[0],
+          {
+            ...availability.slots[0],
+            start: laterStart,
+            end: laterEnd,
+            timeLabel: "11:00 AM",
+          },
+        ],
+      },
+      services: ["Real Estate · Photography"],
+      currentSlot: `${start}|${end}`,
+    }),
+  );
+  const labels = [...html.matchAll(/<label class="([^"]+)"/g)].map((match) => match[1]);
+  const selected = labels.filter((className) => className.includes("border-white"));
+  const unselected = labels.filter((className) => !className.includes("border-white"));
+  assert.equal(selected.length, 1);
+  assert.match(selected[0], /rounded-xl border border-white bg-white\/5/);
+  assert.equal(unselected.length, 1);
+  assert.doesNotMatch(unselected[0], /border/);
+  assert.doesNotMatch(html, /has-\[:checked\]:border-white/);
+});
+
+test("admin times form posts fromAdmin and keeps the admin change link", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability,
+      services: ["Real Estate · Photography"],
+      modifyBookingId: "11111111-1111-4111-8111-111111111111",
+      currentSlot: `${start}|${end}`,
+      fromAdmin: true,
+    }),
+  );
+  assert.match(html, /name="fromAdmin"/);
+  assert.match(html, /value="1"/);
+  assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111/);
 });
 
 test("refreshing keeps the last slots and the loading sentence", () => {

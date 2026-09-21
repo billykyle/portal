@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bookingUserError, parseBookingSlot, readBookingFormSlot } from "./booking-form";
+import { bookingUserError, parseBookingSlot, readBookingFormSlot, toggleSelectedSlot } from "./booking-form";
 
 const start = "2026-09-21T14:00:00.000Z";
 const end = "2026-09-21T14:45:00.000Z";
@@ -24,6 +24,12 @@ test("readBookingFormSlot reads every slot field from FormData", () => {
   form.append("slot", "");
   form.append("slot", slot);
   assert.deepEqual(readBookingFormSlot(form), { startIso: start, endIso: end });
+});
+
+test("toggleSelectedSlot deselects the same time and selects a different one", () => {
+  assert.equal(toggleSelectedSlot(slot, slot), "");
+  assert.equal(toggleSelectedSlot("", slot), slot);
+  assert.equal(toggleSelectedSlot("other|slot", slot), slot);
 });
 
 test("bookingUserError truncates long calendar messages for the query string", () => {

@@ -1,5 +1,11 @@
 import { loadLiveAvailabilitySources, offerSlotsForAddress, withoutOwnBooking, type AvailabilityResult } from "./availability";
-import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "./bookings";
+import {
+  canAdminModifyBooking,
+  canModifyBooking,
+  getBookingById,
+  getClientBooking,
+  loadConfirmedPortalJobs,
+} from "./bookings";
 import { resolveBookAddress } from "./places";
 import { parseSchedulingServices } from "./services";
 
@@ -33,6 +39,23 @@ export async function loadModifyAvailabilityContext(
   if (!id) return null;
   const booking = await getClientBooking(clientId, id);
   if (!booking || !canModifyBooking(booking, clientId)) {
+    return { error: "That booking cannot be modified." };
+  }
+  return {
+    id: booking.id,
+    startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
+    calendarEventId: booking.calendarEventId,
+  };
+}
+
+export async function loadAdminModifyAvailabilityContext(
+  modifyId: string | null | undefined,
+): Promise<ModifyAvailabilityContext | { error: string } | null> {
+  const id = String(modifyId ?? "").trim();
+  if (!id) return null;
+  const booking = await getBookingById(id);
+  if (!booking || !canAdminModifyBooking(booking)) {
     return { error: "That booking cannot be modified." };
   }
   return {

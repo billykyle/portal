@@ -71,7 +71,7 @@ export const TRAVEL_PAD_MINUTES = 0;
 export const TRAVEL_PAD_MS = TRAVEL_PAD_MINUTES * 60 * 1000;
 
 export const DEFAULT_TIMEZONE = "America/New_York";
-export const DEFAULT_OPEN_HOUR = 10;
+export const DEFAULT_OPEN_HOUR = 9;
 export const DEFAULT_CLOSE_HOUR = 18;
 /** Fallback when no services are selected. */
 export const DEFAULT_SLOT_MINUTES = 90;

@@ -9,7 +9,7 @@ import { lastGoodAvailability, peekAvailability, requestAvailability } from "@/l
 import type { AvailabilityResult } from "@/lib/scheduling/availability";
 import type { OfferedAvailabilityFailureKind } from "@/lib/scheduling/load-offered-availability";
 import { availabilityQueryKey, displayedTimesState, type AvailabilityQuery } from "@/lib/scheduling/times-prefetch";
-import { schedulingBookHref } from "@/lib/scheduling/urls";
+import { adminBookingHref, schedulingBookHref } from "@/lib/scheduling/urls";
 import Link from "next/link";
 
 export function BookTimesPanel({
@@ -20,6 +20,7 @@ export function BookTimesPanel({
   error,
   modifyBookingId,
   currentSlot,
+  fromAdmin = false,
 }: {
   address: string;
   placeId?: string;
@@ -28,6 +29,7 @@ export function BookTimesPanel({
   error?: string;
   modifyBookingId?: string;
   currentSlot?: string;
+  fromAdmin?: boolean;
 }) {
   const router = useRouter();
   const query = useMemo<AvailabilityQuery>(
@@ -76,29 +78,45 @@ export function BookTimesPanel({
     };
   }, [query, queryKey]);
 
-  const changeHref = schedulingBookHref({
-    address,
-    placeId: placeId || null,
-    services,
-    notes: notes || null,
-    modify: modifyBookingId || null,
-  });
-
-  useEffect(() => {
-    if (!sourceError) return;
-    if (sourceError.kind === "address" || sourceError.kind === "availability") {
-      router.replace(
-        schedulingBookHref({
+  const changeHref =
+    fromAdmin && modifyBookingId
+      ? adminBookingHref(modifyBookingId, {
+          address,
+          placeId: placeId || null,
+          services,
+          notes: notes || null,
+        })
+      : schedulingBookHref({
           address,
           placeId: placeId || null,
           services,
           notes: notes || null,
           modify: modifyBookingId || null,
-          error: sourceError.error,
-        }),
+        });
+
+  useEffect(() => {
+    if (!sourceError) return;
+    if (sourceError.kind === "address" || sourceError.kind === "availability") {
+      router.replace(
+        fromAdmin && modifyBookingId
+          ? adminBookingHref(modifyBookingId, {
+              address,
+              placeId: placeId || null,
+              services,
+              notes: notes || null,
+              error: sourceError.error,
+            })
+          : schedulingBookHref({
+              address,
+              placeId: placeId || null,
+              services,
+              notes: notes || null,
+              modify: modifyBookingId || null,
+              error: sourceError.error,
+            }),
       );
     }
-  }, [address, modifyBookingId, notes, placeId, router, services, sourceError]);
+  }, [address, fromAdmin, modifyBookingId, notes, placeId, router, services, sourceError]);
 
   const display = displayedTimesState({ loading, current, previous });
 
@@ -126,6 +144,7 @@ export function BookTimesPanel({
       currentSlot={currentSlot}
       refreshing={display.refreshing}
       stale={display.stale}
+      fromAdmin={fromAdmin}
     />
   );
 }
@@ -143,8 +162,7 @@ function TimesUnavailable({
 }) {
   return (
     <div>
-      <p className="text-sm text-[#8e8e93]">Step 2 of 2 — available times</p>
-      <ul className="mt-3 flex flex-col gap-0.5">
+      <ul className="flex flex-col gap-0.5">
         {services.map((service) => (
           <li key={service} className="text-[15px]">
             {service}

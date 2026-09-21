@@ -1,4 +1,4 @@
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { ADMIN_BOOKINGS, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 export type SchedulingQuery = {
   address?: string | null;
@@ -36,6 +36,14 @@ export function schedulingBookHref(params: SchedulingQuery = {}) {
 
 export function schedulingTimesHref(params: SchedulingQuery = {}) {
   return schedulingHref(CLIENT_SCHEDULING_TIMES, params);
+}
+
+export function adminBookingHref(bookingId: string, params: SchedulingQuery = {}) {
+  return schedulingHref(`${ADMIN_BOOKINGS}/${bookingId}`, params);
+}
+
+export function adminBookingTimesHref(bookingId: string, params: SchedulingQuery = {}) {
+  return schedulingHref(`${ADMIN_BOOKINGS}/${bookingId}/times`, params);
 }
 
 export function schedulingConfirmedHref(

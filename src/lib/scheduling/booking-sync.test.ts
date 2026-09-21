@@ -191,6 +191,57 @@ test("cancel delete failure is recorded without rolling back the status flip", a
   assert.equal(calls.alert, 1);
 });
 
+test("client and admin modifies both send the same Shoot changes payload", async () => {
+  const previous = {
+    address: "12 Wood View Drive, Princeton, NJ",
+    services: ["Real Estate · Photography"],
+    start,
+    end,
+    timeZone: "America/New_York",
+    notes: "Park in the driveway.",
+  };
+  const thread = {
+    inReplyTo: "<booking-11111111-1111-4111-8111-111111111111@portal.billy-kyle.com>",
+    references: "<booking-11111111-1111-4111-8111-111111111111@portal.billy-kyle.com>",
+    originalSubject: "Shoot confirmed — Tue, Sep 22 · 10:00 AM – 11:30 AM",
+  };
+
+  for (const _actor of ["client", "admin"] as const) {
+    const kinds: string[] = [];
+    const payloads: Array<{ previous?: unknown; thread?: unknown }> = [];
+    const calls = { write: 0, notify: 0, alert: 0, saved: [] as Array<string | null> };
+    const deps = mockDeps(calls, {
+      write: { status: "written", eventId: "evt_1" },
+      emails: { sent: true, client: { sent: true }, notify: { sent: true } },
+    });
+    const originalSend = deps.sendEmails;
+    deps.sendEmails = async (input, options) => {
+      kinds.push(options.kind);
+      payloads.push({ previous: input.previous, thread: input.thread });
+      return originalSend(input, options);
+    };
+
+    await settleBookingIntegrations(
+      {
+        ...sampleSettleInput(),
+        action: "modify",
+        existingCalendarEventId: "evt_1",
+        email: {
+          ...sampleSettleInput().email,
+          previous,
+          thread,
+        },
+      },
+      deps,
+    );
+
+    assert.deepEqual(kinds, ["modify"]);
+    assert.deepEqual(payloads[0]?.previous, previous);
+    assert.deepEqual(payloads[0]?.thread, thread);
+    assert.equal(calls.notify, 1);
+  }
+});
+
 test("confirmation hero renders the calendar-fail alert", () => {
   const html = renderToStaticMarkup(
     createElement(BookingConfirmation, {

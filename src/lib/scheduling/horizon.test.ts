@@ -26,7 +26,7 @@ function et(year: number, month: number, day: number, hour: number, minute = 0) 
 
 const HOURS: SchedulingHours = {
   timeZone: DEFAULT_TIMEZONE,
-  openHour: 10,
+  openHour: 9,
   closeHour: 18,
   slotMinutes: 90,
   stepMinutes: 15,
@@ -82,9 +82,9 @@ test("hoursForNow extends daysAhead to cover the 3-month horizon", () => {
   const hours = hoursForNow(now);
   assert.ok(hours.daysAhead >= bookingHorizonDays(now, DEFAULT_TIMEZONE));
   assert.ok(hours.daysAhead >= 90);
-  assert.equal(DEFAULT_OPEN_HOUR, 10);
+  assert.equal(DEFAULT_OPEN_HOUR, 9);
   assert.equal(DEFAULT_STEP_MINUTES, 15);
-  assert.equal(hours.openHour, 10);
+  assert.equal(hours.openHour, 9);
   assert.equal(hours.stepMinutes, 15);
   assert.equal(hours.closeHour, 18);
 });

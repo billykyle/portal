@@ -121,6 +121,9 @@ async function createTables() {
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service text`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS services text[]`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sync_issue text`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_email_message_id text`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_email_references text`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_email_subject text`;
   await sql`
     UPDATE bookings
     SET services = ARRAY[service]

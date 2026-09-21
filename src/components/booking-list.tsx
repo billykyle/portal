@@ -1,9 +1,9 @@
 import { BookingModifyCancelActions } from "@/components/booking-actions";
-import { canModifyBooking } from "@/lib/scheduling/bookings";
+import { canAdminModifyBooking, canModifyBooking } from "@/lib/scheduling/bookings";
 import { adminBookingNotices } from "@/lib/scheduling/booking-sync";
 import { bookingServiceList, formatBookingServices } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
-import { schedulingBookHref } from "@/lib/scheduling/urls";
+import { adminBookingHref, schedulingBookHref } from "@/lib/scheduling/urls";
 
 export type BookingListItem = {
   id: string;
@@ -51,17 +51,22 @@ export function BookingList({
         const upcoming = booking.status === "confirmed" && booking.startsAt.getTime() > Date.now();
         const services = bookingServiceList(booking);
         const notices = admin || showClient ? adminBookingNotices(booking) : [];
-        const showModify =
-          Boolean(allowModify) &&
-          Boolean(clientId) &&
-          canModifyBooking(
-            {
+        const showModify = admin
+          ? Boolean(allowModify) &&
+            canAdminModifyBooking({
               status: booking.status,
               startsAt: booking.startsAt,
-              clientId: booking.clientId ?? clientId ?? "",
-            },
-            clientId ?? "",
-          );
+            })
+          : Boolean(allowModify) &&
+            Boolean(clientId) &&
+            canModifyBooking(
+              {
+                status: booking.status,
+                startsAt: booking.startsAt,
+                clientId: booking.clientId ?? clientId ?? "",
+              },
+              clientId ?? "",
+            );
         return (
           <li key={booking.id} className="border-b border-white/10 py-4">
             <p className="text-[15px] font-medium">{booking.address}</p>
@@ -87,17 +92,19 @@ export function BookingList({
                 {notice}
               </p>
             ))}
-            {allowCancel && upcoming ? (
+            {(allowCancel || allowModify) && upcoming ? (
               <div className="mt-3">
                 <BookingModifyCancelActions
                   modifyHref={
                     showModify
-                      ? schedulingBookHref({
-                          modify: booking.id,
-                          address: booking.address,
-                          services,
-                          notes: booking.notes,
-                        })
+                      ? admin
+                        ? adminBookingHref(booking.id)
+                        : schedulingBookHref({
+                            modify: booking.id,
+                            address: booking.address,
+                            services,
+                            notes: booking.notes,
+                          })
                       : undefined
                   }
                   bookingId={booking.id}

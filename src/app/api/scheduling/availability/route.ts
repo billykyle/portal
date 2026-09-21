@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getAdminSession } from "@/lib/admin-auth";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { loadModifyAvailabilityContext, loadOfferedAvailability } from "@/lib/scheduling/load-offered-availability";
+import {
+  loadAdminModifyAvailabilityContext,
+  loadModifyAvailabilityContext,
+  loadOfferedAvailability,
+} from "@/lib/scheduling/load-offered-availability";
 import { parseSchedulingServices } from "@/lib/scheduling/services";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const admin = await getAdminSession();
   const session = await getSession();
-  if (!session) {
+  if (!session && !admin) {
     return NextResponse.json({ error: "Sign in to load times.", kind: "address" }, { status: 401 });
   }
 
@@ -18,10 +24,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Pick at least one service.", kind: "address" }, { status: 400 });
   }
 
-  const modifying = await loadModifyAvailabilityContext(
-    session.clientId,
-    request.nextUrl.searchParams.get("modify"),
-  );
+  const modifyId = request.nextUrl.searchParams.get("modify");
+  const modifying = admin
+    ? await loadAdminModifyAvailabilityContext(modifyId)
+    : session
+      ? await loadModifyAvailabilityContext(session.clientId, modifyId)
+      : { error: "That booking cannot be modified." };
   if (modifying && "error" in modifying) {
     return NextResponse.json({ error: modifying.error, kind: "address" }, { status: 400 });
   }

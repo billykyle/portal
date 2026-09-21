@@ -39,7 +39,13 @@ export type BookingIntegrationDeps = {
   }) => Promise<{ sent: boolean }>;
   saveBookingSync: (
     bookingId: string,
-    patch: { calendarEventId?: string | null; syncIssue: string | null },
+    patch: {
+      calendarEventId?: string | null;
+      syncIssue: string | null;
+      clientEmailMessageId?: string | null;
+      clientEmailReferences?: string | null;
+      clientEmailSubject?: string | null;
+    },
   ) => Promise<void>;
 };
 
@@ -64,6 +70,13 @@ export function defaultBookingIntegrationDeps(): BookingIntegrationDeps {
         .update(bookings)
         .set({
           ...(patch.calendarEventId !== undefined ? { calendarEventId: patch.calendarEventId } : {}),
+          ...(patch.clientEmailMessageId !== undefined
+            ? { clientEmailMessageId: patch.clientEmailMessageId }
+            : {}),
+          ...(patch.clientEmailReferences !== undefined
+            ? { clientEmailReferences: patch.clientEmailReferences }
+            : {}),
+          ...(patch.clientEmailSubject !== undefined ? { clientEmailSubject: patch.clientEmailSubject } : {}),
           syncIssue: patch.syncIssue,
           updatedAt: new Date(),
         })
@@ -159,6 +172,13 @@ export async function settleBookingIntegrations(
   await deps.saveBookingSync(input.bookingId, {
     ...(input.action === "cancel" ? {} : { calendarEventId }),
     syncIssue: formatSyncIssue(issues),
+    ...(input.action === "create" && emails.client.sent && emails.clientMessageId
+      ? {
+          clientEmailMessageId: emails.clientMessageId,
+          clientEmailReferences: emails.clientMessageId,
+          clientEmailSubject: emails.clientSubject ?? null,
+        }
+      : {}),
   });
 
   return {

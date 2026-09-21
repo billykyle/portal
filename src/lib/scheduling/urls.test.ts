@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "../routes";
-import { schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "./urls";
+import { ADMIN_BOOKINGS, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "../routes";
+import { adminBookingHref, adminBookingTimesHref, schedulingBookHref, schedulingConfirmedHref, schedulingTimesHref } from "./urls";
 
 test("book and times hrefs keep a single address field plus services", () => {
   assert.equal(schedulingBookHref(), CLIENT_SCHEDULING);
@@ -45,5 +45,17 @@ test("book and times hrefs keep a single address field plus services", () => {
       notes: "Lockbox",
     }),
     `${CLIENT_SCHEDULING}?address=12+Wood+View+Drive%2C+Princeton%2C+NJ%2C+USA&service=Real+Estate+%C2%B7+Photography&notes=Lockbox&modify=11111111-1111-4111-8111-111111111111`,
+  );
+});
+
+test("admin modify hrefs stay under /admin/bookings/{id}", () => {
+  assert.equal(adminBookingHref("11111111-1111-4111-8111-111111111111"), `${ADMIN_BOOKINGS}/11111111-1111-4111-8111-111111111111`);
+  assert.equal(
+    adminBookingTimesHref("11111111-1111-4111-8111-111111111111", {
+      address: "12 Wood View Drive",
+      services: ["Real Estate · Photography"],
+      notes: "Lockbox",
+    }),
+    `${ADMIN_BOOKINGS}/11111111-1111-4111-8111-111111111111/times?address=12+Wood+View+Drive&service=Real+Estate+%C2%B7+Photography&notes=Lockbox`,
   );
 });

@@ -12,13 +12,13 @@ import { schedulingHours } from "@/lib/scheduling/config";
 export default async function AdminBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; cancelled?: string }>;
+  searchParams: Promise<{ error?: string; cancelled?: string; updated?: string }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   await ensureDb();
-  const { error, cancelled } = await searchParams;
+  const { error, cancelled, updated } = await searchParams;
   const rows = await listAdminBookings();
   const now = Date.now();
   const upcoming = rows.filter((row) => row.startsAt.getTime() >= now);
@@ -40,6 +40,7 @@ export default async function AdminBookingsPage({
       />
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
+      {updated ? <p className="mb-6 text-sm text-white">Shoot updated.</p> : null}
       <section className="mb-12">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Upcoming</h2>
         <BookingList
@@ -48,6 +49,8 @@ export default async function AdminBookingsPage({
           timeZone={hours.timeZone}
           showClient
           allowCancel
+          allowModify
+          admin
         />
       </section>
       <section className="pb-16">
