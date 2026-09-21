@@ -2,15 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   bookingHorizonDays,
+  bookingStartAllowed,
+  calendarWeekday,
   dateIsBookable,
   firstBookableDate,
   formatWeekDayListLabel,
   hoursForNow,
+  isBlockedBookingWeekday,
+  isBlockedNewBookingDay,
   lastBookableDate,
   monthGrid,
   weekDateKeys,
 } from "./horizon";
 import {
+  BLOCKED_BOOKING_WEEKDAYS,
+  BOOKABLE_WEEKDAYS,
   DEFAULT_MAX_BOOKING_MONTHS,
   DEFAULT_OPEN_HOUR,
   DEFAULT_STEP_MINUTES,
@@ -108,4 +114,66 @@ test("September 2026 month grid starts on Tuesday", () => {
 test("week day list marks days with zero slots as no time available", () => {
   assert.equal(formatWeekDayListLabel("Sunday, Sep 20", true), "Sunday, Sep 20");
   assert.equal(formatWeekDayListLabel("Monday, Sep 21", false), "Monday, Sep 21 - no time available");
+});
+
+test("new bookings skip today and Tuesday/Saturday/Sunday", () => {
+  const sunday = { year: 2026, month: 9, day: 20 };
+  const monday = { year: 2026, month: 9, day: 21 };
+  const tuesday = { year: 2026, month: 9, day: 22 };
+  const wednesday = { year: 2026, month: 9, day: 23 };
+  const saturday = { year: 2026, month: 9, day: 26 };
+  assert.equal(calendarWeekday(sunday), 0);
+  assert.equal(calendarWeekday(tuesday), 2);
+  assert.equal(calendarWeekday(saturday), 6);
+  assert.deepEqual([...BLOCKED_BOOKING_WEEKDAYS], [0, 2, 6]);
+  assert.deepEqual([...BOOKABLE_WEEKDAYS], [1, 3, 4, 5]);
+  assert.equal(isBlockedBookingWeekday(sunday), true);
+  assert.equal(isBlockedBookingWeekday(tuesday), true);
+  assert.equal(isBlockedBookingWeekday(saturday), true);
+  assert.equal(isBlockedBookingWeekday(monday), false);
+  assert.equal(isBlockedBookingWeekday(wednesday), false);
+  assert.equal(isBlockedNewBookingDay(monday, monday), true);
+  assert.equal(isBlockedNewBookingDay(wednesday, monday), false);
+  assert.equal(
+    bookingStartAllowed({
+      start: et(2026, 9, 21, 11),
+      now: et(2026, 9, 21, 9),
+      timeZone: DEFAULT_TIMEZONE,
+    }),
+    false,
+  );
+  assert.equal(
+    bookingStartAllowed({
+      start: et(2026, 9, 22, 11),
+      now: et(2026, 9, 21, 9),
+      timeZone: DEFAULT_TIMEZONE,
+    }),
+    false,
+  );
+  assert.equal(
+    bookingStartAllowed({
+      start: et(2026, 9, 23, 11),
+      now: et(2026, 9, 21, 9),
+      timeZone: DEFAULT_TIMEZONE,
+    }),
+    true,
+  );
+  assert.equal(
+    bookingStartAllowed({
+      start: et(2026, 9, 21, 15),
+      now: et(2026, 9, 21, 9),
+      timeZone: DEFAULT_TIMEZONE,
+      retainStarts: [et(2026, 9, 21, 15)],
+    }),
+    true,
+  );
+  assert.equal(
+    bookingStartAllowed({
+      start: et(2026, 9, 21, 16),
+      now: et(2026, 9, 21, 9),
+      timeZone: DEFAULT_TIMEZONE,
+      retainStarts: [et(2026, 9, 21, 15)],
+    }),
+    false,
+  );
 });

@@ -129,6 +129,57 @@ test("refreshing keeps the last slots and the loading sentence", () => {
   assert.doesNotMatch(html, /No times fit this address right now/);
 });
 
+test("week list greys today and blocked weekdays as no time available", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability: {
+        ...availability,
+        firstBookableDate: "2026-09-20",
+        lastBookableDate: "2026-12-20",
+      },
+      services: ["Real Estate · Photography"],
+    }),
+  );
+  assert.match(html, /Sunday, Sep 20 - no time available/);
+  assert.match(html, /Tuesday, Sep 22 - no time available/);
+  assert.match(html, /Saturday, Sep 26 - no time available/);
+  assert.match(html, /Monday, Sep 21/);
+  assert.doesNotMatch(html, /Monday, Sep 21 - no time available/);
+  assert.match(html, /aria-disabled="true"/);
+  assert.match(html, /cursor-not-allowed/);
+});
+
+test("modify on a blocked weekday still preselects the existing start", () => {
+  const tuesdayStart = "2026-09-22T18:00:00.000Z";
+  const tuesdayEnd = "2026-09-22T18:45:00.000Z";
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability: {
+        ...availability,
+        firstBookableDate: "2026-09-21",
+        lastBookableDate: "2026-12-21",
+        slots: [
+          {
+            start: tuesdayStart,
+            end: tuesdayEnd,
+            dateKey: "2026-09-22",
+            dateLabel: "Tuesday, Sep 22",
+            timeLabel: "2:00 PM – 2:45 PM",
+            driveSecondsFromPrior: null,
+          },
+        ],
+      },
+      services: ["Real Estate · Photography"],
+      modifyBookingId: "11111111-1111-4111-8111-111111111111",
+      currentSlot: `${tuesdayStart}|${tuesdayEnd}`,
+    }),
+  );
+  assert.match(html, /Tuesday, Sep 22/);
+  assert.doesNotMatch(html, /Tuesday, Sep 22 - no time available/);
+  assert.match(html, new RegExp(`value="${tuesdayStart}\\|${tuesdayEnd}"`));
+  assert.match(html, /checked/);
+});
+
 test("modify pre-selects the current start when duration changes", () => {
   const longerEnd = "2026-09-21T14:15:00.000Z";
   const html = renderToStaticMarkup(
