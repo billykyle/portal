@@ -40,7 +40,7 @@ export default async function LibraryPage() {
         {client?.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
       </div>
       <ShootList
-        emptyLabel="No shoots yet. Your photographer will post them here."
+        emptyLabel="No shoots yet. Billy will post them here."
         shoots={rows.map((shoot) => ({
           id: shoot.id,
           href: `/shoots/${shoot.id}`,
