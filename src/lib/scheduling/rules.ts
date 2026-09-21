@@ -32,8 +32,9 @@
  *    assume 0 minutes or a guessed duration.
  * 5. After a successful Book shoot (`createBooking`), send two Resend emails
  *    (no CC/BCC): client confirmation to the session email, and a
- *    `New booking: …` alert to Billy (`billy@billyhere.com` /
- *    `BOOKING_NOTIFY_EMAIL`). Do not require Pepper. Soft-fail: never roll
+ *    `New shoot: …` alert to Billy (`billy@billyhere.com` /
+ *    `BOOKING_NOTIFY_EMAIL`) with Pepper instructions not to add the shoot
+ *    to his calendar. Do not require Pepper. Soft-fail: never roll
  *    back the calendar event or DB insert if mail fails. Calendar write is
  *    also soft-fail after the DB insert (and emails): try the Work insert,
  *    but a 403 must not fail the client confirm. Modify (`updateBooking`)

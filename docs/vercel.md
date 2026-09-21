@@ -86,7 +86,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` / `shoot.delivered`. |
 | `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset and booking-confirmation mail. |
 | `EMAIL_FROM` | `Billy Kyle <billy@billyhere.com>` | Used only when Resend is set. Default if unset. |
-| `BOOKING_NOTIFY_EMAIL` | `billy@billyhere.com` | Optional. Separate `New booking: …` email to Billy. Not CC/BCC. |
+| `BOOKING_NOTIFY_EMAIL` | `billy@billyhere.com` | Optional. Separate `New shoot: …` email to Billy. Not CC/BCC. |
 | `GOOGLE_CALENDAR_IDS` | `billy@atmosimagery.com,bkyle015@gmail.com` | Optional. Work + personal. Free/busy unions both — busy if either calendar is busy. Do **not** add US Holidays. Bookings write to the first ID. Share both with the service-account email. |
 | `GOOGLE_CALENDAR_ID` | single calendar id | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. |
 | `GCP_PROJECT_ID` | `glassy-polymer-509203-r1` | Optional display / GoogleAuth project id. |

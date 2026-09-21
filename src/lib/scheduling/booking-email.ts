@@ -141,6 +141,35 @@ function notifyCta() {
   return { label: "View bookings", href: bookingAdminUrl() };
 }
 
+/** Exact Pepper line on Billy's new-shoot notify email. */
+export const PEPPER_NOTIFY_NEW =
+  "Pepper instructions - Please notify Billy of this appointment, but do not add it to his calendar as it is automatically entered.";
+
+export const PEPPER_NOTIFY_UPDATED =
+  "Pepper instructions - Please notify Billy of this appointment change, but do not add it to his calendar as it is automatically entered.";
+
+export const PEPPER_NOTIFY_CANCELLED =
+  "Pepper instructions - Please notify Billy of this cancellation, but do not remove it from his calendar as it is automatically removed.";
+
+function pepperNoteParts(note: string) {
+  const separator = " - ";
+  const index = note.indexOf(separator);
+  if (index === -1) return { label: "Pepper instructions", body: note };
+  return { label: note.slice(0, index), body: note.slice(index + separator.length) };
+}
+
+function pepperNoteHtml(note: string) {
+  const { label, body } = pepperNoteParts(note);
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #000000;border-collapse:collapse;">
+  <tr>
+    <td style="padding:16px 18px;font-family:${EMAIL_FONT_STACK};color:#000000;">
+      <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:#000000;">${escapeHtml(label)}</div>
+      <div style="margin-top:6px;font-size:16px;line-height:1.45;color:#000000;">${escapeHtml(body)}</div>
+    </td>
+  </tr>
+</table>`;
+}
+
 function calendarCtaHtml(icsUrl: string, googleUrl: string) {
   return `${bookingEmailCtaButton(icsUrl, "Add to calendar")}
 <p style="margin:12px 0 20px;text-align:center;font-family:${EMAIL_FONT_STACK};font-size:14px;line-height:1.45;">
@@ -224,11 +253,12 @@ function buildClientMessage(
 
 function buildNotifyMessage(
   input: BookingConfirmationInput,
-  copy: { title: string; intro: string; subjectPrefix: string },
+  copy: { title: string; intro: string; subjectPrefix: string; pepperNote?: string },
 ) {
   const { when } = bookingDetails(input);
   const rows = sharedDetailRows(input, [{ label: "Client", value: clientLabel(input) || input.clientEmail }]);
   const cta = notifyCta();
+  const pepperNote = copy.pepperNote?.trim() || "";
 
   const text = [
     copy.intro,
@@ -238,6 +268,7 @@ function buildNotifyMessage(
     cta.label,
     cta.href,
     "",
+    ...(pepperNote ? [pepperNote, ""] : []),
     emailSignatureText(),
   ].join("\n");
 
@@ -249,6 +280,7 @@ function buildNotifyMessage(
       paragraphHtml(copy.intro),
       detailHtml(rows),
       `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      ...(pepperNote ? [`<div style="padding:8px 0 0;">${pepperNoteHtml(pepperNote)}</div>`] : []),
       `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
     ].join("\n"),
   });
@@ -274,9 +306,10 @@ export function buildBookingConfirmation(input: BookingConfirmationInput) {
 /** Billy's own booking alert. Email #2. */
 export function buildBookingNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
-    title: "New booking",
-    intro: "New booking on the portal.",
-    subjectPrefix: "New booking",
+    title: "New shoot",
+    intro: "New shoot on the portal.",
+    subjectPrefix: "New shoot",
+    pepperNote: PEPPER_NOTIFY_NEW,
   });
 }
 
@@ -294,9 +327,10 @@ export function buildBookingModified(input: BookingConfirmationInput) {
 /** Billy's modification alert. Email #2. */
 export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
-    title: "Booking updated",
-    intro: "A booking was modified on the portal.",
-    subjectPrefix: "Booking updated",
+    title: "Shoot updated",
+    intro: "A shoot was modified on the portal.",
+    subjectPrefix: "Shoot updated",
+    pepperNote: PEPPER_NOTIFY_UPDATED,
   });
 }
 
@@ -319,6 +353,7 @@ export function buildBookingCancelledNotify(input: BookingConfirmationInput) {
     title: "Booking cancelled",
     intro: "A booking was cancelled on the portal.",
     subjectPrefix: "Booking cancelled",
+    pepperNote: PEPPER_NOTIFY_CANCELLED,
   });
 }
 
