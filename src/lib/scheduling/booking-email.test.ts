@@ -301,7 +301,13 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
     formatBookingWhen(start, end, "America/New_York"),
   );
 
-  assert.match(notify.subject, /^Booking cancelled:/);
+  assert.match(notify.subject, /^Shoot cancelled:/);
+  assert.match(notify.subject, new RegExp(escapeRegExp(formatBookingWhen(start, end, "America/New_York"))));
+  assert.match(notify.html, /<title>Shoot cancelled<\/title>/);
+  assert.match(notify.html, /Shoot cancelled<\/h1>/);
+  assert.doesNotMatch(notify.subject, /Booking cancelled/);
+  assert.doesNotMatch(notify.html, /Booking cancelled/);
+  assert.doesNotMatch(notify.text, /Booking cancelled/);
   assert.doesNotMatch(notify.text, /cancelled on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
   assert.match(notify.text, /12 Wood View Drive, Princeton, NJ/);
@@ -311,7 +317,7 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assertNotifyHeadingHasNoIntro(
     notify.html,
-    "Booking cancelled",
+    "Shoot cancelled",
     formatBookingWhen(start, end, "America/New_York"),
     "A booking was cancelled on the portal.",
   );
@@ -490,7 +496,7 @@ test("sendBookingCancellation posts two separate Resend emails with no CC/BCC", 
     assert.equal(client.bcc, undefined);
     assert.equal(notify.bcc, undefined);
     assert.match(String(client.subject), /Shoot cancelled/);
-    assert.match(String(notify.subject), /^Booking cancelled:/);
+    assert.match(String(notify.subject), /^Shoot cancelled:/);
     assert.match(String(client.text), /has been cancelled/);
     assert.doesNotMatch(String(client.text), /Modify or cancel this shoot/);
     assert.doesNotMatch(String(client.text), /Add to calendar/);

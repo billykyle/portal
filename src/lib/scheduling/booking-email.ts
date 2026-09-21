@@ -345,8 +345,8 @@ export function buildBookingCancelled(input: BookingConfirmationInput) {
 /** Billy's cancellation alert. Email #2. */
 export function buildBookingCancelledNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
-    title: "Booking cancelled",
-    subjectPrefix: "Booking cancelled",
+    title: "Shoot cancelled",
+    subjectPrefix: "Shoot cancelled",
     pepperNote: PEPPER_NOTIFY_CANCELLED,
   });
 }
