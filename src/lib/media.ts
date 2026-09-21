@@ -1,5 +1,5 @@
 import type { Media } from "./db/schema";
-import { isNasFilePath, nasEnabled } from "./nas";
+import { isNasFilePath, nasEnabled } from "./nas-flags";
 
 export { guessMediaType } from "./nas-media";
 

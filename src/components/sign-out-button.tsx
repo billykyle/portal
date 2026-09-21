@@ -1,4 +1,4 @@
-import { adminLogout } from "@/lib/actions/admin";
+import { adminLogout } from "@/lib/actions/admin-session";
 import { signOut } from "@/lib/actions/auth";
 
 export function SignOutButton({ admin = false }: { admin?: boolean }) {

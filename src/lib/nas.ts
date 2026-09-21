@@ -7,6 +7,8 @@ import { isNasAuthError } from "./nas-auth";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import { isVercelRuntime } from "./runtime";
 
+export { isNasFilePath, nasEnabled } from "./nas-flags";
+
 export type NasFile = {
   path: string;
   name: string;
@@ -30,14 +32,6 @@ let cachedRootPath: string | null = null;
 let cookieInFlight: Promise<string> | null = null;
 let resolvedHost: string | null = null;
 
-export function nasEnabled() {
-  return process.env.NAS_ENABLED === "true";
-}
-
-export function isNasFilePath(value: string | null | undefined): value is string {
-  return Boolean(value?.startsWith("/"));
-}
-
 function parseShareIdFromUrl(url: string) {
   try {
     return new URL(url).searchParams.get("id")?.trim() || "";
@@ -49,8 +43,30 @@ function parseShareIdFromUrl(url: string) {
 export function defaultNasCacheDir() {
   const configured = process.env.NAS_CACHE_DIR?.trim();
   if (configured) return configured;
-  if (isVercelRuntime()) return "/tmp/nas-cache";
+  if (isVercelRuntime()) return path.join("/tmp", "nas-cache");
   return path.join(process.cwd(), ".nas-cache");
+}
+
+function nasCacheFilePath(kind: "thumbs" | "files", filename: string) {
+  const configured = process.env.NAS_CACHE_DIR?.trim();
+  if (configured) {
+    return path.join(/* turbopackIgnore: true */ configured, kind, filename);
+  }
+  if (isVercelRuntime()) {
+    return path.join("/tmp", "nas-cache", kind, filename);
+  }
+  return path.join(process.cwd(), ".nas-cache", kind, filename);
+}
+
+function nasCacheKindDir(kind: "thumbs" | "files") {
+  const configured = process.env.NAS_CACHE_DIR?.trim();
+  if (configured) {
+    return path.join(/* turbopackIgnore: true */ configured, kind);
+  }
+  if (isVercelRuntime()) {
+    return path.join("/tmp", "nas-cache", kind);
+  }
+  return path.join(process.cwd(), ".nas-cache", kind);
 }
 
 export function getNasConfig(): NasConfig | null {
@@ -326,11 +342,10 @@ function cacheKey(nasPath: string) {
 }
 
 async function cachedFile(kind: "thumbs" | "files", nasPath: string, ext: string) {
-  const config = getNasConfig();
-  if (!config) return null;
-  const filePath = path.join(config.cacheDir, kind, `${cacheKey(nasPath)}.${ext}`);
+  if (!getNasConfig()) return null;
+  const filePath = nasCacheFilePath(kind, `${cacheKey(nasPath)}.${ext}`);
   try {
-    const info = await stat(filePath);
+    const info = await stat(/* turbopackIgnore: true */ filePath);
     if (info.size > 0) return filePath;
   } catch {
     /* miss */
@@ -339,11 +354,10 @@ async function cachedFile(kind: "thumbs" | "files", nasPath: string, ext: string
 }
 
 async function writeCache(kind: "thumbs" | "files", nasPath: string, ext: string, bytes: Buffer) {
-  const config = getNasConfig();
-  if (!config) return;
-  const filePath = path.join(config.cacheDir, kind, `${cacheKey(nasPath)}.${ext}`);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, bytes);
+  if (!getNasConfig()) return;
+  const filePath = nasCacheFilePath(kind, `${cacheKey(nasPath)}.${ext}`);
+  await mkdir(/* turbopackIgnore: true */ nasCacheKindDir(kind), { recursive: true });
+  await writeFile(/* turbopackIgnore: true */ filePath, bytes);
   return filePath;
 }
 
@@ -353,7 +367,7 @@ function extensionFrom(name: string, fallback: string) {
 }
 
 function nodeStreamResponse(filePath: string, contentType: string, filename: string, download: boolean) {
-  const stream = Readable.toWeb(createReadStream(filePath)) as ReadableStream;
+  const stream = Readable.toWeb(createReadStream(/* turbopackIgnore: true */ filePath)) as ReadableStream;
   return new Response(stream, {
     headers: {
       "Content-Type": contentType,
@@ -498,7 +512,7 @@ export async function nasCachedFileSize(nasPath: string, filename: string) {
   const hit = await cachedFile("files", nasPath, ext);
   if (!hit) return null;
   try {
-    const info = await stat(hit);
+    const info = await stat(/* turbopackIgnore: true */ hit);
     return info.size > 0 ? info.size : null;
   } catch {
     return null;
@@ -508,7 +522,7 @@ export async function nasCachedFileSize(nasPath: string, filename: string) {
 export async function loadNasFileBytes(nasPath: string, filename: string) {
   const ext = extensionFrom(filename, "bin");
   const hit = await cachedFile("files", nasPath, ext);
-  if (hit) return readFile(hit);
+  if (hit) return readFile(/* turbopackIgnore: true */ hit);
   return queueNasDownload(() => downloadNasFileBytes(nasPath, filename, ext));
 }
 

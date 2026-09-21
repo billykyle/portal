@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { Field, FormError, SubmitButton } from "@/components/field";
-import { adminLogin } from "@/lib/actions/admin";
+import { adminLogin } from "@/lib/actions/admin-session";
 
 export function AdminLoginForm() {
   const [state, action, pending] = useActionState(adminLogin, undefined);

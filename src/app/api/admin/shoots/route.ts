@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { shoots } from "@/lib/db/schema";
 import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
-import { nasEnabled } from "@/lib/nas";
+import { nasEnabled } from "@/lib/nas-flags";
 import { createPublicToken } from "@/lib/public-link";
 import { eq } from "drizzle-orm";
 

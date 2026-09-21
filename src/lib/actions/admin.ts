@@ -3,19 +3,14 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  adminPasswordMatches,
-  clearAdminSession,
-  createAdminSession,
-  getAdminSession,
-} from "@/lib/admin-auth";
+import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
 import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
 import { runLockedNasSync } from "@/lib/nas-scheduler";
-import { nasEnabled } from "@/lib/nas";
+import { nasEnabled } from "@/lib/nas-flags";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "@/lib/delivery";
 import { createPublicToken } from "@/lib/public-link";
 
@@ -23,19 +18,6 @@ export type AdminState = {
   error?: string;
   minted?: string;
 };
-
-export async function adminLogin(_prev: AdminState | undefined, formData: FormData) {
-  if (!adminPasswordMatches(String(formData.get("password") ?? ""))) {
-    return { error: "Password is incorrect." };
-  }
-  await createAdminSession();
-  redirect("/admin/clients");
-}
-
-export async function adminLogout() {
-  await clearAdminSession();
-  redirect("/admin");
-}
 
 function adminClientsUrl(params: Record<string, string>) {
   const query = new URLSearchParams(params);

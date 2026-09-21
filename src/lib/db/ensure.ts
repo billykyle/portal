@@ -1,5 +1,4 @@
 import { count, eq, isNull } from "drizzle-orm";
-import { runLockedNasSync, startNasSyncScheduler } from "../nas-scheduler";
 import { createPublicToken } from "../public-link";
 import { useInProcessNasScheduler } from "../runtime";
 import { db, sql } from "./index";
@@ -146,16 +145,17 @@ export async function ensureDb() {
       if (value === 0) {
         await seedDemo();
       }
-      if (useInProcessNasScheduler()) {
+      if (!useInProcessNasScheduler()) {
+        console.log("NAS boot sync skipped on Vercel (use cron or admin)");
+      } else {
+        const { runLockedNasSync, startNasSyncScheduler } = await import("../nas-scheduler");
         try {
           await runLockedNasSync("boot");
         } catch (error) {
           console.error("NAS share sync skipped:", error);
         }
-      } else {
-        console.log("NAS boot sync skipped on Vercel (use cron or admin)");
+        startNasSyncScheduler();
       }
-      startNasSyncScheduler();
     })().catch((error) => {
       ready = null;
       throw error;
