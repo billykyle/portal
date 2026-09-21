@@ -25,6 +25,7 @@ import {
 } from "@/lib/scheduling/bookings";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
 import { schedulingHours } from "@/lib/scheduling/config";
+import { bookingStartAllowed } from "@/lib/scheduling/horizon";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
 import {
@@ -96,6 +97,15 @@ export async function createBooking(formData: FormData) {
 
     const start = new Date(startIso);
     const end = new Date(endIso);
+    if (
+      !bookingStartAllowed({
+        start,
+        now: sources.now ?? new Date(),
+        timeZone: availability.timeZone,
+      })
+    ) {
+      failTimes("That time is no longer available. Pick another.", availability.address);
+    }
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
     const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
     const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
@@ -305,6 +315,16 @@ export async function updateBooking(formData: FormData) {
 
     const start = new Date(startIso);
     const end = new Date(endIso);
+    if (
+      !bookingStartAllowed({
+        start,
+        now: sources.now ?? new Date(),
+        timeZone: availability.timeZone,
+        retainStarts: [booking.startsAt],
+      })
+    ) {
+      failTimes("That time is no longer available. Pick another.", availability.address);
+    }
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
     const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
     let [user] =

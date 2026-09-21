@@ -7,7 +7,7 @@ import { mergeIntervals, overlaps, subtractInterval } from "./intervals";
 import { DEFAULT_TIMEZONE, TRAVEL_PAD_MINUTES } from "./rules";
 import { generateCandidateSlots } from "./slots";
 import { pickNextJob, pickNextJobs, pickPriorJob, travelFits } from "./travel";
-import { zonedDateTimeToUtc } from "./zoned-time";
+import { calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 
 const PHILLY = "1500 Market Street, Philadelphia, PA";
 const SHORE = "100 1st Avenue, Avalon, NJ";
@@ -196,13 +196,13 @@ test("engine hides Shore 1pm after a Philly noon job", async () => {
 
 test("candidate slots are 9:00–18:00 starts on 15-minute steps in America/New_York", () => {
   const slots = generateCandidateSlots({
-    now: et(2026, 9, 21, 6),
+    now: et(2026, 9, 20, 6),
     timeZone: DEFAULT_TIMEZONE,
     openHour: 9,
     closeHour: 18,
     slotMinutes: 90,
     stepMinutes: 15,
-    daysAhead: 1,
+    daysAhead: 2,
     minLeadMinutes: 0,
   });
   assert.ok(slots.length > 0);
@@ -215,13 +215,13 @@ test("candidate slots are 9:00–18:00 starts on 15-minute steps in America/New_
 
 test("a 6:00pm start is offered even when the job end runs past close", () => {
   const slots = generateCandidateSlots({
-    now: et(2026, 9, 21, 6),
+    now: et(2026, 9, 20, 6),
     timeZone: DEFAULT_TIMEZONE,
     openHour: 9,
     closeHour: 18,
     slotMinutes: 15,
     stepMinutes: 15,
-    daysAhead: 1,
+    daysAhead: 2,
     minLeadMinutes: 0,
   });
   assert.equal(slots[0].end.getTime() - slots[0].start.getTime(), 15 * 60 * 1000);
@@ -415,8 +415,16 @@ test("offered slots carry a date key and a 3-month bookable window", async () =>
   });
   assert.equal(result.firstBookableDate, "2026-09-20");
   assert.equal(result.lastBookableDate, "2026-12-20");
+  assert.equal(
+    result.slots.some((slot) => slot.dateKey === "2026-09-20"),
+    false,
+  );
   assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-21"));
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-12-20"));
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-12-18"));
+  assert.equal(
+    result.slots.some((slot) => slot.dateKey === "2026-12-20"),
+    false,
+  );
   assert.equal(
     result.slots.some((slot) => slot.dateKey === "2026-12-21"),
     false,
@@ -543,6 +551,97 @@ test("keepRetainedStarts inserts a missing original start without dropping other
   assert.equal(kept.length, 2);
   assert.equal(kept[0]?.start, et(2026, 9, 25, 10).toISOString());
   assert.equal(kept[1]?.start, existing[0]?.start);
+});
+
+test("same-day and Tue/Sat/Sun never offer new candidate slots", () => {
+  const mondayMorning = generateCandidateSlots({
+    now: et(2026, 9, 21, 8),
+    timeZone: DEFAULT_TIMEZONE,
+    openHour: 9,
+    closeHour: 18,
+    slotMinutes: 45,
+    stepMinutes: 15,
+    daysAhead: 8,
+    minLeadMinutes: 0,
+  });
+  const dateKeys = new Set(
+    mondayMorning.map((slot) => calendarDateKey(utcToZonedParts(slot.start, DEFAULT_TIMEZONE))),
+  );
+  assert.equal(dateKeys.has("2026-09-21"), false, "today (Monday) must have no new slots");
+  assert.equal(dateKeys.has("2026-09-22"), false, "Tuesday");
+  assert.equal(dateKeys.has("2026-09-26"), false, "Saturday");
+  assert.equal(dateKeys.has("2026-09-27"), false, "Sunday");
+  assert.ok(dateKeys.has("2026-09-23"), "Wednesday");
+  assert.ok(dateKeys.has("2026-09-24"), "Thursday");
+  assert.ok(dateKeys.has("2026-09-25"), "Friday");
+  assert.ok(dateKeys.has("2026-09-28"), "next Monday");
+});
+
+test("blocked days stay empty except the retained modify start", () => {
+  const retain = et(2026, 9, 22, 14);
+  const slots = generateCandidateSlots({
+    now: et(2026, 9, 21, 9),
+    timeZone: DEFAULT_TIMEZONE,
+    openHour: 9,
+    closeHour: 18,
+    slotMinutes: 45,
+    stepMinutes: 15,
+    daysAhead: 3,
+    minLeadMinutes: 0,
+    retainStarts: [retain],
+  });
+  const tuesday = slots.filter(
+    (slot) => calendarDateKey(utcToZonedParts(slot.start, DEFAULT_TIMEZONE)) === "2026-09-22",
+  );
+  assert.equal(tuesday.length, 1);
+  assert.equal(tuesday[0]?.start.getTime(), retain.getTime());
+  assert.equal(
+    slots.some((slot) => slot.start.getTime() === et(2026, 9, 22, 10).getTime()),
+    false,
+  );
+});
+
+test("engine offers no new times on today or a blocked weekday", async () => {
+  const now = et(2026, 9, 21, 9);
+  const result = await offerSlotsForAddress(PHILLY, {
+    now,
+    busy: [],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  });
+  assert.equal(
+    result.slots.some((slot) => slot.dateKey === "2026-09-21"),
+    false,
+  );
+  assert.equal(
+    result.slots.some((slot) => slot.dateKey === "2026-09-22"),
+    false,
+  );
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-23"));
+  assert.equal(result.firstBookableDate, "2026-09-21");
+});
+
+test("modify keeps a same-day start and does not invent other today slots", async () => {
+  const now = et(2026, 9, 21, 10);
+  const own = { start: et(2026, 9, 21, 15), end: et(2026, 9, 21, 15, 45) };
+  const result = await offerSlotsForAddress(
+    PHILLY,
+    {
+      now,
+      busy: [],
+      jobs: [],
+      calendarConfigured: true,
+      driveTimeConfigured: true,
+      driveSeconds: async () => null,
+    },
+    ["Real Estate · Photography"],
+    { retainStarts: [own.start] },
+  );
+  const kept = result.slots.filter((slot) => slot.dateKey === "2026-09-21");
+  assert.equal(kept.length, 1);
+  assert.equal(startMs(kept[0]?.start ?? ""), own.start.getTime());
 });
 
 test("retainStarts keeps a booking inside the lead window when modifying", () => {

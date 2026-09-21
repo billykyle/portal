@@ -64,6 +64,14 @@
  *    {@link DEFAULT_OPEN_HOUR} through {@link DEFAULT_CLOSE_HOUR} inclusive,
  *    on {@link DEFAULT_STEP_MINUTES}-minute steps. A 6:00pm start is offered
  *    even if the computed end runs past 6:00pm.
+ * 8. Bookable days (Billy, 2026-09-21): no same-day bookings in
+ *    America/New_York, and never Tuesday, Saturday, or Sunday. Allowed new
+ *    starts are Monday, Wednesday, Thursday, Friday — and never today.
+ *    Today and blocked weekdays still appear in the times list / week range
+ *    as **no time available**. Modify always keeps the existing start
+ *    selectable (even if that day is today or a blocked weekday) and does
+ *    not invent other slots on a blocked day. Create/update reject a new
+ *    start on a blocked day so the API cannot bypass the list.
  */
 
 /** Locked at 0 — live Maps ETA only, no extra minutes (Billy, 2026-09-20). */
@@ -81,3 +89,11 @@ export const DEFAULT_DAYS_AHEAD = 14;
 export const DEFAULT_MIN_LEAD_MINUTES = 120;
 export const DEFAULT_WEEK_DAYS = 7;
 export const DEFAULT_MAX_BOOKING_MONTHS = 3;
+
+/**
+ * JS `Date#getUTCDay` values that never take new bookings:
+ * Sunday (0), Tuesday (2), Saturday (6).
+ */
+export const BLOCKED_BOOKING_WEEKDAYS = [0, 2, 6] as const;
+/** Monday, Wednesday, Thursday, Friday. */
+export const BOOKABLE_WEEKDAYS = [1, 3, 4, 5] as const;

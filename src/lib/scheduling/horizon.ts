@@ -1,6 +1,6 @@
 import type { SchedulingHours } from "./config";
 import { schedulingHours } from "./config";
-import { DEFAULT_MAX_BOOKING_MONTHS, DEFAULT_WEEK_DAYS } from "./rules";
+import { BLOCKED_BOOKING_WEEKDAYS, DEFAULT_MAX_BOOKING_MONTHS, DEFAULT_WEEK_DAYS } from "./rules";
 import {
   addCalendarDays,
   addCalendarMonths,
@@ -91,6 +91,37 @@ export function monthGrid(year: number, month: number): Array<CalendarDate | nul
 
 export function dateIsBookable(date: CalendarDate, first: CalendarDate, last: CalendarDate) {
   return compareCalendarDates(date, first) >= 0 && compareCalendarDates(date, last) <= 0;
+}
+
+/** Civil weekday for a calendar date (0 = Sunday … 6 = Saturday). */
+export function calendarWeekday(date: CalendarDate): number {
+  return new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay();
+}
+
+export function isBlockedBookingWeekday(date: CalendarDate): boolean {
+  return (BLOCKED_BOOKING_WEEKDAYS as readonly number[]).includes(calendarWeekday(date));
+}
+
+/** Today and Tue/Sat/Sun never offer new starts. The date window still lists them. */
+export function isBlockedNewBookingDay(date: CalendarDate, today: CalendarDate): boolean {
+  return compareCalendarDates(date, today) === 0 || isBlockedBookingWeekday(date);
+}
+
+/**
+ * True when this start may be booked as a *new* selection.
+ * Modify `retainStarts` keep the existing appointment even on today or a
+ * blocked weekday.
+ */
+export function bookingStartAllowed(input: {
+  start: Date;
+  now: Date;
+  timeZone: string;
+  retainStarts?: readonly Date[];
+}): boolean {
+  if (input.retainStarts?.some((value) => value.getTime() === input.start.getTime())) {
+    return true;
+  }
+  return !isBlockedNewBookingDay(todayInZone(input.start, input.timeZone), todayInZone(input.now, input.timeZone));
 }
 
 export function formatMonthTitle(year: number, month: number) {

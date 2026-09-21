@@ -1,4 +1,5 @@
 import type { Interval } from "./intervals";
+import { bookingStartAllowed } from "./horizon";
 import { addCalendarDays, calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 import type { SchedulingHours } from "./config";
 
@@ -20,7 +21,18 @@ export function generateCandidateSlots(
       const min = minute % 60;
       const start = zonedDateTimeToUtc(input.timeZone, { ...day, hour, minute: min });
       const end = new Date(start.getTime() + duration * 60 * 1000);
-      if (start.getTime() < minStart && !retainStarts.has(start.getTime())) continue;
+      const retained = retainStarts.has(start.getTime());
+      if (start.getTime() < minStart && !retained) continue;
+      if (
+        !bookingStartAllowed({
+          start,
+          now: input.now,
+          timeZone: input.timeZone,
+          retainStarts: input.retainStarts,
+        })
+      ) {
+        continue;
+      }
       slots.push({ start, end });
     }
   }
