@@ -7,6 +7,7 @@ import { useFormStatus } from "react-dom";
 import { FormError, SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
 import { TimesHelpNote } from "@/components/times-help-note";
+import { TimesStepSummary } from "@/components/times-step-summary";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking, updateBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
@@ -102,18 +103,7 @@ export function BookTimesForm({
 
   return (
     <div>
-      {services.length > 0 ? (
-        <ul className="flex flex-col gap-0.5">
-          {services.map((service) => (
-            <li key={service} className="text-[15px]">
-              {service}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <p className={services.length > 0 ? "mt-1 text-sm text-[#8e8e93]" : "text-[15px]"}>
-        {availability.address}
-      </p>
+      <TimesStepSummary address={availability.address} services={services} />
       <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
         Change services or address
       </Link>
@@ -202,13 +192,7 @@ export function BookTimesForm({
                               const checked = selectedSlot === value;
                               return (
                                 <li key={slot.start}>
-                                  <label
-                                    className={
-                                      checked
-                                        ? "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border border-white bg-white/5 px-4 py-3"
-                                        : "flex min-h-12 w-full cursor-pointer items-center gap-3 py-2"
-                                    }
-                                  >
+                                  <label className={timeOptionClassName(checked)}>
                                     <input
                                       type="radio"
                                       name="slot"
@@ -268,6 +252,16 @@ export function BookTimesForm({
 function firstOpenDate(weekKeys: string[], datesWithSlots: Set<string>) {
   const first = weekKeys.find((key) => datesWithSlots.has(key));
   return first ? [first] : [];
+}
+
+/** Same box on every time so the selected border does not change row width. */
+const timeOptionLayoutClass =
+  "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3";
+
+function timeOptionClassName(checked: boolean) {
+  return checked
+    ? `${timeOptionLayoutClass} border-white bg-white/5`
+    : `${timeOptionLayoutClass} border-transparent`;
 }
 
 function groupSlotsByDate(slots: OfferedSlot[]) {

@@ -112,7 +112,27 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
 });
 
-test("only the selected time is wrapped in a bordered box", () => {
+test("address is the prominent title above secondary services", () => {
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability,
+      services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
+    }),
+  );
+  const addressAt = html.indexOf("12 Wood View Drive, Princeton, NJ");
+  const serviceAt = html.indexOf("Real Estate · Photography");
+  assert.ok(addressAt >= 0);
+  assert.ok(serviceAt > addressAt);
+  assert.match(
+    html,
+    /<p class="text-\[15px\] font-medium leading-snug">12 Wood View Drive, Princeton, NJ<\/p>/,
+  );
+  assert.match(html, /<li class="text-sm text-\[#8e8e93\]">Real Estate · Photography<\/li>/);
+  assert.match(html, /<li class="text-sm text-\[#8e8e93\]">Real Estate · Aerial Photos<\/li>/);
+  assert.doesNotMatch(html, /<li class="text-\[15px\]">/);
+});
+
+test("selected and unselected times keep the same row box", () => {
   const laterStart = "2026-09-21T15:00:00.000Z";
   const laterEnd = "2026-09-21T15:45:00.000Z";
   const html = renderToStaticMarkup(
@@ -134,12 +154,19 @@ test("only the selected time is wrapped in a bordered box", () => {
     }),
   );
   const labels = [...html.matchAll(/<label class="([^"]+)"/g)].map((match) => match[1]);
-  const selected = labels.filter((className) => className.includes("border-white"));
-  const unselected = labels.filter((className) => !className.includes("border-white"));
+  assert.equal(labels.length, 2);
+  const layout =
+    /flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3/;
+  for (const className of labels) {
+    assert.match(className, layout);
+  }
+  const selected = labels.filter((className) => className.includes("border-white "));
+  const unselected = labels.filter((className) => className.includes("border-transparent"));
   assert.equal(selected.length, 1);
-  assert.match(selected[0], /rounded-xl border border-white bg-white\/5/);
+  assert.match(selected[0], /border-white bg-white\/5/);
+  assert.doesNotMatch(selected[0], /border-transparent/);
   assert.equal(unselected.length, 1);
-  assert.doesNotMatch(unselected[0], /border/);
+  assert.doesNotMatch(unselected[0], /bg-white/);
   assert.doesNotMatch(html, /has-\[:checked\]:border-white/);
 });
 
