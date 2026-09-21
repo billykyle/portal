@@ -78,6 +78,7 @@ export const bookings = pgTable("bookings", {
   notes: text("notes"),
   accessCodes: text("access_codes"),
   calendarEventId: text("calendar_event_id"),
+  syncIssue: text("sync_issue"),
   driveSecondsFromPrior: integer("drive_seconds_from_prior"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -17,7 +17,10 @@ import {
   sendBookingCancellation,
   sendBookingConfirmation,
   sendBookingModification,
+  sendBookingSyncIssue,
+  buildBookingSyncIssue,
 } from "./booking-email";
+import { BOOKING_SYNC_ISSUE_SUBJECT } from "./booking-sync";
 import { formatBookingWhen } from "./slots";
 
 const EMAIL_ENV = ["RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFY_EMAIL", "PORTAL_PUBLIC_URL"] as const;
@@ -538,6 +541,64 @@ test("one failed Resend send does not skip the other", async () => {
     assert.equal(result.sent, false);
     assert.deepEqual(result.client, { sent: false, reason: "resend-500" });
     assert.equal(result.notify.sent, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("skipNotify sends only the client confirmation", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  const calls: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendBookingConfirmation(sampleInput(), { skipNotify: true });
+    assert.equal(result.sent, true);
+    assert.equal(result.notify.sent, false);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0]?.to, ["sam@example.com"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sync-issue email uses the locked subject and names calendar vs email", () => {
+  const message = buildBookingSyncIssue({
+    ...sampleInput(),
+    action: "create",
+    failures: ["calendar"],
+  });
+  assert.equal(message.subject, BOOKING_SYNC_ISSUE_SUBJECT);
+  assert.match(message.text, /Google Calendar sync failed/);
+  assert.match(message.text, /Sam Lepore · sam@example.com/);
+  assert.match(message.text, /12 Wood View Drive, Princeton, NJ/);
+  assert.doesNotMatch(message.text, /Pepper instructions/);
+  assert.doesNotMatch(message.text, /automatically entered/);
+  assert.doesNotMatch(message.text, /Add to calendar/);
+});
+
+test("sendBookingSyncIssue retries the owner notify once", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  let n = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    n += 1;
+    if (n === 1) return new Response("nope", { status: 500 });
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendBookingSyncIssue({
+      ...sampleInput(),
+      action: "create",
+      failures: ["client-email"],
+    });
+    assert.equal(n, 2);
+    assert.equal(result.sent, true);
   } finally {
     globalThis.fetch = originalFetch;
   }

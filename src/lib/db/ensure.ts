@@ -112,6 +112,7 @@ async function createTables() {
       notes text,
       access_codes text,
       calendar_event_id text,
+      sync_issue text,
       drive_seconds_from_prior integer,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
@@ -119,6 +120,7 @@ async function createTables() {
   `;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service text`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS services text[]`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sync_issue text`;
   await sql`
     UPDATE bookings
     SET services = ARRAY[service]

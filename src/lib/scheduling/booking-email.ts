@@ -12,9 +12,16 @@ import {
   sendEmail,
   uniqueEmails,
   type EmailAttachment,
+  type SendEmailResult,
 } from "@/lib/email";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { clientCalendarLinks } from "./booking-ics";
+import {
+  BOOKING_SYNC_ISSUE_SUBJECT,
+  bookingSyncIssueLines,
+  type BookingSyncAction,
+  type BookingSyncFailure,
+} from "./booking-sync";
 import { formatBookingServices } from "./services";
 import { formatBookingWhen } from "./slots";
 import { schedulingConfirmedHref } from "./urls";
@@ -357,6 +364,11 @@ export type BookingEmailSendResult = {
   notify: Awaited<ReturnType<typeof sendEmail>> | { sent: false; reason: string };
 };
 
+export type BookingEmailSendOptions = {
+  /** Skip Billy's standard New shoot / updated / cancelled notify (Pepper copy). */
+  skipNotify?: boolean;
+};
+
 /**
  * Two separate Resend sends after a successful booking:
  * 1. Client confirmation → session email
@@ -365,24 +377,106 @@ export type BookingEmailSendResult = {
  * No CC/BCC. Soft-fails: never throws, never rolls back the booking.
  * One failed send does not skip the other.
  */
-export async function sendBookingConfirmation(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingConfirmation(input), buildBookingNotify(input));
+export async function sendBookingConfirmation(
+  input: BookingConfirmationInput,
+  options?: BookingEmailSendOptions,
+): Promise<BookingEmailSendResult> {
+  return sendBookingPair(input, buildBookingConfirmation(input), buildBookingNotify(input), options);
 }
 
 /** Same two-send pattern after a client modifies an upcoming booking. */
-export async function sendBookingModification(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input));
+export async function sendBookingModification(
+  input: BookingConfirmationInput,
+  options?: BookingEmailSendOptions,
+): Promise<BookingEmailSendResult> {
+  return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input), options);
 }
 
 /** Same two-send pattern after a client or Billy cancels a confirmed booking. */
-export async function sendBookingCancellation(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingCancelled(input), buildBookingCancelledNotify(input));
+export async function sendBookingCancellation(
+  input: BookingConfirmationInput,
+  options?: BookingEmailSendOptions,
+): Promise<BookingEmailSendResult> {
+  return sendBookingPair(input, buildBookingCancelled(input), buildBookingCancelledNotify(input), options);
+}
+
+export type BookingSyncIssueInput = BookingConfirmationInput & {
+  action: BookingSyncAction;
+  failures: readonly BookingSyncFailure[];
+};
+
+/** Billy-only alert when calendar or confirmation mail failed. No Pepper calendar claim. */
+export function buildBookingSyncIssue(input: BookingSyncIssueInput) {
+  const details = bookingDetails(input);
+  const copy = bookingSyncIssueLines({
+    action: input.action,
+    clientName: input.clientName,
+    clientEmail: input.clientEmail,
+    address: input.address,
+    services: details.services,
+    start: input.start,
+    end: input.end,
+    timeZone: input.timeZone,
+    failures: input.failures,
+  });
+  const rows = copy.rows;
+  const cta = notifyCta();
+
+  const text = [
+    copy.intro,
+    "",
+    ...detailText(rows),
+    "",
+    cta.label,
+    cta.href,
+    "",
+    emailSignatureText(),
+  ].join("\n");
+
+  const html = wrapBookingEmailHtml({
+    title: BOOKING_SYNC_ISSUE_SUBJECT,
+    preheader: copy.intro,
+    body: [
+      headingHtml(BOOKING_SYNC_ISSUE_SUBJECT),
+      paragraphHtml(copy.intro),
+      detailHtml(rows),
+      `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
+    ].join("\n"),
+  });
+
+  return {
+    subject: copy.subject,
+    text,
+    html,
+  };
+}
+
+/** Owner notify path with one retry. Used when the standard New shoot mail is skipped or failed. */
+export async function sendBookingSyncIssue(input: BookingSyncIssueInput): Promise<SendEmailResult> {
+  const message = buildBookingSyncIssue(input);
+  const first = await sendOwnerNotify(message);
+  if (first.sent) return first;
+  return sendOwnerNotify(message);
+}
+
+async function sendOwnerNotify(message: { subject: string; text: string; html: string }): Promise<SendEmailResult> {
+  if (!emailConfigured()) return { sent: false, reason: "resend-unconfigured" };
+  const [notify] = uniqueEmails([bookingNotifyEmail()]);
+  if (!notify) return { sent: false, reason: "no-recipients" };
+  return sendEmail({
+    to: notify,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+  });
 }
 
 async function sendBookingPair(
   input: BookingConfirmationInput,
   clientMessage: { subject: string; text: string; html: string; attachments?: EmailAttachment[] },
   notifyMessage: { subject: string; text: string; html: string },
+  options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
   if (!emailConfigured()) {
     const skipped = { sent: false as const, reason: "resend-unconfigured" };
@@ -390,6 +484,7 @@ async function sendBookingPair(
   }
 
   const recipients = bookingConfirmationRecipients(input.clientEmail);
+  const skipNotify = Boolean(options?.skipNotify);
 
   const [client, notify] = await Promise.all([
     recipients.client
@@ -401,15 +496,17 @@ async function sendBookingPair(
           attachments: clientMessage.attachments,
         })
       : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
-    recipients.notify
-      ? sendEmail({
-          to: recipients.notify,
-          subject: notifyMessage.subject,
-          text: notifyMessage.text,
-          html: notifyMessage.html,
-        })
-      : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
+    skipNotify
+      ? Promise.resolve({ sent: false as const, reason: "skipped" })
+      : recipients.notify
+        ? sendEmail({
+            to: recipients.notify,
+            subject: notifyMessage.subject,
+            text: notifyMessage.text,
+            html: notifyMessage.html,
+          })
+        : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
   ]);
 
-  return { sent: client.sent && notify.sent, client, notify };
+  return { sent: client.sent && (skipNotify || notify.sent), client, notify };
 }

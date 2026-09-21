@@ -38,7 +38,15 @@ export function schedulingTimesHref(params: SchedulingQuery = {}) {
   return schedulingHref(CLIENT_SCHEDULING_TIMES, params);
 }
 
-export function schedulingConfirmedHref(bookingId: string, options?: { updated?: boolean }) {
+export function schedulingConfirmedHref(
+  bookingId: string,
+  options?: { updated?: boolean; calendar?: "failed"; email?: "failed" },
+) {
   const path = `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`;
-  return options?.updated ? `${path}?updated=1` : path;
+  const query = new URLSearchParams();
+  if (options?.updated) query.set("updated", "1");
+  if (options?.calendar === "failed") query.set("calendar", "failed");
+  if (options?.email === "failed") query.set("email", "failed");
+  const qs = query.toString();
+  return qs ? `${path}?${qs}` : path;
 }

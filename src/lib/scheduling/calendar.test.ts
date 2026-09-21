@@ -6,7 +6,10 @@ import {
   collectFreeBusyIntervals,
   formatCalendarHttpError,
   parseCalendarApiError,
+  calendarEventWriteBody,
+  calendarIdFromWriteResponse,
   hasStoredCalendarEventId,
+  portalCalendarEventId,
   settleCalendarDelete,
   settleCalendarWrite,
   splitQueryWindows,
@@ -41,6 +44,26 @@ import { vercelOidcTokenOptions, wifClientOptions } from "./google-auth";
 const WORK = WORK_CALENDAR_ID;
 const PERSONAL = PERSONAL_CALENDAR_ID;
 const HOLIDAY = "en.usa#holiday@group.v.calendar.google.com";
+
+test("portal calendar event ids are stable UUID hex so retries do not insert twice", () => {
+  assert.equal(portalCalendarEventId("11111111-1111-4111-8111-111111111111"), "11111111111141118111111111111111");
+  assert.equal(
+    calendarIdFromWriteResponse(409, {}, "11111111111141118111111111111111"),
+    "11111111111141118111111111111111",
+  );
+  assert.equal(calendarIdFromWriteResponse(200, { id: "evt_google" }), "evt_google");
+  assert.deepEqual(
+    calendarEventWriteBody({
+      eventId: "11111111111141118111111111111111",
+      address: "12 Wood View Drive",
+      start: new Date("2026-09-22T14:00:00.000Z"),
+      end: new Date("2026-09-22T15:00:00.000Z"),
+      timeZone: "America/New_York",
+      summary: "Sam - Photo",
+    }).id,
+    "11111111111141118111111111111111",
+  );
+});
 
 test("locked availability calendars are work + personal emails", () => {
   assert.equal(WORK, "billy@atmosimagery.com");

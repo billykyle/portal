@@ -19,11 +19,13 @@ export function AddressAutocomplete({
   defaultPlaceId = "",
   placesConfigured,
   error,
+  onAddressChange,
 }: {
   defaultValue?: string;
   defaultPlaceId?: string;
   placesConfigured: boolean;
   error?: string;
+  onAddressChange?: (next: { address: string; placeId: string }) => void;
 }) {
   const inputId = "address";
   const listId = useId();
@@ -106,6 +108,7 @@ export function AddressAutocomplete({
     setOpen(false);
     setActiveIndex(-1);
     setLookupError("");
+    onAddressChange?.({ address: suggestion.label, placeId: suggestion.placeId });
     try {
       const params = new URLSearchParams({
         placeId: suggestion.placeId,
@@ -113,7 +116,10 @@ export function AddressAutocomplete({
       });
       const res = await fetch(`/api/scheduling/address?${params}`, { cache: "no-store" });
       const body = (await res.json()) as DetailsResponse;
-      if (body.address) setValue(body.address);
+      if (body.address) {
+        setValue(body.address);
+        onAddressChange?.({ address: body.address, placeId: suggestion.placeId });
+      }
     } catch {
       // Suggestion label is already a full formatted prediction.
     }
@@ -166,9 +172,11 @@ export function AddressAutocomplete({
         aria-controls={listId}
         aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         onChange={(event) => {
-          setValue(event.target.value);
+          const next = event.target.value;
+          setValue(next);
           setPlaceId("");
           setOpen(true);
+          onAddressChange?.({ address: next, placeId: "" });
         }}
         onFocus={() => {
           if (suggestions.length > 0) setOpen(true);

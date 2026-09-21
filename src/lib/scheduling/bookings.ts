@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookings, clients } from "@/lib/db/schema";
+import { adminBookingNotices } from "./booking-sync";
 import type { Interval } from "./intervals";
 import type { TravelJob } from "./travel";
 
@@ -57,9 +58,9 @@ export async function loadConfirmedPortalBusy(): Promise<Interval[]> {
 export function adminCalendarGapNotice(booking: {
   status: string;
   calendarEventId?: string | null;
+  syncIssue?: string | null;
 }): string | null {
-  if (booking.status !== "confirmed" || booking.calendarEventId) return null;
-  return "Not on Google Calendar yet.";
+  return adminBookingNotices(booking)[0] ?? null;
 }
 
 export async function listClientUpcomingBookings(clientId: string) {
@@ -85,6 +86,7 @@ export async function listAdminBookings() {
       notes: bookings.notes,
       accessCodes: bookings.accessCodes,
       calendarEventId: bookings.calendarEventId,
+      syncIssue: bookings.syncIssue,
       clientId: bookings.clientId,
       clientName: clients.displayName,
       inviteCode: clients.inviteCode,

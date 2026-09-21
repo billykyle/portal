@@ -17,8 +17,9 @@
  *    for the title. Description is a labeled client list ending with
  *    `Booked through your portal`. Location stays the shoot address. A
  *    Calendar write failure (including 403 writer access) is logged and
- *    leaves `calendarEventId` null — Book shoot still confirms. Singular
- *    `GOOGLE_CALENDAR_ID` is still accepted.
+ *    leaves `calendarEventId` null. The shoot stays saved and the client
+ *    sees a confirmation that calendar sync failed (Billy is alerted).
+ *    Singular `GOOGLE_CALENDAR_ID` is still accepted.
  * 2. Address first. Never compute or show times until a shoot address is known.
  * 3. Travel hard-block: live drive time only between the prior job address
  *    and the new address. Same check against the next located job. Exclusive
@@ -34,17 +35,20 @@
  *    (no CC/BCC): client confirmation to the session email, and a
  *    `New shoot: …` alert to Billy (`billy@billyhere.com` /
  *    `BOOKING_NOTIFY_EMAIL`) with Pepper instructions not to add the shoot
- *    to his calendar. Do not require Pepper. Soft-fail: never roll
- *    back the calendar event or DB insert if mail fails. Calendar write is
- *    also soft-fail after the DB insert (and emails): try the Work insert,
- *    but a 403 must not fail the client confirm. Modify (`updateBooking`)
- *    uses the same two-send + Calendar soft-fail pattern, excluding the
+ *    to his calendar. Do not require Pepper. Never roll back the calendar
+ *    event or DB insert if mail or Calendar write fails. Partial success
+ *    must be honest on the confirmation page (calendar vs email). Billy
+ *    gets `Portal booking sync issue` when Calendar or Resend fails; if
+ *    that alert also fails, log `PORTAL_BOOKING_SYNC_ALERT` and store
+ *    `sync_issue` on the booking. Modify (`updateBooking`) uses the same
+ *    two-send + Calendar pattern, excluding the
  *    booking being edited from availability so its own slot stays offered.
  *    Modify always keeps the original start selectable and pre-selected,
  *    even when added services make that start overlap another busy block.
  *    Cancel (`cancelBooking`) sends the same two Resend emails after the
  *    status flip: client “Shoot cancelled” (Scheduling link only — not
- *    modify that booking) and Billy “Shoot cancelled”. Soft-fail mail.
+ *    modify that booking) and Billy “Shoot cancelled”. Mail and Calendar
+ *    delete failures use the same honest confirm + Billy alert path.
  *    The client then lands on the confirmation page for that booking in
  *    cancelled state (same layout; no Modify/Cancel). Client confirm and
  *    update emails include Add to calendar (ICS attachment + signed ICS

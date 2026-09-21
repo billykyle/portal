@@ -17,16 +17,7 @@ import {
 } from "@/lib/scheduling/availability";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import { canModifyBooking, getClientBooking, loadConfirmedPortalJobs } from "@/lib/scheduling/bookings";
-import {
-  sendBookingCancellation,
-  sendBookingConfirmation,
-  sendBookingModification,
-} from "@/lib/scheduling/booking-email";
-import {
-  tryDeleteCalendarBooking,
-  tryReplaceCalendarBooking,
-  tryWriteCalendarBooking,
-} from "@/lib/scheduling/calendar";
+import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
@@ -55,9 +46,13 @@ export async function createBooking(formData: FormData) {
         end: Date;
         timeZone: string;
         clientName: string | null;
+        clientEmail: string;
         calendarConfigured: boolean;
         calendarSummary: string;
         calendarDescription: string;
+        services: string[];
+        notes: string | null;
+        accessCodes: string | null;
       }
     | undefined;
 
@@ -126,23 +121,6 @@ export async function createBooking(formData: FormData) {
       failTimes("Booking could not be completed.");
     }
 
-    try {
-      await sendBookingConfirmation({
-        bookingId: booking.id,
-        clientEmail: session.email,
-        clientName: client?.displayName ?? null,
-        address: availability.address,
-        services,
-        start,
-        end,
-        timeZone: hours.timeZone,
-        notes,
-        accessCodes,
-      });
-    } catch (error) {
-      console.error("Booking confirmation email failed", error);
-    }
-
     created = {
       bookingId: booking.id,
       address: availability.address,
@@ -153,43 +131,55 @@ export async function createBooking(formData: FormData) {
       calendarConfigured: availability.calendarConfigured,
       calendarSummary: calendar.summary,
       calendarDescription: calendar.description,
+      clientEmail: session.email,
+      services,
+      notes,
+      accessCodes,
     };
   } catch (error) {
     unstable_rethrow(error);
     failTimes(bookingUserError(error));
   }
 
-  // Calendar write is best-effort after the portal row and emails exist. A 403
-  // writer-access error (or any other insert failure) must not undo Book shoot.
-  if (created?.calendarConfigured) {
-    try {
-      const calendarEventId = await tryWriteCalendarBooking({
-        address: created.address,
-        start: created.start,
-        end: created.end,
-        timeZone: created.timeZone,
-        summary: created.calendarSummary,
-        description: created.calendarDescription,
-      });
-      if (calendarEventId) {
-        await db
-          .update(bookings)
-          .set({ calendarEventId, updatedAt: new Date() })
-          .where(eq(bookings.id, created.bookingId));
-      }
-    } catch (error) {
-      console.error("Google Calendar write failed; booking still confirmed", error);
-    }
-  }
-
   if (!created) {
     failTimes("Booking could not be completed.");
   }
 
+  const settled = await settleBookingIntegrations({
+    action: "create",
+    bookingId: created.bookingId,
+    calendarConfigured: created.calendarConfigured,
+    calendarWrite: {
+      address: created.address,
+      start: created.start,
+      end: created.end,
+      timeZone: created.timeZone,
+      summary: created.calendarSummary,
+      description: created.calendarDescription,
+    },
+    email: {
+      bookingId: created.bookingId,
+      clientEmail: created.clientEmail,
+      clientName: created.clientName,
+      address: created.address,
+      services: created.services,
+      start: created.start,
+      end: created.end,
+      timeZone: created.timeZone,
+      notes: created.notes,
+      accessCodes: created.accessCodes,
+    },
+  });
+
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  redirect(schedulingConfirmedHref(created.bookingId));
+  redirect(
+    schedulingConfirmedHref(created.bookingId, {
+      calendar: settled.issues.calendar ? "failed" : undefined,
+      email: settled.issues.email ? "failed" : undefined,
+    }),
+  );
 }
 
 export async function updateBooking(formData: FormData) {
@@ -219,11 +209,14 @@ export async function updateBooking(formData: FormData) {
         end: Date;
         timeZone: string;
         clientName: string | null;
+        clientEmail: string;
         calendarConfigured: boolean;
         calendarEventId: string | null;
         accessCodes: string | null;
         calendarSummary: string;
         calendarDescription: string;
+        services: string[];
+        notes: string | null;
       }
     | undefined;
 
@@ -309,23 +302,6 @@ export async function updateBooking(formData: FormData) {
       failTimes("Booking could not be updated.");
     }
 
-    try {
-      await sendBookingModification({
-        bookingId: booking.id,
-        clientEmail: session.email,
-        clientName: client?.displayName ?? null,
-        address: availability.address,
-        services,
-        start,
-        end,
-        timeZone: hours.timeZone,
-        notes,
-        accessCodes: booking.accessCodes,
-      });
-    } catch (error) {
-      console.error("Booking modification email failed", error);
-    }
-
     updated = {
       bookingId: booking.id,
       address: availability.address,
@@ -333,46 +309,61 @@ export async function updateBooking(formData: FormData) {
       end,
       timeZone: hours.timeZone,
       clientName: client?.displayName ?? null,
+      clientEmail: session.email,
       calendarConfigured: availability.calendarConfigured,
       calendarEventId: booking.calendarEventId,
       accessCodes: booking.accessCodes,
       calendarSummary: calendar.summary,
       calendarDescription: calendar.description,
+      services,
+      notes,
     };
   } catch (error) {
     unstable_rethrow(error);
     failTimes(bookingUserError(error, "Booking could not be updated."));
   }
 
-  if (updated?.calendarConfigured) {
-    try {
-      const calendarEventId = await tryReplaceCalendarBooking(updated.calendarEventId, {
-        address: updated.address,
-        start: updated.start,
-        end: updated.end,
-        timeZone: updated.timeZone,
-        summary: updated.calendarSummary,
-        description: updated.calendarDescription,
-      });
-      if (calendarEventId && calendarEventId !== updated.calendarEventId) {
-        await db
-          .update(bookings)
-          .set({ calendarEventId, updatedAt: new Date() })
-          .where(eq(bookings.id, updated.bookingId));
-      }
-    } catch (error) {
-      console.error("Google Calendar write failed; booking still updated", error);
-    }
-  }
-
   if (!updated) {
     failTimes("Booking could not be updated.");
   }
 
+  const settled = await settleBookingIntegrations({
+    action: "modify",
+    bookingId: updated.bookingId,
+    calendarConfigured: updated.calendarConfigured,
+    existingCalendarEventId: updated.calendarEventId,
+    calendarWrite: {
+      address: updated.address,
+      start: updated.start,
+      end: updated.end,
+      timeZone: updated.timeZone,
+      summary: updated.calendarSummary,
+      description: updated.calendarDescription,
+    },
+    email: {
+      bookingId: updated.bookingId,
+      clientEmail: updated.clientEmail,
+      clientName: updated.clientName,
+      address: updated.address,
+      services: updated.services,
+      start: updated.start,
+      end: updated.end,
+      timeZone: updated.timeZone,
+      notes: updated.notes,
+      accessCodes: updated.accessCodes,
+    },
+  });
+
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  redirect(schedulingConfirmedHref(updated.bookingId, { updated: true }));
+  redirect(
+    schedulingConfirmedHref(updated.bookingId, {
+      updated: true,
+      calendar: settled.issues.calendar ? "failed" : undefined,
+      email: settled.issues.email ? "failed" : undefined,
+    }),
+  );
 }
 
 async function resolveCancelledBookingEmail(input: {
@@ -434,45 +425,39 @@ export async function cancelBooking(formData: FormData) {
     .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")))
     .returning({ id: bookings.id });
 
+  let cancelledIssues: { calendar?: "failed"; email?: "failed" } = {};
   if (cancelled) {
-    try {
-      const ownerCancelling = Boolean(session && session.clientId === booking.clientId);
-      const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
-      const clientEmail = await resolveCancelledBookingEmail({
-        clientId: booking.clientId,
-        createdByUserId: booking.createdByUserId,
-        ownerEmail: ownerCancelling ? session?.email : null,
-        primaryEmail: client?.primaryEmail,
-      });
-      if (clientEmail) {
-        const hours = schedulingHours();
-        await sendBookingCancellation({
-          bookingId: booking.id,
-          clientEmail,
-          clientName: client?.displayName ?? null,
-          address: booking.address,
-          services: bookingServiceList(booking),
-          start: booking.startsAt,
-          end: booking.endsAt,
-          timeZone: hours.timeZone,
-          notes: booking.notes,
-          accessCodes: booking.accessCodes,
-        });
-      }
-    } catch (error) {
-      console.error("Booking cancellation email failed", error);
-    }
-
-    // Calendar delete is best-effort after the status flip and emails. A
-    // 403/404/auth failure must not undo cancel or skip cancellation mail.
-    // If create never stored an event id, skip quietly.
-    if (booking.calendarEventId) {
-      try {
-        await tryDeleteCalendarBooking(booking.calendarEventId);
-      } catch (error) {
-        console.error("Google Calendar delete failed; booking still cancelled", error);
-      }
-    }
+    const ownerCancelling = Boolean(session && session.clientId === booking.clientId);
+    const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
+    const clientEmail = await resolveCancelledBookingEmail({
+      clientId: booking.clientId,
+      createdByUserId: booking.createdByUserId,
+      ownerEmail: ownerCancelling ? session?.email : null,
+      primaryEmail: client?.primaryEmail,
+    });
+    const hours = schedulingHours();
+    const settled = await settleBookingIntegrations({
+      action: "cancel",
+      bookingId: booking.id,
+      calendarConfigured: Boolean(booking.calendarEventId),
+      deleteCalendarEventId: booking.calendarEventId,
+      email: {
+        bookingId: booking.id,
+        clientEmail: clientEmail || client?.primaryEmail || session?.email || "",
+        clientName: client?.displayName ?? null,
+        address: booking.address,
+        services: bookingServiceList(booking),
+        start: booking.startsAt,
+        end: booking.endsAt,
+        timeZone: hours.timeZone,
+        notes: booking.notes,
+        accessCodes: booking.accessCodes,
+      },
+    });
+    cancelledIssues = {
+      calendar: settled.issues.calendar ? "failed" : undefined,
+      email: settled.issues.email ? "failed" : undefined,
+    };
   }
 
   revalidatePath(CLIENT_SCHEDULING);
@@ -486,5 +471,5 @@ export async function cancelBooking(formData: FormData) {
   if (admin && !session) {
     redirect("/admin/bookings?cancelled=1");
   }
-  redirect(schedulingConfirmedHref(booking.id));
+  redirect(schedulingConfirmedHref(booking.id, cancelledIssues));
 }
