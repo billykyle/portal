@@ -194,11 +194,11 @@ test("engine hides Shore 1pm after a Philly noon job", async () => {
   assert.ok(threePm);
 });
 
-test("candidate slots are 10:00–18:00 starts on 15-minute steps in America/New_York", () => {
+test("candidate slots are 9:00–18:00 starts on 15-minute steps in America/New_York", () => {
   const slots = generateCandidateSlots({
     now: et(2026, 9, 21, 6),
     timeZone: DEFAULT_TIMEZONE,
-    openHour: 10,
+    openHour: 9,
     closeHour: 18,
     slotMinutes: 90,
     stepMinutes: 15,
@@ -206,8 +206,8 @@ test("candidate slots are 10:00–18:00 starts on 15-minute steps in America/New
     minLeadMinutes: 0,
   });
   assert.ok(slots.length > 0);
-  assert.equal(slots[0].start.getTime(), et(2026, 9, 21, 10).getTime());
-  assert.equal(slots[1].start.getTime(), et(2026, 9, 21, 10, 15).getTime());
+  assert.equal(slots[0].start.getTime(), et(2026, 9, 21, 9).getTime());
+  assert.equal(slots[1].start.getTime(), et(2026, 9, 21, 9, 15).getTime());
   const last = slots[slots.length - 1];
   assert.equal(last.start.getTime(), et(2026, 9, 21, 18).getTime());
   assert.equal(last.end.getTime(), et(2026, 9, 21, 19, 30).getTime());
@@ -217,7 +217,7 @@ test("a 6:00pm start is offered even when the job end runs past close", () => {
   const slots = generateCandidateSlots({
     now: et(2026, 9, 21, 6),
     timeZone: DEFAULT_TIMEZONE,
-    openHour: 10,
+    openHour: 9,
     closeHour: 18,
     slotMinutes: 15,
     stepMinutes: 15,
@@ -551,7 +551,7 @@ test("retainStarts keeps a booking inside the lead window when modifying", () =>
   const slots = generateCandidateSlots({
     now,
     timeZone: DEFAULT_TIMEZONE,
-    openHour: 10,
+    openHour: 9,
     closeHour: 18,
     slotMinutes: 60,
     stepMinutes: 15,

@@ -10,7 +10,7 @@ import { TimesHelpNote } from "@/components/times-help-note";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking, updateBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
-import { readBookingFormSlot } from "@/lib/scheduling/booking-form";
+import { readBookingFormSlot, toggleSelectedSlot } from "@/lib/scheduling/booking-form";
 import {
   formatDateKeyLabel,
   formatWeekDayListLabel,
@@ -192,12 +192,22 @@ export function BookTimesForm({
                               const checked = selectedSlot === value;
                               return (
                                 <li key={slot.start}>
-                                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-3 has-[:checked]:border-white has-[:checked]:bg-white/5">
+                                  <label
+                                    className={
+                                      checked
+                                        ? "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border border-white bg-white/5 px-4 py-3"
+                                        : "flex min-h-12 w-full cursor-pointer items-center gap-3 py-2"
+                                    }
+                                  >
                                     <input
                                       type="radio"
                                       name="slot"
                                       value={value}
                                       checked={checked}
+                                      onClick={() => {
+                                        setSelectedSlot((current) => toggleSelectedSlot(current, value));
+                                        setSlotError("");
+                                      }}
                                       onChange={() => {
                                         setSelectedSlot(value);
                                         setSlotError("");

@@ -69,6 +69,37 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
 });
 
+test("only the selected time is wrapped in a bordered box", () => {
+  const laterStart = "2026-09-21T15:00:00.000Z";
+  const laterEnd = "2026-09-21T15:45:00.000Z";
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability: {
+        ...availability,
+        slots: [
+          availability.slots[0],
+          {
+            ...availability.slots[0],
+            start: laterStart,
+            end: laterEnd,
+            timeLabel: "11:00 AM",
+          },
+        ],
+      },
+      services: ["Real Estate · Photography"],
+      currentSlot: `${start}|${end}`,
+    }),
+  );
+  const labels = [...html.matchAll(/<label class="([^"]+)"/g)].map((match) => match[1]);
+  const selected = labels.filter((className) => className.includes("border-white"));
+  const unselected = labels.filter((className) => !className.includes("border-white"));
+  assert.equal(selected.length, 1);
+  assert.match(selected[0], /rounded-xl border border-white bg-white\/5/);
+  assert.equal(unselected.length, 1);
+  assert.doesNotMatch(unselected[0], /border/);
+  assert.doesNotMatch(html, /has-\[:checked\]:border-white/);
+});
+
 test("refreshing keeps the last slots and the loading sentence", () => {
   const html = renderToStaticMarkup(
     createElement(BookTimesForm, {
