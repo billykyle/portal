@@ -93,25 +93,22 @@ export function BookTimesForm({
 
   return (
     <div>
-      <p className="text-sm text-[#8e8e93]">Step 2 of 2 — available times</p>
-      <div className="mt-3">
-        {services.length > 0 ? (
-          <ul className="flex flex-col gap-0.5">
-            {services.map((service) => (
-              <li key={service} className="text-[15px]">
-                {service}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <p className={services.length > 0 ? "mt-1 text-sm text-[#8e8e93]" : "text-[15px]"}>
-          {availability.address}
-        </p>
-        <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
-          Change services or address
-        </Link>
-        <TimesHelpNote />
-      </div>
+      {services.length > 0 ? (
+        <ul className="flex flex-col gap-0.5">
+          {services.map((service) => (
+            <li key={service} className="text-[15px]">
+              {service}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className={services.length > 0 ? "mt-1 text-sm text-[#8e8e93]" : "text-[15px]"}>
+        {availability.address}
+      </p>
+      <Link href={changeHref} className="mt-2 inline-block text-sm text-[#8e8e93] underline">
+        Change services or address
+      </Link>
+      <TimesHelpNote />
 
       <h2 className="mt-8 mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Available times</h2>
       {refreshing ? (

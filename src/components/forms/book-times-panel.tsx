@@ -143,8 +143,7 @@ function TimesUnavailable({
 }) {
   return (
     <div>
-      <p className="text-sm text-[#8e8e93]">Step 2 of 2 — available times</p>
-      <ul className="mt-3 flex flex-col gap-0.5">
+      <ul className="flex flex-col gap-0.5">
         {services.map((service) => (
           <li key={service} className="text-[15px]">
             {service}

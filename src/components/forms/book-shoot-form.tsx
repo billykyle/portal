@@ -50,7 +50,6 @@ export function BookShootForm({
   return (
     <BookTimesNavigation>
       {modifyBookingId ? <input type="hidden" name="modify" value={modifyBookingId} /> : null}
-      <p className="text-sm text-[#8e8e93]">Step 1 of 2 — address and services</p>
       <AddressAutocomplete
         defaultValue={address}
         defaultPlaceId={placeId}

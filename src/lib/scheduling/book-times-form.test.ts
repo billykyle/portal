@@ -43,6 +43,7 @@ test("book times radios post a named slot value the server can read", () => {
   assert.match(html, /That time is no longer available/);
   assert.match(html, /id="book-shoot-error"/);
   assert.match(html, /Date options further out/);
+  assert.doesNotMatch(html, /Step \d+ of \d+/);
   assert.doesNotMatch(html, /Date Options Further Out/);
   assert.doesNotMatch(html, /Further Date Options/);
   assert.doesNotMatch(html, /type="hidden"[^>]*name="slot"/);
@@ -61,6 +62,7 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, /name="bookingId"/);
   assert.match(html, /11111111-1111-4111-8111-111111111111/);
   assert.match(html, /Save changes/);
+  assert.doesNotMatch(html, /Step \d+ of \d+/);
   assert.doesNotMatch(html, /Book shoot/);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
   assert.match(html, /checked/);
