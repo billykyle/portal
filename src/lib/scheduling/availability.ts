@@ -12,12 +12,6 @@ import { mergeIntervals, overlaps, sameInterval, subtractInterval, type Interval
 import { bookingSlotMinutes, parseSchedulingServices } from "./services";
 import { formatSlotRange, generateCandidateSlots } from "./slots";
 import {
-  collectStackDrivePairs,
-  pickSuggestedDate,
-  scoreSlotStack,
-  sortSlotsByStack,
-} from "./stack";
-import {
   pickNextJobs,
   pickPriorJobs,
   travelFits,
@@ -32,7 +26,6 @@ export type OfferedSlot = {
   dateLabel: string;
   timeLabel: string;
   driveSecondsFromPrior: number | null;
-  stackDriveSeconds: number | null;
 };
 
 export type AvailabilityResult = {
@@ -42,7 +35,6 @@ export type AvailabilityResult = {
   driveTimeConfigured: boolean;
   firstBookableDate: string;
   lastBookableDate: string;
-  suggestedDate: string | null;
   slots: OfferedSlot[];
   notices: string[];
   error?: string;
@@ -103,7 +95,6 @@ export async function offerSlotsForAddress(
       calendarConfigured: sources.calendarConfigured,
       driveTimeConfigured: sources.driveTimeConfigured,
       ...window,
-      suggestedDate: null,
       slots: [],
       notices,
       error: parsed.error,
@@ -174,7 +165,6 @@ export async function offerSlotsForAddress(
       dateLabel: labels.dateLabel,
       timeLabel: labels.timeLabel,
       driveSecondsFromPrior: verdict.driveSecondsFromPrior,
-      stackDriveSeconds: null,
     });
   }
 
@@ -189,60 +179,15 @@ export async function offerSlotsForAddress(
     notices.push("No remaining times fit live drive time from the prior or to the next job.");
   }
 
-  const retained = keepRetainedStarts(slots, options?.retainStarts, hours.slotMinutes, hours.timeZone);
-  const stacked = await attachStackScores(retained, {
-    shootAddress: parsed.address,
-    jobs: sources.jobs,
-    timeZone: hours.timeZone,
-    measured,
-    driveSeconds: sources.driveSeconds,
-  });
-
   return {
     address: parsed.address,
     timeZone: hours.timeZone,
     calendarConfigured: sources.calendarConfigured,
     driveTimeConfigured: sources.driveTimeConfigured,
     ...window,
-    slots: stacked,
-    suggestedDate: pickSuggestedDate(stacked),
+    slots: keepRetainedStarts(slots, options?.retainStarts, hours.slotMinutes, hours.timeZone),
     notices,
   };
-}
-
-async function attachStackScores(
-  slots: OfferedSlot[],
-  input: {
-    shootAddress: string;
-    jobs: TravelJob[];
-    timeZone: string;
-    measured: Map<string, number | null>;
-    driveSeconds: AvailabilitySources["driveSeconds"];
-  },
-): Promise<OfferedSlot[]> {
-  const extra = collectStackDrivePairs({
-    shootAddress: input.shootAddress,
-    slots,
-    jobs: input.jobs,
-    timeZone: input.timeZone,
-    alreadyMeasured: input.measured,
-  });
-  for (const [key, pair] of extra) {
-    input.measured.set(key, await input.driveSeconds(pair.from, pair.to, pair.departAt));
-  }
-  const scored = slots.map((slot) => ({
-    ...slot,
-    stackDriveSeconds: scoreSlotStack({
-      start: new Date(slot.start),
-      end: new Date(slot.end),
-      dateKey: slot.dateKey,
-      shootAddress: input.shootAddress,
-      jobs: input.jobs,
-      timeZone: input.timeZone,
-      measured: input.measured,
-    }),
-  }));
-  return sortSlotsByStack(scored);
 }
 
 /** Modify: always offer the original start, even if a longer duration overlaps other busy time. */
@@ -266,7 +211,6 @@ export function keepRetainedStarts(
       dateLabel: labels.dateLabel,
       timeLabel: labels.timeLabel,
       driveSecondsFromPrior: null,
-      stackDriveSeconds: null,
     });
   }
   if (extra.length === 0) return slots;

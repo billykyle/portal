@@ -545,7 +545,6 @@ test("keepRetainedStarts inserts a missing original start without dropping other
       dateLabel: "Friday, Sep 25",
       timeLabel: "11:00 AM – 12:00 PM",
       driveSecondsFromPrior: null,
-      stackDriveSeconds: null,
     },
   ];
   const kept = keepRetainedStarts(existing, [et(2026, 9, 25, 10)], 45, DEFAULT_TIMEZONE);
@@ -701,56 +700,7 @@ test("subtractInterval punches only the booking window out of a merged busy bloc
   assert.equal(leftover[0]?.end.getTime(), et(2026, 9, 25, 17).getTime());
 });
 
-test("suggestedDate prefers a stacked day over a sooner empty-area day", async () => {
-  const now = et(2026, 9, 20, 9);
-  const result = await offerSlotsForAddress(
-    CHERRY_HILL,
-    {
-      now,
-      busy: [{ start: et(2026, 9, 23, 9), end: et(2026, 9, 23, 10) }],
-      jobs: [{ start: et(2026, 9, 23, 9), end: et(2026, 9, 23, 10), address: CHERRY_HILL }],
-      calendarConfigured: true,
-      driveTimeConfigured: true,
-      driveSeconds: async () => {
-        throw new Error("same-address stack should not call Maps");
-      },
-    },
-    ["Real Estate · Aerial Photos"],
-  );
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-21"), "sooner empty-area day still offered");
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-23"), "stacked day still offered");
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-25"), "later empty-area day still offered");
-  assert.equal(result.suggestedDate, "2026-09-23");
-  const wednesday = result.slots.filter((slot) => slot.dateKey === "2026-09-23");
-  assert.ok(wednesday.some((slot) => slot.stackDriveSeconds === 0));
-});
-
-test("suggestedDate falls back to the soonest day with any slot when nothing stacks", async () => {
-  const now = et(2026, 9, 20, 9);
-  const result = await offerSlotsForAddress(
-    CHERRY_HILL,
-    {
-      now,
-      busy: [],
-      jobs: [
-        { start: et(2026, 9, 21, 9), end: et(2026, 9, 21, 10), address: null },
-        { start: et(2026, 9, 25, 9), end: et(2026, 9, 25, 10), address: SHORE },
-      ],
-      calendarConfigured: true,
-      driveTimeConfigured: true,
-      driveSeconds: async () => 90 * 60,
-    },
-    ["Real Estate · Aerial Photos"],
-  );
-  assert.equal(
-    result.slots.some((slot) => slot.dateKey === "2026-09-21" && slot.stackDriveSeconds == null),
-    true,
-  );
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-25" && slot.stackDriveSeconds === 90 * 60));
-  assert.equal(result.suggestedDate, "2026-09-21");
-});
-
-test("blocked days stay empty even when a located job would stack there", async () => {
+test("blocked days stay empty when a located job is already on that day", async () => {
   const now = et(2026, 9, 20, 9);
   const result = await offerSlotsForAddress(
     CHERRY_HILL,
@@ -768,10 +718,10 @@ test("blocked days stay empty even when a located job would stack there", async 
     result.slots.some((slot) => slot.dateKey === "2026-09-22"),
     false,
   );
-  assert.equal(result.suggestedDate, "2026-09-21");
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-21"));
 });
 
-test("modify keeps a weak-score start and does not invent blocked-day slots", async () => {
+test("modify keeps a blocked-day start and does not invent other slots on that day", async () => {
   const now = et(2026, 9, 21, 9);
   const own = { start: et(2026, 9, 22, 14), end: et(2026, 9, 22, 14, 15) };
   const result = await offerSlotsForAddress(
@@ -793,11 +743,10 @@ test("modify keeps a weak-score start and does not invent blocked-day slots", as
   const tuesday = result.slots.filter((slot) => slot.dateKey === "2026-09-22");
   assert.equal(tuesday.length, 1);
   assert.equal(startMs(tuesday[0]?.start ?? ""), own.start.getTime());
-  assert.ok(tuesday[0]?.stackDriveSeconds == null || tuesday[0].stackDriveSeconds > 0);
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-23" && slot.stackDriveSeconds === 0));
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-23"));
 });
 
-test("sort puts nearer-route times first on a day when stack scores differ", async () => {
+test("offered times stay earliest-first when nearby work has a shorter drive", async () => {
   const now = et(2026, 9, 20, 9);
   const near = "2000 Route 70 East, Cherry Hill, NJ";
   const result = await offerSlotsForAddress(
@@ -823,23 +772,18 @@ test("sort puts nearer-route times first on a day when stack scores differ", asy
   );
   const friday = result.slots.filter((slot) => slot.dateKey === "2026-09-25");
   assert.ok(friday.length >= 2);
-  const scores = new Set(friday.map((slot) => slot.stackDriveSeconds));
-  assert.ok(scores.has(40 * 60));
-  assert.ok(scores.has(10 * 60));
-  assert.equal(friday[0]?.stackDriveSeconds, 10 * 60);
-  const firstFarIndex = friday.findIndex((slot) => slot.stackDriveSeconds === 40 * 60);
-  const lastNearIndex = friday.findLastIndex((slot) => slot.stackDriveSeconds === 10 * 60);
-  assert.ok(firstFarIndex > lastNearIndex);
-  const morningFar = friday.find((slot) => startMs(slot.start) === et(2026, 9, 25, 10, 15).getTime());
-  const afternoonNear = friday.find((slot) => startMs(slot.start) === et(2026, 9, 25, 13, 15).getTime());
-  assert.ok(morningFar);
-  assert.ok(afternoonNear);
-  assert.equal(morningFar.stackDriveSeconds, 40 * 60);
-  assert.equal(afternoonNear.stackDriveSeconds, 10 * 60);
-  assert.ok(startMs(friday[0]?.start ?? "") > startMs(morningFar.start));
+  for (let index = 1; index < friday.length; index += 1) {
+    assert.ok(startMs(friday[index - 1]?.start ?? "") < startMs(friday[index]?.start ?? ""));
+  }
+  const morning = friday.find((slot) => startMs(slot.start) === et(2026, 9, 25, 10, 15).getTime());
+  const afternoon = friday.find((slot) => startMs(slot.start) === et(2026, 9, 25, 13, 15).getTime());
+  assert.ok(morning);
+  assert.ok(afternoon);
+  assert.ok(friday.indexOf(morning) < friday.indexOf(afternoon));
+  assert.equal(startMs(friday[0]?.start ?? ""), startMs(morning.start));
 });
 
-test("cross-town slots that pass travel stay offered after stacking", async () => {
+test("cross-town slots that pass live drive time stay offered", async () => {
   const now = et(2026, 9, 20, 9);
   const result = await offerSlotsForAddress(
     SHORE,
@@ -855,10 +799,13 @@ test("cross-town slots that pass travel stay offered after stacking", async () =
   );
   const elevenThirty = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 23, 11, 30).getTime());
   assert.ok(elevenThirty, "Philly 10am + 90min still leaves a Shore 11:30");
-  assert.equal(elevenThirty.stackDriveSeconds, 90 * 60);
+  const wednesday = result.slots.filter((slot) => slot.dateKey === "2026-09-23");
+  for (let index = 1; index < wednesday.length; index += 1) {
+    assert.ok(startMs(wednesday[index - 1]?.start ?? "") < startMs(wednesday[index]?.start ?? ""));
+  }
 });
 
-test("stacking reuses travel-gate drive times instead of measuring the same pair again", async () => {
+test("each address pair is measured once for the travel gate", async () => {
   const now = et(2026, 9, 20, 9);
   const calls: string[] = [];
   const result = await offerSlotsForAddress(
@@ -877,8 +824,9 @@ test("stacking reuses travel-gate drive times instead of measuring the same pair
     ["Real Estate · Aerial Photos"],
   );
   const pairCalls = calls.filter((call) => call.includes("Philadelphia") && call.includes("Cherry Hill"));
+  assert.ok(pairCalls.length > 0);
   assert.equal(new Set(pairCalls).size, pairCalls.length, "each address pair measured once");
-  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-23" && slot.stackDriveSeconds === 20 * 60));
+  assert.ok(result.slots.some((slot) => slot.dateKey === "2026-09-23"));
 });
 
 test("publicCalendarError hides STS audience mismatch details", () => {

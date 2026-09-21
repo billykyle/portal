@@ -18,7 +18,6 @@ const slot = {
   dateLabel: "Monday, Sep 21",
   timeLabel: "10:00 AM",
   driveSecondsFromPrior: null,
-  stackDriveSeconds: null,
 };
 
 const availability = {
@@ -28,7 +27,6 @@ const availability = {
   driveTimeConfigured: true,
   firstBookableDate: "2026-09-21",
   lastBookableDate: "2026-12-21",
-  suggestedDate: "2026-09-21",
   notices: [],
   slots: [slot],
 };
