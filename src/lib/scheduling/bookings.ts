@@ -19,6 +19,12 @@ export async function loadConfirmedPortalJobs(options?: {
 
 const BOOKING_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export async function getBookingById(bookingId: string) {
+  if (!bookingId || !BOOKING_ID_RE.test(bookingId)) return null;
+  const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
+  return booking ?? null;
+}
+
 export async function getClientBooking(clientId: string, bookingId: string) {
   if (!bookingId || !BOOKING_ID_RE.test(bookingId)) return null;
   const [booking] = await db

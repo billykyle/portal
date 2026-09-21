@@ -11,8 +11,10 @@ import {
   emailConfigured,
   sendEmail,
   uniqueEmails,
+  type EmailAttachment,
 } from "@/lib/email";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
+import { clientCalendarLinks } from "./booking-ics";
 import { formatBookingServices } from "./services";
 import { formatBookingWhen } from "./slots";
 import { schedulingConfirmedHref } from "./urls";
@@ -139,6 +141,13 @@ function notifyCta() {
   return { label: "View bookings", href: bookingAdminUrl() };
 }
 
+function calendarCtaHtml(icsUrl: string, googleUrl: string) {
+  return `${bookingEmailCtaButton(icsUrl, "Add to calendar")}
+<p style="margin:12px 0 20px;text-align:center;font-family:${EMAIL_FONT_STACK};font-size:14px;line-height:1.45;">
+  <a href="${escapeHtml(googleUrl)}" style="color:#000000;text-decoration:underline;">Google Calendar</a>
+</p>`;
+}
+
 function buildClientMessage(
   input: BookingConfirmationInput,
   copy: {
@@ -146,6 +155,7 @@ function buildClientMessage(
     intro: string;
     subjectPrefix: string;
     updated?: boolean;
+    includeCalendar?: boolean;
     cta?: { label: string; href: string };
   },
 ) {
@@ -153,6 +163,29 @@ function buildClientMessage(
   const greeting = clientGreeting(input);
   const rows = sharedDetailRows(input);
   const cta = copy.cta ?? clientCta(input, Boolean(copy.updated));
+  const bookingId = input.bookingId?.trim();
+  const calendar =
+    copy.includeCalendar && bookingId
+      ? clientCalendarLinks({
+          bookingId,
+          address: input.address,
+          services: input.services,
+          start: input.start,
+          end: input.end,
+          notes: input.notes,
+          accessCodes: input.accessCodes,
+          updated: Boolean(copy.updated),
+        })
+      : null;
+  const attachments: EmailAttachment[] | undefined = calendar
+    ? [
+        {
+          filename: calendar.filename,
+          content: Buffer.from(calendar.ics, "utf8").toString("base64"),
+          contentType: "text/calendar; charset=utf-8",
+        },
+      ]
+    : undefined;
 
   const text = [
     greeting,
@@ -161,6 +194,7 @@ function buildClientMessage(
     "",
     ...detailText(rows),
     "",
+    ...(calendar ? ["Add to calendar", calendar.icsUrl, "", "Google Calendar", calendar.googleUrl, ""] : []),
     cta.label,
     cta.href,
     "",
@@ -175,7 +209,7 @@ function buildClientMessage(
       paragraphHtml(greeting),
       paragraphHtml(copy.intro),
       detailHtml(rows),
-      `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding:28px 0 8px;">${calendar ? calendarCtaHtml(calendar.icsUrl, calendar.googleUrl) : ""}${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
       `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
     ].join("\n"),
   });
@@ -184,6 +218,7 @@ function buildClientMessage(
     subject: `${copy.subjectPrefix} — ${when}`,
     text,
     html,
+    attachments,
   };
 }
 
@@ -232,6 +267,7 @@ export function buildBookingConfirmation(input: BookingConfirmationInput) {
     intro: "Your shoot with Billy Kyle is confirmed.",
     subjectPrefix: "Shoot confirmed",
     updated: false,
+    includeCalendar: true,
   });
 }
 
@@ -251,6 +287,7 @@ export function buildBookingModified(input: BookingConfirmationInput) {
     intro: "Your shoot with Billy Kyle has been updated.",
     subjectPrefix: "Shoot updated",
     updated: true,
+    includeCalendar: true,
   });
 }
 
@@ -315,7 +352,7 @@ export async function sendBookingCancellation(input: BookingConfirmationInput): 
 
 async function sendBookingPair(
   input: BookingConfirmationInput,
-  clientMessage: { subject: string; text: string; html: string },
+  clientMessage: { subject: string; text: string; html: string; attachments?: EmailAttachment[] },
   notifyMessage: { subject: string; text: string; html: string },
 ): Promise<BookingEmailSendResult> {
   if (!emailConfigured()) {
@@ -332,6 +369,7 @@ async function sendBookingPair(
           subject: clientMessage.subject,
           text: clientMessage.text,
           html: clientMessage.html,
+          attachments: clientMessage.attachments,
         })
       : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
     recipients.notify

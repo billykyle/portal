@@ -118,9 +118,18 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assert.match(message.text, /Park in the driveway\./);
   assert.match(message.text, /Gate 4455/);
   assert.match(message.text, /Modify or cancel this shoot/);
+  assert.match(message.text, /Add to calendar/);
+  assert.match(message.text, /https:\/\/portal\.billy-kyle\.com\/api\/scheduling\/ics\//);
+  assert.match(message.text, /https:\/\/calendar\.google\.com\/calendar\/render\?/);
   assert.match(message.text, /https:\/\/portal\.billy-kyle\.com\/scheduling\/confirmed\/11111111-1111-4111-8111-111111111111/);
   assert.match(message.html, /Modify or cancel this shoot/);
+  assert.match(message.html, /Add to calendar/);
+  assert.match(message.html, /Google Calendar/);
   assert.match(message.html, /12 Wood View Drive, Princeton, NJ/);
+  assert.equal(message.attachments?.length, 1);
+  assert.equal(message.attachments?.[0]?.filename, "2026-09-22-billy-kyle.ics");
+  assert.equal(message.attachments?.[0]?.contentType, "text/calendar; charset=utf-8");
+  assert.match(Buffer.from(message.attachments?.[0]?.content ?? "", "base64").toString("utf8"), /BEGIN:VCALENDAR/);
   assertClientHeadingHasNoWhen(
     message.html,
     "Shoot confirmed",
@@ -141,6 +150,9 @@ test("Billy's copy uses a New booking subject and names the client", () => {
   assert.match(message.html, /View bookings/);
   assert.match(message.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.doesNotMatch(message.html, /<strong>Admin<\/strong>/);
+  assert.doesNotMatch(message.text, /Add to calendar/);
+  assert.doesNotMatch(message.html, /Add to calendar/);
+  assert.doesNotMatch(message.html, /api\/scheduling\/ics/);
   assertOnBrandHtml(message.html);
 });
 
@@ -159,6 +171,8 @@ test("confirmation body omits empty notes and access codes", () => {
   assert.doesNotMatch(message.text, /Access codes/);
   assert.doesNotMatch(message.html, /Notes/);
   assert.doesNotMatch(message.html, /Access codes/);
+  assert.doesNotMatch(message.text, /Add to calendar/);
+  assert.equal(message.attachments, undefined);
 });
 
 test("modification emails use updated copy for client and Billy", () => {
@@ -176,7 +190,12 @@ test("modification emails use updated copy for client and Billy", () => {
   assert.match(client.text, /644 Plumrun Dr/);
   assert.match(client.text, /Code 1234/);
   assert.match(client.text, /Modify or cancel this shoot/);
+  assert.match(client.text, /Add to calendar/);
+  assert.match(client.html, /Add to calendar/);
   assert.match(client.html, /updated=1/);
+  assert.equal(client.attachments?.length, 1);
+  assert.doesNotMatch(notify.text, /Add to calendar/);
+  assert.doesNotMatch(notify.html, /Add to calendar/);
   assertClientHeadingHasNoWhen(
     client.html,
     "Shoot updated",
@@ -223,9 +242,13 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
   assert.match(client.text, /Back to Scheduling/);
   assert.match(client.text, /https:\/\/portal\.billy-kyle\.com\/scheduling$/m);
   assert.doesNotMatch(client.text, /Modify or cancel this shoot/);
+  assert.doesNotMatch(client.text, /Add to calendar/);
   assert.doesNotMatch(client.text, /scheduling\/confirmed/);
   assert.doesNotMatch(client.html, /Modify or cancel this shoot/);
+  assert.doesNotMatch(client.html, /Add to calendar/);
+  assert.doesNotMatch(client.html, /api\/scheduling\/ics/);
   assert.doesNotMatch(client.html, /scheduling\/confirmed/);
+  assert.equal(client.attachments, undefined);
   assert.match(client.html, /Back to Scheduling/);
   assert.match(client.html, /https:\/\/portal\.billy-kyle\.com\/scheduling/);
   assertClientHeadingHasNoWhen(
@@ -292,6 +315,7 @@ test("sendBookingConfirmation posts two separate Resend emails with no CC/BCC", 
 
   try {
     const result = await sendBookingConfirmation({
+      bookingId,
       clientEmail: "sam@example.com",
       clientName: "Sam Lepore",
       address: "12 Wood View Drive",
@@ -321,6 +345,8 @@ test("sendBookingConfirmation posts two separate Resend emails with no CC/BCC", 
     assert.match(String(notify.subject), /^New booking:/);
     assert.match(String(client.text), /is confirmed/);
     assert.match(String(notify.text), /New booking on the portal/);
+    assert.ok(Array.isArray(client.attachments) && client.attachments.length === 1);
+    assert.equal(notify.attachments, undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -340,6 +366,7 @@ test("sendBookingModification posts two separate Resend emails with no CC/BCC", 
 
   try {
     const result = await sendBookingModification({
+      bookingId,
       clientEmail: "sam@example.com",
       clientName: "Sam Lepore",
       address: "644 Plumrun Dr, West Chester, PA",
@@ -362,6 +389,8 @@ test("sendBookingModification posts two separate Resend emails with no CC/BCC", 
     assert.equal(notify.cc, undefined);
     assert.match(String(client.subject), /Shoot updated/);
     assert.match(String(notify.subject), /^Booking updated:/);
+    assert.ok(Array.isArray(client.attachments) && client.attachments.length === 1);
+    assert.equal(notify.attachments, undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -408,6 +437,8 @@ test("sendBookingCancellation posts two separate Resend emails with no CC/BCC", 
     assert.match(String(notify.subject), /^Booking cancelled:/);
     assert.match(String(client.text), /has been cancelled/);
     assert.doesNotMatch(String(client.text), /Modify or cancel this shoot/);
+    assert.doesNotMatch(String(client.text), /Add to calendar/);
+    assert.equal(client.attachments, undefined);
     assert.match(String(notify.text), /cancelled on the portal/);
   } finally {
     globalThis.fetch = originalFetch;
