@@ -252,7 +252,11 @@ export async function updateBooking(formData: FormData) {
     if ("error" in loaded) {
       failTimes(loaded.error);
     }
-    const sources = withoutOwnBooking(loaded, { start: booking.startsAt, end: booking.endsAt });
+    const sources = withoutOwnBooking(
+      loaded,
+      { start: booking.startsAt, end: booking.endsAt },
+      { calendarEventId: booking.calendarEventId },
+    );
     const availability = await offerSlotsForAddress(address, sources, services, {
       retainStarts: [booking.startsAt],
     });

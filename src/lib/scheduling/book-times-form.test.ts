@@ -60,4 +60,29 @@ test("modify times form posts bookingId and keeps Save changes", () => {
   assert.match(html, /Save changes/);
   assert.doesNotMatch(html, /Book shoot/);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /checked/);
+  assert.match(html, new RegExp(`value="${start}\\|${end}"[^>]*checked|checked[^>]*value="${start}\\|${end}"`));
+});
+
+test("modify pre-selects the current start when duration changes", () => {
+  const longerEnd = "2026-09-21T14:15:00.000Z";
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability: {
+        ...availability,
+        slots: [
+          {
+            ...availability.slots[0],
+            end: longerEnd,
+            timeLabel: "10:00 AM – 10:15 AM",
+          },
+        ],
+      },
+      services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
+      modifyBookingId: "11111111-1111-4111-8111-111111111111",
+      currentSlot: `${start}|${end}`,
+    }),
+  );
+  assert.match(html, new RegExp(`value="${start}\\|${longerEnd}"`));
+  assert.match(html, /checked/);
 });

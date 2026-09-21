@@ -99,7 +99,11 @@ export default async function SchedulingTimesPage({
   }
 
   const sources = modifying
-    ? withoutOwnBooking(loaded, { start: modifying.startsAt, end: modifying.endsAt })
+    ? withoutOwnBooking(
+        loaded,
+        { start: modifying.startsAt, end: modifying.endsAt },
+        { calendarEventId: modifying.calendarEventId },
+      )
     : loaded;
   const availability = await offerSlotsForAddress(resolved.address, sources, selectedServices, {
     retainStarts: modifying ? [modifying.startsAt] : undefined,

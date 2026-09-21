@@ -204,7 +204,7 @@ async function fetchCalendarJobsForId(
     await throwCalendarHttpError(res, `Google Calendar events for ${calendarId}`);
   }
   const body = (await res.json()) as {
-    items?: Array<{ start?: GoogleDate; end?: GoogleDate; location?: string; status?: string }>;
+    items?: Array<{ id?: string; start?: GoogleDate; end?: GoogleDate; location?: string; status?: string }>;
   };
   const jobs: TravelJob[] = [];
   for (const item of body.items ?? []) {
@@ -212,7 +212,7 @@ async function fetchCalendarJobsForId(
     const interval = parseGoogleInterval(item.start, item.end, timeZone);
     if (!interval) continue;
     const location = item.location?.trim() || null;
-    jobs.push({ ...interval, address: location });
+    jobs.push({ ...interval, address: location, eventId: item.id ?? null });
   }
   return jobs;
 }
