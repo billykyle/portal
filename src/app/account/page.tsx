@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ClientHeader } from "@/components/client-header";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { AccountProfileForm } from "@/components/forms/account-profile-form";
-import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { pageTitleClass, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -31,12 +31,12 @@ export default async function AccountPage() {
     <PhoneShell>
       <ClientHeader />
       <div className="mb-8 lg:mb-10">
-        <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Account</h1>
+        <h1 className={pageTitleClass}>Account</h1>
       </div>
-      <div className="grid gap-12 pb-16 md:max-w-md">
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Edit profile</h2>
-          <FormColumn>
+      <div className="grid gap-12 pb-16 md:max-w-md lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-x-16">
+        <div className="grid min-w-0 content-start gap-12">
+          <section>
+            <h2 className={sectionLabelClass}>Edit profile</h2>
             <AccountProfileForm
               firstName={user.firstName ?? ""}
               lastName={user.lastName ?? ""}
@@ -44,17 +44,15 @@ export default async function AccountPage() {
               phone={user.phone ?? ""}
               email={user.email}
             />
-          </FormColumn>
-        </section>
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Change password</h2>
-          <FormColumn>
-            <ChangePasswordForm />
-          </FormColumn>
-        </section>
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Sign out</h2>
-          <SignOutButton />
+          </section>
+          <section>
+            <h2 className={sectionLabelClass}>Sign out</h2>
+            <SignOutButton />
+          </section>
+        </div>
+        <section className="min-w-0">
+          <h2 className={sectionLabelClass}>Change password</h2>
+          <ChangePasswordForm />
         </section>
       </div>
     </PhoneShell>

@@ -73,6 +73,8 @@ test("book confirmation is a centered hero with the shoot details", () => {
   assert.match(html, /1234/);
   assert.match(html, /Back to Scheduling/);
   assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
+  assert.match(html, /lg:max-w-3xl/);
+  assert.match(html, /lg:grid-cols-2/);
   assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
   assert.doesNotMatch(html, />Home</);
   assert.doesNotMatch(html, /Book another/);

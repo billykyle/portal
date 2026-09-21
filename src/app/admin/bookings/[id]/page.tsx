@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
-import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { FormColumn, PhoneShell, pageTitleClass } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -73,20 +73,20 @@ export default async function AdminModifyBookingPage({
           </Link>
         }
       />
-      <div className="mb-8 lg:mb-10">
-        <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Modify shoot</h1>
-        {client ? (
-          <p className="mt-2 text-sm text-[#8e8e93]">
-            {client.inviteCode} · {client.displayName}
-          </p>
-        ) : null}
-        {query.error ? (
-          <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
-            {query.error}
-          </p>
-        ) : null}
-      </div>
-      <FormColumn className="pb-16">
+      <FormColumn center className="pb-16">
+        <div className="mb-8 lg:mb-10">
+          <h1 className={pageTitleClass}>Modify shoot</h1>
+          {client ? (
+            <p className="mt-2 text-sm text-[#8e8e93]">
+              {client.inviteCode} · {client.displayName}
+            </p>
+          ) : null}
+          {query.error ? (
+            <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
+              {query.error}
+            </p>
+          ) : null}
+        </div>
         <BookShootForm
           key={`${booking.id}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
           address={fields.address}

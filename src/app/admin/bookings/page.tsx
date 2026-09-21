@@ -51,6 +51,7 @@ export default async function AdminBookingsPage({
           allowCancel
           allowModify
           admin
+          columns={2}
         />
       </section>
       <section className="pb-16">
@@ -60,6 +61,7 @@ export default async function AdminBookingsPage({
           emptyLabel="No past bookings."
           timeZone={hours.timeZone}
           showClient
+          columns={2}
         />
       </section>
     </PhoneShell>

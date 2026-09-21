@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { BookingList } from "@/components/booking-list";
 import { ClientHeader } from "@/components/client-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
-import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { FormColumn, pageTitleClass, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { canModifyBooking, getClientBooking, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
@@ -84,7 +84,7 @@ export default async function SchedulingPage({
     <PhoneShell>
       <ClientHeader />
       <div className="mb-8 lg:mb-10">
-        <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">Scheduling</h1>
+        <h1 className={pageTitleClass}>Scheduling</h1>
         {params.cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
         {params.error ? (
           <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
@@ -92,9 +92,9 @@ export default async function SchedulingPage({
           </p>
         ) : null}
       </div>
-      <div className="grid gap-12 pb-16 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Upcoming</h2>
+      <div className="grid gap-12 pb-16 lg:grid-cols-2 lg:items-start lg:gap-x-16">
+        <section className="min-w-0">
+          <h2 className={sectionLabelClass}>Upcoming</h2>
           <BookingList
             bookings={upcoming}
             emptyLabel="No upcoming shoots yet."
@@ -104,11 +104,11 @@ export default async function SchedulingPage({
             clientId={session.clientId}
           />
         </section>
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">
+        <section className="min-w-0">
+          <h2 className={sectionLabelClass}>
             {modifying ? "Modify shoot" : "Book a shoot"}
           </h2>
-          <FormColumn>
+          <FormColumn className="lg:max-w-none">
             <BookShootForm
               key={`${modifying?.id ?? "book"}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
               address={fields.address}

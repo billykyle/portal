@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { AuthHeader } from "@/components/auth-header";
 import { SigninForm } from "@/components/forms/signin-form";
-import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { FormColumn, pageTitleClass, PhoneShell } from "@/components/phone-shell";
 import { getInviteCookie, getSession } from "@/lib/auth";
 import { CLIENT_HOME } from "@/lib/routes";
 import { db } from "@/lib/db";
@@ -36,8 +36,8 @@ export default async function SigninPage() {
           }
         />
       )}
-      <h1 className="mb-6 text-2xl font-medium">Sign in</h1>
-      <FormColumn>
+      <FormColumn center className="pb-16">
+        <h1 className={`${pageTitleClass} mb-6`}>Sign in</h1>
         <SigninForm />
       </FormColumn>
     </PhoneShell>

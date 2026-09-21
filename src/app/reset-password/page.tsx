@@ -1,6 +1,6 @@
 import { AppHeader } from "@/components/app-header";
 import { ResetPasswordForm } from "@/components/forms/reset-password-form";
-import { FormColumn, PhoneShell } from "@/components/phone-shell";
+import { FormColumn, pageTitleClass, PhoneShell } from "@/components/phone-shell";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -11,8 +11,8 @@ export default async function ResetPasswordPage({
   return (
     <PhoneShell>
       <AppHeader />
-      <h1 className="mb-6 text-2xl font-medium">Reset password</h1>
-      <FormColumn>
+      <FormColumn center className="pb-16">
+        <h1 className={`${pageTitleClass} mb-6`}>Reset password</h1>
         <ResetPasswordForm token={token ?? ""} />
       </FormColumn>
     </PhoneShell>

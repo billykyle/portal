@@ -71,7 +71,7 @@ export function BookingConfirmation({
   const modifyHref = schedulingBookHref({ modify: booking.id });
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
+    <div className="mx-auto flex w-full max-w-md flex-col items-center text-center lg:max-w-3xl">
       <h1 className="text-[32px] font-bold leading-tight lg:text-[40px]">{title}</h1>
       <p className="mt-3 text-sm text-[#8e8e93]">{subtitle}</p>
       {copy.notices.map((notice) => (
@@ -84,7 +84,7 @@ export function BookingConfirmation({
         </p>
       ))}
 
-      <dl className="mt-10 w-full text-left">
+      <dl className="mt-10 w-full text-left lg:grid lg:grid-cols-2 lg:gap-x-10">
         {services.length > 0 ? (
           <div className="border-b border-white/10 py-4">
             <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Services</dt>
@@ -126,7 +126,7 @@ export function BookingConfirmation({
         ) : null}
       </dl>
 
-      <div className="mt-10 flex w-full flex-col items-center gap-3">
+      <div className="mt-10 flex w-full max-w-md flex-col items-center gap-3">
         <BookingModifyCancelActions
           modifyHref={modifyHref}
           bookingId={booking.id}
