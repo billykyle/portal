@@ -15,6 +15,7 @@ import {
   slotStillOffered,
   withoutOwnBooking,
 } from "@/lib/scheduling/availability";
+import { parseShootAddress } from "@/lib/scheduling/address";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import {
   canAdminModifyBooking,
@@ -28,6 +29,8 @@ import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingStartAllowed } from "@/lib/scheduling/horizon";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
+import { draftInputFromForm, type SchedulingDraftInput } from "@/lib/scheduling/draft";
+import { clearSchedulingDraft, writeSchedulingDraft } from "@/lib/scheduling/draft-store";
 import {
   adminBookingHref,
   adminBookingTimesHref,
@@ -35,6 +38,86 @@ import {
   schedulingConfirmedHref,
   schedulingTimesHref,
 } from "@/lib/scheduling/urls";
+
+async function rememberSchedulingDraft(
+  scope: "client" | "admin",
+  input: SchedulingDraftInput,
+  owner: { clientId: string | null; userId: string | null },
+) {
+  try {
+    await writeSchedulingDraft(scope, input, owner, { setCookie: true });
+  } catch (error) {
+    console.error("scheduling draft save failed", error);
+  }
+}
+
+async function forgetSchedulingDraft(scope: "client" | "admin") {
+  try {
+    await clearSchedulingDraft(scope);
+  } catch (error) {
+    console.error("scheduling draft clear failed", error);
+  }
+}
+
+export async function continueToTimes(formData: FormData) {
+  const admin = await getAdminSession();
+  const session = await getSession();
+  const fromAdmin = Boolean(admin && formData.get("fromAdmin") === "1");
+  if (fromAdmin && !admin) {
+    redirect("/admin");
+  }
+  if (!fromAdmin && !session) {
+    redirect("/");
+  }
+
+  const input = draftInputFromForm(formData);
+  const modifyId = input.modifyBookingId;
+  const scope = fromAdmin ? "admin" : "client";
+  const owner = {
+    clientId: fromAdmin ? null : session?.clientId ?? null,
+    userId: fromAdmin ? null : session?.userId ?? null,
+  };
+
+  async function fail(error: string): Promise<never> {
+    await rememberSchedulingDraft(scope, input, owner);
+    if (fromAdmin) {
+      redirect(modifyId ? adminBookingHref(modifyId, { error }) : "/admin/bookings");
+    }
+    redirect(schedulingBookHref({ modify: modifyId, error }));
+  }
+
+  await ensureDb();
+  if (fromAdmin) {
+    if (!modifyId) {
+      redirect("/admin/bookings?error=Booking%20is%20required.");
+    }
+    const booking = await getBookingById(modifyId);
+    if (!booking || !canAdminModifyBooking(booking)) {
+      redirect("/admin/bookings?error=That%20booking%20cannot%20be%20modified.");
+    }
+  } else if (modifyId) {
+    const booking = session ? await getClientBooking(session.clientId, modifyId) : null;
+    if (!booking || !session || !canModifyBooking(booking, session.clientId)) {
+      redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
+    }
+  }
+
+  if (input.services.length === 0) {
+    await fail("Pick at least one service.");
+    return;
+  }
+  const parsed = parseShootAddress(input.address);
+  if (!parsed.ok) {
+    await fail(parsed.error);
+    return;
+  }
+
+  await writeSchedulingDraft(scope, { ...input, address: parsed.address }, owner, { setCookie: true });
+  if (fromAdmin && modifyId) {
+    redirect(adminBookingTimesHref(modifyId));
+  }
+  redirect(schedulingTimesHref({ modify: modifyId }));
+}
 
 export async function createBooking(formData: FormData) {
   const session = await getSession();
@@ -46,9 +129,17 @@ export async function createBooking(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const accessCodes = String(formData.get("accessCodes") ?? "").trim() || null;
   const parsedSlot = readBookingFormSlot(formData);
+  const draftInput = draftInputFromForm(formData);
+  const owner = { clientId: session.clientId, userId: session.userId };
 
-  function failTimes(error: string, nextAddress = address): never {
-    redirect(schedulingTimesHref({ address: nextAddress, services, notes, error }));
+  async function failBook(error: string): Promise<never> {
+    await rememberSchedulingDraft("client", draftInput, owner);
+    redirect(schedulingBookHref({ error }));
+  }
+
+  async function failTimes(error: string, nextAddress = address): Promise<never> {
+    await rememberSchedulingDraft("client", { ...draftInput, address: nextAddress, services }, owner);
+    redirect(schedulingTimesHref({ error }));
   }
 
   let created:
@@ -72,10 +163,12 @@ export async function createBooking(formData: FormData) {
   try {
     await ensureDb();
     if (services.length === 0) {
-      redirect(schedulingBookHref({ address, notes, error: "Pick at least one service." }));
+      await failBook("Pick at least one service.");
+      return;
     }
     if (!parsedSlot) {
-      failTimes("Pick a time.");
+      await failTimes("Pick a time.");
+      return;
     }
 
     const { startIso, endIso } = parsedSlot;
@@ -85,14 +178,17 @@ export async function createBooking(formData: FormData) {
       portalJobs,
     });
     if ("error" in sources) {
-      failTimes(sources.error);
+      await failTimes(sources.error);
+      return;
     }
     const availability = await offerSlotsForAddress(address, sources, services);
     if (availability.error) {
-      redirect(schedulingBookHref({ services, notes, error: availability.error }));
+      await failBook(availability.error);
+      return;
     }
     if (!slotStillOffered(availability, startIso, endIso)) {
-      failTimes("That time is no longer available. Pick another.", availability.address);
+      await failTimes("That time is no longer available. Pick another.", availability.address);
+      return;
     }
 
     const start = new Date(startIso);
@@ -104,7 +200,8 @@ export async function createBooking(formData: FormData) {
         timeZone: availability.timeZone,
       })
     ) {
-      failTimes("That time is no longer available. Pick another.", availability.address);
+      await failTimes("That time is no longer available. Pick another.", availability.address);
+      return;
     }
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
     const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
@@ -140,7 +237,8 @@ export async function createBooking(formData: FormData) {
       })
       .returning({ id: bookings.id });
     if (!booking) {
-      failTimes("Booking could not be completed.");
+      await failTimes("Booking could not be completed.");
+      return;
     }
 
     created = {
@@ -160,11 +258,13 @@ export async function createBooking(formData: FormData) {
     };
   } catch (error) {
     unstable_rethrow(error);
-    failTimes(bookingUserError(error));
+    await failTimes(bookingUserError(error));
+    return;
   }
 
   if (!created) {
-    failTimes("Booking could not be completed.");
+    await failTimes("Booking could not be completed.");
+    return;
   }
 
   const settled = await settleBookingIntegrations({
@@ -196,6 +296,7 @@ export async function createBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
+  await forgetSchedulingDraft("client");
   redirect(
     schedulingConfirmedHref(created.bookingId, {
       calendar: settled.issues.calendar ? "failed" : undefined,
@@ -219,19 +320,31 @@ export async function updateBooking(formData: FormData) {
   const services = parseSchedulingServices(formData.getAll("service"));
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const parsedSlot = readBookingFormSlot(formData);
+  const draftInput = draftInputFromForm(formData);
+  const scope = fromAdmin ? "admin" : "client";
+  const owner = {
+    clientId: fromAdmin ? null : session?.clientId ?? null,
+    userId: fromAdmin ? null : session?.userId ?? null,
+  };
 
-  function failBook(error: string): never {
+  async function failBook(error: string): Promise<never> {
+    await rememberSchedulingDraft(scope, { ...draftInput, modifyBookingId: bookingId || null }, owner);
     if (fromAdmin && bookingId) {
-      redirect(adminBookingHref(bookingId, { address, services, notes, error }));
+      redirect(adminBookingHref(bookingId, { error }));
     }
-    redirect(schedulingBookHref({ address, services, notes, modify: bookingId || null, error }));
+    redirect(schedulingBookHref({ modify: bookingId || null, error }));
   }
 
-  function failTimes(error: string, nextAddress = address): never {
+  async function failTimes(error: string, nextAddress = address): Promise<never> {
+    await rememberSchedulingDraft(
+      scope,
+      { ...draftInput, address: nextAddress, services, modifyBookingId: bookingId || null },
+      owner,
+    );
     if (fromAdmin && bookingId) {
-      redirect(adminBookingTimesHref(bookingId, { address: nextAddress, services, notes, error }));
+      redirect(adminBookingTimesHref(bookingId, { error }));
     }
-    redirect(schedulingTimesHref({ address: nextAddress, services, notes, modify: bookingId || null, error }));
+    redirect(schedulingTimesHref({ modify: bookingId || null, error }));
   }
 
   let updated:
@@ -269,7 +382,8 @@ export async function updateBooking(formData: FormData) {
   try {
     await ensureDb();
     if (!bookingId) {
-      failBook("Booking is required.");
+      await failBook("Booking is required.");
+      return;
     }
     const booking = fromAdmin
       ? await getBookingById(bookingId)
@@ -280,13 +394,16 @@ export async function updateBooking(formData: FormData) {
       !booking ||
       (fromAdmin ? !canAdminModifyBooking(booking) : !session || !canModifyBooking(booking, session.clientId))
     ) {
-      failBook("That booking cannot be modified.");
+      await failBook("That booking cannot be modified.");
+      return;
     }
     if (services.length === 0) {
-      failBook("Pick at least one service.");
+      await failBook("Pick at least one service.");
+      return;
     }
     if (!parsedSlot) {
-      failTimes("Pick a time.");
+      await failTimes("Pick a time.");
+      return;
     }
 
     const { startIso, endIso } = parsedSlot;
@@ -296,7 +413,8 @@ export async function updateBooking(formData: FormData) {
       portalJobs,
     });
     if ("error" in loaded) {
-      failTimes(loaded.error);
+      await failTimes(loaded.error);
+      return;
     }
     const sources = withoutOwnBooking(
       loaded,
@@ -307,10 +425,12 @@ export async function updateBooking(formData: FormData) {
       retainStarts: [booking.startsAt],
     });
     if (availability.error) {
-      failBook(availability.error);
+      await failBook(availability.error);
+      return;
     }
     if (!slotStillOffered(availability, startIso, endIso)) {
-      failTimes("That time is no longer available. Pick another.", availability.address);
+      await failTimes("That time is no longer available. Pick another.", availability.address);
+      return;
     }
 
     const start = new Date(startIso);
@@ -323,7 +443,8 @@ export async function updateBooking(formData: FormData) {
         retainStarts: [booking.startsAt],
       })
     ) {
-      failTimes("That time is no longer available. Pick another.", availability.address);
+      await failTimes("That time is no longer available. Pick another.", availability.address);
+      return;
     }
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
     const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
@@ -380,7 +501,8 @@ export async function updateBooking(formData: FormData) {
       )
       .returning({ id: bookings.id });
     if (!saved) {
-      failTimes("Booking could not be updated.");
+      await failTimes("Booking could not be updated.");
+      return;
     }
 
     updated = {
@@ -414,11 +536,13 @@ export async function updateBooking(formData: FormData) {
     };
   } catch (error) {
     unstable_rethrow(error);
-    failTimes(bookingUserError(error, "Booking could not be updated."));
+    await failTimes(bookingUserError(error, "Booking could not be updated."));
+    return;
   }
 
   if (!updated) {
-    failTimes("Booking could not be updated.");
+    await failTimes("Booking could not be updated.");
+    return;
   }
 
   // Client portal modify and admin Bookings modify both send the same Shoot changes
@@ -456,6 +580,7 @@ export async function updateBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${updated.bookingId}`);
+  await forgetSchedulingDraft(fromAdmin ? "admin" : "client");
   if (fromAdmin) {
     redirect(
       `/admin/bookings?updated=1${settled.issues.calendar ? "&calendar=failed" : ""}${

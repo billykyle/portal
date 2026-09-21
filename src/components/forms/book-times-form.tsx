@@ -19,12 +19,13 @@ import {
   weekDateKeys,
 } from "@/lib/scheduling/horizon";
 import { TIMES_LOADING_COPY } from "@/lib/scheduling/times-loading";
-import { adminBookingHref, schedulingBookHref } from "@/lib/scheduling/urls";
+import { schedulingEditorHref } from "@/lib/scheduling/urls";
 
 export function BookTimesForm({
   availability,
   services,
   notes = "",
+  placeId = "",
   error,
   modifyBookingId,
   currentSlot,
@@ -35,6 +36,7 @@ export function BookTimesForm({
   availability: AvailabilityResult;
   services: string[];
   notes?: string;
+  placeId?: string;
   error?: string;
   modifyBookingId?: string;
   currentSlot?: string;
@@ -63,19 +65,7 @@ export function BookTimesForm({
   const [slotError, setSlotError] = useState("");
 
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
-  const changeHref =
-    fromAdmin && modifyBookingId
-      ? adminBookingHref(modifyBookingId, {
-          address: availability.address,
-          services,
-          notes: notes || null,
-        })
-      : schedulingBookHref({
-          address: availability.address,
-          services,
-          notes: notes || null,
-          modify: modifyBookingId || null,
-        });
+  const changeHref = schedulingEditorHref({ fromAdmin, bookingId: modifyBookingId });
   const submitError = slotError || error;
 
   useEffect(() => {
@@ -128,6 +118,7 @@ export function BookTimesForm({
         {modifyBookingId ? <input type="hidden" name="bookingId" value={modifyBookingId} /> : null}
         {fromAdmin ? <input type="hidden" name="fromAdmin" value="1" /> : null}
         <input type="hidden" name="address" value={availability.address} />
+        <input type="hidden" name="placeId" value={placeId} />
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
         ))}

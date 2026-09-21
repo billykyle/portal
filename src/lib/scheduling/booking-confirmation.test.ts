@@ -101,7 +101,8 @@ test("confirmation page puts Modify and Cancel first as primary actions", () => 
   assert.doesNotMatch(html, /flex-col gap-3 sm:flex-row/);
   assert.doesNotMatch(html, />Home</);
   assert.doesNotMatch(html, /Book another/);
-  assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
+  assert.match(html, /href="\/scheduling\?modify=11111111-1111-4111-8111-111111111111"/);
+  assert.doesNotMatch(html, /href="[^"]*(?:address|notes|service|placeId)=/);
   assert.match(html, /name="bookingId"/);
   assert.match(html, /11111111-1111-4111-8111-111111111111/);
 });

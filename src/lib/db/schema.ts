@@ -87,6 +87,22 @@ export const bookings = pgTable("bookings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** In-progress book/modify form. The id lives in an httpOnly cookie, not the URL. */
+export const bookingDrafts = pgTable("booking_drafts", {
+  id: text("id").primaryKey(),
+  scope: text("scope").notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  address: text("address").notNull().default(""),
+  placeId: text("place_id"),
+  services: text("services").array(),
+  notes: text("notes"),
+  modifyBookingId: text("modify_booking_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const zipJobs = pgTable("zip_jobs", {
   id: text("id").primaryKey(),
   shootId: uuid("shoot_id")

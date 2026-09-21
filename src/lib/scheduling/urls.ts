@@ -1,24 +1,14 @@
 import { ADMIN_BOOKINGS, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
+/** Short query flags only. Address, services, and notes live on the booking draft. */
 export type SchedulingQuery = {
-  address?: string | null;
-  placeId?: string | null;
-  services?: readonly string[] | null;
-  notes?: string | null;
   error?: string | null;
   cancelled?: string | null;
   modify?: string | null;
 };
 
-export function schedulingSearch(params: SchedulingQuery) {
+export function schedulingSearch(params: SchedulingQuery = {}) {
   const query = new URLSearchParams();
-  if (params.address) query.set("address", params.address);
-  if (params.placeId) query.set("placeId", params.placeId);
-  for (const service of params.services ?? []) {
-    query.append("service", service);
-  }
-  const notes = params.notes?.trim();
-  if (notes) query.set("notes", notes);
   if (params.error) query.set("error", params.error);
   if (params.cancelled) query.set("cancelled", params.cancelled);
   if (params.modify) query.set("modify", params.modify);
@@ -38,12 +28,24 @@ export function schedulingTimesHref(params: SchedulingQuery = {}) {
   return schedulingHref(CLIENT_SCHEDULING_TIMES, params);
 }
 
-export function adminBookingHref(bookingId: string, params: SchedulingQuery = {}) {
+export function adminBookingHref(bookingId: string, params: Pick<SchedulingQuery, "error"> = {}) {
   return schedulingHref(`${ADMIN_BOOKINGS}/${bookingId}`, params);
 }
 
-export function adminBookingTimesHref(bookingId: string, params: SchedulingQuery = {}) {
+export function adminBookingTimesHref(bookingId: string, params: Pick<SchedulingQuery, "error"> = {}) {
   return schedulingHref(`${ADMIN_BOOKINGS}/${bookingId}/times`, params);
+}
+
+/** Link back to the address and services step without putting the form in the query. */
+export function schedulingEditorHref(input: {
+  fromAdmin?: boolean;
+  bookingId?: string | null;
+  error?: string | null;
+}) {
+  if (input.fromAdmin && input.bookingId) {
+    return adminBookingHref(input.bookingId, { error: input.error });
+  }
+  return schedulingBookHref({ modify: input.bookingId, error: input.error });
 }
 
 export function schedulingConfirmedHref(

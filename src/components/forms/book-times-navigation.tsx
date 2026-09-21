@@ -1,22 +1,21 @@
 "use client";
 
-import Form from "next/form";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { TimesLoadingScreen } from "@/components/times-loading-screen";
+import { continueToTimes } from "@/lib/actions/scheduling";
 import { prefetchAvailability } from "@/lib/scheduling/availability-cache";
 import { canPrefetchAvailability, readAvailabilityQuery } from "@/lib/scheduling/times-prefetch";
-import { CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 /**
- * GET to /scheduling/times via the Next.js Form so the times route
- * (and its loading UI) takes over immediately after Continue.
+ * Saves the in-progress shoot on the server, then opens the clean times path.
+ * The loading cover shows as soon as Continue is accepted.
  */
 export function BookTimesNavigation({
   children,
-  action = CLIENT_SCHEDULING_TIMES,
+  action = continueToTimes,
 }: {
   children: ReactNode;
-  action?: string;
+  action?: (formData: FormData) => void | Promise<void>;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -34,9 +33,9 @@ export function BookTimesNavigation({
           <TimesLoadingScreen />
         </div>
       ) : null}
-      <Form action={action} onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form action={action} onSubmit={onSubmit} className="flex flex-col gap-4">
         {children}
-      </Form>
+      </form>
     </>
   );
 }

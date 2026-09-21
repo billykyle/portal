@@ -68,12 +68,7 @@ export function BookingConfirmation({
   });
   const title = copy.title;
   const subtitle = copy.subtitle;
-  const modifyHref = schedulingBookHref({
-    modify: booking.id,
-    address: booking.address,
-    services,
-    notes: booking.notes,
-  });
+  const modifyHref = schedulingBookHref({ modify: booking.id });
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
