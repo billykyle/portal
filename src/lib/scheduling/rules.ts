@@ -44,7 +44,7 @@
  *    even when added services make that start overlap another busy block.
  *    Cancel (`cancelBooking`) sends the same two Resend emails after the
  *    status flip: client “Shoot cancelled” (Scheduling link only — not
- *    modify that booking) and Billy “Booking cancelled”. Soft-fail mail.
+ *    modify that booking) and Billy “Shoot cancelled”. Soft-fail mail.
  *    The client then lands on the confirmation page for that booking in
  *    cancelled state (same layout; no Modify/Cancel). Client confirm and
  *    update emails include Add to calendar (ICS attachment + signed ICS

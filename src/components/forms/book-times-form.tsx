@@ -217,7 +217,7 @@ export function BookTimesForm({
           onClick={() => setCalendarOpen(true)}
           className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 text-[15px]"
         >
-          Further Date Options
+          Date Options Further Out
         </button>
         <div id="book-shoot-error">
           <FormError message={submitError} />

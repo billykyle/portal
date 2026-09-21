@@ -6,6 +6,8 @@ import { BookingConfirmation } from "../../components/booking-confirmation";
 import { CLIENT_HOME, CLIENT_SCHEDULING } from "../routes";
 import { formatBookingDuration, formatBookingTimeZone } from "./slots";
 
+const confirmationActionRowClass = "flex w-full flex-row gap-3";
+
 const startsAt = new Date("2026-09-25T18:00:00.000Z");
 const endsAt = new Date("2026-09-25T19:00:00.000Z");
 
@@ -68,12 +70,11 @@ test("book confirmation is a centered hero with the shoot details", () => {
   assert.match(html, /Eastern/);
   assert.match(html, /1234/);
   assert.match(html, /Back to Scheduling/);
-  assert.match(html, /Book another/);
   assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
-  assert.match(html, new RegExp(`href="${CLIENT_HOME}"`));
   assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
-  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
-  assert.equal(actionClass(html, "Book another"), secondaryButtonClass);
+  assert.doesNotMatch(html, />Home</);
+  assert.doesNotMatch(html, /Book another/);
+  assert.doesNotMatch(html, new RegExp(`href="${CLIENT_HOME}"`));
   assert.doesNotMatch(html, /Shoot updated/);
 });
 
@@ -94,14 +95,16 @@ test("confirmation page puts Modify and Cancel first as primary actions", () => 
   assert.equal(actionClass(html, "Modify"), primaryButtonClass);
   assert.equal(actionClass(html, "Cancel"), secondaryButtonClass);
   assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
-  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
-  assert.equal(actionClass(html, "Book another"), secondaryButtonClass);
+  assert.match(html, new RegExp(`class="${confirmationActionRowClass}"`));
+  assert.doesNotMatch(html, /flex-col gap-3 sm:flex-row/);
+  assert.doesNotMatch(html, />Home</);
+  assert.doesNotMatch(html, /Book another/);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
   assert.match(html, /name="bookingId"/);
   assert.match(html, /11111111-1111-4111-8111-111111111111/);
 });
 
-test("modify confirmation uses the updated hero and skips Book another", () => {
+test("modify confirmation uses the updated hero and keeps the compact footer", () => {
   const html = renderToStaticMarkup(
     createElement(BookingConfirmation, {
       booking: futureBooking({
@@ -117,8 +120,9 @@ test("modify confirmation uses the updated hero and skips Book another", () => {
   assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);
   assert.doesNotMatch(html, /You(?:'|&#x27;)re all set/);
   assert.doesNotMatch(html, /Book another/);
+  assert.doesNotMatch(html, />Home</);
   assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
-  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
+  assert.match(html, new RegExp(`class="${confirmationActionRowClass}"`));
   assert.equal(actionClass(html, "Modify"), primaryButtonClass);
   assert.equal(actionClass(html, "Cancel"), secondaryButtonClass);
 });
@@ -139,12 +143,12 @@ test("cancelled confirmation uses cancelled hero and hides modify/cancel", () =>
   assert.match(html, /Real Estate · Photography/);
   assert.match(html, /644 Plumrun Dr/);
   assert.match(html, /Back to Scheduling/);
-  assert.match(html, /Book another/);
-  assert.match(html, new RegExp(`href="${CLIENT_HOME}"`));
   assert.match(html, new RegExp(`href="${CLIENT_SCHEDULING}"`));
   assert.equal(actionClass(html, "Back to Scheduling"), primaryButtonClass);
-  assert.equal(actionClass(html, "Home"), secondaryButtonClass);
-  assert.equal(actionClass(html, "Book another"), secondaryButtonClass);
+  assert.doesNotMatch(html, />Home</);
+  assert.doesNotMatch(html, /Book another/);
+  assert.doesNotMatch(html, new RegExp(`href="${CLIENT_HOME}"`));
+  assert.doesNotMatch(html, new RegExp(`class="${confirmationActionRowClass}"`));
   assert.doesNotMatch(html, />Modify</);
   assert.doesNotMatch(html, />Cancel</);
   assert.doesNotMatch(html, /You(?:'|&#x27;)re booked/);

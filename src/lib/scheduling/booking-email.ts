@@ -253,7 +253,7 @@ function buildClientMessage(
 
 function buildNotifyMessage(
   input: BookingConfirmationInput,
-  copy: { title: string; intro: string; subjectPrefix: string; pepperNote?: string },
+  copy: { title: string; subjectPrefix: string; pepperNote?: string },
 ) {
   const { when } = bookingDetails(input);
   const rows = sharedDetailRows(input, [{ label: "Client", value: clientLabel(input) || input.clientEmail }]);
@@ -261,8 +261,6 @@ function buildNotifyMessage(
   const pepperNote = copy.pepperNote?.trim() || "";
 
   const text = [
-    copy.intro,
-    "",
     ...detailText(rows),
     "",
     cta.label,
@@ -274,10 +272,9 @@ function buildNotifyMessage(
 
   const html = wrapBookingEmailHtml({
     title: copy.title,
-    preheader: copy.intro,
+    preheader: when,
     body: [
-      headingHtml(copy.title, when),
-      paragraphHtml(copy.intro),
+      headingHtml(copy.title),
       detailHtml(rows),
       `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
       ...(pepperNote ? [`<div style="padding:8px 0 0;">${pepperNoteHtml(pepperNote)}</div>`] : []),
@@ -307,7 +304,6 @@ export function buildBookingConfirmation(input: BookingConfirmationInput) {
 export function buildBookingNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
     title: "New shoot",
-    intro: "New shoot on the portal.",
     subjectPrefix: "New shoot",
     pepperNote: PEPPER_NOTIFY_NEW,
   });
@@ -328,7 +324,6 @@ export function buildBookingModified(input: BookingConfirmationInput) {
 export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
     title: "Shoot updated",
-    intro: "A shoot was modified on the portal.",
     subjectPrefix: "Shoot updated",
     pepperNote: PEPPER_NOTIFY_UPDATED,
   });
@@ -350,9 +345,8 @@ export function buildBookingCancelled(input: BookingConfirmationInput) {
 /** Billy's cancellation alert. Email #2. */
 export function buildBookingCancelledNotify(input: BookingConfirmationInput) {
   return buildNotifyMessage(input, {
-    title: "Booking cancelled",
-    intro: "A booking was cancelled on the portal.",
-    subjectPrefix: "Booking cancelled",
+    title: "Shoot cancelled",
+    subjectPrefix: "Shoot cancelled",
     pepperNote: PEPPER_NOTIFY_CANCELLED,
   });
 }

@@ -66,8 +66,10 @@ function assertClientHeadingHasNoWhen(html: string, title: string, when: string)
   assert.match(html, new RegExp(escapeRegExp(when)));
 }
 
-function assertNotifyHeadingHasWhen(html: string, title: string, when: string) {
-  assert.match(html, new RegExp(`${escapeRegExp(title)}</h1>\\s*<p[^>]*>${escapeRegExp(when)}`));
+function assertNotifyHeadingHasNoIntro(html: string, title: string, when: string, intro: string) {
+  assertClientHeadingHasNoWhen(html, title, when);
+  assert.doesNotMatch(html, new RegExp(`${escapeRegExp(title)}</h1>\\s*<p[^>]*>`));
+  assert.doesNotMatch(html, new RegExp(escapeRegExp(intro)));
 }
 
 function assertNoCalendarCtas(message: { text: string; html: string; attachments?: unknown }) {
@@ -166,15 +168,15 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assertOnBrandHtml(message.html);
 });
 
-test("Billy's copy uses a New shoot subject, when under the title, and Pepper instructions", () => {
+test("Billy's copy uses a New shoot subject, no under-title copy, and Pepper instructions", () => {
   const message = buildBookingNotify(sampleInput({ services: ["Real Estate · Photography"] }));
   const when = formatBookingWhen(start, end, "America/New_York");
   assert.match(message.subject, /^New shoot:/);
   assert.match(message.subject, new RegExp(escapeRegExp(when)));
   assert.match(message.html, /<title>New shoot<\/title>/);
   assert.match(message.html, /New shoot<\/h1>/);
-  assertNotifyHeadingHasWhen(message.html, "New shoot", when);
-  assert.match(message.text, /New shoot on the portal/);
+  assertNotifyHeadingHasNoIntro(message.html, "New shoot", when, "New shoot on the portal.");
+  assert.doesNotMatch(message.text, /New shoot on the portal/);
   assert.match(message.text, /Sam Lepore · sam@example.com/);
   assert.match(message.text, /12 Wood View Drive, Princeton, NJ/);
   assert.match(message.text, /View bookings/);
@@ -236,9 +238,14 @@ test("modification emails use updated copy for client and Billy", () => {
     "Shoot updated",
     formatBookingWhen(start, end, "America/New_York"),
   );
-  assertNotifyHeadingHasWhen(notify.html, "Shoot updated", formatBookingWhen(start, end, "America/New_York"));
+  assertNotifyHeadingHasNoIntro(
+    notify.html,
+    "Shoot updated",
+    formatBookingWhen(start, end, "America/New_York"),
+    "A shoot was modified on the portal.",
+  );
   assert.match(notify.subject, /^Shoot updated:/);
-  assert.match(notify.text, /modified on the portal/);
+  assert.doesNotMatch(notify.text, /modified on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
   assert.match(notify.html, /View bookings/);
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
@@ -294,15 +301,26 @@ test("cancellation emails use cancelled copy and link back to Scheduling", () =>
     formatBookingWhen(start, end, "America/New_York"),
   );
 
-  assert.match(notify.subject, /^Booking cancelled:/);
-  assert.match(notify.text, /cancelled on the portal/);
+  assert.match(notify.subject, /^Shoot cancelled:/);
+  assert.match(notify.subject, new RegExp(escapeRegExp(formatBookingWhen(start, end, "America/New_York"))));
+  assert.match(notify.html, /<title>Shoot cancelled<\/title>/);
+  assert.match(notify.html, /Shoot cancelled<\/h1>/);
+  assert.doesNotMatch(notify.subject, /Booking cancelled/);
+  assert.doesNotMatch(notify.html, /Booking cancelled/);
+  assert.doesNotMatch(notify.text, /Booking cancelled/);
+  assert.doesNotMatch(notify.text, /cancelled on the portal/);
   assert.match(notify.text, /Sam Lepore · sam@example.com/);
   assert.match(notify.text, /12 Wood View Drive, Princeton, NJ/);
   assert.match(notify.text, /View bookings/);
   assert.match(notify.text, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
   assert.match(notify.html, /View bookings/);
   assert.match(notify.html, /https:\/\/admin\.billy-kyle\.com\/admin\/bookings/);
-  assertNotifyHeadingHasWhen(notify.html, "Booking cancelled", formatBookingWhen(start, end, "America/New_York"));
+  assertNotifyHeadingHasNoIntro(
+    notify.html,
+    "Shoot cancelled",
+    formatBookingWhen(start, end, "America/New_York"),
+    "A booking was cancelled on the portal.",
+  );
   assertPepperNote(notify, PEPPER_NOTIFY_CANCELLED);
   assertNoCalendarCtas(notify);
   assertOnBrandHtml(client.html);
@@ -384,7 +402,7 @@ test("sendBookingConfirmation posts two separate Resend emails with no CC/BCC", 
     assert.match(String(client.subject), /Shoot confirmed/);
     assert.match(String(notify.subject), /^New shoot:/);
     assert.match(String(client.text), /is confirmed/);
-    assert.match(String(notify.text), /New shoot on the portal/);
+    assert.doesNotMatch(String(notify.text), /New shoot on the portal/);
     assert.match(String(notify.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_NEW)));
     assert.doesNotMatch(String(notify.text), /Add to calendar/);
     assert.ok(Array.isArray(client.attachments) && client.attachments.length === 1);
@@ -478,12 +496,12 @@ test("sendBookingCancellation posts two separate Resend emails with no CC/BCC", 
     assert.equal(client.bcc, undefined);
     assert.equal(notify.bcc, undefined);
     assert.match(String(client.subject), /Shoot cancelled/);
-    assert.match(String(notify.subject), /^Booking cancelled:/);
+    assert.match(String(notify.subject), /^Shoot cancelled:/);
     assert.match(String(client.text), /has been cancelled/);
     assert.doesNotMatch(String(client.text), /Modify or cancel this shoot/);
     assert.doesNotMatch(String(client.text), /Add to calendar/);
     assert.equal(client.attachments, undefined);
-    assert.match(String(notify.text), /cancelled on the portal/);
+    assert.doesNotMatch(String(notify.text), /cancelled on the portal/);
     assert.match(String(notify.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_CANCELLED)));
     assert.doesNotMatch(String(notify.text), /Add to calendar/);
     assert.equal(notify.attachments, undefined);
