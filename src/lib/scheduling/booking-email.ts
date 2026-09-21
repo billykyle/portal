@@ -97,7 +97,10 @@ ${present
 </table>`;
 }
 
-function headingHtml(title: string, subtitle: string) {
+function headingHtml(title: string, subtitle?: string) {
+  if (!subtitle) {
+    return `<h1 style="margin:0 0 28px;font-family:${EMAIL_FONT_STACK};font-size:28px;line-height:1.2;font-weight:700;color:#000000;">${escapeHtml(title)}</h1>`;
+  }
   return `<h1 style="margin:0 0 8px;font-family:${EMAIL_FONT_STACK};font-size:28px;line-height:1.2;font-weight:700;color:#000000;">${escapeHtml(title)}</h1>
 <p style="margin:0 0 28px;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.45;color:#000000;">${escapeHtml(subtitle)}</p>`;
 }
@@ -169,7 +172,7 @@ function buildClientMessage(
     title: copy.title,
     preheader: copy.intro,
     body: [
-      headingHtml(copy.title, when),
+      headingHtml(copy.title),
       paragraphHtml(greeting),
       paragraphHtml(copy.intro),
       detailHtml(rows),
