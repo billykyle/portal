@@ -2,8 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import {
+  bookingActionRowClass,
+  bookingPrimaryButtonClass,
+  bookingSecondaryButtonClass,
+} from "../../components/booking-actions";
 import { BookingList } from "../../components/booking-list";
 import { adminCalendarGapNotice, canModifyBooking } from "./bookings";
+import { formatBookingServices } from "./services";
+import { formatBookingWhen } from "./slots";
+
+function actionClass(html: string, label: string) {
+  const match = html.match(new RegExp(`class="([^"]+)"[^>]*>${label}<`));
+  assert.ok(match, `expected ${label} action`);
+  return match[1];
+}
 
 test("adminCalendarGapNotice is only for confirmed bookings missing a Calendar id", () => {
   assert.equal(adminCalendarGapNotice({ status: "confirmed", calendarEventId: null }), "Not on Google Calendar yet.");
@@ -30,17 +43,21 @@ test("canModifyBooking is only the owner of a confirmed shoot that has not start
   assert.equal(canModifyBooking({ ...upcoming, startsAt: now }, owner, now), false);
 });
 
-test("client upcoming cards show Modify before Cancel", () => {
+test("client upcoming cards show address, when, then services on one line", () => {
   const startsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const address = "644 Plumrun Dr, West Chester, PA";
+  const services = ["Real Estate · Photography", "Real Estate · Aerial Photos"];
+  const when = formatBookingWhen(startsAt, endsAt, "America/New_York");
   const html = renderToStaticMarkup(
     createElement(BookingList, {
       bookings: [
         {
           id: "11111111-1111-4111-8111-111111111111",
-          address: "644 Plumrun Dr, West Chester, PA",
-          services: ["Real Estate · Photography", "Real Estate · Aerial Photos"],
+          address,
+          services,
           startsAt,
-          endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000),
+          endsAt,
           status: "confirmed",
           notes: null,
           clientId: "client-1",
@@ -53,10 +70,22 @@ test("client upcoming cards show Modify before Cancel", () => {
       clientId: "client-1",
     }),
   );
+  const addressAt = html.indexOf(address);
+  const whenAt = html.indexOf(when);
+  const servicesAt = html.indexOf(formatBookingServices(services));
+  assert.ok(addressAt >= 0, "expected the shoot address");
+  assert.ok(whenAt > addressAt, "date and time should follow the address");
+  assert.ok(servicesAt > whenAt, "services should follow the date and time");
+  assert.match(html, /font-medium/);
+  assert.doesNotMatch(html, /flex flex-col gap-0.5/);
   const modifyAt = html.indexOf(">Modify<");
   const cancelAt = html.indexOf(">Cancel<");
   assert.ok(modifyAt >= 0, "expected a Modify action");
   assert.ok(cancelAt > modifyAt, "Modify should be paired before Cancel");
+  assert.equal(actionClass(html, "Modify"), bookingPrimaryButtonClass);
+  assert.equal(actionClass(html, "Cancel"), bookingSecondaryButtonClass);
+  assert.match(html, new RegExp(`class="${bookingActionRowClass}"`));
+  assert.doesNotMatch(html, /class="text-sm text-\[#8e8e93\]"[^>]*>Modify</);
   assert.match(html, /modify=11111111-1111-4111-8111-111111111111/);
   assert.doesNotMatch(
     renderToStaticMarkup(
@@ -64,9 +93,9 @@ test("client upcoming cards show Modify before Cancel", () => {
         bookings: [
           {
             id: "11111111-1111-4111-8111-111111111111",
-            address: "644 Plumrun Dr, West Chester, PA",
+            address,
             startsAt,
-            endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000),
+            endsAt,
             status: "confirmed",
             clientId: "client-1",
           },

@@ -42,7 +42,8 @@ test("book times radios post a named slot value the server can read", () => {
   assert.match(html, /type="radio"/);
   assert.match(html, /That time is no longer available/);
   assert.match(html, /id="book-shoot-error"/);
-  assert.match(html, /Date Options Further Out/);
+  assert.match(html, /Date options further out/);
+  assert.doesNotMatch(html, /Date Options Further Out/);
   assert.doesNotMatch(html, /Further Date Options/);
   assert.doesNotMatch(html, /type="hidden"[^>]*name="slot"/);
 });

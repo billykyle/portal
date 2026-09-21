@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import {
+  bookingActionRowClass,
+  bookingPrimaryButtonClass,
+  bookingSecondaryButtonClass,
+} from "../../components/booking-actions";
 import { BookingConfirmation } from "../../components/booking-confirmation";
 import { CLIENT_HOME, CLIENT_SCHEDULING } from "../routes";
 import { formatBookingDuration, formatBookingTimeZone } from "./slots";
-
-const confirmationActionRowClass = "flex w-full flex-row gap-3";
 
 const startsAt = new Date("2026-09-25T18:00:00.000Z");
 const endsAt = new Date("2026-09-25T19:00:00.000Z");
@@ -20,10 +23,9 @@ test("formatBookingDuration names hours and leftover minutes", () => {
 
 const bookingId = "11111111-1111-4111-8111-111111111111";
 const clientId = "client-1";
-const primaryButtonClass =
-  "flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black";
-const secondaryButtonClass =
-  "flex h-12 w-full items-center justify-center rounded-xl border border-white text-base font-medium text-white";
+const primaryButtonClass = bookingPrimaryButtonClass;
+const secondaryButtonClass = bookingSecondaryButtonClass;
+const confirmationActionRowClass = bookingActionRowClass;
 
 function actionClass(html: string, label: string) {
   const match = html.match(new RegExp(`class="([^"]+)"[^>]*>${label}<`));
