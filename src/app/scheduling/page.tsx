@@ -94,17 +94,6 @@ export default async function SchedulingPage({
       </div>
       <div className="grid gap-12 pb-16 lg:grid-cols-2 lg:items-start lg:gap-x-16">
         <section className="min-w-0">
-          <h2 className={sectionLabelClass}>Upcoming</h2>
-          <BookingList
-            bookings={upcoming}
-            emptyLabel="No upcoming shoots yet."
-            timeZone={hours.timeZone}
-            allowCancel
-            allowModify
-            clientId={session.clientId}
-          />
-        </section>
-        <section className="min-w-0">
           <h2 className={sectionLabelClass}>
             {modifying ? "Modify shoot" : "Book a shoot"}
           </h2>
@@ -119,6 +108,17 @@ export default async function SchedulingPage({
               modifyBookingId={modifying?.id}
             />
           </FormColumn>
+        </section>
+        <section className="min-w-0">
+          <h2 className={sectionLabelClass}>Upcoming</h2>
+          <BookingList
+            bookings={upcoming}
+            emptyLabel="No upcoming shoots yet."
+            timeZone={hours.timeZone}
+            allowCancel
+            allowModify
+            clientId={session.clientId}
+          />
         </section>
       </div>
     </PhoneShell>

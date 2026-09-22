@@ -84,7 +84,7 @@ export function BookingConfirmation({
         </p>
       ))}
 
-      <dl className="mt-10 w-full text-left lg:grid lg:grid-cols-2 lg:gap-x-10">
+      <dl className="mt-10 w-full text-left">
         {services.length > 0 ? (
           <div className="border-b border-white/10 py-4">
             <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Services</dt>
