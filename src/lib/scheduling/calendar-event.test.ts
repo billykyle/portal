@@ -23,6 +23,19 @@ test("calendar name prefers first + last over displayName and never uses company
   assert.equal(calendarClientName({ firstName: null, lastName: null, displayName: null }), "");
 });
 
+test("calendar title keeps an email inside notes as typed", () => {
+  assert.equal(
+    calendarEventTitle({
+      firstName: "Billy",
+      lastName: "Kyle",
+      address: "1 Main St",
+      services: ["Real Estate · Photography"],
+      notes: "cc: pat@example.com",
+    }),
+    "Billy Kyle - Real Estate · Photography (cc: pat@example.com)",
+  );
+});
+
 test("title lockbox is notes as typed; empty notes means no parens", () => {
   assert.equal(calendarTitleLockbox("1234"), "1234");
   assert.equal(calendarTitleLockbox("  1234  "), "1234");

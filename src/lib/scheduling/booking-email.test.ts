@@ -715,6 +715,121 @@ test("sync-issue email uses the locked subject and names calendar vs email", () 
   assert.doesNotMatch(message.text, /Add to calendar/);
 });
 
+test("notes emails receive the client confirmation and not Billy's notify", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.EMAIL_FROM;
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+
+  const calls: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { to?: string[] };
+    calls.push(body);
+    if (body.to?.includes("pat@example.com")) return new Response("nope", { status: 500 });
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const result = await sendBookingConfirmation({
+      bookingId,
+      clientEmail: "sam@example.com",
+      clientName: "Sam Lepore",
+      address: "12 Wood View Drive",
+      services: ["Real Estate · Photography"],
+      start,
+      end,
+      timeZone: "America/New_York",
+      notes: "cc: Sam@Example.com, also send to pat@example.com and pat@example.com. not-an-email",
+    });
+    assert.equal(result.sent, true);
+    assert.equal(result.client.sent, true);
+    assert.equal(result.notify.sent, true);
+    assert.equal(calls.length, 3);
+
+    const client = calls.find((body) => Array.isArray(body.to) && body.to.includes("sam@example.com"));
+    const copy = calls.find((body) => Array.isArray(body.to) && body.to.includes("pat@example.com"));
+    const notify = calls.find((body) => Array.isArray(body.to) && body.to.includes("billy@billyhere.com"));
+    assert.ok(client);
+    assert.ok(copy);
+    assert.ok(notify);
+    assert.deepEqual(client.to, ["sam@example.com"]);
+    assert.deepEqual(copy.to, ["pat@example.com"]);
+    assert.deepEqual(notify.to, ["billy@billyhere.com"]);
+    assert.equal(copy.subject, client.subject);
+    assert.equal(copy.text, client.text);
+    assert.equal(copy.html, client.html);
+    assert.equal(copy.cc, undefined);
+    assert.equal(copy.bcc, undefined);
+    assert.equal(notify.cc, undefined);
+    assert.equal(notify.bcc, undefined);
+    assert.notEqual(copy.subject, notify.subject);
+    assert.match(String(client.subject), /Shoot confirmed/);
+    assert.match(String(notify.subject), /^New shoot:/);
+    assert.doesNotMatch(String(copy.text), new RegExp(escapeRegExp(PEPPER_NOTIFY_NEW)));
+    assert.equal(
+      (client.headers as Record<string, string> | undefined)?.["Message-ID"],
+      bookingThreadMessageId(bookingId),
+    );
+    assert.equal(copy.headers, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("modify and cancel copy the current client email to notes addresses", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  const messageId = bookingThreadMessageId(bookingId);
+  const originalFetch = globalThis.fetch;
+
+  try {
+    for (const send of [sendBookingModification, sendBookingCancellation]) {
+      const calls: Array<Record<string, unknown>> = [];
+      globalThis.fetch = (async (_url, init) => {
+        calls.push(JSON.parse(String(init?.body)));
+        return new Response("{}", { status: 200 });
+      }) as typeof fetch;
+
+      const result = await send({
+        bookingId,
+        clientEmail: "sam@example.com",
+        clientName: "Sam Lepore",
+        address: "12 Wood View Drive",
+        services: ["Real Estate · Photography"],
+        start,
+        end,
+        timeZone: "America/New_York",
+        notes: "also send to extra@example.com",
+        thread: {
+          inReplyTo: messageId,
+          references: messageId,
+          originalSubject: "Shoot confirmed — Tue, Sep 22 · 10:00 AM – 11:30 AM",
+        },
+      });
+      assert.equal(result.sent, true);
+      assert.equal(calls.length, 3);
+      const client = calls.find((body) => Array.isArray(body.to) && body.to.includes("sam@example.com"));
+      const copy = calls.find((body) => Array.isArray(body.to) && body.to.includes("extra@example.com"));
+      const notify = calls.find((body) => Array.isArray(body.to) && body.to.includes("billy@billyhere.com"));
+      assert.ok(client);
+      assert.ok(copy);
+      assert.ok(notify);
+      assert.equal(copy.subject, client.subject);
+      assert.equal(copy.text, client.text);
+      assert.deepEqual(copy.headers, {
+        "In-Reply-To": messageId,
+        References: messageId,
+      });
+      assert.equal(copy.cc, undefined);
+      assert.equal(notify.cc, undefined);
+      assert.notEqual(copy.subject, notify.subject);
+      assert.doesNotMatch(String(copy.text), /Pepper instructions/i);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("sendBookingSyncIssue retries the owner notify once", async () => {
   process.env.RESEND_API_KEY = "re_test";
   delete process.env.BOOKING_NOTIFY_EMAIL;

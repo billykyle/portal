@@ -29,7 +29,6 @@ export default async function AdminClientPage({
     delivered?: string;
     saved?: string;
     userRemoved?: string;
-    shootRemoved?: string;
     bookingCancelled?: string;
   }>;
 }) {
@@ -37,8 +36,7 @@ export default async function AdminClientPage({
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached, delivered, saved, userRemoved, shootRemoved, bookingCancelled } =
-    await searchParams;
+  const { error, attached, delivered, saved, userRemoved, bookingCancelled } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -88,7 +86,6 @@ export default async function AdminClientPage({
           <p className="mt-3 text-sm text-white">Marked delivered. No email was sent — Pepper can hook this later.</p>
         ) : null}
         {attached ? <p className="mt-3 text-sm text-white">Shoot attached from NAS.</p> : null}
-        {shootRemoved ? <p className="mt-3 text-sm text-white">Shoot deleted. The client invite is unchanged.</p> : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
       <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
@@ -100,9 +97,10 @@ export default async function AdminClientPage({
           <section className="mb-10">
             <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Teammate logins</h2>
             <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
-              These are email/password accounts that redeemed {client.inviteCode}. Removing one
-              login does not delete the client or the invite. They can sign up again with the
-              same code.
+              These are email/password accounts that redeemed {client.inviteCode}. Edit profile
+              changes the name, company, phone, and sign-in email they manage on Account.
+              Removing one login does not delete the client or the invite. They can sign up
+              again with the same code.
             </p>
             {teammateRows.length === 0 ? (
               <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
@@ -123,7 +121,15 @@ export default async function AdminClientPage({
                         })}
                       </p>
                     </div>
-                    <RemoveUserForm clientId={client.id} userId={user.id} email={user.email} />
+                    <div className="flex shrink-0 items-center gap-3">
+                      <Link
+                        href={`/admin/clients/${client.id}/users/${user.id}`}
+                        className="text-sm text-white underline decoration-white/20 underline-offset-4"
+                      >
+                        Edit profile
+                      </Link>
+                      <RemoveUserForm clientId={client.id} userId={user.id} email={user.email} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -159,7 +165,6 @@ export default async function AdminClientPage({
                   address: shoot.address,
                   shotDate: shoot.shotDate,
                   dateLabel: formatShootDate(shoot.shotDate),
-                  clientId: client.id,
                   fileCount: count,
                   publicToken: shoot.publicToken,
                 };

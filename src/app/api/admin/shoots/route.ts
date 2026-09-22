@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     const folder = await resolveShootFolder(nasRelativePath);
     await importNasStills(shoot.id, folder, { required: true });
   } catch (error) {
+    // The row never imported. This is not a way to delete a NAS-mirrored shoot.
     await db.delete(shoots).where(eq(shoots.id, shoot.id));
     const message = error instanceof Error ? error.message : "NAS import failed.";
     return NextResponse.json({ error: message }, { status: 502 });

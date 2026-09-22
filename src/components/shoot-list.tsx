@@ -4,7 +4,6 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { CopyPublicLink } from "@/components/copy-public-link";
-import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { filterShoots } from "@/lib/shoot-search";
 
 export type ShootListItem = {
@@ -16,7 +15,6 @@ export type ShootListItem = {
 };
 
 export type AdminShootListItem = ShootListItem & {
-  clientId: string;
   fileCount: number;
   publicToken: string;
 };
@@ -96,11 +94,6 @@ function AdminRow({ shoot }: { shoot: AdminShootListItem }) {
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <CopyPublicLink token={shoot.publicToken} compact />
-        <DeleteShootForm
-          clientId={shoot.clientId}
-          shootId={shoot.id}
-          address={shoot.address}
-        />
       </div>
     </li>
   );

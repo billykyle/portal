@@ -111,7 +111,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset and booking-confirmation email. Not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. Default: `Billy Kyle <billy@billyhere.com>`. |
-| `BOOKING_NOTIFY_EMAIL` | Optional. Second booking email (Billy's alert). Default: `billy@billyhere.com`. Not CC/BCC. |
+| `BOOKING_NOTIFY_EMAIL` | Optional. Second booking email (Billy's alert). Default: `billy@billyhere.com`. Not CC/BCC. Other addresses in the booking Notes get their own copy of the client email, not this alert. |
 | `GOOGLE_CALENDAR_IDS` | Optional. Comma-separated availability calendars. Locked: work `billy@atmosimagery.com` + personal `bkyle015@gmail.com`. Free/busy unions both — a slot is busy if either is busy. Do not include US Holidays. Bookings write to the first ID. Share both with the service-account email. |
 | `GOOGLE_CALENDAR_ID` | Optional fallback if `GOOGLE_CALENDAR_IDS` is empty. Same Calendar auth. |
 | `GCP_PROJECT_ID` | Optional. GCP project id (`glassy-polymer-509203-r1`). |
@@ -145,7 +145,7 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
 4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Photos import from Final or Photos; floor plans and video come along from the same shoot folder. There is no placeholder-media option.
-5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). **Delete shoot** and **Mark delivered** stay on the admin list and on that preview. The BK invite stays.
+5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). **Mark delivered** stays on that preview. Shoots mirror the NAS — there is no manual delete. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
 
@@ -154,7 +154,7 @@ Give the invite code to the client. Anyone with that code can create an account 
 Open a client from admin (the list is titled **Admin**). Invite `BK#####` is the client key and is never edited.
 
 - **Client info** — change display name, primary contact email, company, and internal notes, then **Save client**. Those persist to Postgres. Do not rename someone whose NAS folder still uses the old name — sync matches by display name and would mint a new BK code.
-- **Teammate logins** — each email/password account that redeemed the invite. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
+- **Teammate logins** — each email/password account that redeemed the invite. **Edit profile** changes the same Account fields (first name, last name, company, phone, and sign-in email). Company is the shared client company. The sign-in email is the login; it is separate from Primary contact email. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
 - **Delete client** — destructive. Type the invite code and `DELETE`. This removes the client record, every teammate login under it, and all attached shoots and photos. If the NAS folder is still there, the next sync mints a new BK code for that name.
 
 Use **Remove** on a teammate when you only need to kick one person. Use **Delete client** when the whole BK record should go away.
@@ -215,7 +215,7 @@ DATABASE_URL='postgresql://…' npm run db:clear-demo-shoots -- --invite BK00001
 
 That keeps the BK00001 client and logins. It deletes Whitfield/Austin placeholder shoots and any 0-file portal shoots. Pass `--keep-empty` to leave empty shoots alone.
 
-Or in admin: open the client → **Delete shoot** on that project (confirm in the dialog). The BK invite stays. After deploy, **Sync from NAS** also drops portal-only and empty shoots.
+There is no admin **Delete shoot**. Portal shoots stay in sync with the NAS. After deploy, **Sync from NAS** drops portal-only and empty shoots. The BK invite stays.
 
 Example that is already on the share:
 

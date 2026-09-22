@@ -4,7 +4,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AccountControl } from "@/components/account-control";
 import { AppHeader } from "@/components/app-header";
-import { DeleteShootForm } from "@/components/forms/delete-shoot-form";
 import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
@@ -87,11 +86,6 @@ export default async function ShootPage({
           ) : (
             <p className="text-sm text-[#8e8e93]">Marked delivered</p>
           )}
-          <DeleteShootForm
-            clientId={shoot.clientId}
-            shootId={shoot.id}
-            address={shoot.address}
-          />
         </div>
       ) : null}
       <ShootDetail
