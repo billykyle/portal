@@ -16,6 +16,7 @@ import {
 } from "@/lib/email";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { clientCalendarLinks } from "./booking-ics";
+import { emailsInNotes } from "./notes-emails";
 import {
   BOOKING_SYNC_ISSUE_SUBJECT,
   bookingSyncIssueLines,
@@ -504,11 +505,14 @@ export type BookingEmailSendOptions = {
 
 /**
  * Two separate Resend sends after a successful booking:
- * 1. Client confirmation → session email
+ * 1. Client confirmation → the booker's login email
  * 2. Billy's copy → BOOKING_NOTIFY_EMAIL (default billy@billyhere.com)
  *
+ * Other addresses in the current Notes get their own send of email #1
+ * (same subject and body). They are not added to Billy's notify.
  * No CC/BCC. Soft-fails: never throws, never rolls back the booking.
- * One failed send does not skip the other.
+ * One failed send does not skip the other. A failed Notes copy does not
+ * fail the booker's send.
  */
 export async function sendBookingConfirmation(
   input: BookingConfirmationInput,
@@ -601,6 +605,14 @@ export async function sendBookingSyncIssue(input: BookingSyncIssueInput): Promis
   return sendOwnerNotify(message);
 }
 
+function headersWithoutMessageId(headers?: Record<string, string>) {
+  if (!headers) return undefined;
+  const next = { ...headers };
+  delete next["Message-ID"];
+  delete next["Message-Id"];
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
 async function sendOwnerNotify(message: { subject: string; text: string; html: string }): Promise<SendEmailResult> {
   if (!emailConfigured()) return { sent: false, reason: "resend-unconfigured" };
   const [notify] = uniqueEmails([bookingNotifyEmail()]);
@@ -627,8 +639,10 @@ async function sendBookingPair(
 
   const recipients = bookingConfirmationRecipients(input.clientEmail);
   const skipNotify = Boolean(options?.skipNotify);
+  const copies = emailsInNotes(input.notes, [input.clientEmail, recipients.client]);
+  const copyHeaders = headersWithoutMessageId(sendMeta?.clientHeaders);
 
-  const [client, notify] = await Promise.all([
+  const [client, notify, copyResults] = await Promise.all([
     recipients.client
       ? sendEmail({
           to: recipients.client,
@@ -649,7 +663,25 @@ async function sendBookingPair(
             html: notifyMessage.html,
           })
         : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
+    Promise.all(
+      copies.map((to) =>
+        sendEmail({
+          to,
+          subject: clientMessage.subject,
+          text: clientMessage.text,
+          html: clientMessage.html,
+          attachments: clientMessage.attachments,
+          headers: copyHeaders,
+        }),
+      ),
+    ),
   ]);
+
+  copyResults.forEach((result, index) => {
+    if (!result.sent) {
+      console.error(`Notes copy email failed for ${copies[index]}: ${result.reason}`);
+    }
+  });
 
   return {
     sent: client.sent && (skipNotify || notify.sent),

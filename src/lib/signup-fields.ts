@@ -34,6 +34,17 @@ export function parseAccountProfile(input: {
   return { ok: true, value: { firstName, lastName, companyName, phone } };
 }
 
+/** Login identity on `users.email`. Same bar as signup, plus a dotted domain. */
+export function parseLoginEmail(
+  raw: string | null | undefined,
+): { ok: true; value: string } | { ok: false; error: string } {
+  const email = String(raw ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.includes("..")) {
+    return { ok: false, error: "Enter a valid email." };
+  }
+  return { ok: true, value: email };
+}
+
 export function parseSignupProfile(input: {
   firstName?: string | null;
   lastName?: string | null;

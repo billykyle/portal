@@ -252,7 +252,7 @@ export async function createBooking(formData: FormData) {
       calendarConfigured: availability.calendarConfigured,
       calendarSummary: calendar.summary,
       calendarDescription: calendar.description,
-      clientEmail: session.email,
+      clientEmail: user?.email ?? session.email,
       services,
       notes,
       accessCodes,
@@ -465,7 +465,7 @@ export async function updateBooking(formData: FormData) {
           createdByUserId: booking.createdByUserId,
           primaryEmail: client?.primaryEmail,
         })
-      : session?.email ?? "";
+      : user?.email || session?.email || "";
     const hours = schedulingHours();
     const calendar = calendarEventCopy({
       firstName: user?.firstName,
@@ -661,10 +661,19 @@ export async function cancelBooking(formData: FormData) {
   if (cancelled) {
     const ownerCancelling = Boolean(session && session.clientId === booking.clientId);
     const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
+    let ownerEmail: string | null = null;
+    if (ownerCancelling && session) {
+      const [sessionUser] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, session.userId))
+        .limit(1);
+      ownerEmail = sessionUser?.email ?? session.email;
+    }
     const clientEmail = await resolveCancelledBookingEmail({
       clientId: booking.clientId,
       createdByUserId: booking.createdByUserId,
-      ownerEmail: ownerCancelling ? session?.email : null,
+      ownerEmail,
       primaryEmail: client?.primaryEmail,
     });
     const hours = schedulingHours();

@@ -10,7 +10,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients } from "@/lib/db/schema";
+import { clients, users } from "@/lib/db/schema";
 
 export default async function AdminClientsPage({
   searchParams,
@@ -30,6 +30,7 @@ export default async function AdminClientsPage({
     removed?: string;
     removedShoots?: string;
     removedPhotos?: string;
+    q?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
@@ -51,8 +52,46 @@ export default async function AdminClientsPage({
     removed,
     removedShoots,
     removedPhotos,
+    q,
   } = await searchParams;
+  const query = (q ?? "").trim();
+  const needle = query.toLowerCase();
   const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const logins = await db
+    .select({
+      clientId: users.clientId,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      phone: users.phone,
+    })
+    .from(users);
+  const loginsByClient = new Map<string, typeof logins>();
+  for (const login of logins) {
+    const list = loginsByClient.get(login.clientId) ?? [];
+    list.push(login);
+    loginsByClient.set(login.clientId, list);
+  }
+  const visible = needle
+    ? rows.filter((client) => {
+        const haystack = [
+          client.inviteCode,
+          client.displayName,
+          client.company,
+          client.primaryEmail,
+          ...(loginsByClient.get(client.id) ?? []).flatMap((login) => [
+            login.email,
+            login.firstName,
+            login.lastName,
+            login.phone,
+          ]),
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .toLowerCase();
+        return haystack.includes(needle);
+      })
+    : rows;
 
   return (
     <PhoneShell wide>
@@ -103,12 +142,32 @@ export default async function AdminClientsPage({
       </div>
       <section className="pb-16">
         <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>
+        <form action="/admin/clients" method="get" className="mb-4 lg:max-w-md">
+          <label htmlFor="client-search" className="sr-only">
+            Find a client or login
+          </label>
+          <input
+            id="client-search"
+            name="q"
+            type="search"
+            defaultValue={query}
+            placeholder="Find a client or login"
+            autoComplete="off"
+            className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
+          />
+        </form>
+        <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
+          Open a client, then Edit profile on a login to change the name, company, phone, and
+          sign-in email from Account.
+        </p>
         {rows.length === 0 ? (
           <p className="text-sm text-[#8e8e93]">No clients yet.</p>
+        ) : visible.length === 0 ? (
+          <p className="text-sm text-[#8e8e93]">No clients match.</p>
         ) : (
           <>
             <ul className="lg:hidden">
-              {rows.map((client) => (
+              {visible.map((client) => (
                 <li key={client.id} className="border-b border-white/10">
                   <Link href={`/admin/clients/${client.id}`} className="flex items-center gap-3 py-4">
                     <div className="min-w-0 flex-1">
@@ -134,7 +193,7 @@ export default async function AdminClientsPage({
                 <span />
               </div>
               <ul>
-                {rows.map((client) => (
+                {visible.map((client) => (
                   <li key={client.id} className="border-b border-white/10">
                     <Link
                       href={`/admin/clients/${client.id}`}

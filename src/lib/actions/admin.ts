@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -13,6 +13,8 @@ import { runLockedNasSync } from "@/lib/nas-scheduler";
 import { nasEnabled } from "@/lib/nas-flags";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "@/lib/delivery";
 import { createPublicToken } from "@/lib/public-link";
+import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
+import { parseAccountProfile, parseLoginEmail } from "@/lib/signup-fields";
 
 export type AdminState = {
   error?: string;
@@ -100,6 +102,7 @@ export async function attachShoot(formData: FormData) {
     const folder = await resolveShootFolder(nasRelativePath);
     await importNasStills(shoot.id, folder, { required: true });
   } catch (error) {
+    // The row never imported. This is not a way to delete a NAS-mirrored shoot.
     await db.delete(shoots).where(eq(shoots.id, shoot.id));
     const message = error instanceof Error ? error.message : "NAS import failed.";
     redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
@@ -177,27 +180,6 @@ export async function markShootDelivered(formData: FormData) {
   redirect(`${clientPath}?delivered=1`);
 }
 
-export async function deleteShoot(formData: FormData) {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  await ensureDb();
-  const shootId = String(formData.get("shootId") ?? "");
-  const clientId = String(formData.get("clientId") ?? "");
-  const clientPath = `/admin/clients/${clientId}`;
-  if (!shootId || !clientId) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Shoot is required.")}`);
-  }
-  const [shoot] = await db.select().from(shoots).where(eq(shoots.id, shootId)).limit(1);
-  if (!shoot || shoot.clientId !== clientId) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Shoot was not found.")}`);
-  }
-  await db.delete(shoots).where(eq(shoots.id, shoot.id));
-  revalidatePath("/admin/clients");
-  revalidatePath(clientPath);
-  redirect(`${clientPath}?shootRemoved=1`);
-}
-
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {
   const query = new URLSearchParams(params);
   const suffix = query.toString();
@@ -272,6 +254,78 @@ export async function deleteClient(formData: FormData) {
   await db.delete(clients).where(eq(clients.id, clientId));
   revalidatePath("/admin/clients");
   redirect(adminClientsUrl({ removed: client.inviteCode }));
+}
+
+function userProfilePath(clientId: string, userId: string, params: Record<string, string> = {}) {
+  const query = new URLSearchParams(params);
+  const suffix = query.toString();
+  const path = `/admin/clients/${clientId}/users/${userId}`;
+  return suffix ? `${path}?${suffix}` : path;
+}
+
+/**
+ * Same fields as Account. Email is `users.email`, the credentials login
+ * (custom JWT session, not NextAuth). Saving a new address updates that
+ * identity. Sessions stay valid because they key off user id; booking mail
+ * reads the saved address.
+ */
+export async function updateUserProfile(formData: FormData) {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  await ensureDb();
+  const clientId = String(formData.get("clientId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  if (!clientId || !userId) {
+    redirect(adminClientsUrl({ error: "User is required." }));
+  }
+
+  const profile = parseAccountProfile({
+    firstName: String(formData.get("firstName") ?? ""),
+    lastName: String(formData.get("lastName") ?? ""),
+    companyName: String(formData.get("companyName") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+  });
+  if (!profile.ok) {
+    redirect(userProfilePath(clientId, userId, { error: profile.error }));
+  }
+  const email = parseLoginEmail(String(formData.get("email") ?? ""));
+  if (!email.ok) {
+    redirect(userProfilePath(clientId, userId, { error: email.error }));
+  }
+
+  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+  if (!client) {
+    redirect(adminClientsUrl({ error: "Client was not found." }));
+  }
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user || user.clientId !== clientId) {
+    redirect(clientAdminPath(clientId, { error: "User was not found on this client." }));
+  }
+
+  const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email.value)).limit(1);
+  if (taken && taken.id !== user.id) {
+    redirect(userProfilePath(clientId, userId, { error: "That email already has an account." }));
+  }
+
+  await db
+    .update(users)
+    .set({
+      firstName: profile.value.firstName,
+      lastName: profile.value.lastName,
+      phone: profile.value.phone,
+      email: email.value,
+    })
+    .where(and(eq(users.id, user.id), eq(users.clientId, clientId)));
+  await db.update(clients).set({ company: profile.value.companyName }).where(eq(clients.id, clientId));
+
+  revalidatePath("/admin/clients");
+  revalidatePath(clientAdminPath(clientId));
+  revalidatePath(userProfilePath(clientId, userId));
+  revalidatePath(CLIENT_ACCOUNT);
+  revalidatePath(CLIENT_HOME);
+  revalidatePath(CLIENT_LIBRARY);
+  redirect(userProfilePath(clientId, userId, { saved: "1" }));
 }
 
 export async function removeUser(formData: FormData) {

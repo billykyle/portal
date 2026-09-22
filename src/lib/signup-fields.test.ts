@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   isPendingClientEmail,
   parseAccountProfile,
+  parseLoginEmail,
   parsePasswordChange,
   parseSignupProfile,
   teammateDisplayName,
@@ -49,6 +50,15 @@ test("short phone numbers are rejected", () => {
 test("pending NAS emails are detected", () => {
   assert.equal(isPendingClientEmail("whitfield@pending.local"), true);
   assert.equal(isPendingClientEmail("billy@atmosimagery.com"), false);
+});
+
+test("login email is normalized and must include a domain", () => {
+  const ok = parseLoginEmail(" Billy@Example.com ");
+  assert.equal(ok.ok, true);
+  if (ok.ok) assert.equal(ok.value, "billy@example.com");
+  assert.equal(parseLoginEmail("not-an-email").ok, false);
+  assert.equal(parseLoginEmail("a@b").ok, false);
+  assert.equal(parseLoginEmail("user@localhost").ok, false);
 });
 
 test("account profile omits email and still requires name, company, and phone", () => {

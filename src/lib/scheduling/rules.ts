@@ -32,7 +32,8 @@
  *    addresses) and drive time cannot be measured, refuse the slot. Never
  *    assume 0 minutes or a guessed duration.
  * 5. After a successful Book shoot (`createBooking`), send two Resend emails
- *    (no CC/BCC): client confirmation to the session email, and a
+ *    (no CC/BCC): client confirmation to the booker's login email
+ *    (`users.email`, else the session email), and a
  *    `New shoot: …` alert to Billy (`billy@billyhere.com` /
  *    `BOOKING_NOTIFY_EMAIL`) with Pepper instructions not to add the shoot
  *    to his calendar. Do not require Pepper. Never roll back the calendar
@@ -58,6 +59,10 @@
  *    update emails include Add to calendar (ICS attachment + signed ICS
  *    URL, plus a Google Calendar template link). Cancelled client mail
  *    omits that CTA. Billy’s notify emails never include it.
+ *    Other addresses in the current Notes get a separate send of that same
+ *    client email (deduped against the booker). Billy's notify and
+ *    sync-issue mail are not copied to them. Notes stay on the calendar
+ *    title exactly as typed.
  *    When `calendarEventId` is present, also DELETE the Work calendar event
  *    (same `writeCalendarId` as create). 403/404/auth is logged and does
  *    not roll back the cancel or emails. Missing event id skips quietly.
