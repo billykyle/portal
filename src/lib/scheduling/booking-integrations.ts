@@ -125,7 +125,9 @@ export async function settleBookingIntegrations(
     }
   }
 
-  const skipNotify = calendarFailed;
+  // Create/modify: skip Pepper "already on calendar" notify when Calendar write failed.
+  // Cancel: always attempt both branded cancel emails; sync-issue alert is additive.
+  const skipNotify = calendarFailed && input.action !== "cancel";
   const emails = await deps.sendEmails(input.email, { kind: input.action, skipNotify });
   const clientEmailFailed = !emails.client.sent;
   const ownerEmailFailed = skipNotify ? false : !emails.notify.sent;

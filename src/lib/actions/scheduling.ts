@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
@@ -35,6 +35,7 @@ import {
   adminBookingHref,
   adminBookingTimesHref,
   schedulingBookHref,
+  schedulingCancelConfirmHref,
   schedulingConfirmedHref,
   schedulingTimesHref,
 } from "@/lib/scheduling/urls";
@@ -647,7 +648,7 @@ export async function cancelBooking(formData: FormData) {
     if (admin && !session) {
       redirect("/admin/bookings");
     }
-    redirect(schedulingConfirmedHref(booking.id));
+    redirect(schedulingCancelConfirmHref(booking.id));
   }
 
   const [cancelled] = await db
@@ -667,33 +668,44 @@ export async function cancelBooking(formData: FormData) {
       primaryEmail: client?.primaryEmail,
     });
     const hours = schedulingHours();
-    const settled = await settleBookingIntegrations({
-      action: "cancel",
-      bookingId: booking.id,
-      calendarConfigured: Boolean(booking.calendarEventId),
-      deleteCalendarEventId: booking.calendarEventId,
-      email: {
+    try {
+      const settled = await settleBookingIntegrations({
+        action: "cancel",
         bookingId: booking.id,
-        clientEmail: clientEmail || client?.primaryEmail || session?.email || "",
-        clientName: client?.displayName ?? null,
-        address: booking.address,
-        services: bookingServiceList(booking),
-        start: booking.startsAt,
-        end: booking.endsAt,
-        timeZone: hours.timeZone,
-        notes: booking.notes,
-        accessCodes: booking.accessCodes,
-      },
-    });
-    cancelledIssues = {
-      calendar: settled.issues.calendar ? "failed" : undefined,
-      email: settled.issues.email ? "failed" : undefined,
-    };
+        calendarConfigured: Boolean(booking.calendarEventId),
+        deleteCalendarEventId: booking.calendarEventId,
+        email: {
+          bookingId: booking.id,
+          clientEmail: clientEmail || client?.primaryEmail || session?.email || "",
+          clientName: client?.displayName ?? null,
+          address: booking.address,
+          services: bookingServiceList(booking),
+          start: booking.startsAt,
+          end: booking.endsAt,
+          timeZone: hours.timeZone,
+          notes: booking.notes,
+          accessCodes: booking.accessCodes,
+          thread: {
+            inReplyTo: booking.clientEmailMessageId,
+            references: booking.clientEmailReferences,
+            originalSubject: booking.clientEmailSubject,
+          },
+        },
+      });
+      cancelledIssues = {
+        calendar: settled.issues.calendar ? "failed" : undefined,
+        email: settled.issues.email ? "failed" : undefined,
+      };
+    } catch (error) {
+      unstable_rethrow(error);
+      console.error("cancel integrations failed; booking still cancelled", error);
+      cancelledIssues = { email: "failed" };
+    }
   }
 
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
-  revalidatePath(schedulingConfirmedHref(booking.id));
+  revalidatePath(`${CLIENT_SCHEDULING_CONFIRMED}/${booking.id}`);
   revalidatePath("/admin/bookings");
   if (admin && formData.get("fromAdmin") === "1") {
     const clientId = String(formData.get("clientId") ?? booking.clientId);
@@ -702,5 +714,5 @@ export async function cancelBooking(formData: FormData) {
   if (admin && !session) {
     redirect("/admin/bookings?cancelled=1");
   }
-  redirect(schedulingConfirmedHref(booking.id, cancelledIssues));
+  redirect(schedulingCancelConfirmHref(booking.id, cancelledIssues));
 }

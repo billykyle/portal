@@ -608,6 +608,45 @@ test("sendBookingCancellation posts two separate Resend emails with no CC/BCC", 
   }
 });
 
+test("sendBookingCancellation threads to the stored confirmation Message-ID when present", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+
+  const messageId = bookingThreadMessageId(bookingId);
+  const calls: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    await sendBookingCancellation({
+      bookingId,
+      clientEmail: "sam@example.com",
+      address: "12 Wood View Drive",
+      services: ["Real Estate · Photography"],
+      start,
+      end,
+      timeZone: "America/New_York",
+      thread: {
+        inReplyTo: messageId,
+        references: messageId,
+        originalSubject: "Shoot confirmed — Tue, Sep 22 · 10:00 AM – 11:30 AM",
+      },
+    });
+    const client = calls.find((body) => Array.isArray(body.to) && body.to.includes("sam@example.com"));
+    assert.ok(client, "expected a client cancellation send");
+    assert.deepEqual(client.headers, {
+      "In-Reply-To": messageId,
+      References: messageId,
+    });
+    assert.match(String(client.subject), /^Re: Shoot confirmed/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("one failed Resend send does not skip the other", async () => {
   process.env.RESEND_API_KEY = "re_test";
   delete process.env.BOOKING_NOTIFY_EMAIL;

@@ -50,13 +50,22 @@ export function schedulingEditorHref(input: {
 
 export function schedulingConfirmedHref(
   bookingId: string,
-  options?: { updated?: boolean; calendar?: "failed"; email?: "failed" },
+  options?: { updated?: boolean; cancelled?: boolean; calendar?: "failed"; email?: "failed" },
 ) {
   const path = `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`;
   const query = new URLSearchParams();
+  if (options?.cancelled) query.set("cancelled", "1");
   if (options?.updated) query.set("updated", "1");
   if (options?.calendar === "failed") query.set("calendar", "failed");
   if (options?.email === "failed") query.set("email", "failed");
   const qs = query.toString();
   return qs ? `${path}?${qs}` : path;
+}
+
+/** Client cancel always lands here so the URL changes even from the same confirm page. */
+export function schedulingCancelConfirmHref(
+  bookingId: string,
+  options?: { calendar?: "failed"; email?: "failed" },
+) {
+  return schedulingConfirmedHref(bookingId, { cancelled: true, ...options });
 }
