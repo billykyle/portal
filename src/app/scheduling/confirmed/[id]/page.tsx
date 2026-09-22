@@ -15,18 +15,18 @@ export async function generateMetadata({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string; calendar?: string; email?: string }>;
+  searchParams: Promise<{ updated?: string; cancelled?: string; calendar?: string; email?: string }>;
 }): Promise<Metadata> {
-  const [{ id }, { updated }] = await Promise.all([params, searchParams]);
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const session = await getSession();
   if (session) {
     await ensureDb();
     const booking = await getClientBooking(session.clientId, id);
-    if (booking?.status === "cancelled") {
+    if (booking?.status === "cancelled" || query.cancelled) {
       return { title: "Shoot cancelled" };
     }
   }
-  return { title: updated ? "Shoot updated" : "Shoot confirmed" };
+  return { title: query.updated ? "Shoot updated" : "Shoot confirmed" };
 }
 
 export default async function SchedulingConfirmedPage({
@@ -34,7 +34,7 @@ export default async function SchedulingConfirmedPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string; calendar?: string; email?: string }>;
+  searchParams: Promise<{ updated?: string; cancelled?: string; calendar?: string; email?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
@@ -56,7 +56,7 @@ export default async function SchedulingConfirmedPage({
         <BookingConfirmation
           booking={booking}
           timeZone={hours.timeZone}
-          updated={Boolean(query.updated)}
+          updated={Boolean(query.updated) && booking.status !== "cancelled"}
           clientId={session.clientId}
           issue={issue}
           billyNotified={!issue.alertFailed}

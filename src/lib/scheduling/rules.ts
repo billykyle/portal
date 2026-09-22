@@ -49,6 +49,10 @@
  *    status flip: client “Shoot cancelled” (Scheduling link only — not
  *    modify that booking) and Billy “Shoot cancelled”. Mail and Calendar
  *    delete failures use the same honest confirm + Billy alert path.
+ *    Cancel still sends both branded cancel emails when Calendar delete
+ *    fails; the sync-issue alert is additive. Client cancel always
+ *    redirects to `/scheduling/confirmed/{id}?cancelled=1` so the confirm
+ *    page refreshes even when Cancel was clicked on that same URL.
  *    The client then lands on the confirmation page for that booking in
  *    cancelled state (same layout; no Modify/Cancel). Client confirm and
  *    update emails include Add to calendar (ICS attachment + signed ICS

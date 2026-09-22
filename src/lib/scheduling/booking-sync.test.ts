@@ -188,7 +188,31 @@ test("cancel delete failure is recorded without rolling back the status flip", a
   );
   assert.equal(result.issues.calendar, true);
   assert.equal(calls.write, 0);
+  assert.equal(calls.notify, 1);
+  assert.equal(deps.lastSkip, false, "cancel still sends branded Shoot cancelled emails");
   assert.equal(calls.alert, 1);
+});
+
+test("cancel without a calendar event still attempts both cancellation emails", async () => {
+  const calls = { write: 0, notify: 0, alert: 0, saved: [] as Array<string | null> };
+  const deps = mockDeps(calls, {
+    emails: { sent: true, client: { sent: true }, notify: { sent: true } },
+  });
+  const result = await settleBookingIntegrations(
+    {
+      ...sampleSettleInput(),
+      action: "cancel",
+      calendarConfigured: false,
+      deleteCalendarEventId: null,
+      calendarWrite: undefined,
+    },
+    deps,
+  );
+  assert.equal(result.issues.calendar, false);
+  assert.equal(result.issues.email, false);
+  assert.equal(calls.notify, 1);
+  assert.equal(deps.lastSkip, false);
+  assert.equal(calls.alert, 0);
 });
 
 test("client and admin modifies both send the same Shoot changes payload", async () => {

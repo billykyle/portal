@@ -5,6 +5,7 @@ import {
   adminBookingHref,
   adminBookingTimesHref,
   schedulingBookHref,
+  schedulingCancelConfirmHref,
   schedulingConfirmedHref,
   schedulingEditorHref,
   schedulingTimesHref,
@@ -26,6 +27,18 @@ test("book and times hrefs stay short", () => {
   assert.equal(
     schedulingConfirmedHref(bookingId, { updated: true }),
     `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}?updated=1`,
+  );
+  assert.equal(
+    schedulingConfirmedHref(bookingId, { cancelled: true }),
+    `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}?cancelled=1`,
+  );
+  assert.equal(
+    schedulingCancelConfirmHref(bookingId),
+    `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}?cancelled=1`,
+  );
+  assert.equal(
+    schedulingCancelConfirmHref(bookingId, { calendar: "failed", email: "failed" }),
+    `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}?cancelled=1&calendar=failed&email=failed`,
   );
   assert.equal(
     schedulingConfirmedHref(bookingId, { calendar: "failed", email: "failed" }),

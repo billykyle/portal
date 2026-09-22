@@ -467,10 +467,12 @@ export function buildBookingModifiedNotify(input: BookingConfirmationInput) {
 
 /** Client-facing cancellation. Email #1. Links back to Scheduling, not this booking. */
 export function buildBookingCancelled(input: BookingConfirmationInput) {
+  const { when } = bookingDetails(input);
   return buildClientMessage(input, {
     title: "Shoot cancelled",
     intro: "Your appointment with Billy Kyle has been cancelled.",
     subjectPrefix: "Shoot cancelled",
+    subject: replySubject(input.thread?.originalSubject, `Shoot cancelled — ${when}`),
     cta: {
       label: "Back to Scheduling",
       href: bookingSchedulingUrl(),
@@ -534,7 +536,9 @@ export async function sendBookingCancellation(
   input: BookingConfirmationInput,
   options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingCancelled(input), buildBookingCancelledNotify(input), options);
+  return sendBookingPair(input, buildBookingCancelled(input), buildBookingCancelledNotify(input), options, {
+    clientHeaders: emailThreadingHeaders(input.thread),
+  });
 }
 
 export type BookingSyncIssueInput = BookingConfirmationInput & {
