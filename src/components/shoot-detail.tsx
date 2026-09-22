@@ -99,6 +99,7 @@ export function ShootDetail({
                 filename={item.filename}
                 downloadUrl={item.url}
                 contain={false}
+                ratio="3/2"
               />
             ))}
           </div>

@@ -10,14 +10,17 @@ export function MediaTile({
   filename,
   downloadUrl,
   contain,
+  ratio = "square",
 }: {
   href: string;
   src: string;
   filename: string;
   downloadUrl: string;
   contain: boolean;
+  ratio?: "square" | "3/2";
 }) {
   const [attempt, setAttempt] = useState(0);
+  const aspectClass = ratio === "3/2" ? "aspect-[3/2]" : "aspect-square";
 
   return (
     <figure className={`relative overflow-hidden rounded-lg ${contain ? "bg-white" : "bg-[#111]"}`}>
@@ -31,7 +34,7 @@ export function MediaTile({
           onError={() => {
             setAttempt((current) => (current < THUMB_RETRY_LIMIT ? current + 1 : current));
           }}
-          className={`aspect-square w-full ${contain ? "object-contain p-1" : "object-cover"}`}
+          className={`${aspectClass} w-full ${contain ? "object-contain p-1" : "object-cover"}`}
         />
       </Link>
       <a
