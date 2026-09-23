@@ -102,7 +102,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `NAS_SHARE_PASSWORD` | Optional share password. Leave empty when the share has none. |
 | `NAS_SHARE_URL` | Optional full share URL. Used to parse `id` and discover the real host if `NAS_SHARE_HOST` is unset. |
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). Floor plans and video are picked up separately (see folder layout). |
-| `NAS_CACHE_DIR` | Local cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel. |
+| `NAS_CACHE_DIR` | Same-isolate scratch cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel (ephemeral). Durable grid previews live in Postgres (`media_thumbs`). |
 | `NAS_SYNC_INTERVAL_MINUTES` | How often a long-running Node process walks the share. Default `10`. `0` disables the timer. Ignored on Vercel. |
 | `NAS_SYNC_ENABLED` | `false` turns off the in-process timer. Manual sync is unchanged. |
 | `CRON_SECRET` | Bearer token for `GET /api/cron/nas-sync`. Required on Vercel. |
@@ -243,7 +243,7 @@ NAS_SYNC_INTERVAL_MINUTES=0
 NAS_SYNC_ENABLED=false
 ```
 
-Optional: warm thumbnail cache after a manual sync (`npm run nas:sync:warm`). Tiles otherwise fetch thumbs on first view.
+`npm run nas:sync:warm` stores a small preview for every photo that does not have one yet. The cron backfill also stores up to 20 missing photo previews per run. Opening a shoot stores the rest as tiles come near the viewport.
 
 On Vercel the in-process timer is off (serverless isolates freeze). Production uses `vercel.json` → `GET /api/cron/nas-sync` every 10 minutes. Admin **Sync from NAS** still works.
 
@@ -257,12 +257,14 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 ### How the proxy works
 
-1. `POST /filemgr/externalVerifySharePassword` — sets `share_cookie_{id}` (password field is sent even when empty).
-2. `POST /filemgr/getShearDirFileList` — walk the tree and list JPGs.
-3. `GET /filemgr/shareThumbnail?type=1&size_type=1` — small tile (~40KB). Failed tiles retry; the proxy does not rotate the share cookie on a single miss.
+1. `POST /filemgr/externalVerifySharePassword` — sets `share_cookie_{id}` (password field is sent even when empty). That cookie is stored in Postgres and reused across serverless isolates. A burst of tile requests does not each mint a new cookie (that used to cancel the other tiles and leave the blue ? icon).
+2. `POST /filemgr/getShearDirFileList` — walk the tree and list files.
+3. `GET /filemgr/shareThumbnail?type=1&size_type=1` — small grid preview (~40KB), not the full JPEG. Bytes are stored in `media_thumbs` and served from `GET /api/media/:id/thumb` with a public cache header. The grid `<img>` uses that URL. Per-tile **Download** and the lightbox still use `GET /api/media/:id` (the original file).
 4. `POST /filemgr/addPathsByShareId` then `GET /filemgr/shareDownloadFile` — full file.
 
-The portal caches thumbs and full files under `NAS_CACHE_DIR` after the first request so repeat views do not re-hit the NAS.
+`NAS_CACHE_DIR` is only a scratch copy on the isolate that fetched the file. On Vercel `/tmp` disappears with the isolate, so repeat views read `media_thumbs`.
+
+**Existing shoots.** No manual migration. A preview is generated the first time that tile is requested. The grid only starts off-screen tiles when they are near the viewport, and only a few of those requests run at once. A failed tile retries, then shows **Preview unavailable / Retry** instead of leaving the browser's broken-image icon up. `GET /api/cron/nas-sync` backfills up to 20 missing photo previews every 10 minutes. `npm run nas:sync:warm` stores every missing photo preview in one pass. Image floor plans use the same preview route; a PDF the NAS cannot thumbnail gets the retry state.
 
 **Download** on a shoot page starts one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The browser saves that attachment directly (Safari/iPhone confirms once) instead of buffering a ~470MB archive in JavaScript. The page polls zip-job progress and shows preparing → downloading (files, bytes, speed, time remaining) → saved or failed. Named `{date} - {address}.zip` (or `{date} - {address} - Photos.zip` when a type is chosen). Per-tile **Download** still saves that one file.
 

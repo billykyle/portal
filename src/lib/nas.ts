@@ -5,6 +5,15 @@ import path from "path";
 import { Readable } from "stream";
 import { isNasAuthError } from "./nas-auth";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
+import {
+  acceptedPreview,
+  lockAndRefreshShareCookie,
+  MAX_PREVIEW_BYTES,
+  PreviewStoreUnavailable,
+  previewImageResponse,
+  readCappedBytes,
+  readFreshShareSession,
+} from "./nas-preview";
 import { isVercelRuntime } from "./runtime";
 
 export { isNasFilePath, nasEnabled } from "./nas-flags";
@@ -29,7 +38,7 @@ export const NAS_DIR = 1;
 
 let cachedCookie: string | null = null;
 let cachedRootPath: string | null = null;
-let cookieInFlight: Promise<string> | null = null;
+let cookieInFlight: Promise<void> | null = null;
 let resolvedHost: string | null = null;
 
 function parseShareIdFromUrl(url: string) {
@@ -201,20 +210,52 @@ async function verifyShare(config: NasConfig) {
   return { config: live, cookie, rootPath: cachedRootPath ?? "" };
 }
 
+function rememberShareSession(session: { cookie: string; host: string; rootPath: string }) {
+  cachedCookie = session.cookie;
+  if (session.rootPath) cachedRootPath = session.rootPath;
+  if (session.host) resolvedHost = session.host;
+}
+
+async function refreshShareSession(base: NasConfig, failedCookie?: string) {
+  try {
+    const session = await lockAndRefreshShareCookie(failedCookie, async () => {
+      const verified = await verifyShare(base);
+      return {
+        cookie: verified.cookie,
+        host: verified.config.host,
+        rootPath: verified.rootPath,
+      };
+    });
+    rememberShareSession(session);
+  } catch (error) {
+    if (!(error instanceof PreviewStoreUnavailable)) throw error;
+    const verified = await verifyShare(base);
+    rememberShareSession({
+      cookie: verified.cookie,
+      host: verified.config.host,
+      rootPath: verified.rootPath,
+    });
+  }
+}
+
 async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<T>): Promise<T> {
   const base = getNasConfig();
   if (!base) throw new Error("NAS share is not configured.");
-  const run = async (force: boolean) => {
+  const run = async (force: boolean, failedCookie?: string) => {
     if (force) {
       cachedCookie = null;
       cachedRootPath = null;
     }
     if (!cachedCookie) {
-      cookieInFlight ??= verifyShare(base)
-        .then((result) => result.cookie)
-        .finally(() => {
-          cookieInFlight = null;
-        });
+      // Cold isolates used to each call verify and replace share_cookie, which
+      // cancelled every other in-flight tile (the blue ? icons).
+      const shared = force ? null : await readFreshShareSession(failedCookie);
+      if (shared) rememberShareSession(shared);
+    }
+    if (!cachedCookie) {
+      cookieInFlight ??= refreshShareSession(base, failedCookie).finally(() => {
+        cookieInFlight = null;
+      });
       await cookieInFlight;
     }
     const live = await ensureHost(base);
@@ -228,9 +269,10 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
     // thumbnail/download used to clear the cookie and mint a new one, which
     // invalidated every other in-flight tile on this isolate (blue ? icons).
     if (!isNasAuthError(error)) throw error;
+    const failed = cachedCookie ?? undefined;
     cachedCookie = null;
     cachedRootPath = null;
-    return run(true);
+    return run(true, failed);
   }
 }
 
@@ -379,7 +421,7 @@ function nodeStreamResponse(filePath: string, contentType: string, filename: str
 
 const queueNasThumbnail = createQueue(3);
 
-async function fetchNasThumbnail(nasPath: string, filename: string) {
+async function fetchNasThumbnailBytes(nasPath: string) {
   return withCookie(async (config, cookie) => {
     const url = new URL(`${apiBase(config)}/filemgr/shareThumbnail`);
     url.searchParams.set("path", nasPath);
@@ -389,31 +431,52 @@ async function fetchNasThumbnail(nasPath: string, filename: string) {
     url.searchParams.set("size_type", "1");
     const res = await fetch(url, { headers: mediaHeaders(config, cookie), cache: "no-store" });
     const type = res.headers.get("content-type") ?? "";
-    if (type.includes("application/json") || !res.ok) {
+    if (type.includes("application/json") || type.includes("text/") || !res.ok) {
       const body = await res.text();
       throw new Error(`NAS thumbnail failed: ${body.slice(0, 180)}`);
     }
-    const bytes = Buffer.from(await res.arrayBuffer());
-    await writeCache("thumbs", `${nasPath}#t1`, "jpg", bytes);
-    return new Response(bytes, {
-      headers: {
-        "Content-Type": type.includes("image/") ? type : "image/jpeg",
-        "Content-Disposition": `inline; filename="${filename}"`,
-        "Cache-Control": "private, max-age=86400",
-      },
-    });
+    const bytes = await readCappedBytes(res, MAX_PREVIEW_BYTES);
+    const contentType = acceptedPreview(type, bytes.length);
+    if (!contentType) {
+      throw new Error(`NAS thumbnail was ${bytes.length} bytes (${type || "unknown type"}) — not a grid preview.`);
+    }
+    try {
+      await writeCache("thumbs", `${nasPath}#t1`, "jpg", bytes);
+    } catch (error) {
+      console.error("Preview disk cache failed:", error);
+    }
+    return { bytes, contentType };
   });
 }
 
-export async function proxyNasThumbnail(nasPath: string, filename: string) {
+/** Small NAS thumbnail bytes. Disk cache is same-isolate scratch; Postgres is durable. */
+export async function loadNasThumbnailBytes(nasPath: string) {
   const hit = await cachedFile("thumbs", `${nasPath}#t1`, "jpg");
-  if (hit) return nodeStreamResponse(hit, "image/jpeg", filename, false);
+  if (hit) {
+    try {
+      const bytes = await readFile(/* turbopackIgnore: true */ hit);
+      const contentType = acceptedPreview("image/jpeg", bytes.length);
+      if (contentType) return { bytes, contentType };
+    } catch {
+      /* Refetch when the scratch file is unreadable or a full-size original. */
+    }
+  }
 
   return queueNasThumbnail(async () => {
+    const again = await cachedFile("thumbs", `${nasPath}#t1`, "jpg");
+    if (again) {
+      try {
+        const bytes = await readFile(/* turbopackIgnore: true */ again);
+        const contentType = acceptedPreview("image/jpeg", bytes.length);
+        if (contentType) return { bytes, contentType };
+      } catch {
+        /* The winner of the queue writes the scratch file; otherwise refetch. */
+      }
+    }
     let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        return await fetchNasThumbnail(nasPath, filename);
+        return await fetchNasThumbnailBytes(nasPath);
       } catch (error) {
         lastError = error;
         await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
@@ -421,6 +484,11 @@ export async function proxyNasThumbnail(nasPath: string, filename: string) {
     }
     throw lastError instanceof Error ? lastError : new Error("NAS thumbnail failed.");
   });
+}
+
+export async function proxyNasThumbnail(nasPath: string, filename: string) {
+  const loaded = await loadNasThumbnailBytes(nasPath);
+  return previewImageResponse(loaded.bytes, loaded.contentType, filename);
 }
 
 let fileProxyChain: Promise<unknown> = Promise.resolve();

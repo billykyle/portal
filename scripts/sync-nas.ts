@@ -1,7 +1,7 @@
 import { sql } from "../src/lib/db";
 import { ensureDb } from "../src/lib/db/ensure";
 import { runLockedNasSync } from "../src/lib/nas-scheduler";
-import { isNasFilePath, proxyNasThumbnail } from "../src/lib/nas";
+import { warmMissingPreviews } from "../src/lib/warm-previews";
 
 async function main() {
   const warm = process.argv.includes("--warm");
@@ -16,21 +16,8 @@ async function main() {
     return;
   }
   if (warm) {
-    const files = await sql`
-      SELECT filename, nas_relative_path
-      FROM media
-      WHERE nas_relative_path LIKE '/%'
-      ORDER BY sort_order
-    `;
-    let warmed = 0;
-    for (const file of files) {
-      const path = String(file.nas_relative_path ?? "");
-      if (!isNasFilePath(path)) continue;
-      await proxyNasThumbnail(path, String(file.filename));
-      warmed += 1;
-      if (warmed % 10 === 0) console.log(`Warmed ${warmed} thumbnails…`);
-    }
-    console.log(`Warmed ${warmed} thumbnails.`);
+    const warmed = await warmMissingPreviews({ limit: 10000, budgetMs: 60 * 60 * 1000 });
+    console.log(`Warmed ${warmed.warmed} previews (${warmed.considered} missing at start).`);
   }
   await sql.end({ timeout: 5 });
 }

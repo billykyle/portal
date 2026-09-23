@@ -1,4 +1,5 @@
 import { count, eq, isNull } from "drizzle-orm";
+import { ensurePreviewSchema } from "../nas-preview";
 import { createPublicToken } from "../public-link";
 import { useInProcessNasScheduler } from "../runtime";
 import { db, sql } from "./index";
@@ -147,6 +148,7 @@ async function createTables() {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS booking_drafts_expires_idx ON booking_drafts (expires_at)`;
+  await ensurePreviewSchema();
 }
 
 export async function ensureDb() {
