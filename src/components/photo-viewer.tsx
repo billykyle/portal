@@ -7,12 +7,14 @@ import {
   clampPhotoIndex,
   indexOfPhoto,
   photoViewerHref,
-  preloadPhotoIndexes,
+  preloadPhotoSrcs,
   resistedDrag,
   shouldRenderPhotoSlide,
   swipeStep,
   viewerCaption,
   viewerCountLabel,
+  viewerOriginalSrc,
+  viewerPlaceholderSrc,
   type ViewerPhoto,
 } from "@/lib/photo-viewer";
 
@@ -96,13 +98,11 @@ export function PhotoViewer({
   }, [basePath, photo]);
 
   useEffect(() => {
-    for (const neighbor of preloadPhotoIndexes(index, total)) {
-      const src = photos[neighbor]?.url;
-      if (!src) continue;
+    for (const src of preloadPhotoSrcs(photos, index)) {
       const image = new Image();
       image.src = src;
     }
-  }, [index, photos, total]);
+  }, [index, photos]);
 
   const snapTo = useCallback(
     (nextIndex: number) => {
@@ -196,7 +196,7 @@ export function PhotoViewer({
           <p className="text-[15px] font-medium leading-tight text-white">{countLabel}</p>
           <p className="mt-0.5 truncate text-xs leading-tight text-[#8e8e93]">{photo.filename}</p>
         </div>
-        <a href={photo.url} download={photo.filename} className="shrink-0 text-sm text-white">
+        <a href={viewerOriginalSrc(photo)} download={photo.filename} className="shrink-0 text-sm text-white">
           Download
         </a>
       </div>
@@ -217,7 +217,7 @@ export function PhotoViewer({
                 style={{ width: width > 0 ? width : "100%" }}
               >
                 {shouldRenderPhotoSlide(slideIndex, index) ? (
-                  <StillImage photo={item} active={slideIndex === index} />
+                  <ViewerStill photo={item} active={slideIndex === index} />
                 ) : null}
               </div>
             ))}
@@ -264,26 +264,30 @@ export function PhotoViewer({
   );
 }
 
-function StillImage({ photo, active }: { photo: ViewerPhoto; active: boolean }) {
-  const thumb = photo.thumbUrl && photo.thumbUrl !== photo.url ? photo.thumbUrl : null;
+export function ViewerStill({ photo, active }: { photo: ViewerPhoto; active: boolean }) {
+  const placeholder = viewerPlaceholderSrc(photo);
+  const original = viewerOriginalSrc(photo);
   return (
     <>
-      {thumb ? (
+      {placeholder ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={thumb}
+          src={placeholder}
           alt=""
+          aria-hidden="true"
           draggable={false}
-          className="absolute inset-0 m-auto max-h-full max-w-full object-contain px-3"
+          className="pointer-events-none absolute inset-0 z-0 m-auto max-h-full max-w-full object-contain px-3"
         />
       ) : null}
+      {/* The preview is absolute, so it paints above an in-flow image.
+          z-10 keeps the original on top once those bytes arrive. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={photo.url}
+        src={original}
         alt={active ? photo.filename : ""}
         draggable={false}
         decoding="async"
-        className="min-h-0 min-w-0 max-h-full max-w-full object-contain"
+        className="relative z-10 min-h-0 min-w-0 max-h-full max-w-full object-contain"
       />
     </>
   );

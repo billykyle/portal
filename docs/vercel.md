@@ -83,7 +83,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `NAS_SYNC_INTERVAL_MINUTES` | `10` | Kept for local `next start`. Ignored for in-process timers on Vercel. |
 | `NAS_SYNC_ENABLED` | `true` | Same. Production sync is the cron route. |
 | `CRON_SECRET` | long random string | Vercel sends `Authorization: Bearer $CRON_SECRET` to `/api/cron/nas-sync`. Required or cron gets 401. |
-| `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` / `shoot.delivered`. |
+| `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` when a NAS shoot first has files. |
 | `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset and booking-confirmation mail. |
 | `EMAIL_FROM` | `Billy Kyle <billy@billyhere.com>` | Used only when Resend is set. Default if unset. |
 | `BOOKING_NOTIFY_EMAIL` | `billy@billyhere.com` | Optional. Separate `New shoot: …` email to Billy. Not CC/BCC. |

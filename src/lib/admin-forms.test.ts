@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -6,6 +7,31 @@ import { AdminUserProfileForm } from "../components/forms/admin-user-profile-for
 import { CancelBookingForm } from "../components/forms/cancel-booking-form";
 import { SyncNasForm } from "../components/forms/sync-nas-form";
 import { ShootList } from "../components/shoot-list";
+
+test("admin UI does not offer mark delivered", () => {
+  const files = [
+    "src/app/shoots/[id]/page.tsx",
+    "src/app/admin/clients/[id]/page.tsx",
+    "src/lib/actions/admin.ts",
+    "src/components/shoot-list.tsx",
+  ];
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /Mark delivered|Marked delivered|markShootDelivered|deliveredAt/);
+  }
+});
+
+test("admin UI does not offer a manual attach-shoot form", () => {
+  const files = ["src/app/admin/clients/[id]/page.tsx", "src/lib/actions/admin.ts"];
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /Attach shoot|attachShoot|AttachShootForm/);
+  }
+  assert.equal(existsSync("src/components/forms/attach-shoot-form.tsx"), false);
+  assert.equal(existsSync("src/app/api/admin/shoots/route.ts"), false);
+  const sync = readFileSync("src/components/forms/sync-nas-form.tsx", "utf8");
+  assert.match(sync, /Sync from NAS/);
+});
 
 test("admin NAS sync form keeps the button and drops the instructional blurb", () => {
   const html = renderToStaticMarkup(createElement(SyncNasForm));

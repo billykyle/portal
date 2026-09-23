@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
+import { ViewerStill } from "./photo-viewer";
 import { ShootDetail, type ShootMedia } from "./shoot-detail";
 
 const media: ShootMedia[] = [
@@ -86,6 +87,101 @@ test("photos past the first rows do not request a preview in the initial HTML", 
   assert.match(photos, new RegExp(`href="/api/media/photo-${PREVIEW_EAGER_COUNT}"`));
   assert.match(photos, /loading="eager"/);
   assert.equal(photos.match(/loading="eager"/g)?.length, PREVIEW_EAGER_COUNT);
+});
+
+test("opening a photo shows the original above the grid thumb", () => {
+  const html = renderToStaticMarkup(
+    createElement(ViewerStill, {
+      active: true,
+      photo: {
+        id: "photo-1",
+        url: "/api/media/photo-1",
+        thumbUrl: "/api/media/photo-1/thumb?v=abc123",
+        filename: "Full-01.jpg",
+      },
+    }),
+  );
+  const images = [...html.matchAll(/<img\b[^>]*>/g)].map((match) => match[0]);
+  const srcOf = (tag: string) => tag.match(/src="([^"]*)"/)?.[1];
+  const original = images.find((tag) => srcOf(tag) === "/api/media/photo-1");
+  const preview = images.find((tag) => srcOf(tag) === "/api/media/photo-1/thumb?v=abc123");
+  assert.ok(original);
+  assert.ok(preview);
+  assert.match(original, /z-10/);
+  assert.match(preview, /z-0/);
+  assert.doesNotMatch(original, /\/thumb/);
+  assert.match(original, /alt="Full-01\.jpg"/);
+
+  const grid = renderShoot();
+  const photos = grid.slice(grid.indexOf('id="photos"'), grid.indexOf('id="floor-plans"'));
+  assert.match(photos, /src="\/thumbs\/front\.jpg"/);
+  assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-1"/);
+  assert.doesNotMatch(photos, /src="\/photos\/front\.jpg"/);
+});
+
+test("a photo with no separate thumb does not stack a preview in the viewer", () => {
+  const html = renderToStaticMarkup(
+    createElement(ViewerStill, {
+      active: true,
+      photo: { id: "photo-1", url: "/photos/front.jpg", filename: "front.jpg" },
+    }),
+  );
+  const images = [...html.matchAll(/<img\b[^>]*>/g)].map((match) => match[0]);
+  assert.equal(images.length, 1);
+  assert.match(images[0], /src="\/photos\/front\.jpg"/);
+  assert.match(images[0], /z-10/);
+});
+
+test("opening a floor plan shows the original file", () => {
+  const plans: ShootMedia[] = [
+    {
+      id: "plan-pdf",
+      url: "/api/media/plan-pdf",
+      thumbUrl: "/api/media/plan-pdf/thumb?v=aaa",
+      filename: "level-1.pdf",
+      type: "floor_plan",
+    },
+    {
+      id: "plan-jpg",
+      url: "/api/media/plan-jpg",
+      thumbUrl: "/api/media/plan-jpg/thumb?v=bbb",
+      filename: "1st_floor.jpg",
+      type: "floor_plan",
+    },
+  ];
+  const pdf = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/s/token",
+      viewId: "plan-pdf",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      dropboxUrl: null,
+      folderName: "2026-09-04-12-wood-view",
+      media: plans,
+    }),
+  );
+  const pdfViewer = pdf.slice(pdf.indexOf("fixed inset-0"));
+  assert.match(pdfViewer, /<iframe[^>]*src="\/api\/media\/plan-pdf"/);
+  assert.doesNotMatch(pdfViewer, /\/thumb/);
+  assert.match(pdfViewer, /href="\/api\/media\/plan-pdf"/);
+
+  const jpg = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      viewId: "plan-jpg",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      dropboxUrl: null,
+      folderName: "2026-09-04-12-wood-view",
+      media: plans,
+    }),
+  );
+  const tiles = jpg.slice(jpg.indexOf('id="floor-plans"'), jpg.indexOf("fixed inset-0"));
+  const viewer = jpg.slice(jpg.indexOf("fixed inset-0"));
+  assert.match(tiles, /src="\/api\/media\/plan-jpg\/thumb\?v=bbb"/);
+  assert.match(viewer, /<img[^>]*src="\/api\/media\/plan-jpg"/);
+  assert.doesNotMatch(viewer, /\/thumb/);
+  assert.match(viewer, /href="\/api\/media\/plan-jpg"/);
 });
 
 test("floor plan tiles stay square", () => {

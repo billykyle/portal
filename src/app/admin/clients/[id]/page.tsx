@@ -2,7 +2,6 @@ import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
-import { AttachShootForm } from "@/components/forms/attach-shoot-form";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
@@ -25,8 +24,6 @@ export default async function AdminClientPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     error?: string;
-    attached?: string;
-    delivered?: string;
     saved?: string;
     userRemoved?: string;
     bookingCancelled?: string;
@@ -36,7 +33,7 @@ export default async function AdminClientPage({
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached, delivered, saved, userRemoved, bookingCancelled } = await searchParams;
+  const { error, saved, userRemoved, bookingCancelled } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -82,10 +79,6 @@ export default async function AdminClientPage({
         {userRemoved ? (
           <p className="mt-3 text-sm text-white">Removed {userRemoved}. The invite is unchanged.</p>
         ) : null}
-        {delivered ? (
-          <p className="mt-3 text-sm text-white">Marked delivered. No email was sent — Pepper can hook this later.</p>
-        ) : null}
-        {attached ? <p className="mt-3 text-sm text-white">Shoot attached from NAS.</p> : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
       <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
@@ -134,10 +127,6 @@ export default async function AdminClientPage({
                 ))}
               </ul>
             )}
-          </section>
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Attach shoot</h2>
-            <AttachShootForm clientId={client.id} />
           </section>
         </div>
         <div className="min-w-0">

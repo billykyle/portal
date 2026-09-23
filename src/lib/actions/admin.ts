@@ -6,13 +6,9 @@ import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, media, shoots, users } from "@/lib/db/schema";
+import { clients, users } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
-import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
 import { runLockedNasSync } from "@/lib/nas-scheduler";
-import { nasEnabled } from "@/lib/nas-flags";
-import { buildDeliveryPayload, notifyDeliveryWebhook } from "@/lib/delivery";
-import { createPublicToken } from "@/lib/public-link";
 import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
 import { parseAccountProfile, parseLoginEmail } from "@/lib/signup-fields";
 
@@ -59,59 +55,6 @@ export async function mintClient(formData: FormData) {
   redirect(adminClientsUrl({ minted: client.inviteCode }));
 }
 
-export async function attachShoot(formData: FormData) {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  await ensureDb();
-  const clientId = String(formData.get("clientId") ?? "");
-  const shotDate = String(formData.get("shotDate") ?? "").trim();
-  const address = String(formData.get("address") ?? "").trim();
-  const clientPath = `/admin/clients/${clientId}`;
-  if (!clientId) {
-    redirect("/admin/clients?error=Client%20is%20required.");
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(shotDate)) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Date must be YYYY-MM-DD.")}`);
-  }
-  if (!address) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Address is required.")}`);
-  }
-
-  const nasRelativePath = String(formData.get("nasRelativePath") ?? "").trim();
-  if (!nasRelativePath) {
-    redirect(`${clientPath}?error=${encodeURIComponent("NAS folder is required. Files come from the share only.")}`);
-  }
-  if (!nasEnabled()) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Turn on NAS_ENABLED to attach a shoot.")}`);
-  }
-
-  const [shoot] = await db
-    .insert(shoots)
-    .values({
-      clientId,
-      publicToken: createPublicToken(),
-      shotDate,
-      address,
-      nasRelativePath,
-      dropboxUrl: String(formData.get("dropboxUrl") ?? "").trim() || null,
-    })
-    .returning();
-
-  try {
-    const folder = await resolveShootFolder(nasRelativePath);
-    await importNasStills(shoot.id, folder, { required: true });
-  } catch (error) {
-    // The row never imported. This is not a way to delete a NAS-mirrored shoot.
-    await db.delete(shoots).where(eq(shoots.id, shoot.id));
-    const message = error instanceof Error ? error.message : "NAS import failed.";
-    redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
-  }
-
-  revalidatePath(clientPath);
-  redirect(`${clientPath}?attached=1`);
-}
-
 export async function syncNasFromAdmin() {
   if (!(await getAdminSession())) {
     redirect("/admin");
@@ -143,41 +86,6 @@ export async function syncNasFromAdmin() {
         ready: String(result.ready),
       }),
   );
-}
-
-export async function markShootDelivered(formData: FormData) {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  await ensureDb();
-  const shootId = String(formData.get("shootId") ?? "");
-  const clientId = String(formData.get("clientId") ?? "");
-  const clientPath = `/admin/clients/${clientId}`;
-  if (!shootId || !clientId) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Shoot is required.")}`);
-  }
-  const [shoot] = await db.select().from(shoots).where(eq(shoots.id, shootId)).limit(1);
-  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
-  if (!shoot || !client || shoot.clientId !== client.id) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Shoot was not found.")}`);
-  }
-  await db.update(shoots).set({ deliveredAt: new Date() }).where(eq(shoots.id, shoot.id));
-  const fileCount = (await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))).length;
-  try {
-    await notifyDeliveryWebhook(
-      buildDeliveryPayload({
-        event: "shoot.delivered",
-        client,
-        shoot,
-        fileCount,
-      }),
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Delivery webhook failed.";
-    redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(clientPath);
-  redirect(`${clientPath}?delivered=1`);
 }
 
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {
