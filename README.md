@@ -143,7 +143,7 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 1. Open `https://admin.billy-kyle.com` (or local `/admin`) and enter `ADMIN_PASSWORD`.
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
-4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Photos import from Final or Photos; floor plans and video come along from the same shoot folder. There is no placeholder-media option.
+4. Shoots come from **Sync from NAS** on the clients list. There is no manual attach form.
 5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). Shoots mirror the NAS — there is no manual delete. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
