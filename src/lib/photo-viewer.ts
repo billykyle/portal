@@ -33,6 +33,26 @@ export function preloadPhotoIndexes(index: number, total: number) {
   return [...found].sort((a, b) => a - b);
 }
 
+/** Lightbox and Download share this file. Grid tiles use the thumb instead. */
+export function viewerOriginalSrc(photo: Pick<ViewerPhoto, "url">) {
+  return photo.url;
+}
+
+/** Low-res stand-in while the original loads. Omitted when it is the same file. */
+export function viewerPlaceholderSrc(photo: Pick<ViewerPhoto, "url" | "thumbUrl">) {
+  const thumb = photo.thumbUrl;
+  if (!thumb || thumb === photo.url) return null;
+  return thumb;
+}
+
+/** Neighbor slides preload the original, the same URL Download uses. */
+export function preloadPhotoSrcs(photos: Array<Pick<ViewerPhoto, "url">>, index: number) {
+  return preloadPhotoIndexes(index, photos.length).flatMap((next) => {
+    const src = photos[next]?.url;
+    return src ? [src] : [];
+  });
+}
+
 export function shouldRenderPhotoSlide(slideIndex: number, activeIndex: number) {
   return Math.abs(slideIndex - activeIndex) <= 1;
 }

@@ -5,12 +5,15 @@ import {
   indexOfPhoto,
   photoViewerHref,
   preloadPhotoIndexes,
+  preloadPhotoSrcs,
   resistedDrag,
   shouldRenderPhotoSlide,
   stepPhotoIndex,
   swipeStep,
   viewerCaption,
   viewerCountLabel,
+  viewerOriginalSrc,
+  viewerPlaceholderSrc,
 } from "./photo-viewer";
 
 const photos = [{ id: "a" }, { id: "b" }, { id: "c" }];
@@ -38,6 +41,21 @@ test("preloads neighbors and one extra ahead", () => {
   assert.deepEqual(preloadPhotoIndexes(0, 38), [1, 2]);
   assert.deepEqual(preloadPhotoIndexes(5, 38), [4, 6, 7]);
   assert.deepEqual(preloadPhotoIndexes(37, 38), [36]);
+});
+
+test("lightbox and neighbor preload use the original, not the grid thumb", () => {
+  const stills = [
+    { id: "a", url: "/api/media/a", thumbUrl: "/api/media/a/thumb?v=111", filename: "a.jpg" },
+    { id: "b", url: "/api/media/b", thumbUrl: "/api/media/b/thumb?v=222", filename: "b.jpg" },
+    { id: "c", url: "/api/media/c", thumbUrl: "/api/media/c/thumb?v=333", filename: "c.jpg" },
+    { id: "d", url: "/api/media/d", filename: "d.jpg" },
+  ];
+  assert.equal(viewerOriginalSrc(stills[0]), "/api/media/a");
+  assert.equal(viewerPlaceholderSrc(stills[0]), "/api/media/a/thumb?v=111");
+  assert.equal(viewerPlaceholderSrc({ url: "/api/media/a", thumbUrl: "/api/media/a" }), null);
+  assert.equal(viewerPlaceholderSrc(stills[3]), null);
+  assert.deepEqual(preloadPhotoSrcs(stills, 0), ["/api/media/b", "/api/media/c"]);
+  assert.deepEqual(preloadPhotoSrcs(stills, 1), ["/api/media/a", "/api/media/c", "/api/media/d"]);
 });
 
 test("only mounts the active slide and its immediate neighbors", () => {
