@@ -15,7 +15,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 7. Scheduling — two steps. **Step 1** (`/scheduling`): expand Real Estate, Construction, or Podcast. Real Estate and Construction stay multi-select; Podcast is one of **1 episode** or **2 episodes**. Type a single shoot address (Places Autocomplete fills the same field — not split street/city/state/ZIP). Availability prefetch starts once the address and at least one service are valid. **Step 2** (`/scheduling/times`): available times only after that address is set; last good slots stay on screen while times refresh. Slot length is the **sum** of selected service minutes, never longest-only. Upcoming bookings show every selected option as `Industry · Option` (for example `Real Estate · Photography` or `Podcast · 1 episode`). Travel hard-block is live drive time only (Google Maps when `GOOGLE_MAPS_API_KEY` is set); there is no extra pad. Google Calendar is source of truth when wired: work `billy@atmosimagery.com` **and** personal `bkyle015@gmail.com` — a time is busy if either calendar is busy. US Holidays is not used. Geography is never guessed. No prices in this flow. After **Book shoot**, if `RESEND_API_KEY` is set, the portal sends **two** Resend emails (no CC/BCC): a client confirmation to the session email, and a `New shoot: …` alert to `billy@billyhere.com` (or `BOOKING_NOTIFY_EMAIL`). A Calendar or email failure does not undo the saved shoot, but the confirmation page says so instead of looking fully successful. Billy also gets `Portal booking sync issue` (or a `PORTAL_BOOKING_SYNC_ALERT` log plus an admin `sync_issue` flag if that alert cannot send). Calendar writes use a deterministic event id so retries do not double-create. A Workspace Admin must allow external calendar edit sharing (or domain-wide delegation) for live Calendar create. Pepper is not required.
 8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 9. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-10. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, marks a shoot delivered (stub for Pepper), or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot.
+10. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -29,8 +29,7 @@ Billy’s end-to-end path (this is the product, not a future maybe):
 
 This pass implements steps 1–2. Step 3 is a **hook**, not Gmail:
 
-- After sync, each newly ready shoot (new folder, or first stills on an empty shoot) POSTs `shoot.ready` to `DELIVERY_WEBHOOK_URL` when that env var is set.
-- Admin **Mark delivered** records `delivered_at` and POSTs `shoot.delivered` to the same URL. It does **not** send mail.
+- After sync, each newly ready shoot (new folder, or first stills on an empty shoot) POSTs `shoot.ready` to `DELIVERY_WEBHOOK_URL` when that env var is set. That hook is independent of any admin delivery flag.
 - Pepper (or any automation) should send the email later: “Your photos are ready” + `shoot.publicUrl` (and invite code if they do not have a login yet).
 
 Webhook body:
@@ -54,7 +53,7 @@ Webhook body:
 }
 ```
 
-`event` is `shoot.ready` or `shoot.delivered`. Set `PORTAL_PUBLIC_URL` so `publicUrl` is an absolute link. Leave `DELIVERY_WEBHOOK_URL` empty to skip the POST. Resend (`RESEND_API_KEY`) sends password-reset and booking-confirmation mail. It is optional and unrelated to delivery / Pepper.
+`event` is `shoot.ready`. Set `PORTAL_PUBLIC_URL` so `publicUrl` is an absolute link. Leave `DELIVERY_WEBHOOK_URL` empty to skip the POST. Resend (`RESEND_API_KEY`) sends password-reset and booking-confirmation mail. It is optional and unrelated to delivery / Pepper.
 
 ## Run locally
 
@@ -108,7 +107,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `CRON_SECRET` | Bearer token for `GET /api/cron/nas-sync`. Required on Vercel. |
 | `PORTAL_PUBLIC_URL` | Absolute origin for public shoot `/s/…` links in webhooks and admin copy links. Production: `https://portal.billy-kyle.com`. Not the admin entry. |
 | `ADMIN_PUBLIC_URL` | Absolute origin for the Billy-only admin app. Production: `https://admin.billy-kyle.com`. Unset locally so `/admin` stays on `next dev`. |
-| `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` / `shoot.delivered` JSON for Pepper. Empty = no POST. |
+| `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` JSON for Pepper when a NAS shoot first has files. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset and booking-confirmation email. Not delivery mail. |
 | `EMAIL_FROM` | From address when Resend is set. Default: `Billy Kyle <billy@billyhere.com>`. |
 | `BOOKING_NOTIFY_EMAIL` | Optional. Second booking email (Billy's alert). Default: `billy@billyhere.com`. Not CC/BCC. Other addresses in the booking Notes get their own copy of the client email, not this alert. |
@@ -145,7 +144,7 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 2. Fill display name, primary contact email, optional company and notes.
 3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
 4. Open the client and **Attach shoot from NAS**: date, address, optional Dropbox URL, and the NAS folder path. Photos import from Final or Photos; floor plans and video come along from the same shoot folder. There is no placeholder-media option.
-5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). **Mark delivered** stays on that preview. Shoots mirror the NAS — there is no manual delete. The BK invite stays.
+5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). Shoots mirror the NAS — there is no manual delete. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
 

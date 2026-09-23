@@ -1,6 +1,6 @@
 import { publicShootUrl } from "./public-link";
 
-export type DeliveryEvent = "shoot.ready" | "shoot.delivered";
+export type DeliveryEvent = "shoot.ready";
 
 export type DeliveryPayload = {
   event: DeliveryEvent;

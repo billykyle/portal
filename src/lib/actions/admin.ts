@@ -6,12 +6,11 @@ import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, media, shoots, users } from "@/lib/db/schema";
+import { clients, shoots, users } from "@/lib/db/schema";
 import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
 import { importNasStills, resolveShootFolder } from "@/lib/nas-import";
 import { runLockedNasSync } from "@/lib/nas-scheduler";
 import { nasEnabled } from "@/lib/nas-flags";
-import { buildDeliveryPayload, notifyDeliveryWebhook } from "@/lib/delivery";
 import { createPublicToken } from "@/lib/public-link";
 import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
 import { parseAccountProfile, parseLoginEmail } from "@/lib/signup-fields";
@@ -143,41 +142,6 @@ export async function syncNasFromAdmin() {
         ready: String(result.ready),
       }),
   );
-}
-
-export async function markShootDelivered(formData: FormData) {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  await ensureDb();
-  const shootId = String(formData.get("shootId") ?? "");
-  const clientId = String(formData.get("clientId") ?? "");
-  const clientPath = `/admin/clients/${clientId}`;
-  if (!shootId || !clientId) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Shoot is required.")}`);
-  }
-  const [shoot] = await db.select().from(shoots).where(eq(shoots.id, shootId)).limit(1);
-  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
-  if (!shoot || !client || shoot.clientId !== client.id) {
-    redirect(`${clientPath}?error=${encodeURIComponent("Shoot was not found.")}`);
-  }
-  await db.update(shoots).set({ deliveredAt: new Date() }).where(eq(shoots.id, shoot.id));
-  const fileCount = (await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))).length;
-  try {
-    await notifyDeliveryWebhook(
-      buildDeliveryPayload({
-        event: "shoot.delivered",
-        client,
-        shoot,
-        fileCount,
-      }),
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Delivery webhook failed.";
-    redirect(`${clientPath}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(clientPath);
-  redirect(`${clientPath}?delivered=1`);
 }
 
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {

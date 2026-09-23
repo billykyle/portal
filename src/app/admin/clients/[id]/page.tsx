@@ -26,7 +26,6 @@ export default async function AdminClientPage({
   searchParams: Promise<{
     error?: string;
     attached?: string;
-    delivered?: string;
     saved?: string;
     userRemoved?: string;
     bookingCancelled?: string;
@@ -36,7 +35,7 @@ export default async function AdminClientPage({
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, attached, delivered, saved, userRemoved, bookingCancelled } = await searchParams;
+  const { error, attached, saved, userRemoved, bookingCancelled } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -81,9 +80,6 @@ export default async function AdminClientPage({
         {saved ? <p className="mt-3 text-sm text-white">Client saved.</p> : null}
         {userRemoved ? (
           <p className="mt-3 text-sm text-white">Removed {userRemoved}. The invite is unchanged.</p>
-        ) : null}
-        {delivered ? (
-          <p className="mt-3 text-sm text-white">Marked delivered. No email was sent — Pepper can hook this later.</p>
         ) : null}
         {attached ? <p className="mt-3 text-sm text-white">Shoot attached from NAS.</p> : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}

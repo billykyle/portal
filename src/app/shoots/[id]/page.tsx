@@ -4,7 +4,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AccountControl } from "@/components/account-control";
 import { AppHeader } from "@/components/app-header";
-import { MarkDeliveredForm } from "@/components/forms/mark-delivered-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -79,15 +78,6 @@ export default async function ShootPage({
         }
         right={!admin && session ? <AccountControl /> : undefined}
       />
-      {admin ? (
-        <div className="mb-4 flex flex-wrap items-center gap-3 lg:mb-6">
-          {!shoot.deliveredAt ? (
-            <MarkDeliveredForm clientId={shoot.clientId} shootId={shoot.id} />
-          ) : (
-            <p className="text-sm text-[#8e8e93]">Marked delivered</p>
-          )}
-        </div>
-      ) : null}
       <ShootDetail
         basePath={`/shoots/${shoot.id}`}
         viewId={view}
