@@ -1,5 +1,6 @@
 import type { Media } from "./db/schema";
 import { isNasFilePath, nasEnabled } from "./nas-flags";
+import { thumbCacheKey } from "./nas-preview";
 
 export { guessMediaType } from "./nas-media";
 
@@ -23,7 +24,12 @@ export function resolveMediaUrl(item: Pick<Media, "id" | "url" | "nasRelativePat
 }
 
 export function resolveMediaThumbUrl(item: Pick<Media, "id" | "url" | "nasRelativePath">) {
-  if (isNasBacked(item)) return `/api/media/${item.id}/thumb`;
+  const nasPath = item.nasRelativePath;
+  if (isNasBacked(item) && nasPath) {
+    // `v` changes when the NAS path changes so a cached preview is not reused for a replaced file.
+    const version = thumbCacheKey(nasPath).slice(0, 12);
+    return `/api/media/${item.id}/thumb?v=${version}`;
+  }
   return item.url;
 }
 

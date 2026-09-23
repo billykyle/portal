@@ -4,6 +4,7 @@ import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
 import { photoViewerHref } from "@/lib/photo-viewer";
+import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
 export type ShootMedia = {
   id: string;
@@ -91,7 +92,7 @@ export function ShootDetail({
         <section id={mediaSectionId("photo")} className="flex flex-col gap-2">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("photo")}</h2>
           <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6">
-            {photos.map((item) => (
+            {photos.map((item, index) => (
               <MediaTile
                 key={item.id}
                 href={hrefFor(item.id)}
@@ -100,6 +101,7 @@ export function ShootDetail({
                 downloadUrl={item.url}
                 contain={false}
                 ratio="3/2"
+                eager={index < PREVIEW_EAGER_COUNT}
               />
             ))}
           </div>
@@ -110,7 +112,7 @@ export function ShootDetail({
         <section id={mediaSectionId("floor_plan")} className="flex flex-col gap-2">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("floor_plan")}</h2>
           <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5">
-            {plans.map((item) => (
+            {plans.map((item, index) => (
               <MediaTile
                 key={item.id}
                 href={hrefFor(item.id)}
@@ -118,6 +120,7 @@ export function ShootDetail({
                 filename={item.filename}
                 downloadUrl={item.url}
                 contain
+                eager={index < PREVIEW_EAGER_COUNT}
               />
             ))}
           </div>
