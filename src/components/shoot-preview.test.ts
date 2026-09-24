@@ -210,7 +210,7 @@ test("shoot video uses an in-page player with a browser-playable type", () => {
   assert.match(video, /type="video\/mp4"/);
   assert.doesNotMatch(video, /video\/quicktime/);
   assert.doesNotMatch(video, /aspect-video/);
-  assert.match(video, /aria-label="Playback quality"/);
+  assert.doesNotMatch(video, /Playback quality|1080p|720p|>Original</);
   assert.match(video, /href="\/api\/media\/vid-1"/);
   assert.doesNotMatch(video, /href="[^"]*rendition=/);
 });
@@ -257,9 +257,7 @@ test("videos play at their own ratio and default to a lighter rendition", () => 
   assert.match(video, /href="\/api\/media\/tall"/);
   assert.match(video, /href="\/api\/media\/wide"/);
   assert.doesNotMatch(video, /href="[^"]*rendition=/);
-  assert.match(video, />Auto · 720p</);
-  assert.match(video, />1080p</);
-  assert.match(video, />Original</);
+  assert.doesNotMatch(video, /<select|Playback quality|1080p|>Original</);
   const photos = html.indexOf('id="photos"');
   assert.equal(photos, -1);
 });

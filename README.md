@@ -276,7 +276,7 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 The player sizes each video to its real frame (9:16 stays tall, 16:9 stays wide, other ratios stay themselves) and fits that frame to the viewport. Width and height are read from the file header — a short byte range, not the whole movie — and saved on the media row. The 10-minute sync probes a few videos that are missing a size, and the first open probes that one file if the size is still unknown. The browser's own metadata corrects the frame if the header and the picture disagree (a sideways phone video). Photo tiles stay 3:2, three across on a phone.
 
-Playback does not have to pull the original. Auto uses a 720p file when one is on the share, otherwise 1080p, otherwise the original. The Quality menu is Auto / 1080p / 720p / Original. **Download** and the shoot zip always send the original.
+Playback does not have to pull the original. The player uses a 720p file when one is on the share, otherwise 1080p, otherwise the original. There is no quality menu. **Download** and the shoot zip always send the original.
 
 Those lighter files are H.264 MP4s with the index at the front, so the scrubber knows the duration without downloading the whole movie. They are written next to the original, in a hidden `.portal-renditions` folder the sync walk ignores. Vercel functions are a poor place to transcode a full-length video, and the share API the portal uses cannot upload. Build them on a computer that has **ffmpeg** and the share mounted as a folder:
 

@@ -33,8 +33,8 @@ Lighter video files are built on a computer that can see the NAS share, not on V
 4. From this repo run: npm run nas:renditions
    It writes .portal-renditions/<id>-720.mp4 and -1080.mp4 beside each video and records them in Postgres.
    Sync skips that hidden folder, so the files are not new shoots or extra videos.
-5. Reload the shoot. Auto plays 720p when it exists (1080p if that is the only lighter file).
-   Download still saves the original. 1080p and Original are in the Quality menu.
+5. Reload the shoot. Playback uses 720p when it exists (1080p if that is the only lighter file).
+   Download still saves the original. There is no quality menu in the player.
 
 The player already letterboxes nothing: it uses the real frame shape as soon as width and height
 are known. Those come from the file header (the 10-minute sync, and the first time a video opens)
