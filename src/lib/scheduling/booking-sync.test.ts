@@ -155,6 +155,20 @@ test("calendar failure keeps the booking, skips Pepper New shoot, and alerts Bil
   assert.equal(calls.saved.at(-1), "calendar");
 });
 
+test("skipOwnerNotify skips New shoot without an owner-email failure", async () => {
+  const calls = { write: 0, notify: 0, alert: 0, saved: [] as Array<string | null> };
+  const deps = mockDeps(calls, {
+    write: { status: "written", eventId: "evt_1" },
+    emails: { sent: true, client: { sent: true }, notify: { sent: false, reason: "skipped" } },
+  });
+  const result = await settleBookingIntegrations({ ...sampleSettleInput(), skipOwnerNotify: true }, deps);
+  assert.equal(deps.lastSkip, true);
+  assert.equal(calls.alert, 0);
+  assert.equal(result.issues.email, false);
+  assert.equal(result.issues.calendar, false);
+  assert.equal(calls.saved.at(-1), null);
+});
+
 test("email failure after a good calendar write still alerts Billy", async () => {
   const calls = { write: 0, notify: 0, alert: 0, saved: [] as Array<string | null> };
   const deps = mockDeps(calls, {

@@ -48,7 +48,7 @@ export function AdminSection({
   }
 
   return (
-    <section className="border-b border-white/10">
+    <section className={cn("border-b border-white/10", open && "relative z-10")}>
       <h2 id={headingId} className="font-normal">
         <button
           type="button"
@@ -77,7 +77,7 @@ export function AdminSection({
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}
       >
-        <div className="overflow-hidden" inert={open ? undefined : true}>
+        <div className={open ? "overflow-visible" : "overflow-hidden"} inert={open ? undefined : true}>
           <div className="pt-1 pb-8">{children}</div>
         </div>
       </div>

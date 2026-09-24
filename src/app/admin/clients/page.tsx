@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
 import { ClientSortSelect } from "@/components/client-sort-select";
+import { AdminBookShootForm } from "@/components/forms/admin-book-shoot-form";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { PhoneShell } from "@/components/phone-shell";
@@ -21,7 +22,8 @@ import {
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, users } from "@/lib/db/schema";
+import { bookings, clients, users } from "@/lib/db/schema";
+import { placesConfigured } from "@/lib/scheduling/config";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -73,7 +75,7 @@ export default async function AdminClientsPage({
   } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const [rows, logins, counts, cookieStore] = await Promise.all([
+  const [rows, logins, counts, cookieStore, confirmedJobs] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
     db
       .select({
@@ -86,6 +88,10 @@ export default async function AdminClientsPage({
       .from(users),
     clientCounts(),
     cookies(),
+    db
+      .select({ startsAt: bookings.startsAt, endsAt: bookings.endsAt })
+      .from(bookings)
+      .where(eq(bookings.status, "confirmed")),
   ]);
   const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
   const openSections = parseOpenSections(cookieStore.get(ADMIN_SECTIONS_COOKIE)?.value);
@@ -141,6 +147,25 @@ export default async function AdminClientsPage({
         </p>
       ) : null}
       <div className="pb-8">
+        <AdminSection
+          id="clients:book-shoot"
+          label="Book a shoot"
+          defaultOpen={sectionStartsOpen(openSections, "clients:book-shoot", false)}
+        >
+          <AdminBookShootForm
+            placesConfigured={placesConfigured()}
+            clients={rows.map((client) => ({
+              id: client.id,
+              displayName: client.displayName,
+              company: client.company,
+              inviteCode: client.inviteCode,
+            }))}
+            jobs={confirmedJobs.map((job) => ({
+              start: job.startsAt.toISOString(),
+              end: job.endsAt.toISOString(),
+            }))}
+          />
+        </AdminSection>
         <AdminSection
           id="clients:nas-sync"
           label="NAS sync"

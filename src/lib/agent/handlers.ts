@@ -172,6 +172,25 @@ export async function runAgentTool(
         ],
       };
     }
+    case "create_booking": {
+      const services = Array.isArray(args.services)
+        ? args.services.filter((item): item is string => typeof item === "string")
+        : [];
+      const result = await ops.createBooking({
+        client: text(args.client).trim(),
+        address: text(args.address),
+        services,
+        date: text(args.date).trim(),
+        time: text(args.time).trim(),
+        notes: optionalNullableText(args.notes) ?? null,
+      });
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { booking: result.booking },
+        revalidate: [CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES, "/admin/bookings", "/admin/clients"],
+      };
+    }
     case "cancel_booking": {
       const bookingId = text(args.bookingId).trim();
       if (!bookingId) return { ok: false, error: "Booking id is required." };

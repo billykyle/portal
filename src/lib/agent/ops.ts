@@ -31,6 +31,7 @@ import {
   prepareBookingModification,
 } from "@/lib/scheduling/booking-commit";
 import { canAdminModifyBooking, getBookingById } from "@/lib/scheduling/bookings";
+import { createOverrideBooking, type OverrideBookingSuccess } from "@/lib/scheduling/admin-book";
 import { bookingServiceList } from "@/lib/scheduling/services";
 
 export type ClientSummary = {
@@ -140,6 +141,14 @@ export type AgentOps = {
       }
     | { ok: false; error: string }
   >;
+  createBooking(input: {
+    client: string;
+    address: string;
+    services: string[];
+    date: string;
+    time: string;
+    notes?: string | null;
+  }): Promise<{ ok: true; booking: OverrideBookingSuccess } | { ok: false; error: string }>;
   listShoots(input: { clientId?: string; inviteCode?: string }): Promise<
     { ok: true; shoots: ShootSummary[] } | { ok: false; error: string }
   >;
@@ -453,6 +462,21 @@ export const portalAgentOps: AgentOps = {
       },
       booking: bookingDto(row.booking, row.clientName, row.inviteCode),
     };
+  },
+
+  async createBooking(input) {
+    await ensureDb();
+    const result = await createOverrideBooking({
+      source: "agent",
+      client: input.client,
+      address: input.address,
+      services: input.services,
+      date: input.date,
+      time: input.time,
+      notes: input.notes,
+    });
+    if (!result.ok) return result;
+    return { ok: true, booking: result };
   },
 
   async listShoots(input) {

@@ -10,8 +10,12 @@ const destroy = { readOnlyHint: false, destructiveHint: true, idempotentHint: tr
 
 async function revalidatePaths(paths: string[]) {
   if (paths.length === 0) return;
-  const { revalidatePath } = await import("next/cache");
-  for (const path of paths) revalidatePath(path);
+  try {
+    const { revalidatePath } = await import("next/cache");
+    for (const path of paths) revalidatePath(path);
+  } catch (error) {
+    console.error("agent revalidate failed", error);
+  }
 }
 
 function toolResult(text: string, isError = false) {
@@ -166,6 +170,23 @@ export function createPortalMcpServer(ops: AgentOps) {
       startsAt: z.string().optional().describe("ISO start time."),
       endsAt: z.string().nullable().optional().describe("ISO end time. Must match the offered slot when set."),
       notes: z.string().nullable().optional(),
+    },
+    write,
+  );
+  register(
+    "create_booking",
+    "Book a shoot for an existing client at an exact America/New_York date and time. Ignores availability, the 15-minute grid, business hours, same-day limits, blocked weekdays, and drive time. An overlap is returned as a warning and the booking is still created. Does not send Billy's New shoot email. Still creates the Google Calendar event, sends the client confirmation (with Add to calendar), and copies addresses found in notes. client is a client id, an exact display name, or a BK code such as BK00004. Unknown or ambiguous names are rejected and close matches are listed. date is YYYY-MM-DD. time accepts 10, 10:30, 10:30am, 2pm, 2:15 PM, or 14:15. services are one or more of: Real Estate · Photography, Real Estate · Video, Real Estate · Aerial Photos, Real Estate · Zillow 360, Construction · Photography, Construction · Video, Podcast · 1 episode, Podcast · 2 episodes.",
+    {
+      client: z.string().describe("Client id, exact display name, or BK code."),
+      address: z.string().describe("Full street address."),
+      services: z
+        .array(z.string())
+        .describe(
+          "Service ids such as \"Real Estate · Photography\". Podcast episode counts are exclusive.",
+        ),
+      date: z.string().describe("Shoot date as YYYY-MM-DD."),
+      time: z.string().describe("Shoot time in America/New_York, for example 10:30am or 14:15."),
+      notes: z.string().optional().describe("Access info, lockbox, or other information. Optional."),
     },
     write,
   );

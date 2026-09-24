@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import { createOverrideBooking, type OverrideBookingDeps } from "@/lib/scheduling/admin-book";
 import { AGENT_API_KEY_ENV } from "./auth";
 import { handleAgentMcp } from "./http";
 import type { AgentOps } from "./ops";
@@ -38,6 +39,7 @@ function stubOps(): AgentOps {
     getBooking: fail,
     modifyBooking: fail,
     cancelBooking: fail,
+    createBooking: fail,
     listShoots: fail,
     getShoot: fail,
     getShootShareLink: fail,
@@ -123,6 +125,7 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
     "list_bookings",
     "get_booking",
     "modify_booking",
+    "create_booking",
     "cancel_booking",
     "list_client_shoots",
     "get_shoot",
@@ -162,6 +165,122 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
   const text = calledBody.result.content[0].text as string;
   assert.match(text, /BK00004/);
   assert.equal(text.includes("passwordHash"), false);
+});
+
+test("tools/list includes create_booking and a token call creates the booking", async () => {
+  process.env[AGENT_API_KEY_ENV] = KEY;
+  const created: string[] = [];
+  const ops = stubOps();
+  ops.createBooking = async (input) => {
+    const deps: OverrideBookingDeps = {
+      async listClients() {
+        return [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            inviteCode: "BK00004",
+            displayName: "Sam Lepore",
+            company: "Lepore Realty",
+            primaryEmail: "sam@example.com",
+            logins: [
+              {
+                email: "sam.login@example.com",
+                firstName: "Sam",
+                lastName: "Lepore",
+                phone: null,
+                createdAt: new Date("2026-01-01T00:00:00.000Z"),
+              },
+            ],
+          },
+        ];
+      },
+      async listConfirmedIntervals() {
+        return [];
+      },
+      async insertBooking(row) {
+        created.push(row.clientId);
+        assert.equal(row.driveSecondsFromPrior, null);
+        assert.equal(row.address, "12 Wood View Drive, Princeton NJ");
+        return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+      },
+      calendarOn: () => true,
+      async settle(settled) {
+        assert.equal(settled.skipOwnerNotify, true);
+        assert.ok(settled.calendarWrite);
+        assert.equal(settled.email.notes, "Lockbox 4");
+        return {
+          issues: { calendar: false, email: false, alertFailed: false },
+          calendarEventId: "evt_mcp",
+          billyNotified: false,
+          alertSent: false,
+        };
+      },
+    };
+    const result = await createOverrideBooking(
+      {
+        source: "agent",
+        client: input.client,
+        address: input.address,
+        services: input.services,
+        date: input.date,
+        time: input.time,
+        notes: input.notes,
+      },
+      deps,
+    );
+    if (!result.ok) return result;
+    return { ok: true, booking: result };
+  };
+
+  const listed = await handleAgentMcp(
+    mcpRequest("tools/list", { jsonrpc: "2.0", id: 2, method: "tools/list" }),
+    ops,
+  );
+  assert.equal(listed.status, 200);
+  const listedBody = await listed.json();
+  const tools = listedBody.result.tools as {
+    name: string;
+    description?: string;
+    inputSchema?: { properties?: Record<string, unknown>; required?: string[] };
+  }[];
+  const tool = tools.find((item) => item.name === "create_booking");
+  assert.ok(tool);
+  assert.match(tool.description ?? "", /America\/New_York/);
+  assert.match(tool.description ?? "", /Real Estate · Photography/);
+  assert.match(tool.description ?? "", /New shoot/);
+  for (const field of ["client", "address", "services", "date", "time", "notes"]) {
+    assert.ok(tool.inputSchema?.properties?.[field], field);
+  }
+  for (const field of ["client", "address", "services", "date", "time"]) {
+    assert.ok(tool.inputSchema?.required?.includes(field), field);
+  }
+
+  const called = await handleAgentMcp(
+    mcpRequest("tools/call", {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "create_booking",
+        arguments: {
+          client: "BK00004",
+          address: "12 Wood View Drive, Princeton NJ",
+          services: ["Real Estate · Photography"],
+          date: "2026-09-22",
+          time: "7:40pm",
+          notes: "Lockbox 4",
+        },
+      },
+    }),
+    ops,
+  );
+  assert.equal(called.status, 200);
+  const calledBody = await called.json();
+  const text = calledBody.result.content[0].text as string;
+  assert.equal(calledBody.result.isError, false);
+  assert.match(text, /aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/);
+  assert.match(text, /Sam Lepore/);
+  assert.match(text, /Tue, Sep 22 at 7:40 PM/);
+  assert.equal(created.length, 1);
 });
 
 test("authorized GET does not open an SSE stream", async () => {
