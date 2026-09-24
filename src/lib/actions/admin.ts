@@ -1,16 +1,17 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import {
+  createClientRecord,
+  deleteClientRecord,
+  findClient,
+  updateClientRecord,
+} from "@/lib/admin/clients";
+import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
+import { syncNasForAdmin } from "@/lib/admin/sync";
 import { getAdminSession } from "@/lib/admin-auth";
-import { db } from "@/lib/db";
-import { ensureDb } from "@/lib/db/ensure";
-import { clients, users } from "@/lib/db/schema";
-import { formatInviteCode, parseInviteSequence } from "@/lib/invite";
-import { runLockedNasSync } from "@/lib/nas-scheduler";
 import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
-import { parseAccountProfile, parseLoginEmail } from "@/lib/signup-fields";
 
 export type AdminState = {
   error?: string;
@@ -22,114 +23,79 @@ function adminClientsUrl(params: Record<string, string>) {
   return `/admin/clients?${query.toString()}`;
 }
 
-export async function mintClient(formData: FormData) {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  await ensureDb();
-  const displayName = String(formData.get("displayName") ?? "").trim();
-  const primaryEmail = String(formData.get("primaryEmail") ?? "").trim().toLowerCase();
-  if (!displayName) {
-    redirect(adminClientsUrl({ error: "Display name is required." }));
-  }
-  if (!primaryEmail || !primaryEmail.includes("@")) {
-    redirect(adminClientsUrl({ error: "Primary contact email is required." }));
-  }
-
-  const existing = await db.select({ inviteCode: clients.inviteCode }).from(clients);
-  const next =
-    existing.reduce((max, row) => Math.max(max, parseInviteSequence(row.inviteCode) ?? 0), 0) + 1;
-
-  const [client] = await db
-    .insert(clients)
-    .values({
-      inviteCode: formatInviteCode(next),
-      displayName,
-      primaryEmail,
-      company: String(formData.get("company") ?? "").trim() || null,
-      notes: String(formData.get("notes") ?? "").trim() || null,
-    })
-    .returning();
-
-  revalidatePath("/admin/clients");
-  redirect(adminClientsUrl({ minted: client.inviteCode }));
-}
-
-export async function syncNasFromAdmin() {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  await ensureDb();
-  let result;
-  try {
-    result = await runLockedNasSync("admin");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "NAS sync failed.";
-    redirect(adminClientsUrl({ error: message }));
-  }
-  if (result.skipped) {
-    redirect(adminClientsUrl({ error: result.reason ?? "NAS sync skipped." }));
-  }
-  revalidatePath("/admin/clients");
-  redirect(
-    adminClientsUrl({
-        synced: "1",
-        clients: String(result.clientsCreated),
-        shoots: String(result.shootsCreated),
-        photos: String(result.mediaImported),
-        refreshed: String(result.mediaUpdated),
-        reusedClients: String(result.clientsReused),
-        reusedShoots: String(result.shootsReused),
-        removedShoots: String(result.shootsRemoved),
-        removedPhotos: String(result.mediaRemoved),
-        warnings: String(result.warnings.length),
-        ready: String(result.ready),
-      }),
-  );
-}
-
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {
   const query = new URLSearchParams(params);
   const suffix = query.toString();
   return suffix ? `/admin/clients/${clientId}?${suffix}` : `/admin/clients/${clientId}`;
 }
 
+function userProfilePath(clientId: string, userId: string, params: Record<string, string> = {}) {
+  const query = new URLSearchParams(params);
+  const suffix = query.toString();
+  const path = `/admin/clients/${clientId}/users/${userId}`;
+  return suffix ? `${path}?${suffix}` : path;
+}
+
+export async function mintClient(formData: FormData) {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  const created = await createClientRecord({
+    displayName: String(formData.get("displayName") ?? ""),
+    primaryEmail: String(formData.get("primaryEmail") ?? ""),
+    company: String(formData.get("company") ?? ""),
+    notes: String(formData.get("notes") ?? ""),
+  });
+  if (!created.ok) {
+    redirect(adminClientsUrl({ error: created.error }));
+  }
+  revalidatePath("/admin/clients");
+  redirect(adminClientsUrl({ minted: created.value.inviteCode }));
+}
+
+export async function syncNasFromAdmin() {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  const result = await syncNasForAdmin();
+  if (!result.ok) {
+    redirect(adminClientsUrl({ error: result.error }));
+  }
+  const sync = result.value;
+  revalidatePath("/admin/clients");
+  redirect(
+    adminClientsUrl({
+      synced: "1",
+      clients: String(sync.clientsCreated),
+      shoots: String(sync.shootsCreated),
+      photos: String(sync.mediaImported),
+      refreshed: String(sync.mediaUpdated),
+      reusedClients: String(sync.clientsReused),
+      reusedShoots: String(sync.shootsReused),
+      removedShoots: String(sync.shootsRemoved),
+      removedPhotos: String(sync.mediaRemoved),
+      warnings: String(sync.warnings.length),
+      ready: String(sync.ready),
+    }),
+  );
+}
+
 export async function updateClient(formData: FormData) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
-  await ensureDb();
   const clientId = String(formData.get("clientId") ?? "");
-  const displayName = String(formData.get("displayName") ?? "").trim();
-  const primaryEmail = String(formData.get("primaryEmail") ?? "").trim().toLowerCase();
-  const company = String(formData.get("company") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
-
-  if (!clientId) {
-    redirect(adminClientsUrl({ error: "Client is required." }));
+  const saved = await updateClientRecord({
+    clientId,
+    displayName: String(formData.get("displayName") ?? ""),
+    primaryEmail: String(formData.get("primaryEmail") ?? ""),
+    company: String(formData.get("company") ?? ""),
+    notes: String(formData.get("notes") ?? ""),
+  });
+  if (!saved.ok) {
+    if (saved.where === "clients") redirect(adminClientsUrl({ error: saved.error }));
+    redirect(clientAdminPath(clientId, { error: saved.error }));
   }
-  if (!displayName) {
-    redirect(clientAdminPath(clientId, { error: "Display name is required." }));
-  }
-  if (!primaryEmail || !primaryEmail.includes("@")) {
-    redirect(clientAdminPath(clientId, { error: "Primary contact email is required." }));
-  }
-
-  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
-  if (!client) {
-    redirect(adminClientsUrl({ error: "Client was not found." }));
-  }
-
-  await db
-    .update(clients)
-    .set({
-      displayName,
-      primaryEmail,
-      company: company || null,
-      notes: notes || null,
-    })
-    .where(eq(clients.id, clientId));
-
   revalidatePath("/admin/clients");
   revalidatePath(clientAdminPath(clientId));
   redirect(clientAdminPath(clientId, { saved: "1" }));
@@ -139,7 +105,6 @@ export async function deleteClient(formData: FormData) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
-  await ensureDb();
   const clientId = String(formData.get("clientId") ?? "");
   const typedCode = String(formData.get("confirmCode") ?? "").replace(/\s+/g, "").toUpperCase();
   const typedDelete = String(formData.get("confirmDelete") ?? "").trim().toUpperCase();
@@ -148,27 +113,23 @@ export async function deleteClient(formData: FormData) {
     redirect(adminClientsUrl({ error: "Client is required." }));
   }
 
-  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
-  if (!client) {
+  const found = await findClient({ id: clientId });
+  if (!found.ok) {
     redirect(adminClientsUrl({ error: "Client was not found." }));
   }
-  if (typedCode !== client.inviteCode) {
+  if (typedCode !== found.value.inviteCode) {
     redirect(clientAdminPath(clientId, { error: "Type the invite code exactly to delete." }));
   }
   if (typedDelete !== "DELETE") {
     redirect(clientAdminPath(clientId, { error: "Type DELETE to confirm." }));
   }
 
-  await db.delete(clients).where(eq(clients.id, clientId));
+  const removed = await deleteClientRecord(clientId);
+  if (!removed.ok) {
+    redirect(adminClientsUrl({ error: removed.error }));
+  }
   revalidatePath("/admin/clients");
-  redirect(adminClientsUrl({ removed: client.inviteCode }));
-}
-
-function userProfilePath(clientId: string, userId: string, params: Record<string, string> = {}) {
-  const query = new URLSearchParams(params);
-  const suffix = query.toString();
-  const path = `/admin/clients/${clientId}/users/${userId}`;
-  return suffix ? `${path}?${suffix}` : path;
+  redirect(adminClientsUrl({ removed: removed.value.inviteCode }));
 }
 
 /**
@@ -181,51 +142,22 @@ export async function updateUserProfile(formData: FormData) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
-  await ensureDb();
   const clientId = String(formData.get("clientId") ?? "");
   const userId = String(formData.get("userId") ?? "");
-  if (!clientId || !userId) {
-    redirect(adminClientsUrl({ error: "User is required." }));
-  }
-
-  const profile = parseAccountProfile({
+  const saved = await updateClientUserRecord({
+    clientId,
+    userId,
     firstName: String(formData.get("firstName") ?? ""),
     lastName: String(formData.get("lastName") ?? ""),
     companyName: String(formData.get("companyName") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    email: String(formData.get("email") ?? ""),
   });
-  if (!profile.ok) {
-    redirect(userProfilePath(clientId, userId, { error: profile.error }));
+  if (!saved.ok) {
+    if (saved.where === "clients") redirect(adminClientsUrl({ error: saved.error }));
+    if (saved.where === "client") redirect(clientAdminPath(clientId, { error: saved.error }));
+    redirect(userProfilePath(clientId, userId, { error: saved.error }));
   }
-  const email = parseLoginEmail(String(formData.get("email") ?? ""));
-  if (!email.ok) {
-    redirect(userProfilePath(clientId, userId, { error: email.error }));
-  }
-
-  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
-  if (!client) {
-    redirect(adminClientsUrl({ error: "Client was not found." }));
-  }
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user || user.clientId !== clientId) {
-    redirect(clientAdminPath(clientId, { error: "User was not found on this client." }));
-  }
-
-  const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email.value)).limit(1);
-  if (taken && taken.id !== user.id) {
-    redirect(userProfilePath(clientId, userId, { error: "That email already has an account." }));
-  }
-
-  await db
-    .update(users)
-    .set({
-      firstName: profile.value.firstName,
-      lastName: profile.value.lastName,
-      phone: profile.value.phone,
-      email: email.value,
-    })
-    .where(and(eq(users.id, user.id), eq(users.clientId, clientId)));
-  await db.update(clients).set({ company: profile.value.companyName }).where(eq(clients.id, clientId));
 
   revalidatePath("/admin/clients");
   revalidatePath(clientAdminPath(clientId));
@@ -240,19 +172,12 @@ export async function removeUser(formData: FormData) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
-  await ensureDb();
   const clientId = String(formData.get("clientId") ?? "");
   const userId = String(formData.get("userId") ?? "");
-  if (!clientId || !userId) {
-    redirect(clientAdminPath(clientId, { error: "User is required." }));
+  const removed = await removeClientUserRecord({ clientId, userId });
+  if (!removed.ok) {
+    redirect(clientAdminPath(clientId, { error: removed.error }));
   }
-
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user || user.clientId !== clientId) {
-    redirect(clientAdminPath(clientId, { error: "User was not found on this client." }));
-  }
-
-  await db.delete(users).where(eq(users.id, userId));
   revalidatePath(clientAdminPath(clientId));
-  redirect(clientAdminPath(clientId, { userRemoved: user.email }));
+  redirect(clientAdminPath(clientId, { userRemoved: removed.email }));
 }

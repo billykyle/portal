@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["postgres", "bcryptjs", "yazl", "google-auth-library", "@vercel/oidc"],
+  serverExternalPackages: [
+    "postgres",
+    "bcryptjs",
+    "yazl",
+    "google-auth-library",
+    "@vercel/oidc",
+    "@modelcontextprotocol/sdk",
+  ],
   allowedDevOrigins: ["127.0.0.1"],
 };
 

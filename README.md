@@ -94,6 +94,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `DATABASE_URL` | Postgres connection string. Neon or Vercel Postgres work as-is. |
 | `JWT_SECRET` | Signs client and admin cookies. Use a long random string in production. |
 | `ADMIN_PASSWORD` | Shared password for the Billy-only admin app. |
+| `PORTAL_AGENT_API_KEY` | Bearer token for the admin MCP connector at `/api/agent/mcp`. Not the admin password. Unset rejects every agent request. See [docs/agent.md](docs/agent.md). |
 | `DEMO_PASSWORD` | Password for the seeded `demo@example.com` user. |
 | `NAS_ENABLED` | `true` serves NAS-backed media through the server proxy (`/api/media/[id]`). Required for attach and sync. |
 | `NAS_SHARE_HOST` | UGOS share host after the ug.link redirect, e.g. `https://10128873.us15.ug.link`. |
@@ -147,6 +148,14 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual 
 5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). Shoots mirror the NAS — there is no manual delete. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
+
+## Agent connector
+
+Billy can drive the same admin actions from Cursor or Grok Bot without the browser. The connector is a remote MCP server on this deployment:
+
+`https://admin.billy-kyle.com/api/agent/mcp`
+
+Auth is `Authorization: Bearer $PORTAL_AGENT_API_KEY` (not `ADMIN_PASSWORD`). Flynn has to set that env var on Vercel before the connector will accept a session. Install steps, the tool list, and what the tools will not do are in [docs/agent.md](docs/agent.md).
 
 ## Edit or remove a client
 
