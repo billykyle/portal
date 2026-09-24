@@ -8,7 +8,7 @@ import {
   offerSlotsForAddress,
   withoutOwnBooking,
 } from "@/lib/scheduling/availability";
-import { bookingUserError } from "@/lib/scheduling/booking-form";
+import { bookingUserError, offeredSlotForSubmission } from "@/lib/scheduling/booking-form";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
 import {
   canAdminModifyBooking,
@@ -30,28 +30,6 @@ export type BookingModifyFailure = {
   stage: "book" | "times";
   address?: string;
 };
-
-type OfferedSlot = {
-  start: string;
-  end: string;
-  driveSecondsFromPrior: number | null;
-};
-
-function matchOfferedSlot(slots: OfferedSlot[], startIso: string, endIso: string | null) {
-  if (endIso) {
-    const exact = slots.find((slot) => slot.start === startIso && slot.end === endIso);
-    if (exact) return exact;
-  }
-  const startMs = Date.parse(startIso);
-  if (Number.isNaN(startMs)) return undefined;
-  const endMs = endIso ? Date.parse(endIso) : null;
-  if (endIso && (endMs == null || Number.isNaN(endMs))) return undefined;
-  return slots.find((slot) => {
-    if (Date.parse(slot.start) !== startMs) return false;
-    if (endMs == null) return true;
-    return Date.parse(slot.end) === endMs;
-  });
-}
 
 export type PreparedBookingModification = {
   ok: true;
@@ -100,7 +78,7 @@ export type PreparedBookingModification = {
 /**
  * Admin and client Bookings modify share this write. Callers still own redirects,
  * drafts, and cache revalidation. `endIso` null matches the offered slot by start only
- * (agent partial updates). The admin form always passes both ends from the chosen slot.
+ * (agent partial updates). A stale end still saves the single offered slot for that start.
  */
 export async function prepareBookingModification(input: {
   bookingId: string;
@@ -156,7 +134,7 @@ export async function prepareBookingModification(input: {
   if (availability.error) {
     return { ok: false, error: availability.error, stage: "book" };
   }
-  const offered = matchOfferedSlot(availability.slots, input.startIso, input.endIso);
+  const offered = offeredSlotForSubmission(availability.slots, input.startIso, input.endIso);
   if (!offered) {
     return {
       ok: false,

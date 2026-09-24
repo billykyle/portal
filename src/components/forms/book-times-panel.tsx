@@ -5,10 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 import { BookTimesForm } from "@/components/forms/book-times-form";
 import { TimesStepHeader } from "@/components/times-step-summary";
 import { TimesLoadingStatus } from "@/components/times-loading-screen";
-import { lastGoodAvailability, peekAvailability, requestAvailability } from "@/lib/scheduling/availability-cache";
+import {
+  lastGoodAvailability,
+  lastGoodAvailabilityKey,
+  peekAvailability,
+  requestAvailability,
+} from "@/lib/scheduling/availability-cache";
 import type { AvailabilityResult } from "@/lib/scheduling/availability";
 import type { OfferedAvailabilityFailureKind } from "@/lib/scheduling/load-offered-availability";
-import { availabilityQueryKey, displayedTimesState, type AvailabilityQuery } from "@/lib/scheduling/times-prefetch";
+import {
+  availabilityQueryKey,
+  displayedTimesState,
+  previousTimesForQuery,
+  type AvailabilityQuery,
+} from "@/lib/scheduling/times-prefetch";
 import { schedulingEditorHref } from "@/lib/scheduling/urls";
 
 export function BookTimesPanel({
@@ -45,33 +55,36 @@ export function BookTimesPanel({
   const current = completed?.key === queryKey ? completed.availability : cached;
   const sourceError = completed?.key === queryKey ? completed.error : null;
   const loading = completed?.key !== queryKey && !cached;
-  const previous = lastGoodAvailability();
+  const previous = previousTimesForQuery(queryKey, lastGoodAvailabilityKey(), lastGoodAvailability());
 
   useEffect(() => {
     let cancelled = false;
-    void requestAvailability(query)
-      .then((result) => {
-        if (cancelled || result.error === "aborted") return;
-        if (result.availability) {
-          setCompleted({ key: queryKey, availability: result.availability, error: null });
-          return;
-        }
-        setCompleted({
-          key: queryKey,
-          availability: null,
-          error: result.error
-            ? { kind: result.kind ?? "calendar", error: result.error }
-            : { kind: "calendar", error: "Times cannot be loaded right now." },
-        });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setCompleted({
-          key: queryKey,
-          availability: null,
-          error: { kind: "calendar", error: "Times cannot be loaded right now." },
-        });
+    async function load() {
+      let result = await requestAvailability(query);
+      if (!cancelled && result.error === "aborted") {
+        result = await requestAvailability(query);
+      }
+      if (cancelled || result.error === "aborted") return;
+      if (result.availability) {
+        setCompleted({ key: queryKey, availability: result.availability, error: null });
+        return;
+      }
+      setCompleted({
+        key: queryKey,
+        availability: null,
+        error: result.error
+          ? { kind: result.kind ?? "calendar", error: result.error }
+          : { kind: "calendar", error: "Times cannot be loaded right now." },
       });
+    }
+    void load().catch(() => {
+      if (cancelled) return;
+      setCompleted({
+        key: queryKey,
+        availability: null,
+        error: { kind: "calendar", error: "Times cannot be loaded right now." },
+      });
+    });
     return () => {
       cancelled = true;
     };
