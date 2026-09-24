@@ -45,6 +45,16 @@ export function isAvailabilityFresh(fetchedAt: number, now = Date.now(), maxAgeM
   return fetchedAt > 0 && now - fetchedAt < maxAgeMs;
 }
 
+/** Same-query refresh can keep its slots. Another address or service list must not. */
+export function previousTimesForQuery(
+  queryKey: string,
+  lastGoodKey: string | null,
+  lastGood: AvailabilityResult | null,
+): AvailabilityResult | null {
+  if (!lastGood || lastGoodKey !== queryKey) return null;
+  return lastGood;
+}
+
 export function displayedTimesState(input: {
   loading: boolean;
   current: AvailabilityResult | null;

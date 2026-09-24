@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { FormError, SubmitButton } from "@/components/field";
 import { MonthCalendarDialog } from "@/components/forms/month-calendar";
@@ -10,7 +10,7 @@ import { sectionLabelClass } from "@/components/phone-shell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking, updateBooking } from "@/lib/actions/scheduling";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
-import { readBookingFormSlot, toggleSelectedSlot } from "@/lib/scheduling/booking-form";
+import { readBookingFormSlot, resolveSelectedSlot, toggleSelectedSlot } from "@/lib/scheduling/booking-form";
 import {
   formatDateKeyLabel,
   formatWeekDayListLabel,
@@ -62,6 +62,20 @@ export function BookTimesForm({
     offeredCurrent ? `${offeredCurrent.start}|${offeredCurrent.end}` : "",
   );
   const [slotError, setSlotError] = useState("");
+  const selectedSlotRef = useRef(selectedSlot);
+  selectedSlotRef.current = selectedSlot;
+  const slotSignature = availability.slots.map((slot) => `${slot.start}|${slot.end}`).join("\n");
+
+  useEffect(() => {
+    const current = selectedSlotRef.current;
+    const next = resolveSelectedSlot(current, availability.slots, currentSlot);
+    if (next === current) return;
+    setSelectedSlot(next);
+    const slot = availability.slots.find((item) => `${item.start}|${item.end}` === next);
+    if (!slot) return;
+    setWeekStart(slot.dateKey);
+    setOpenDates([slot.dateKey]);
+  }, [availability.slots, currentSlot, slotSignature]);
 
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
   const changeHref = schedulingEditorHref({ fromAdmin, bookingId: modifyBookingId });

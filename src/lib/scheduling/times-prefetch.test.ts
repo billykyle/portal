@@ -8,6 +8,7 @@ import {
   canPrefetchAvailability,
   displayedTimesState,
   isAvailabilityFresh,
+  previousTimesForQuery,
   readAvailabilityQuery,
 } from "./times-prefetch";
 
@@ -81,6 +82,22 @@ test("displayed times keep the last good slots while a refresh is in flight", ()
   const ready = displayedTimesState({ loading: false, current: availability, previous: availability });
   assert.equal(ready.refreshing, false);
   assert.equal(ready.showLoadingScreen, false);
+});
+
+test("a refresh only reuses slots from the same address and services", () => {
+  const key = availabilityQueryKey({
+    address: availability.address,
+    services: ["Real Estate · Photography"],
+    modify: "11111111-1111-4111-8111-111111111111",
+  });
+  const otherKey = availabilityQueryKey({
+    address: "88 Tuesday Lane, Princeton, NJ",
+    services: ["Real Estate · Photography"],
+    modify: "11111111-1111-4111-8111-111111111111",
+  });
+  assert.equal(previousTimesForQuery(key, key, availability), availability);
+  assert.equal(previousTimesForQuery(key, otherKey, availability), null);
+  assert.equal(previousTimesForQuery(key, null, null), null);
 });
 
 test("fresh results are reused; stale results refresh", () => {
