@@ -130,10 +130,23 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
   ]) {
     assert.ok(names.includes(name), name);
   }
-  const cancel = (listedBody.result.tools as { name: string; annotations?: { destructiveHint?: boolean } }[]).find(
-    (tool) => tool.name === "cancel_booking",
-  );
+  const tools = listedBody.result.tools as {
+    name: string;
+    annotations?: { destructiveHint?: boolean };
+    inputSchema?: { properties?: Record<string, { enum?: string[] }> };
+  }[];
+  const cancel = tools.find((tool) => tool.name === "cancel_booking");
   assert.equal(cancel?.annotations?.destructiveHint, true);
+  const listClientsTool = tools.find((tool) => tool.name === "list_clients");
+  assert.deepEqual(listClientsTool?.inputSchema?.properties?.sort?.enum, [
+    "name-asc",
+    "name-desc",
+    "company",
+    "newest",
+    "oldest",
+    "shoots",
+    "code",
+  ]);
 
   const called = await handleAgentMcp(
     mcpRequest("tools/call", {

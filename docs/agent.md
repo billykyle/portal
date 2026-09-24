@@ -58,7 +58,7 @@ No local clone and no stdio process. The portal deployment is the server.
 
 | Tool | What it does |
 | --- | --- |
-| `list_clients` | Invite code, display name, company, primary email, notes summary, user count, shoot count. Optional `query`. |
+| `list_clients` | Invite code, display name, company, primary email, notes summary, user count, shoot count. Optional `query`. Optional `sort`: `name-asc`, `name-desc`, `company` (blank company last), `newest`, `oldest`, `shoots` (most first), `code` (BK00001 upward). Omit `sort` to keep the existing listing order. |
 | `get_client` | One client by id or invite code (`BK#####`), including full notes. |
 | `create_client` | Mint the next BK code. Display name and primary email required. Optional company and notes. |
 | `update_client` | Update display name, primary email, company, notes. Omitted fields stay. |

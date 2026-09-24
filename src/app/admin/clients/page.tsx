@@ -1,11 +1,15 @@
 import { desc } from "drizzle-orm";
 import { ChevronRight } from "lucide-react";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
+import { ClientSortSelect } from "@/components/client-sort-select";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { pageTitleClass, PhoneShell } from "@/components/phone-shell";
+import { clientCounts } from "@/lib/admin/clients";
+import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/client-sort";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -57,23 +61,28 @@ export default async function AdminClientsPage({
   } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
-  const logins = await db
-    .select({
-      clientId: users.clientId,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      phone: users.phone,
-    })
-    .from(users);
+  const [rows, logins, counts, cookieStore] = await Promise.all([
+    db.select().from(clients).orderBy(desc(clients.createdAt)),
+    db
+      .select({
+        clientId: users.clientId,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        phone: users.phone,
+      })
+      .from(users),
+    clientCounts(),
+    cookies(),
+  ]);
+  const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
   const loginsByClient = new Map<string, typeof logins>();
   for (const login of logins) {
     const list = loginsByClient.get(login.clientId) ?? [];
     list.push(login);
     loginsByClient.set(login.clientId, list);
   }
-  const visible = needle
+  const matched = needle
     ? rows.filter((client) => {
         const haystack = [
           client.inviteCode,
@@ -93,6 +102,13 @@ export default async function AdminClientsPage({
         return haystack.includes(needle);
       })
     : rows;
+  const visible = sortClients(
+    matched.map((client) => ({
+      ...client,
+      shootCount: counts.shoots.get(client.id) ?? 0,
+    })),
+    sort,
+  );
 
   return (
     <PhoneShell wide>
@@ -136,7 +152,10 @@ export default async function AdminClientsPage({
         </section>
       </div>
       <section className="pb-16">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>
+          <ClientSortSelect value={sort} />
+        </div>
         <form action="/admin/clients" method="get" className="mb-4 lg:max-w-md">
           <label htmlFor="client-search" className="sr-only">
             Find a client or login
