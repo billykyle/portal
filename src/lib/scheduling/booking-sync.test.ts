@@ -101,6 +101,28 @@ test("sync-issue email subject names the failure and includes client when/where"
   assert.match(describeSyncFailures(["calendar"]), /Google Calendar sync failed/);
 });
 
+test("sync-issue copy says a placeholder was not emailed", () => {
+  const lines = bookingSyncIssueLines({
+    action: "modify",
+    clientName: "Justin Heath",
+    clientEmail: "justin.heath@pending.local",
+    address: "210 McClure Drive, Blue Bell",
+    services: "Real Estate · Photography",
+    start,
+    end,
+    timeZone: "America/New_York",
+    failures: ["client-email"],
+  });
+  assert.equal(lines.subject, BOOKING_SYNC_ISSUE_SUBJECT);
+  assert.match(lines.intro, /placeholder/);
+  assert.match(lines.intro, /not sent/);
+  assert.doesNotMatch(lines.intro, /confirmation email failed/);
+  assert.equal(
+    lines.rows.find((row) => row.label === "Client")?.value,
+    "Justin Heath · justin.heath@pending.local",
+  );
+});
+
 test("settleBookingIntegrations writes calendar, sends New shoot, and skips the alert on full success", async () => {
   const calls = { write: 0, notify: 0, alert: 0, saved: [] as Array<string | null> };
   const deps = mockDeps(calls, {

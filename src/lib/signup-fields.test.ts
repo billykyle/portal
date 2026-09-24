@@ -47,9 +47,21 @@ test("short phone numbers are rejected", () => {
   assert.equal(result.ok, false);
 });
 
-test("pending NAS emails are detected", () => {
+test("pending NAS emails are detected and rejected as logins", () => {
   assert.equal(isPendingClientEmail("whitfield@pending.local"), true);
+  assert.equal(isPendingClientEmail("  Justin.Heath@Pending.Local "), true);
   assert.equal(isPendingClientEmail("billy@atmosimagery.com"), false);
+  assert.equal(parseLoginEmail("justin.heath@pending.local").ok, false);
+  assert.equal(
+    parseSignupProfile({
+      firstName: "Justin",
+      lastName: "Heath",
+      companyName: "Selling Greater Philly",
+      phone: "2155550100",
+      email: "justin.heath@pending.local",
+    }).ok,
+    false,
+  );
 });
 
 test("login email is normalized and must include a domain", () => {

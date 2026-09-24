@@ -132,6 +132,14 @@ test("Billy still gets his own notify address when he is the client", () => {
   });
 });
 
+test("booking confirmation recipients drop a NAS placeholder", () => {
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  assert.deepEqual(bookingConfirmationRecipients("justin.heath@pending.local"), {
+    client: null,
+    notify: "billy@billyhere.com",
+  });
+});
+
 test("BOOKING_NOTIFY_EMAIL overrides Billy's copy address", () => {
   process.env.BOOKING_NOTIFY_EMAIL = "studio@example.com";
   assert.deepEqual(bookingConfirmationRecipients("sam@example.com"), {
@@ -848,6 +856,66 @@ test("sendBookingSyncIssue retries the owner notify once", async () => {
     });
     assert.equal(n, 2);
     assert.equal(result.sent, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("booking mail falls back to real logins and never posts a placeholder", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  const calls: Array<{ to: string[]; subject: string; text: string }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { to: string[]; subject: string; text: string };
+    calls.push(body);
+    return new Response(JSON.stringify({ id: "msg_1" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendBookingConfirmation({
+      ...sampleInput(),
+      clientEmail: "justin.heath@pending.local",
+      primaryEmail: "justin.heath@pending.local",
+      loginEmails: ["justin.heath@pending.local", "justin@sellinggreaterphilly.com", "office@example.com"],
+      notes: "cc justin.heath@pending.local and extra@example.com",
+    });
+    assert.equal(result.client.sent, true);
+    assert.equal(result.notify.sent, true);
+    const tos = calls.map((call) => call.to.join(","));
+    assert.ok(tos.some((to) => to === "justin@sellinggreaterphilly.com,office@example.com"));
+    assert.ok(tos.some((to) => to === "billy@billyhere.com"));
+    assert.ok(tos.some((to) => to === "extra@example.com"));
+    assert.equal(calls.some((call) => call.to.some((email) => email.endsWith("@pending.local"))), false);
+    const notify = calls.find((call) => call.to.includes("billy@billyhere.com"));
+    assert.match(notify?.text ?? "", /justin@sellinggreaterphilly.com/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("booking mail is skipped when the only address is a placeholder", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  const calls: Array<{ to: string[] }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)) as { to: string[] });
+    return new Response(JSON.stringify({ id: "msg_billy" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendBookingModification({
+      ...sampleInput(),
+      clientEmail: "justin.heath@pending.local",
+      primaryEmail: "justin.heath@pending.local",
+      clientRecipients: [],
+    });
+    assert.equal(result.sent, false);
+    assert.deepEqual(result.client, { sent: false, reason: "placeholder-recipient" });
+    assert.equal(result.notify.sent, true);
+    assert.deepEqual(
+      calls.map((call) => call.to),
+      [["billy@billyhere.com"]],
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

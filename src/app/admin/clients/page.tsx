@@ -25,6 +25,7 @@ export default async function AdminClientsPage({
     reusedClients?: string;
     reusedShoots?: string;
     warnings?: string;
+    emailSkipped?: string;
     ready?: string;
     removed?: string;
     removedShoots?: string;
@@ -47,6 +48,7 @@ export default async function AdminClientsPage({
     reusedClients,
     reusedShoots,
     warnings,
+    emailSkipped,
     ready,
     removed,
     removedShoots,
@@ -126,6 +128,7 @@ export default async function AdminClientsPage({
               {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
             </p>
           ) : null}
+          {emailSkipped ? <p className="mt-3 text-sm text-white">{emailSkipped}</p> : null}
         </section>
         <section>
           <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Mint client</h2>

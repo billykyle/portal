@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { deliverableClientEmails } from "@/lib/client-contact";
 import { unstable_rethrow } from "next/navigation";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -50,6 +51,7 @@ export type PreparedBookingModification = {
     email: {
       bookingId: string;
       clientEmail: string;
+      primaryEmail?: string | null;
       clientName: string | null;
       address: string;
       services: string[];
@@ -238,6 +240,7 @@ export async function prepareBookingModification(input: {
       email: {
         bookingId: booking.id,
         clientEmail,
+        primaryEmail: client?.primaryEmail ?? null,
         clientName: client?.displayName ?? null,
         address: availability.address,
         services,
@@ -287,22 +290,26 @@ export async function resolveBookingContactEmail(input: {
   ownerEmail?: string | null;
   primaryEmail?: string | null;
 }) {
-  if (input.ownerEmail?.trim()) return input.ownerEmail.trim();
+  let creatorEmail: string | null = null;
   if (input.createdByUserId) {
     const [creator] = await db
       .select({ email: users.email })
       .from(users)
       .where(eq(users.id, input.createdByUserId))
       .limit(1);
-    if (creator?.email) return creator.email;
+    creatorEmail = creator?.email ?? null;
   }
-  if (input.primaryEmail?.trim()) return input.primaryEmail.trim();
-  const [member] = await db
+  const members = await db
     .select({ email: users.email })
     .from(users)
     .where(eq(users.clientId, input.clientId))
-    .limit(1);
-  return member?.email ?? "";
+    .orderBy(asc(users.createdAt));
+  const [email] = deliverableClientEmails({
+    preferred: input.ownerEmail || creatorEmail || "",
+    primaryEmail: input.primaryEmail,
+    loginEmails: members.map((row) => row.email),
+  });
+  return email ?? "";
 }
 
 /** Status flip plus calendar delete and cancellation emails. Callers own redirects. */
@@ -346,7 +353,12 @@ export async function commitBookingCancellation(input: {
       deleteCalendarEventId: booking.calendarEventId,
       email: {
         bookingId: booking.id,
-        clientEmail: clientEmail || client?.primaryEmail || input.session?.email || "",
+        clientEmail:
+          deliverableClientEmails({
+            preferred: clientEmail || input.session?.email,
+            primaryEmail: client?.primaryEmail,
+          })[0] ?? "",
+        primaryEmail: client?.primaryEmail ?? null,
         clientName: client?.displayName ?? null,
         address: booking.address,
         services: bookingServiceList(booking),

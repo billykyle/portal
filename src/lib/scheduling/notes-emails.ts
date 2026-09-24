@@ -1,4 +1,5 @@
 import { normalizeEmail } from "@/lib/email";
+import { isPendingClientEmail } from "@/lib/signup-fields";
 
 /**
  * Practical address: local part, a domain label, and a dotted TLD.
@@ -27,6 +28,7 @@ export function emailsInNotes(
   for (const match of String(notes ?? "").matchAll(pattern)) {
     const email = normalizeEmail(match[0]);
     if (!email || seen.has(email) || blocked.has(email) || !isNoteEmail(email)) continue;
+    if (isPendingClientEmail(email)) continue;
     seen.add(email);
     found.push(email);
   }

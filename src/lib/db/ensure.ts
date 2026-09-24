@@ -1,4 +1,5 @@
 import { count, eq, isNull } from "drizzle-orm";
+import { backfillPlaceholderPrimaryEmails } from "../client-contact";
 import { ensurePreviewSchema } from "../nas-preview";
 import { createPublicToken } from "../public-link";
 import { useInProcessNasScheduler } from "../runtime";
@@ -178,6 +179,7 @@ export async function ensureDb() {
       if (value === 0) {
         await seedDemo();
       }
+      await backfillPlaceholderPrimaryEmails();
       if (!useInProcessNasScheduler()) {
         console.log("NAS boot sync skipped on Vercel (use cron or admin)");
       } else {

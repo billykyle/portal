@@ -41,7 +41,10 @@
  *    must be honest on the confirmation page (calendar vs email). Billy
  *    gets `Portal booking sync issue` when Calendar or Resend fails; if
  *    that alert also fails, log `PORTAL_BOOKING_SYNC_ALERT` and store
- *    `sync_issue` on the booking. Modify (`updateBooking`) uses the same
+ *    `sync_issue` on the booking. Never send client mail to a NAS
+ *    `@pending.local` placeholder. Fall back to the client's real login
+ *    emails; if none exist, skip the client send and raise that same alert.
+ *    Modify (`updateBooking`) uses the same
  *    two-send + Calendar pattern, excluding the
  *    booking being edited from availability so its own slot stays offered.
  *    Modify always keeps the original start selectable and pre-selected,

@@ -157,6 +157,7 @@ export async function createBooking(formData: FormData) {
         timeZone: string;
         clientName: string | null;
         clientEmail: string;
+        primaryEmail: string | null;
         calendarConfigured: boolean;
         calendarSummary: string;
         calendarDescription: string;
@@ -254,6 +255,7 @@ export async function createBooking(formData: FormData) {
       end,
       timeZone: hours.timeZone,
       clientName: client?.displayName ?? null,
+      primaryEmail: client?.primaryEmail ?? null,
       calendarConfigured: availability.calendarConfigured,
       calendarSummary: calendar.summary,
       calendarDescription: calendar.description,
@@ -288,6 +290,7 @@ export async function createBooking(formData: FormData) {
     email: {
       bookingId: created.bookingId,
       clientEmail: created.clientEmail,
+      primaryEmail: created.primaryEmail,
       clientName: created.clientName,
       address: created.address,
       services: created.services,

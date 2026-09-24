@@ -6,6 +6,7 @@ import {
   wrapBookingEmailHtml,
 } from "@/lib/email-brand";
 import { adminUrl, publicPortalOrigin } from "@/lib/hosts";
+import { deliverableClientEmails, reportSkippedPlaceholder } from "@/lib/client-contact";
 import {
   bookingNotifyEmail,
   emailConfigured,
@@ -14,6 +15,7 @@ import {
   type EmailAttachment,
   type SendEmailResult,
 } from "@/lib/email";
+import { isPendingClientEmail } from "@/lib/signup-fields";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { clientCalendarLinks } from "./booking-ics";
 import { emailsInNotes } from "./notes-emails";
@@ -44,6 +46,10 @@ export type BookingEmailThread = {
 
 export type BookingConfirmationInput = {
   clientEmail: string;
+  /** Resolved real recipients. Empty means do not fall back to `clientEmail` (it may be a placeholder). */
+  clientRecipients?: string[];
+  loginEmails?: readonly (string | null | undefined)[] | null;
+  primaryEmail?: string | null;
   clientName?: string | null;
   bookingId?: string | null;
   address: string;
@@ -87,12 +93,30 @@ export function replySubject(originalSubject: string | null | undefined, fallbac
 }
 
 export function bookingConfirmationRecipients(clientEmail: string) {
-  const [client] = uniqueEmails([clientEmail]);
+  const [client] = deliverableClientEmails({ preferred: clientEmail });
   const [notify] = uniqueEmails([bookingNotifyEmail()]);
   return {
     client: client ?? null,
     notify: notify ?? null,
   };
+}
+
+function bookingClientRecipients(input: BookingConfirmationInput) {
+  if (input.clientRecipients != null) {
+    return uniqueEmails(input.clientRecipients).filter((email) => !isPendingClientEmail(email));
+  }
+  return deliverableClientEmails({
+    preferred: input.clientEmail,
+    primaryEmail: input.primaryEmail,
+    loginEmails: input.loginEmails,
+  });
+}
+
+/** Point the message body at a real address. An explicit empty recipient list never falls back to a placeholder. */
+function withDeliverableClient(input: BookingConfirmationInput): BookingConfirmationInput {
+  const clientTo = bookingClientRecipients(input);
+  if (clientTo.length === 0) return { ...input, clientRecipients: [] };
+  return { ...input, clientEmail: clientTo[0] ?? input.clientEmail, clientRecipients: clientTo };
 }
 
 function escapeHtml(value: string) {
@@ -518,9 +542,10 @@ export async function sendBookingConfirmation(
   input: BookingConfirmationInput,
   options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
-  const bookingId = input.bookingId?.trim();
+  const mailing = withDeliverableClient(input);
+  const bookingId = mailing.bookingId?.trim();
   const messageId = bookingId ? bookingThreadMessageId(bookingId) : undefined;
-  return sendBookingPair(input, buildBookingConfirmation(input), buildBookingNotify(input), options, {
+  return sendBookingPair(mailing, buildBookingConfirmation(mailing), buildBookingNotify(mailing), options, {
     clientHeaders: messageId ? { "Message-ID": messageId } : undefined,
   });
 }
@@ -530,8 +555,9 @@ export async function sendBookingModification(
   input: BookingConfirmationInput,
   options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingModified(input), buildBookingModifiedNotify(input), options, {
-    clientHeaders: emailThreadingHeaders(input.thread),
+  const mailing = withDeliverableClient(input);
+  return sendBookingPair(mailing, buildBookingModified(mailing), buildBookingModifiedNotify(mailing), options, {
+    clientHeaders: emailThreadingHeaders(mailing.thread),
   });
 }
 
@@ -540,8 +566,9 @@ export async function sendBookingCancellation(
   input: BookingConfirmationInput,
   options?: BookingEmailSendOptions,
 ): Promise<BookingEmailSendResult> {
-  return sendBookingPair(input, buildBookingCancelled(input), buildBookingCancelledNotify(input), options, {
-    clientHeaders: emailThreadingHeaders(input.thread),
+  const mailing = withDeliverableClient(input);
+  return sendBookingPair(mailing, buildBookingCancelled(mailing), buildBookingCancelledNotify(mailing), options, {
+    clientHeaders: emailThreadingHeaders(mailing.thread),
   });
 }
 
@@ -557,6 +584,7 @@ export function buildBookingSyncIssue(input: BookingSyncIssueInput) {
     action: input.action,
     clientName: input.clientName,
     clientEmail: input.clientEmail,
+    primaryEmail: input.primaryEmail,
     address: input.address,
     services: details.services,
     start: input.start,
@@ -637,27 +665,45 @@ async function sendBookingPair(
     return { sent: false, client: skipped, notify: skipped };
   }
 
-  const recipients = bookingConfirmationRecipients(input.clientEmail);
+  const clientTo = bookingClientRecipients(input);
+  const [notifyTo] = uniqueEmails([bookingNotifyEmail()]);
   const skipNotify = Boolean(options?.skipNotify);
-  const copies = emailsInNotes(input.notes, [input.clientEmail, recipients.client]);
+  const refusedPlaceholder =
+    clientTo.length === 0 &&
+    [input.clientEmail, input.primaryEmail, ...(input.loginEmails ?? [])].some((value) =>
+      isPendingClientEmail(String(value ?? "")),
+    );
+  if (refusedPlaceholder) {
+    reportSkippedPlaceholder({
+      subject: clientMessage.subject,
+      clientEmail: input.clientEmail,
+      primaryEmail: input.primaryEmail ?? null,
+    });
+  }
+  const copies = emailsInNotes(input.notes, [input.clientEmail, input.primaryEmail, ...clientTo]).filter(
+    (email) => !isPendingClientEmail(email),
+  );
   const copyHeaders = headersWithoutMessageId(sendMeta?.clientHeaders);
 
   const [client, notify, copyResults] = await Promise.all([
-    recipients.client
+    clientTo.length > 0
       ? sendEmail({
-          to: recipients.client,
+          to: clientTo,
           subject: clientMessage.subject,
           text: clientMessage.text,
           html: clientMessage.html,
           attachments: clientMessage.attachments,
           headers: sendMeta?.clientHeaders,
         })
-      : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
+      : Promise.resolve({
+          sent: false as const,
+          reason: refusedPlaceholder ? "placeholder-recipient" : "no-recipients",
+        }),
     skipNotify
       ? Promise.resolve({ sent: false as const, reason: "skipped" })
-      : recipients.notify
+      : notifyTo
         ? sendEmail({
-            to: recipients.notify,
+            to: notifyTo,
             subject: notifyMessage.subject,
             text: notifyMessage.text,
             html: notifyMessage.html,

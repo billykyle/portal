@@ -157,3 +157,33 @@ test("sendEmail soft-fails when fetch throws", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("sendEmail never posts a placeholder address", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  const calls: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { to: string[] };
+    calls.push(...body.to);
+    return new Response(JSON.stringify({ id: "msg_real" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const blocked = await sendEmail({
+      to: "justin.heath@pending.local",
+      subject: "Shoot confirmed",
+      text: "Confirmed.",
+    });
+    assert.deepEqual(blocked, { sent: false, reason: "placeholder-recipient" });
+    assert.deepEqual(calls, []);
+
+    const mixed = await sendEmail({
+      to: ["justin.heath@pending.local", "Justin@SellingGreaterPhilly.com"],
+      subject: "Shoot confirmed",
+      text: "Confirmed.",
+    });
+    assert.equal(mixed.sent, true);
+    assert.deepEqual(calls, ["justin@sellinggreaterphilly.com"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
