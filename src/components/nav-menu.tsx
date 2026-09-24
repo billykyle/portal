@@ -7,7 +7,7 @@ import { activeNavId, navItemsFor, type AppNavSide } from "@/lib/app-nav";
 import { cn } from "@/lib/utils";
 
 /**
- * Top-left page switcher: three dots stacked like a burger / kebab.
+ * Top-left page switcher: three horizontal lines (hamburger).
  * Same control on client and admin. Auth and public share pages do not mount it.
  */
 export function NavMenu({ side }: { side: AppNavSide }) {
@@ -61,15 +61,17 @@ export function NavMenu({ side }: { side: AppNavSide }) {
       <button
         ref={buttonRef}
         type="button"
-        className="-ml-2 flex size-11 shrink-0 flex-col items-center justify-center gap-[5px] rounded-full text-white hover:bg-white/10"
+        className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/10"
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={toggle}
       >
-        <span className="size-[5px] rounded-full bg-current" />
-        <span className="size-[5px] rounded-full bg-current" />
-        <span className="size-[5px] rounded-full bg-current" />
+        <svg aria-hidden="true" viewBox="0 0 18 12" className="h-3 w-[18px]" fill="none">
+          <path stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" d="M1 1h16" />
+          <path stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" d="M1 6h16" />
+          <path stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" d="M1 11h16" />
+        </svg>
       </button>
       {open ? (
         <>
