@@ -5,11 +5,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AdminHeader } from "./admin-header";
 import { ClientHeader } from "./client-header";
 
-test("signed-in headers use the dot menu and keep the centered logo clear", () => {
+const HAMBURGER_BAR = /stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M1 (?:1|6|11)h16"/g;
+
+test("signed-in headers use the hamburger menu and keep the centered logo clear", () => {
   const client = renderToStaticMarkup(createElement(ClientHeader));
   assert.match(client, /aria-label="Open menu"/);
   assert.match(client, /aria-expanded="false"/);
-  assert.equal(client.match(/size-\[5px\] rounded-full/g)?.length, 3);
+  assert.equal(client.match(HAMBURGER_BAR)?.length, 3);
+  assert.doesNotMatch(client, /size-\[5px\] rounded-full/);
   assert.match(client, /href="\/account"/);
   assert.match(client, />Account</);
   assert.doesNotMatch(client, />Home</);
@@ -25,6 +28,8 @@ test("signed-in headers use the dot menu and keep the centered logo clear", () =
 
   const admin = renderToStaticMarkup(createElement(AdminHeader, { backHref: "/admin/clients/abc", backLabel: "Client" }));
   assert.match(admin, /aria-label="Open menu"/);
+  assert.equal(admin.match(HAMBURGER_BAR)?.length, 3);
+  assert.doesNotMatch(admin, /size-\[5px\] rounded-full/);
   assert.match(admin, /href="\/admin\/clients\/abc"/);
   assert.match(admin, />Client</);
   assert.match(admin, />Sign out</);
