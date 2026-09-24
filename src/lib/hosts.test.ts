@@ -160,3 +160,17 @@ test("publicPortalOrigin never uses loopback for cross-host redirects", () => {
   process.env.PORTAL_PUBLIC_URL = "http://127.0.0.1:43173";
   assert.equal(publicPortalOrigin(), DEFAULT_PORTAL_ORIGIN);
 });
+
+test("agent connector stays on whichever host received it", () => {
+  delete process.env.ADMIN_PUBLIC_URL;
+  delete process.env.PORTAL_PUBLIC_URL;
+  assert.equal(
+    resolveHostRedirect({ hostname: "portal.billy-kyle.com", pathname: "/api/agent/mcp" }),
+    null,
+  );
+  assert.equal(
+    resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/api/agent/mcp" }),
+    null,
+  );
+  assert.equal(resolveHostRedirect({ hostname: "127.0.0.1:43173", pathname: "/api/agent/mcp" }), null);
+});

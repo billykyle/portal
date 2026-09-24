@@ -70,6 +70,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `DATABASE_URL` | `postgresql://USER:PASSWORD@HOST/DB?sslmode=require` | Neon or Vercel Postgres. Required. First request creates tables and seeds if empty. |
 | `JWT_SECRET` | long random string | Signs client + admin cookies. |
 | `ADMIN_PASSWORD` | your admin password | Admin gate at `https://admin.billy-kyle.com`. Do not use the local example. |
+| `PORTAL_AGENT_API_KEY` | long random string | Bearer token for the admin MCP connector at `https://admin.billy-kyle.com/api/agent/mcp`. Not `ADMIN_PASSWORD`. Unset rejects every agent request. Set this on Vercel before installing the connector. See [docs/agent.md](agent.md). |
 | `DEMO_PASSWORD` | optional random string | Only used when the empty-DB seed creates `demo@example.com`. |
 | `PORTAL_PUBLIC_URL` | `https://portal.billy-kyle.com` | Absolute `/s/…` links in admin + webhooks. Not the admin entry. |
 | `ADMIN_PUBLIC_URL` | `https://admin.billy-kyle.com` | Absolute origin for admin emails and portal `/admin` redirects. |
