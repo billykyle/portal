@@ -3,7 +3,13 @@ import { mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { test } from "node:test";
-import { mediaContentType, mediaFileResponse, planMediaResponse, videoSourceType } from "./media-response";
+import { fileSizeFromContentRange, mediaContentType, mediaFileResponse, planMediaResponse, videoSourceType } from "./media-response";
+
+test("content-range carries the full file size for a video probe", () => {
+  assert.equal(fileSizeFromContentRange("bytes 0-255/1048576"), 1048576);
+  assert.equal(fileSizeFromContentRange("bytes */80"), 80);
+  assert.equal(fileSizeFromContentRange(null), null);
+});
 
 test("shoot video types are playable in Chrome and Safari", () => {
   assert.equal(mediaContentType("188 33rd Street.mov"), "video/mp4");

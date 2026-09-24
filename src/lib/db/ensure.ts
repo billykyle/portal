@@ -74,7 +74,21 @@ async function createTables() {
       filename text NOT NULL,
       url text NOT NULL,
       nas_relative_path text,
+      width integer,
+      height integer,
       sort_order integer NOT NULL DEFAULT 0
+    )
+  `;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS width integer`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS height integer`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS media_renditions (
+      media_id uuid NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+      quality text NOT NULL,
+      nas_relative_path text NOT NULL,
+      byte_size bigint,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (media_id, quality)
     )
   `;
   await sql`

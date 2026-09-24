@@ -112,6 +112,34 @@ test("collects photos, nested floor plans, and root videos from a real shoot lay
   );
 });
 
+test("ignores lighter renditions stored beside the original", async () => {
+  const shoot = "/share/Sam/2026.09.04 - 1843 Beacon Hill Drive";
+  const files = await collectNasDeliverables({
+    shootFolderPath: shoot,
+    stillsFolders: ["Final", "Photos"],
+    list: (dir) => {
+      if (dir === shoot) {
+        return [
+          { name: "Final", path: `${shoot}/Final`, isDir: true },
+          { name: ".portal-renditions", path: `${shoot}/.portal-renditions`, isDir: true },
+          { name: "captions.mov", path: `${shoot}/captions.mov`, isDir: false },
+        ];
+      }
+      if (dir === `${shoot}/Final`) {
+        return [{ name: "Full-01.jpg", path: `${shoot}/Final/Full-01.jpg`, isDir: false }];
+      }
+      if (dir === `${shoot}/.portal-renditions`) {
+        return [{ name: "abc-720.mp4", path: `${shoot}/.portal-renditions/abc-720.mp4`, isDir: false }];
+      }
+      return [];
+    },
+  });
+  assert.deepEqual(
+    files.map((file) => file.name),
+    ["Full-01.jpg", "captions.mov"],
+  );
+});
+
 test("imports a video-only monthly folder and a 3D floorplan sibling", async () => {
   const videos = "/share/Sam/2026.08.19 - August Videos";
   const videoFiles = await collectNasDeliverables({

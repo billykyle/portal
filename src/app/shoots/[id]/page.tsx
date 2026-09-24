@@ -12,6 +12,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
 import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { videoPlaybackById } from "@/lib/video-store";
 import { shootPageMetadata } from "@/lib/site-metadata";
 
 export async function generateMetadata({
@@ -63,6 +64,7 @@ export default async function ShootPage({
     .from(media)
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
+  const playback = await videoPlaybackById(files);
 
   return (
     <PhoneShell>
@@ -87,6 +89,9 @@ export default async function ShootPage({
           type: item.type,
           url: resolveMediaUrl(item),
           thumbUrl: resolveMediaThumbUrl(item),
+          width: item.width,
+          height: item.height,
+          renditions: playback.get(item.id) ?? [],
         }))}
       />
     </PhoneShell>
