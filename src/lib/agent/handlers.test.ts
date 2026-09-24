@@ -22,6 +22,7 @@ function stubOps(overrides: Partial<AgentOps> = {}): AgentOps {
     getBooking: fail,
     modifyBooking: fail,
     cancelBooking: fail,
+    createBooking: fail,
     listShoots: fail,
     getShoot: fail,
     getShootShareLink: fail,
@@ -173,6 +174,45 @@ test("modify_booking forwards partial fields and revalidates booking pages", asy
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.ok(result.revalidate.includes("/admin/bookings/booking-1"));
+});
+
+test("create_booking forwards the shoot and revalidates booking pages", async () => {
+  const result = await runAgentTool(
+    "create_booking",
+    {
+      client: "BK00004",
+      address: "12 Wood View Drive",
+      services: ["Real Estate · Photography"],
+      date: "2026-09-22",
+      time: "7:40",
+      notes: "Lockbox",
+    },
+    stubOps({
+      async createBooking(input) {
+        assert.equal(input.client, "BK00004");
+        assert.equal(input.time, "7:40");
+        assert.deepEqual(input.services, ["Real Estate · Photography"]);
+        return {
+          ok: true,
+          booking: {
+            ok: true,
+            bookingId: "booking-new",
+            client: { id: "c1", inviteCode: "BK00004", displayName: "Sam Lepore" },
+            startsAt: "2026-09-22T23:40:00.000Z",
+            startEt: "Tue, Sep 22 at 7:40 PM",
+            timeZone: "America/New_York",
+            calendar: "written",
+            email: "sent",
+            overlapWarning: null,
+          },
+        };
+      },
+    }),
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.ok(result.revalidate.includes("/admin/bookings"));
+  assert.equal((result.data as { booking: { bookingId: string } }).booking.bookingId, "booking-new");
 });
 
 test("sync_from_nas returns the summary from the shared admin sync", async () => {

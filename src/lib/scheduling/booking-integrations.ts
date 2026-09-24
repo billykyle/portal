@@ -95,6 +95,8 @@ export async function settleBookingIntegrations(
     calendarWrite?: CalendarWriteInput;
     deleteCalendarEventId?: string | null;
     email: BookingConfirmationInput;
+    /** Skip Billy's New shoot / updated notify even when the calendar write succeeded. */
+    skipOwnerNotify?: boolean;
   },
   deps: BookingIntegrationDeps = defaultBookingIntegrationDeps(),
 ): Promise<{
@@ -127,9 +129,12 @@ export async function settleBookingIntegrations(
   }
 
   // Create/modify: skip Pepper "already on calendar" notify when Calendar write failed.
+  // Admin book-a-shoot also skips that New shoot mail when the calendar write succeeded.
   // Cancel: always attempt both branded cancel emails; sync-issue alert is additive.
   const prepared = await prepareDeliverableBookingEmailForBooking(input.bookingId, input.email);
-  const skipNotify = calendarFailed && input.action !== "cancel";
+  const skipNotify =
+    (Boolean(input.skipOwnerNotify) && input.action !== "cancel") ||
+    (calendarFailed && input.action !== "cancel");
   const emails = await deps.sendEmails(prepared.send, { kind: input.action, skipNotify });
   const clientEmailFailed = !emails.client.sent;
   const ownerEmailFailed = skipNotify ? false : !emails.notify.sent;
