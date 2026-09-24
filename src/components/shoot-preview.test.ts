@@ -209,7 +209,57 @@ test("shoot video uses an in-page player with a browser-playable type", () => {
   assert.match(video, /<source[^>]*src="\/api\/media\/vid-1"/);
   assert.match(video, /type="video\/mp4"/);
   assert.doesNotMatch(video, /video\/quicktime/);
+  assert.doesNotMatch(video, /aspect-video/);
+  assert.doesNotMatch(video, /Playback quality|1080p|720p|>Original</);
   assert.match(video, /href="\/api\/media\/vid-1"/);
+  assert.doesNotMatch(video, /href="[^"]*rendition=/);
+});
+
+test("videos play at their own ratio and default to a lighter rendition", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "1843 Beacon Hill Drive",
+      dateLabel: "Sep 4, 2026",
+      dropboxUrl: null,
+      folderName: "2026-09-04-beacon-hill",
+      media: [
+        {
+          id: "tall",
+          url: "/api/media/tall",
+          filename: "1843 Beacon Hill Drive - captions.mov",
+          type: "video",
+          width: 1080,
+          height: 1920,
+          renditions: [
+            { quality: "720", url: "/api/media/tall?rendition=720" },
+            { quality: "1080", url: "/api/media/tall?rendition=1080" },
+          ],
+        },
+        {
+          id: "wide",
+          url: "/api/media/wide",
+          filename: "walkthrough.mp4",
+          type: "video",
+          width: 1920,
+          height: 1080,
+          renditions: [{ quality: "720", url: "/api/media/wide?rendition=720" }],
+        },
+      ],
+    }),
+  );
+  const video = html.slice(html.indexOf('id="video"'));
+  assert.match(video, /aspect-ratio:\s*1080\s*\/\s*1920/);
+  assert.match(video, /aspect-ratio:\s*1920\s*\/\s*1080/);
+  assert.doesNotMatch(video, /aspect-video/);
+  assert.match(video, /<source[^>]*src="\/api\/media\/tall\?rendition=720"/);
+  assert.match(video, /<source[^>]*src="\/api\/media\/wide\?rendition=720"/);
+  assert.match(video, /href="\/api\/media\/tall"/);
+  assert.match(video, /href="\/api\/media\/wide"/);
+  assert.doesNotMatch(video, /href="[^"]*rendition=/);
+  assert.doesNotMatch(video, /<select|Playback quality|1080p|>Original</);
+  const photos = html.indexOf('id="photos"');
+  assert.equal(photos, -1);
 });
 
 test("floor plan tiles stay square", () => {

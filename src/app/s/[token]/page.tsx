@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { media } from "@/lib/db/schema";
 import { publicShootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { videoPlaybackById } from "@/lib/video-store";
 import { publicShootPath, publicShootUrl } from "@/lib/public-link";
 import { getPublicShoot } from "@/lib/public-shoot";
 import { shootPageMetadata } from "@/lib/site-metadata";
@@ -49,6 +50,7 @@ export default async function PublicShootPage({
     .from(media)
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
+  const playback = await videoPlaybackById(files);
 
   return (
     <PhoneShell>
@@ -67,6 +69,9 @@ export default async function PublicShootPage({
           type: item.type,
           url: resolveMediaUrl(item),
           thumbUrl: resolveMediaThumbUrl(item),
+          width: item.width,
+          height: item.height,
+          renditions: playback.get(item.id) ?? [],
         }))}
       />
     </PhoneShell>

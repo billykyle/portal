@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
-import { mediaFileResponse, openMediaHeaders, planMediaResponse } from "./media-response";
+import { fileSizeFromContentRange, mediaFileResponse, openMediaHeaders, planMediaResponse } from "./media-response";
 import { isNasAuthError } from "./nas-auth";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import {
@@ -551,6 +551,58 @@ async function openNasDownload(nasPath: string, rangeHeader?: string | null) {
     }
     return res;
   });
+}
+
+async function readAtMost(response: Response, maxBytes: number) {
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      const room = maxBytes - total;
+      if (value.byteLength > room) {
+        chunks.push(value.subarray(0, room));
+        total += room;
+        break;
+      }
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+/**
+ * A window of a NAS file. A tail request that comes back as a full-file 200
+ * is discarded so a dimension probe cannot pull an entire video.
+ */
+export async function readNasByteRange(nasPath: string, start: number, end: number) {
+  if (end < start || start < 0) return null;
+  let res: Response;
+  try {
+    res = await openNasDownload(nasPath, `bytes=${start}-${end}`);
+  } catch {
+    return null;
+  }
+  const wanted = end - start + 1;
+  const ranged = fileSizeFromContentRange(res.headers.get("content-range"));
+  if (res.status === 206 && res.body) {
+    const bytes = await readAtMost(res, wanted);
+    return { bytes, fileSize: ranged };
+  }
+  if (start === 0 && res.ok && res.body) {
+    const bytes = await readAtMost(res, wanted);
+    const declared = Number(res.headers.get("content-length"));
+    const fromLength = Number.isFinite(declared) && declared >= bytes.length ? declared : null;
+    return { bytes, fileSize: ranged ?? fromLength };
+  }
+  await res.body?.cancel().catch(() => undefined);
+  return null;
 }
 
 async function downloadNasFileBytes(nasPath: string, filename: string, ext: string): Promise<Buffer> {

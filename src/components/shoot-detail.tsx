@@ -2,8 +2,8 @@ import Link from "next/link";
 import { MediaTile } from "@/components/media-tile";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
+import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
-import { videoSourceType } from "@/lib/media-response";
 import { photoViewerHref } from "@/lib/photo-viewer";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
@@ -13,6 +13,9 @@ export type ShootMedia = {
   thumbUrl?: string;
   filename: string;
   type: "photo" | "video" | "floor_plan";
+  width?: number | null;
+  height?: number | null;
+  renditions?: PlayerRendition[];
 };
 
 export function ShootDetail({
@@ -131,25 +134,17 @@ export function ShootDetail({
       {videos.length > 0 ? (
         <section id={mediaSectionId("video")} className="flex flex-col gap-3">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("video")}</h2>
-          <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2">
+          <div className="flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start">
             {videos.map((item) => (
-              <figure key={item.id} className="overflow-hidden rounded-xl bg-[#111]">
-                <video
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="aspect-video w-full bg-black"
-                  aria-label={item.filename}
-                >
-                  <source src={item.url} type={videoSourceType(item.filename)} />
-                </video>
-                <figcaption className="flex items-center justify-between px-3 py-2 text-sm text-[#c7c7cc]">
-                  <span className="truncate">{item.filename}</span>
-                  <a href={item.url} download={item.filename} className="text-white">
-                    Download
-                  </a>
-                </figcaption>
-              </figure>
+              <VideoPlayer
+                key={item.id}
+                id={item.id}
+                url={item.url}
+                filename={item.filename}
+                width={item.width}
+                height={item.height}
+                renditions={item.renditions}
+              />
             ))}
           </div>
         </section>

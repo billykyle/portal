@@ -128,6 +128,16 @@ export function planMediaResponse(input: {
   return { kind: "bytes", status: parsed ? 206 : 200, start, end, headers };
 }
 
+/** Total file size from a Content-Range header (`bytes 0-1/size` or `bytes * / size`). */
+export function fileSizeFromContentRange(header: string | null) {
+  if (!header) return null;
+  const match = /\/(\d+)\s*$/.exec(header.trim());
+  if (!match) return null;
+  const size = Number(match[1]);
+  if (!Number.isFinite(size) || size < 0) return null;
+  return size;
+}
+
 /** Stream a cached file, honoring a single byte range. */
 export async function mediaFileResponse(
   filePath: string,
