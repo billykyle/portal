@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { CLIENT_SORTS } from "@/lib/admin/client-sort";
 import { runAgentTool } from "@/lib/agent/handlers";
 import type { AgentOps } from "@/lib/agent/ops";
 
@@ -52,8 +53,16 @@ export function createPortalMcpServer(ops: AgentOps) {
 
   register(
     "list_clients",
-    "List portal clients. Each row includes invite code, display name, company, primary email, a short notes summary, user count, and shoot count.",
-    { query: z.string().optional().describe("Optional case-insensitive match on invite code, name, company, or primary email.") },
+    "List portal clients. Each row includes invite code, display name, company, primary email, a short notes summary, user count, and shoot count. Optional query and sort. Omit sort to keep the current listing order.",
+    {
+      query: z.string().optional().describe("Optional case-insensitive match on invite code, name, company, or primary email."),
+      sort: z
+        .enum(CLIENT_SORTS)
+        .optional()
+        .describe(
+          "Optional. name-asc, name-desc, company (no company last), newest, oldest, shoots (most first), or code (BK00001 upward).",
+        ),
+    },
     readOnly,
   );
   register(

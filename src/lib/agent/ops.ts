@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { clientCounts, createClientRecord, deleteClientRecord, findClient, listClientRows, updateClientRecord } from "@/lib/admin/clients";
+import { sortClients, type ClientSort } from "@/lib/admin/client-sort";
 import { isUuid } from "@/lib/admin/ids";
 import {
   ensureShootPublicToken,
@@ -64,7 +65,7 @@ export type BookingDto = {
 };
 
 export type AgentOps = {
-  listClients(input: { query?: string }): Promise<ClientSummary[]>;
+  listClients(input: { query?: string; sort?: ClientSort }): Promise<ClientSummary[]>;
   getClient(input: { id?: string; inviteCode?: string }): Promise<{ ok: true; client: ClientDetail } | { ok: false; error: string }>;
   createClient(input: {
     displayName?: string;
@@ -253,11 +254,12 @@ function shootSummary(row: ShootRecord, items: { id: string; type: string; filen
 }
 
 export const portalAgentOps: AgentOps = {
-  async listClients({ query }) {
+  async listClients({ query, sort }) {
     const [rows, counts] = await Promise.all([listClientRows(), clientCounts()]);
-    return rows
+    const listed = rows
       .map((row) => summaryFrom(row, counts))
       .filter((row) => clientMatchesQuery(row, query));
+    return sort ? sortClients(listed, sort) : listed;
   },
 
   async getClient(input) {

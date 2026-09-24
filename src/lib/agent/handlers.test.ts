@@ -36,6 +36,7 @@ test("list_clients returns the op payload and does not revalidate", async () => 
     stubOps({
       async listClients(input) {
         assert.equal(input.query, "sam");
+        assert.equal(input.sort, undefined);
         return [
           {
             id: "c1",
@@ -56,6 +57,38 @@ test("list_clients returns the op payload and does not revalidate", async () => 
   if (!result.ok) return;
   assert.deepEqual(result.revalidate, []);
   assert.equal((result.data as { clients: { inviteCode: string }[] }).clients[0].inviteCode, "BK00004");
+});
+
+test("list_clients forwards sort and rejects an unknown sort before the op", async () => {
+  let seen: string | undefined;
+  const sorted = await runAgentTool(
+    "list_clients",
+    { sort: "code", query: "bk" },
+    stubOps({
+      async listClients(input) {
+        seen = input.sort;
+        assert.equal(input.query, "bk");
+        return [];
+      },
+    }),
+  );
+  assert.equal(sorted.ok, true);
+  assert.equal(seen, "code");
+
+  let calls = 0;
+  const invalid = await runAgentTool(
+    "list_clients",
+    { sort: "alpha" },
+    stubOps({
+      async listClients() {
+        calls += 1;
+        return [];
+      },
+    }),
+  );
+  assert.equal(invalid.ok, false);
+  assert.equal(calls, 0);
+  if (!invalid.ok) assert.match(invalid.error, /name-asc/);
 });
 
 test("delete_client requires an id and a confirmation code before calling the op", async () => {

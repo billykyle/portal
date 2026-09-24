@@ -1,3 +1,4 @@
+import { readClientSortArgument } from "@/lib/admin/client-sort";
 import type { AgentOps } from "@/lib/agent/ops";
 import { clampLimit, normalizeBookingWhen } from "@/lib/agent/present";
 import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
@@ -29,7 +30,9 @@ export async function runAgentTool(
 ): Promise<ToolOutcome> {
   switch (name) {
     case "list_clients": {
-      const clients = await ops.listClients({ query: optionalText(args.query) });
+      const sort = readClientSortArgument(args.sort);
+      if (!sort.ok) return sort;
+      const clients = await ops.listClients({ query: optionalText(args.query), sort: sort.sort });
       return { ok: true, data: { clients }, revalidate: [] };
     }
     case "get_client": {
