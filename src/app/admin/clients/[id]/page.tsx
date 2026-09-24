@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppHeader } from "@/components/app-header";
+import { AdminHeader } from "@/components/admin-header";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
@@ -62,13 +62,7 @@ export default async function AdminClientPage({
 
   return (
     <PhoneShell wide>
-      <AppHeader
-        left={
-          <Link href="/admin/clients" className="text-sm text-[#8e8e93]">
-            Clients
-          </Link>
-        }
-      />
+      <AdminHeader backHref="/admin/clients" backLabel="Clients" />
       <header className="mb-8">
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">{client.displayName}</h1>

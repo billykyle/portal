@@ -3,6 +3,7 @@ import { MediaTile } from "@/components/media-tile";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
+import { videoSourceType } from "@/lib/media-response";
 import { photoViewerHref } from "@/lib/photo-viewer";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
@@ -133,7 +134,15 @@ export function ShootDetail({
           <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2">
             {videos.map((item) => (
               <figure key={item.id} className="overflow-hidden rounded-xl bg-[#111]">
-                <video src={item.url} controls playsInline preload="metadata" className="w-full" />
+                <video
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="aspect-video w-full bg-black"
+                  aria-label={item.filename}
+                >
+                  <source src={item.url} type={videoSourceType(item.filename)} />
+                </video>
                 <figcaption className="flex items-center justify-between px-3 py-2 text-sm text-[#c7c7cc]">
                   <span className="truncate">{item.filename}</span>
                   <a href={item.url} download={item.filename} className="text-white">

@@ -1,9 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AccountControl } from "@/components/account-control";
-import { AppHeader } from "@/components/app-header";
+import { AdminHeader } from "@/components/admin-header";
+import { ClientHeader } from "@/components/client-header";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -67,17 +66,11 @@ export default async function ShootPage({
 
   return (
     <PhoneShell>
-      <AppHeader
-        left={
-          <Link
-            href={admin ? `/admin/clients/${shoot.clientId}` : "/library"}
-            className="text-sm text-[#8e8e93]"
-          >
-            {admin ? "Client" : "Library"}
-          </Link>
-        }
-        right={!admin && session ? <AccountControl /> : undefined}
-      />
+      {admin ? (
+        <AdminHeader backHref={`/admin/clients/${shoot.clientId}`} backLabel="Client" />
+      ) : (
+        <ClientHeader />
+      )}
       <ShootDetail
         basePath={`/shoots/${shoot.id}`}
         viewId={view}

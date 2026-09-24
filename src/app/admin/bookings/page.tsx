@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminHeader } from "@/components/admin-header";
 import { BookingList } from "@/components/booking-list";
-import { AppHeader } from "@/components/app-header";
-import { PhoneShell } from "@/components/phone-shell";
-import { SignOutButton } from "@/components/sign-out-button";
+import { pageTitleClass, PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { listAdminBookings } from "@/lib/scheduling/bookings";
@@ -27,17 +25,10 @@ export default async function AdminBookingsPage({
 
   return (
     <PhoneShell wide>
-      <AppHeader
-        left={<h1 className="truncate text-2xl font-medium">Bookings</h1>}
-        right={
-          <>
-            <Link href="/admin/clients" className="text-sm text-[#8e8e93]">
-              Clients
-            </Link>
-            <SignOutButton admin />
-          </>
-        }
-      />
+      <AdminHeader />
+      <div className="mb-8 lg:mb-10">
+        <h1 className={pageTitleClass}>Bookings</h1>
+      </div>
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
       {updated ? <p className="mb-6 text-sm text-white">Shoot updated.</p> : null}

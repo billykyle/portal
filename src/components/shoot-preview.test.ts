@@ -184,6 +184,34 @@ test("opening a floor plan shows the original file", () => {
   assert.match(viewer, /href="\/api\/media\/plan-jpg"/);
 });
 
+test("shoot video uses an in-page player with a browser-playable type", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "188 33rd Street",
+      dateLabel: "Aug 19, 2026",
+      dropboxUrl: null,
+      folderName: "2026-08-19-188-33rd",
+      media: [
+        {
+          id: "vid-1",
+          url: "/api/media/vid-1",
+          filename: "188 33rd Street.mov",
+          type: "video",
+        },
+      ],
+    }),
+  );
+  const video = html.slice(html.indexOf('id="video"'));
+  assert.match(video, /<video\b[^>]*controls/);
+  assert.match(video, /playsInline|playsinline/);
+  assert.match(video, /preload="metadata"/);
+  assert.match(video, /<source[^>]*src="\/api\/media\/vid-1"/);
+  assert.match(video, /type="video\/mp4"/);
+  assert.doesNotMatch(video, /video\/quicktime/);
+  assert.match(video, /href="\/api\/media\/vid-1"/);
+});
+
 test("floor plan tiles stay square", () => {
   const html = renderShoot();
   const plans = html.slice(html.indexOf('id="floor-plans"'));

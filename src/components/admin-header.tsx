@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { AccountControl } from "@/components/account-control";
 import { AppHeader } from "@/components/app-header";
 import { NavMenu } from "@/components/nav-menu";
+import { SignOutButton } from "@/components/sign-out-button";
 
-export function ClientHeader({
+export function AdminHeader({
   backHref = null,
   backLabel = "Back",
 }: {
-  /** Hierarchical step back (shoot flow, address). Omit for top-level pages — the menu switches sections. */
+  /** Drill-in back (a client, a booking, the address step). Omit on top-level admin pages. */
   backHref?: string | null;
   backLabel?: string;
 }) {
@@ -15,7 +15,7 @@ export function ClientHeader({
     <AppHeader
       left={
         <div className="flex min-w-0 items-center gap-1">
-          <NavMenu side="client" />
+          <NavMenu side="admin" />
           {backHref ? (
             <Link href={backHref} className="truncate text-sm text-[#8e8e93]">
               {backLabel}
@@ -23,7 +23,7 @@ export function ClientHeader({
           ) : null}
         </div>
       }
-      right={<AccountControl />}
+      right={<SignOutButton admin />}
     />
   );
 }

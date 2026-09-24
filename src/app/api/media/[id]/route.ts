@@ -22,7 +22,7 @@ export async function GET(
   const nasPath = item.nasRelativePath;
   if (nasEnabled() && isNasFilePath(nasPath)) {
     try {
-      return await proxyNasFile(nasPath, item.filename, download);
+      return await proxyNasFile(nasPath, item.filename, download, request.headers.get("range"));
     } catch (error) {
       const message = error instanceof Error ? error.message : "NAS proxy failed.";
       return NextResponse.json(

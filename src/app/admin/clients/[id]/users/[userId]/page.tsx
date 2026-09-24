@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppHeader } from "@/components/app-header";
+import { AdminHeader } from "@/components/admin-header";
 import { AdminUserProfileForm } from "@/components/forms/admin-user-profile-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -38,13 +37,7 @@ export default async function AdminUserProfilePage({
 
   return (
     <PhoneShell>
-      <AppHeader
-        left={
-          <Link href={`/admin/clients/${client.id}`} className="text-sm text-[#8e8e93]">
-            {client.displayName}
-          </Link>
-        }
-      />
+      <AdminHeader backHref={`/admin/clients/${client.id}`} backLabel={client.displayName} />
       <header className="mb-8">
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">Edit profile</h1>
