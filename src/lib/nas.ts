@@ -1,8 +1,10 @@
 import { createHash } from "crypto";
-import { createReadStream } from "fs";
-import { mkdir, readFile, stat, writeFile } from "fs/promises";
+import { createWriteStream } from "fs";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
+import { pipeline } from "stream/promises";
+import { mediaFileResponse, openMediaHeaders, planMediaResponse } from "./media-response";
 import { isNasAuthError } from "./nas-auth";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import {
@@ -408,17 +410,6 @@ function extensionFrom(name: string, fallback: string) {
   return ext || fallback;
 }
 
-function nodeStreamResponse(filePath: string, contentType: string, filename: string, download: boolean) {
-  const stream = Readable.toWeb(createReadStream(/* turbopackIgnore: true */ filePath)) as ReadableStream;
-  return new Response(stream, {
-    headers: {
-      "Content-Type": contentType,
-      "Content-Disposition": disposition(download, filename),
-      "Cache-Control": "private, max-age=86400",
-    },
-  });
-}
-
 const queueNasThumbnail = createQueue(3);
 
 async function fetchNasThumbnailBytes(nasPath: string) {
@@ -511,23 +502,6 @@ function createQueue(concurrency: number) {
   };
 }
 
-function disposition(download: boolean, filename: string) {
-  const safe = filename.replace(/["\\]/g, "_");
-  return `${download ? "attachment" : "inline"}; filename="${safe}"`;
-}
-
-function contentTypeFor(ext: string, fallback = "application/octet-stream") {
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "png") return "image/png";
-  if (ext === "webp") return "image/webp";
-  if (ext === "svg") return "image/svg+xml";
-  if (ext === "pdf") return "application/pdf";
-  if (ext === "mp4" || ext === "m4v") return "video/mp4";
-  if (ext === "webm") return "video/webm";
-  if (ext === "mov") return "video/quicktime";
-  return fallback;
-}
-
 function queueNasDownload<T>(run: () => Promise<T>): Promise<T> {
   const queued = fileProxyChain.then(run, run);
   fileProxyChain = queued.then(
@@ -537,42 +511,55 @@ function queueNasDownload<T>(run: () => Promise<T>): Promise<T> {
   return queued;
 }
 
-async function downloadNasFileBytes(nasPath: string, filename: string, ext: string): Promise<Buffer> {
+async function withNasDownloadRetries<T>(run: () => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await withCookie(async (config, cookie) => {
-        const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
-          method: "POST",
-          headers: jsonHeaders(config, cookie),
-          body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
-          cache: "no-store",
-        });
-        const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
-        if (taskBody.code !== 200 || !taskBody.data?.result) {
-          throw new Error(taskBody.msg || "NAS download task failed.");
-        }
-        const downloadUrl = new URL(`${apiBase(config)}/filemgr/shareDownloadFile`);
-        downloadUrl.searchParams.set("coding", "true");
-        downloadUrl.searchParams.set("share_id", config.shareId);
-        downloadUrl.searchParams.set("password", config.password);
-        downloadUrl.searchParams.set("task_id", taskBody.data.result);
-        const res = await fetch(downloadUrl, { headers: mediaHeaders(config, cookie), cache: "no-store" });
-        const type = res.headers.get("content-type") ?? "";
-        if (type.includes("application/json") || !res.ok) {
-          const body = await res.text();
-          throw new Error(`NAS download failed: ${body.slice(0, 180)}`);
-        }
-        const bytes = Buffer.from(await res.arrayBuffer());
-        await writeCache("files", nasPath, ext, bytes);
-        return bytes;
-      });
+      return await run();
     } catch (error) {
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
     }
   }
   throw lastError instanceof Error ? lastError : new Error("NAS download failed.");
+}
+
+async function openNasDownload(nasPath: string, rangeHeader?: string | null) {
+  return withCookie(async (config, cookie) => {
+    const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
+      method: "POST",
+      headers: jsonHeaders(config, cookie),
+      body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
+      cache: "no-store",
+    });
+    const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
+    if (taskBody.code !== 200 || !taskBody.data?.result) {
+      throw new Error(taskBody.msg || "NAS download task failed.");
+    }
+    const downloadUrl = new URL(`${apiBase(config)}/filemgr/shareDownloadFile`);
+    downloadUrl.searchParams.set("coding", "true");
+    downloadUrl.searchParams.set("share_id", config.shareId);
+    downloadUrl.searchParams.set("password", config.password);
+    downloadUrl.searchParams.set("task_id", taskBody.data.result);
+    const headers: Record<string, string> = { ...(mediaHeaders(config, cookie) as Record<string, string>) };
+    if (rangeHeader) headers.Range = rangeHeader;
+    const res = await fetch(downloadUrl, { headers, cache: "no-store" });
+    const type = res.headers.get("content-type") ?? "";
+    if (type.includes("application/json") || type.startsWith("text/") || (!res.ok && res.status !== 206)) {
+      const body = await res.text();
+      throw new Error(`NAS download failed: ${body.slice(0, 180)}`);
+    }
+    return res;
+  });
+}
+
+async function downloadNasFileBytes(nasPath: string, filename: string, ext: string): Promise<Buffer> {
+  return withNasDownloadRetries(async () => {
+    const res = await openNasDownload(nasPath);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    await writeCache("files", nasPath, ext, bytes);
+    return bytes;
+  });
 }
 
 export async function nasCachedFileSize(nasPath: string, filename: string) {
@@ -594,19 +581,189 @@ export async function loadNasFileBytes(nasPath: string, filename: string) {
   return queueNasDownload(() => downloadNasFileBytes(nasPath, filename, ext));
 }
 
-export async function proxyNasFile(nasPath: string, filename: string, download = false) {
-  const ext = extensionFrom(filename, "bin");
-  const hit = await cachedFile("files", nasPath, ext);
-  if (hit) {
-    return nodeStreamResponse(hit, contentTypeFor(ext), filename, download);
-  }
+const fileCacheInflight = new Map<string, Promise<string>>();
 
-  const bytes = await loadNasFileBytes(nasPath, filename);
-  return new Response(bytes as unknown as BodyInit, {
-    headers: {
-      "Content-Type": contentTypeFor(ext),
-      "Content-Disposition": disposition(download, filename),
-      "Cache-Control": "private, max-age=86400",
+function limitedPrefixStream(body: ReadableStream<Uint8Array>, length: number) {
+  const reader = body.getReader();
+  let sent = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (sent >= length) {
+        controller.close();
+        await reader.cancel().catch(() => undefined);
+        return;
+      }
+      const { done, value } = await reader.read();
+      if (done || !value) {
+        controller.close();
+        return;
+      }
+      const remaining = length - sent;
+      if (value.byteLength <= remaining) {
+        sent += value.byteLength;
+        controller.enqueue(value);
+        if (sent >= length) {
+          controller.close();
+          await reader.cancel().catch(() => undefined);
+        }
+        return;
+      }
+      controller.enqueue(value.subarray(0, remaining));
+      sent += remaining;
+      controller.close();
+      await reader.cancel().catch(() => undefined);
+    },
+    cancel() {
+      return reader.cancel().catch(() => undefined);
     },
   });
+}
+
+async function cacheDownloadBody(nasPath: string, ext: string, body: ReadableStream<Uint8Array>) {
+  const finalPath = nasCacheFilePath("files", `${cacheKey(nasPath)}.${ext}`);
+  const partPath = `${finalPath}.part`;
+  await mkdir(/* turbopackIgnore: true */ nasCacheKindDir("files"), { recursive: true });
+  try {
+    await pipeline(
+      Readable.fromWeb(body as import("stream/web").ReadableStream),
+      createWriteStream(/* turbopackIgnore: true */ partPath),
+    );
+    await rename(/* turbopackIgnore: true */ partPath, /* turbopackIgnore: true */ finalPath);
+  } catch (error) {
+    await rm(/* turbopackIgnore: true */ partPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  return finalPath;
+}
+
+function enqueueFileCache(nasPath: string, ext: string, body: ReadableStream<Uint8Array> | null) {
+  const existing = fileCacheInflight.get(nasPath);
+  if (existing) {
+    if (body) void body.cancel().catch(() => undefined);
+    return existing;
+  }
+  if (!body) return Promise.reject(new Error("NAS download was empty."));
+  const job = cacheDownloadBody(nasPath, ext, body).finally(() => {
+    fileCacheInflight.delete(nasPath);
+  });
+  fileCacheInflight.set(nasPath, job);
+  return job;
+}
+
+function passthroughPartial(res: Response, filename: string, download: boolean) {
+  const headers = openMediaHeaders(filename, download, null);
+  headers["Accept-Ranges"] = "bytes";
+  const length = res.headers.get("content-length");
+  const contentRange = res.headers.get("content-range");
+  if (length) headers["Content-Length"] = length;
+  if (contentRange) headers["Content-Range"] = contentRange;
+  return new Response(res.body, { status: 206, headers });
+}
+
+function streamWholeFile(
+  body: ReadableStream<Uint8Array>,
+  input: {
+    nasPath: string;
+    ext: string;
+    status: 200 | 206;
+    headers: Record<string, string>;
+  },
+) {
+  if (fileCacheInflight.has(input.nasPath)) {
+    return new Response(body, { status: input.status, headers: input.headers });
+  }
+  const [forClient, forCache] = body.tee();
+  const job = cacheDownloadBody(input.nasPath, input.ext, forCache).finally(() => {
+    fileCacheInflight.delete(input.nasPath);
+  });
+  fileCacheInflight.set(input.nasPath, job);
+  job.catch((error) => {
+    console.error("NAS file cache failed:", error);
+  });
+  return new Response(forClient, { status: input.status, headers: input.headers });
+}
+
+/**
+ * In-app file bytes. Video playback sends `Range` (often `bytes=0-1` first).
+ * A 200 of the entire buffered file never starts on Vercel and Safari will not
+ * play it. Cached files answer 206. A miss streams from the NAS instead of
+ * loading the whole video into memory first.
+ */
+export async function proxyNasFile(
+  nasPath: string,
+  filename: string,
+  download = false,
+  rangeHeader: string | null = null,
+) {
+  const ext = extensionFrom(filename, "bin");
+  const options = { filename, download, rangeHeader };
+  const hit = await cachedFile("files", nasPath, ext);
+  if (hit) return mediaFileResponse(hit, options);
+
+  const pending = fileCacheInflight.get(nasPath);
+  if (pending) {
+    try {
+      return mediaFileResponse(await pending, options);
+    } catch {
+      /* The in-flight copy failed; open a new download below. */
+    }
+  }
+
+  let upstream: Response | null = null;
+  if (rangeHeader) {
+    try {
+      const ranged = await openNasDownload(nasPath, rangeHeader);
+      if (ranged.status === 206 && ranged.headers.get("content-range") && ranged.body) {
+        return passthroughPartial(ranged, filename, download);
+      }
+      const type = ranged.headers.get("content-type") ?? "";
+      if (!type.includes("application/json") && !type.startsWith("text/") && ranged.ok && ranged.body) {
+        upstream = ranged;
+      } else {
+        await ranged.body?.cancel().catch(() => undefined);
+      }
+    } catch {
+      /* Share download ignored or rejected Range. Read the whole file next. */
+    }
+  }
+  if (!upstream) upstream = await withNasDownloadRetries(() => openNasDownload(nasPath));
+  if (!upstream.body) throw new Error("NAS download was empty.");
+
+  const rawLength = upstream.headers.get("content-length")?.trim() ?? "";
+  const declared = rawLength ? Number(rawLength) : Number.NaN;
+  const size = Number.isFinite(declared) && declared >= 0 ? declared : null;
+  if (size == null) {
+    if (rangeHeader) {
+      const cached = await enqueueFileCache(nasPath, ext, upstream.body);
+      return mediaFileResponse(cached, options);
+    }
+    const headers = openMediaHeaders(filename, download, null);
+    return streamWholeFile(upstream.body, { nasPath, ext, status: 200, headers });
+  }
+
+  const plan = planMediaResponse({ size, rangeHeader, filename, download });
+  if (plan.kind === "unsatisfiable") {
+    await upstream.body.cancel().catch(() => undefined);
+    return new Response(null, { status: 416, headers: plan.headers });
+  }
+
+  const whole = plan.start === 0 && plan.end === size - 1;
+  if (whole || plan.end < plan.start) {
+    return streamWholeFile(upstream.body, {
+      nasPath,
+      ext,
+      status: plan.status,
+      headers: plan.headers,
+    });
+  }
+
+  if (plan.start === 0) {
+    return new Response(limitedPrefixStream(upstream.body, plan.end - plan.start + 1), {
+      status: plan.status,
+      headers: plan.headers,
+    });
+  }
+
+  const cached = await enqueueFileCache(nasPath, ext, upstream.body);
+  return mediaFileResponse(cached, options);
 }

@@ -25,7 +25,7 @@ export default async function HubPage() {
 
   return (
     <PhoneShell>
-      <ClientHeader backHref={null} />
+      <ClientHeader />
       <div className="mb-10 lg:mb-12">
         <h1 className="text-[28px] font-bold leading-tight lg:text-[32px]">
           {client?.displayName ?? "Client portal"}

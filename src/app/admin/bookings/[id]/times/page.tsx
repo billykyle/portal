@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppHeader } from "@/components/app-header";
+import { AdminHeader } from "@/components/admin-header";
 import { BookTimesPanel } from "@/components/forms/book-times-panel";
 import { FormColumn, pageTitleClass, PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -78,13 +77,7 @@ export default async function AdminModifyBookingTimesPage({
 
   return (
     <PhoneShell>
-      <AppHeader
-        left={
-          <Link href={changeHref} className="text-sm text-[#8e8e93]">
-            Address
-          </Link>
-        }
-      />
+      <AdminHeader backHref={changeHref} backLabel="Address" />
       <div className="mb-8 lg:mb-10">
         <h1 className={pageTitleClass}>Modify shoot</h1>
         {query.error ? (

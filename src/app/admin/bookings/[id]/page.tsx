@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppHeader } from "@/components/app-header";
+import { AdminHeader } from "@/components/admin-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
 import { FormColumn, PhoneShell, pageTitleClass } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -66,13 +65,7 @@ export default async function AdminModifyBookingPage({
 
   return (
     <PhoneShell>
-      <AppHeader
-        left={
-          <Link href="/admin/bookings" className="text-sm text-[#8e8e93]">
-            Bookings
-          </Link>
-        }
-      />
+      <AdminHeader backHref="/admin/bookings" backLabel="Bookings" />
       <FormColumn center className="pb-16">
         <div className="mb-8 lg:mb-10">
           <h1 className={pageTitleClass}>Modify shoot</h1>
