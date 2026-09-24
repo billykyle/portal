@@ -15,7 +15,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 7. Scheduling — two steps. **Step 1** (`/scheduling`): expand Real Estate, Construction, or Podcast. Real Estate and Construction stay multi-select; Podcast is one of **1 episode** or **2 episodes**. Type a single shoot address (Places Autocomplete fills the same field — not split street/city/state/ZIP). Availability prefetch starts once the address and at least one service are valid. **Step 2** (`/scheduling/times`): available times only after that address is set; last good slots stay on screen while times refresh. Slot length is the **sum** of selected service minutes, never longest-only. Upcoming bookings show every selected option as `Industry · Option` (for example `Real Estate · Photography` or `Podcast · 1 episode`). Travel hard-block is live drive time only (Google Maps when `GOOGLE_MAPS_API_KEY` is set); there is no extra pad. Google Calendar is source of truth when wired: work `billy@atmosimagery.com` **and** personal `bkyle015@gmail.com` — a time is busy if either calendar is busy. US Holidays is not used. Geography is never guessed. No prices in this flow. After **Book shoot**, if `RESEND_API_KEY` is set, the portal sends **two** Resend emails (no CC/BCC): a client confirmation to the session email, and a `New shoot: …` alert to `billy@billyhere.com` (or `BOOKING_NOTIFY_EMAIL`). A Calendar or email failure does not undo the saved shoot, but the confirmation page says so instead of looking fully successful. Billy also gets `Portal booking sync issue` (or a `PORTAL_BOOKING_SYNC_ALERT` log plus an admin `sync_issue` flag if that alert cannot send). Calendar writes use a deterministic event id so retries do not double-create. A Workspace Admin must allow external calendar edit sharing (or domain-wide delegation) for live Calendar create. Pepper is not required.
 8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 9. Dropbox — collapsed control with the Dropbox view link (logged-in shoot page only).
-10. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, or mints a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
+10. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, or creates a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -82,7 +82,7 @@ The first server boot also creates tables and seeds an empty database.
 | Role   | How to get in |
 | ------ | ------------- |
 | Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234`. Empty DBs seed this client with **no shoots**. |
-| Sam Lepore | Invite minted on first NAS sync, or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
+| Sam Lepore | Invite created on first NAS sync, or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
 | Admin  | Production: `https://admin.billy-kyle.com` (`ADMIN_PASSWORD`, example: `atmos-admin`). Local: `/admin` on the same `next dev` origin. `https://portal.billy-kyle.com/admin` redirects to the admin host. |
 
 Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View Drive stills are proxied from `Final/`. Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
@@ -137,13 +137,13 @@ Any managed Postgres that gives you a connection string is fine:
 
 `docker-compose.yml` is the local equivalent: user `portal`, password `portal`, database `portal`.
 
-## Mint a client
+## Create a client
 
-Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Manual mint is for demo clients or people who are not on the share yet.
+Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Creating one by hand is for demo clients or people who are not on the share yet.
 
 1. Open `https://admin.billy-kyle.com` (or local `/admin`) and enter `ADMIN_PASSWORD`.
 2. Fill display name, primary contact email, optional company and notes.
-3. **Mint next BK code** — the app assigns `BK00002`, `BK00003`, …
+3. **Create next BK code** — the app assigns `BK00002`, `BK00003`, …
 4. Shoots come from **Sync from NAS** on the clients list. There is no manual attach form.
 5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, Dropbox, public share). Shoots mirror the NAS — there is no manual delete. The BK invite stays.
 
@@ -159,11 +159,11 @@ Auth is `Authorization: Bearer $PORTAL_AGENT_API_KEY` (not `ADMIN_PASSWORD`). Fl
 
 ## Edit or remove a client
 
-Open a client from admin (the list is titled **Admin**). Invite `BK#####` is the client key and is never edited.
+Open a client from admin. Invite `BK#####` is the client key and is never edited.
 
-- **Client info** — change display name, primary contact email, company, and internal notes, then **Save client**. Those persist to Postgres. Do not rename someone whose NAS folder still uses the old name — sync matches by display name and would mint a new BK code.
+- **Client info** — change display name, primary contact email, company, and internal notes, then **Save client**. Those persist to Postgres. Do not rename someone whose NAS folder still uses the old name — sync matches by display name and would create a new BK code.
 - **Teammate logins** — each email/password account that redeemed the invite. **Edit profile** changes the same Account fields (first name, last name, company, phone, and sign-in email). Company is the shared client company. The sign-in email is the login; it is separate from Primary contact email. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
-- **Delete client** — destructive. Type the invite code and `DELETE`. This removes the client record, every teammate login under it, and all attached shoots and photos. If the NAS folder is still there, the next sync mints a new BK code for that name.
+- **Delete client** — destructive. Type the invite code and `DELETE`. This removes the client record, every teammate login under it, and all attached shoots and photos. If the NAS folder is still there, the next sync creates a new BK code for that name.
 
 Use **Remove** on a teammate when you only need to kick one person. Use **Delete client** when the whole BK record should go away.
 
@@ -204,7 +204,7 @@ Client Deliverables /
       *.mp4  *.mov              → video-only shoot (same date - address rule)
 ```
 
-- A new `{client}` folder upserts a client by display name and mints the next BK code if needed. Existing clients (matched case-insensitively) keep their invite and email.
+- A new `{client}` folder upserts a client by display name and creates the next BK code if needed. Existing clients (matched case-insensitively) keep their invite and email.
 - A new `{date} - {address}` folder creates a shoot with a public `/s/[token]` link.
 - **Photos** come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`).
 - **Floor plans** come from any sibling folder whose name matches `Floor Plan`, `Floorplan`, `3D Floorplan`, or `Plans`, including nested folders. JPGs, PNGs, SVG, and PDF are imported. Nested copies (`W sqft` / `Wo sqft`, `jpg-with-dim` / `jpg-without-dim`) are all kept; the portal filename includes the relative path so they do not overwrite each other.
@@ -261,7 +261,7 @@ A system cron is only a backup for a long-running Node host:
 */10 * * * * cd /path/to/portal && npm run nas:sync
 ```
 
-New clients created from the share get a placeholder email (`{name}@pending.local`) and no login. Give them the minted BK code so they can sign up. Sam Lepore already has `sam@example.com` from the first import; later syncs reuse that record.
+New clients created from the share get a placeholder email (`{name}@pending.local`) and no login. Give them the created BK code so they can sign up. Sam Lepore already has `sam@example.com` from the first import; later syncs reuse that record.
 
 ### How the proxy works
 

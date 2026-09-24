@@ -1,13 +1,21 @@
 import { desc, eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
+import { AdminSection } from "@/components/admin-section";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { PhoneShell } from "@/components/phone-shell";
 import { BookingList } from "@/components/booking-list";
 import { ShootList } from "@/components/shoot-list";
+import {
+  ADMIN_SECTIONS_COOKIE,
+  clientDetailSectionForce,
+  parseOpenSections,
+  sectionStartsOpen,
+} from "@/lib/admin/sections";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -34,6 +42,16 @@ export default async function AdminClientPage({
   }
   const { id } = await params;
   const { error, saved, userRemoved, bookingCancelled } = await searchParams;
+  const openSections = parseOpenSections((await cookies()).get(ADMIN_SECTIONS_COOKIE)?.value);
+  const detailSignals = {
+    saved: Boolean(saved),
+    userRemoved: Boolean(userRemoved),
+    bookingCancelled: Boolean(bookingCancelled),
+    error: error ?? "",
+  };
+  function detailOpen(id: string) {
+    return sectionStartsOpen(openSections, id, clientDetailSectionForce(id, detailSignals));
+  }
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -75,20 +93,13 @@ export default async function AdminClientPage({
         ) : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
-      <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <div>
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Client info</h2>
+      <div className="pb-8">
+        <AdminSection id="client:info" label="Client info" defaultOpen={detailOpen("client:info")}>
+          <div className="max-w-md">
             <EditClientForm client={client} />
-          </section>
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Teammate logins</h2>
-            <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
-              These are email/password accounts that redeemed {client.inviteCode}. Edit profile
-              changes the name, company, phone, and sign-in email they manage on Account.
-              Removing one login does not delete the client or the invite. They can sign up
-              again with the same code.
-            </p>
+          </div>
+        </AdminSection>
+        <AdminSection id="client:logins" label="Teammate logins" defaultOpen={detailOpen("client:logins")}>
             {teammateRows.length === 0 ? (
               <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
             ) : (
@@ -121,45 +132,41 @@ export default async function AdminClientPage({
                 ))}
               </ul>
             )}
-          </section>
-        </div>
-        <div className="min-w-0">
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Bookings</h2>
-            <BookingList
-              bookings={bookingRows.map((booking) => ({ ...booking, clientId: client.id }))}
-              emptyLabel="No bookings yet."
-              timeZone={hours.timeZone}
-              allowCancel
-              allowModify
-              admin
-            />
-          </section>
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Shoots</h2>
-            <ShootList
-              variant="admin"
-              emptyLabel="No shoots attached yet."
-              shoots={shootRows.map((shoot) => {
-                const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
-                return {
-                  id: shoot.id,
-                  href: `/shoots/${shoot.id}`,
-                  address: shoot.address,
-                  shotDate: shoot.shotDate,
-                  dateLabel: formatShootDate(shoot.shotDate),
-                  fileCount: count,
-                  publicToken: shoot.publicToken,
-                };
-              })}
-            />
-          </section>
-        </div>
+        </AdminSection>
+        <AdminSection id="client:bookings" label="Bookings" defaultOpen={detailOpen("client:bookings")}>
+          <BookingList
+            bookings={bookingRows.map((booking) => ({ ...booking, clientId: client.id }))}
+            emptyLabel="No bookings yet."
+            timeZone={hours.timeZone}
+            allowCancel
+            allowModify
+            admin
+          />
+        </AdminSection>
+        <AdminSection id="client:shoots" label="Shoots" defaultOpen={detailOpen("client:shoots")}>
+          <ShootList
+            variant="admin"
+            emptyLabel="No shoots attached yet."
+            shoots={shootRows.map((shoot) => {
+              const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
+              return {
+                id: shoot.id,
+                href: `/shoots/${shoot.id}`,
+                address: shoot.address,
+                shotDate: shoot.shotDate,
+                dateLabel: formatShootDate(shoot.shotDate),
+                fileCount: count,
+                publicToken: shoot.publicToken,
+              };
+            })}
+          />
+        </AdminSection>
+        <AdminSection id="client:delete" label="Delete client" defaultOpen={detailOpen("client:delete")}>
+          <div className="max-w-md">
+            <DeleteClientForm clientId={client.id} inviteCode={client.inviteCode} />
+          </div>
+        </AdminSection>
       </div>
-      <section className="pb-16 md:max-w-md">
-        <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Delete client</h2>
-        <DeleteClientForm clientId={client.id} inviteCode={client.inviteCode} />
-      </section>
     </PhoneShell>
   );
 }

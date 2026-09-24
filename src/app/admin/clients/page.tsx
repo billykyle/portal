@@ -1,19 +1,31 @@
 import { desc } from "drizzle-orm";
 import { ChevronRight } from "lucide-react";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
+import { AdminSection } from "@/components/admin-section";
 import { ClientSortSelect } from "@/components/client-sort-select";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
-import { pageTitleClass, PhoneShell } from "@/components/phone-shell";
+import { PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
-import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/client-sort";
+import { CLIENT_SORT_COOKIE, DEFAULT_CLIENT_SORT, parseClientSort, sortClients } from "@/lib/admin/client-sort";
+import {
+  ADMIN_SECTIONS_COOKIE,
+  clientsSectionForce,
+  parseOpenSections,
+  sectionStartsOpen,
+} from "@/lib/admin/sections";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, users } from "@/lib/db/schema";
+
+export const metadata: Metadata = {
+  title: "Admin",
+};
 
 export default async function AdminClientsPage({
   searchParams,
@@ -76,6 +88,14 @@ export default async function AdminClientsPage({
     cookies(),
   ]);
   const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
+  const openSections = parseOpenSections(cookieStore.get(ADMIN_SECTIONS_COOKIE)?.value);
+  const sectionSignals = {
+    query,
+    sortIsDefault: sort === DEFAULT_CLIENT_SORT,
+    minted: Boolean(minted),
+    synced: Boolean(synced || emailSkipped),
+    error: Boolean(error),
+  };
   const loginsByClient = new Map<string, typeof logins>();
   for (const login of logins) {
     const list = loginsByClient.get(login.clientId) ?? [];
@@ -113,50 +133,72 @@ export default async function AdminClientsPage({
   return (
     <PhoneShell wide>
       <AdminHeader />
-      <div className="mb-8 lg:mb-10">
-        <h1 className={pageTitleClass}>Admin</h1>
-      </div>
+      <h1 className="sr-only">Admin</h1>
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {removed ? (
         <p className="mb-6 text-sm text-white">
           Removed {removed} and every teammate login, shoot, and photo on that record.
         </p>
       ) : null}
-      <div className="mb-10 grid gap-10 lg:grid-cols-2 lg:gap-12">
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">NAS sync</h2>
-          <SyncNasForm />
-          {synced ? (
-            <p className="mt-3 text-sm text-white">
-              Sync finished. {createdClients ?? "0"} new client{createdClients === "1" ? "" : "s"},{" "}
-              {shoots ?? "0"} new shoot{shoots === "1" ? "" : "s"}, {photos ?? "0"} new photo
-              {photos === "1" ? "" : "s"}. Reused {reusedClients ?? "0"} client
-              {reusedClients === "1" ? "" : "s"} / {reusedShoots ?? "0"} shoot
-              {reusedShoots === "1" ? "" : "s"}
-              {refreshed && refreshed !== "0" ? `, refreshed ${refreshed} stills` : ""}
-              {ready && ready !== "0" ? ` · ${ready} shoot${ready === "1" ? "" : "s"} ready to deliver` : ""}
-              {removedPhotos && removedPhotos !== "0"
-                ? ` · removed ${removedPhotos} file${removedPhotos === "1" ? "" : "s"} gone from NAS`
-                : ""}
-              {removedShoots && removedShoots !== "0"
-                ? ` · removed ${removedShoots} portal-only shoot${removedShoots === "1" ? "" : "s"}`
-                : ""}
-              {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
-            </p>
-          ) : null}
-          {emailSkipped ? <p className="mt-3 text-sm text-white">{emailSkipped}</p> : null}
-        </section>
-        <section>
-          <h2 className="mb-4 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Mint client</h2>
-          <MintClientForm minted={minted} />
-        </section>
-      </div>
-      <section className="pb-16">
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>
-          <ClientSortSelect value={sort} />
-        </div>
-        <form action="/admin/clients" method="get" className="mb-4 lg:max-w-md">
+      <div className="pb-8">
+        <AdminSection
+          id="clients:nas-sync"
+          label="NAS sync"
+          defaultOpen={sectionStartsOpen(
+            openSections,
+            "clients:nas-sync",
+            clientsSectionForce("clients:nas-sync", sectionSignals),
+          )}
+        >
+          <div className="max-w-md">
+            <SyncNasForm />
+            {synced ? (
+              <p className="mt-3 text-sm text-white">
+                Sync finished. {createdClients ?? "0"} new client{createdClients === "1" ? "" : "s"},{" "}
+                {shoots ?? "0"} new shoot{shoots === "1" ? "" : "s"}, {photos ?? "0"} new photo
+                {photos === "1" ? "" : "s"}. Reused {reusedClients ?? "0"} client
+                {reusedClients === "1" ? "" : "s"} / {reusedShoots ?? "0"} shoot
+                {reusedShoots === "1" ? "" : "s"}
+                {refreshed && refreshed !== "0" ? `, refreshed ${refreshed} stills` : ""}
+                {ready && ready !== "0" ? ` · ${ready} shoot${ready === "1" ? "" : "s"} ready to deliver` : ""}
+                {removedPhotos && removedPhotos !== "0"
+                  ? ` · removed ${removedPhotos} file${removedPhotos === "1" ? "" : "s"} gone from NAS`
+                  : ""}
+                {removedShoots && removedShoots !== "0"
+                  ? ` · removed ${removedShoots} portal-only shoot${removedShoots === "1" ? "" : "s"}`
+                  : ""}
+                {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
+              </p>
+            ) : null}
+            {emailSkipped ? <p className="mt-3 text-sm text-white">{emailSkipped}</p> : null}
+          </div>
+        </AdminSection>
+        <AdminSection
+          id="clients:create-client"
+          label="Create client"
+          defaultOpen={sectionStartsOpen(
+            openSections,
+            "clients:create-client",
+            clientsSectionForce("clients:create-client", sectionSignals),
+          )}
+        >
+          <div className="max-w-md">
+            <MintClientForm minted={minted} />
+          </div>
+        </AdminSection>
+        <AdminSection
+          id="clients:all"
+          label="All clients"
+          defaultOpen={sectionStartsOpen(
+            openSections,
+            "clients:all",
+            clientsSectionForce("clients:all", sectionSignals),
+          )}
+        >
+          <div className="mb-4">
+            <ClientSortSelect value={sort} />
+          </div>
+          <form action="/admin/clients" method="get" className="mb-4 lg:max-w-md">
           <label htmlFor="client-search" className="sr-only">
             Find a client or login
           </label>
@@ -170,10 +212,6 @@ export default async function AdminClientsPage({
             className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
           />
         </form>
-        <p className="mb-4 text-sm leading-6 text-[#8e8e93]">
-          Open a client, then Edit profile on a login to change the name, company, phone, and
-          sign-in email from Account.
-        </p>
         {rows.length === 0 ? (
           <p className="text-sm text-[#8e8e93]">No clients yet.</p>
         ) : visible.length === 0 ? (
@@ -225,7 +263,8 @@ export default async function AdminClientsPage({
             </div>
           </>
         )}
-      </section>
+        </AdminSection>
+      </div>
     </PhoneShell>
   );
 }

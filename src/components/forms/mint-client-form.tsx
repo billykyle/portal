@@ -23,8 +23,8 @@ export function MintClientForm({
           className="rounded-xl border-0 bg-[#1c1c1e] px-4 py-3 text-base text-white outline-none"
         />
       </div>
-      {minted ? <p className="text-sm text-white">Minted {minted}.</p> : null}
-      <SubmitButton>Mint next BK code</SubmitButton>
+      {minted ? <p className="text-sm text-white">Created {minted}.</p> : null}
+      <SubmitButton>Create next BK code</SubmitButton>
     </form>
   );
 }

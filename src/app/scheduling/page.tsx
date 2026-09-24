@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { BookingList } from "@/components/booking-list";
 import { ClientHeader } from "@/components/client-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
-import { FormColumn, pageTitleClass, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
+import { FormColumn, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { canModifyBooking, getClientBooking, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
@@ -83,15 +83,13 @@ export default async function SchedulingPage({
   return (
     <PhoneShell>
       <ClientHeader />
-      <div className="mb-8 lg:mb-10">
-        <h1 className={pageTitleClass}>Scheduling</h1>
-        {params.cancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
-        {params.error ? (
-          <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
-            {params.error}
-          </p>
-        ) : null}
-      </div>
+      <h1 className="sr-only">Scheduling</h1>
+      {params.cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
+      {params.error ? (
+        <p role="alert" className="mb-6 text-sm text-[#a1a1a1]">
+          {params.error}
+        </p>
+      ) : null}
       <div className="grid gap-12 pb-16 lg:grid-cols-2 lg:items-start lg:gap-x-16">
         <section className="min-w-0">
           <h2 className={sectionLabelClass}>

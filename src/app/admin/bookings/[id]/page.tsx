@@ -1,7 +1,8 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
-import { FormColumn, PhoneShell, pageTitleClass } from "@/components/phone-shell";
+import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -17,6 +18,10 @@ import {
 } from "@/lib/scheduling/draft";
 import { migrateLegacySchedulingDraft, readSchedulingDraft } from "@/lib/scheduling/draft-store";
 import { bookingServiceList } from "@/lib/scheduling/services";
+
+export const metadata: Metadata = {
+  title: "Modify shoot",
+};
 
 export default async function AdminModifyBookingPage({
   params,
@@ -67,19 +72,17 @@ export default async function AdminModifyBookingPage({
     <PhoneShell>
       <AdminHeader backHref="/admin/bookings" backLabel="Bookings" />
       <FormColumn center className="pb-16">
-        <div className="mb-8 lg:mb-10">
-          <h1 className={pageTitleClass}>Modify shoot</h1>
-          {client ? (
-            <p className="mt-2 text-sm text-[#8e8e93]">
-              {client.inviteCode} · {client.displayName}
-            </p>
-          ) : null}
-          {query.error ? (
-            <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
-              {query.error}
-            </p>
-          ) : null}
-        </div>
+        <h1 className="sr-only">Modify shoot</h1>
+        {client ? (
+          <p className="mb-6 text-sm text-[#8e8e93]">
+            {client.inviteCode} · {client.displayName}
+          </p>
+        ) : null}
+        {query.error ? (
+          <p role="alert" className="mb-6 text-sm text-[#a1a1a1]">
+            {query.error}
+          </p>
+        ) : null}
         <BookShootForm
           key={`${booking.id}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
           address={fields.address}

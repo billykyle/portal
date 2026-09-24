@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ClientHeader } from "@/components/client-header";
 import { BookTimesPanel } from "@/components/forms/book-times-panel";
-import { FormColumn, pageTitleClass, PhoneShell } from "@/components/phone-shell";
+import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { parseShootAddress } from "@/lib/scheduling/address";
@@ -110,14 +110,12 @@ function TimesShell({
   return (
     <PhoneShell>
       <ClientHeader backHref={changeHref} backLabel="Address" />
-      <div className="mb-8 lg:mb-10">
-        <h1 className={pageTitleClass}>Scheduling</h1>
-        {error ? (
-          <p role="alert" className="mt-3 text-sm text-[#a1a1a1]">
-            {error}
-          </p>
-        ) : null}
-      </div>
+      <h1 className="sr-only">Scheduling</h1>
+      {error ? (
+        <p role="alert" className="mb-6 text-sm text-[#a1a1a1]">
+          {error}
+        </p>
+      ) : null}
       <FormColumn className="pb-16 lg:max-w-none">{children}</FormColumn>
     </PhoneShell>
   );

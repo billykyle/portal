@@ -29,7 +29,7 @@ export function EditClientForm({
       />
       <p className="text-xs leading-5 text-[#8e8e93]">
         NAS sync matches folders by display name. If you rename this and the share
-        folder still uses the old name, the next sync will mint a new BK code.
+        folder still uses the old name, the next sync will create a new BK code.
       </p>
       <Field
         id="primaryEmail"
