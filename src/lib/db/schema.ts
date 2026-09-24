@@ -58,6 +58,8 @@ export const media = pgTable("media", {
   filename: text("filename").notNull(),
   url: text("url").notNull(),
   nasRelativePath: text("nas_relative_path"),
+  width: integer("width"),
+  height: integer("height"),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 

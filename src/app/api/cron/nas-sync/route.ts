@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureDb } from "@/lib/db/ensure";
 import { nasEnabled } from "@/lib/nas-flags";
 import { runLockedNasSync } from "@/lib/nas-scheduler";
+import { probeMissingVideoDimensions } from "@/lib/video-dimensions";
 import { warmMissingPreviews } from "@/lib/warm-previews";
 
 export const runtime = "nodejs";
@@ -25,6 +26,8 @@ export async function GET(request: NextRequest) {
   const result = await runLockedNasSync("cron");
   let previewsWarmed = 0;
   let previewWarmError: string | null = null;
+  let videoDimensionsProbed = 0;
+  let videoDimensionError: string | null = null;
   try {
     const warm = await warmMissingPreviews({ limit: 20, budgetMs: 20_000 });
     previewsWarmed = warm.warmed;
@@ -32,5 +35,18 @@ export async function GET(request: NextRequest) {
     previewWarmError = error instanceof Error ? error.message : "Preview backfill failed.";
     console.error("Preview backfill failed:", error);
   }
-  return NextResponse.json({ ...result, previewsWarmed, previewWarmError });
+  try {
+    const probed = await probeMissingVideoDimensions({ limit: 4, budgetMs: 15_000 });
+    videoDimensionsProbed = probed.probed;
+  } catch (error) {
+    videoDimensionError = error instanceof Error ? error.message : "Video dimension backfill failed.";
+    console.error("Video dimension backfill failed:", error);
+  }
+  return NextResponse.json({
+    ...result,
+    previewsWarmed,
+    previewWarmError,
+    videoDimensionsProbed,
+    videoDimensionError,
+  });
 }

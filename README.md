@@ -272,6 +272,29 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 `NAS_CACHE_DIR` is only a scratch copy on the isolate that fetched the file. On Vercel `/tmp` disappears with the isolate, so repeat views read `media_thumbs`.
 
+### Video shape and lighter playback
+
+The player sizes each video to its real frame (9:16 stays tall, 16:9 stays wide, other ratios stay themselves) and fits that frame to the viewport. Width and height are read from the file header — a short byte range, not the whole movie — and saved on the media row. The 10-minute sync probes a few videos that are missing a size, and the first open probes that one file if the size is still unknown. The browser's own metadata corrects the frame if the header and the picture disagree (a sideways phone video). Photo tiles stay 3:2, three across on a phone.
+
+Playback does not have to pull the original. Auto uses a 720p file when one is on the share, otherwise 1080p, otherwise the original. The Quality menu is Auto / 1080p / 720p / Original. **Download** and the shoot zip always send the original.
+
+Those lighter files are H.264 MP4s with the index at the front, so the scrubber knows the duration without downloading the whole movie. They are written next to the original, in a hidden `.portal-renditions` folder the sync walk ignores. Vercel functions are a poor place to transcode a full-length video, and the share API the portal uses cannot upload. Build them on a computer that has **ffmpeg** and the share mounted as a folder:
+
+```
+NAS_FS_ROOT=/path/to/the/mounted/share
+NAS_FS_PREFIX=/nas/path/prefix/above/that/folder
+npm run nas:renditions
+```
+
+Example: portal path `/volume1/Client Deliverables/Sam Lepore/.../walk.mov`, mount whose top folder is the client name:
+
+```
+NAS_FS_ROOT="/Volumes/Client Deliverables"
+NAS_FS_PREFIX="/volume1/Client Deliverables"
+```
+
+`NAS_FS_ROOT` and `NAS_FS_PREFIX` belong in that machine's `.env.local` only. Leave them unset on Vercel. Until the command has been run, the player still works: it streams the original, and the frame is still the right shape. A 1080p original only gets a 720p copy (no upscale). A 4K original gets both. macOS: `brew install ffmpeg`.
+
 **Existing shoots.** No manual migration. A preview is generated the first time that tile is requested. The grid only starts off-screen tiles when they are near the viewport, and only a few of those requests run at once. A failed tile retries, then shows **Preview unavailable / Retry** instead of leaving the browser's broken-image icon up. `GET /api/cron/nas-sync` backfills up to 20 missing photo previews every 10 minutes. `npm run nas:sync:warm` stores every missing photo preview in one pass. Image floor plans use the same preview route; a PDF the NAS cannot thumbnail gets the retry state.
 
 **Download** on a shoot page starts one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The browser saves that attachment directly (Safari/iPhone confirms once) instead of buffering a ~470MB archive in JavaScript. The page polls zip-job progress and shows preparing → downloading (files, bytes, speed, time remaining) → saved or failed. Named `{date} - {address}.zip` (or `{date} - {address} - Photos.zip` when a type is chosen). Per-tile **Download** still saves that one file.
