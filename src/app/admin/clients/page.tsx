@@ -152,7 +152,7 @@ export default async function AdminClientsPage({
         </section>
       </div>
       <section className="pb-16">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
           <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">All clients</h2>
           <ClientSortSelect value={sort} />
         </div>

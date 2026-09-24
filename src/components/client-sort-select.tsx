@@ -21,7 +21,7 @@ export function ClientSortSelect({ value }: { value: ClientSort }) {
   }
 
   return (
-    <div className="relative w-full max-w-52">
+    <div className="relative w-52 max-w-full shrink-0">
       <label htmlFor="client-sort" className="sr-only">
         Sort clients
       </label>
