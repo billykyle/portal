@@ -14,7 +14,7 @@ export function DeleteClientForm({
       <p className="text-sm leading-6 text-[#8e8e93]">
         This deletes the {inviteCode} client record — not just one teammate login.
         Teammate accounts, attached shoots, and photos go with it. The invite code
-        is gone. If the NAS folder is still there, the next sync will mint a new BK
+        is gone. If the NAS folder is still there, the next sync will create a new BK
         code for that name. Remove a single login above if you only need to kick one
         person.
       </p>

@@ -76,7 +76,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "create_client",
-    "Mint the next BK invite code. Requires display name and primary email. Company and notes are optional.",
+    "Create the next BK invite code. Requires display name and primary email. Company and notes are optional.",
     {
       displayName: z.string().describe("Client display name."),
       primaryEmail: z.string().describe("Primary contact email."),
@@ -99,7 +99,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "delete_client",
-    "Delete a client and every teammate login, shoot, and photo on that record. Requires the client id and the invite code typed back as confirmInviteCode. Does not remove the NAS folder; the next sync can mint a new code for that name.",
+    "Delete a client and every teammate login, shoot, and photo on that record. Requires the client id and the invite code typed back as confirmInviteCode. Does not remove the NAS folder; the next sync can create a new code for that name.",
     {
       clientId: z.string().describe("Client UUID to delete."),
       confirmInviteCode: z.string().describe("The client's invite code, exactly, for example BK00004."),
