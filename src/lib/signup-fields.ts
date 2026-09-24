@@ -39,7 +39,7 @@ export function parseLoginEmail(
   raw: string | null | undefined,
 ): { ok: true; value: string } | { ok: false; error: string } {
   const email = String(raw ?? "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.includes("..")) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.includes("..") || isPendingClientEmail(email)) {
     return { ok: false, error: "Enter a valid email." };
   }
   return { ok: true, value: email };
@@ -55,7 +55,9 @@ export function parseSignupProfile(input: {
   const profile = parseAccountProfile(input);
   if (!profile.ok) return profile;
   const email = String(input.email ?? "").trim().toLowerCase();
-  if (!email || !email.includes("@")) return { ok: false, error: "Enter a valid email." };
+  if (!email || !email.includes("@") || isPendingClientEmail(email)) {
+    return { ok: false, error: "Enter a valid email." };
+  }
   return { ok: true, value: { ...profile.value, email } };
 }
 

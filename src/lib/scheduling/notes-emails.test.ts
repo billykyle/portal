@@ -22,6 +22,11 @@ test("invalid note tokens are ignored", () => {
   assert.deepEqual(emailsInNotes(notes, []), ["ok+shoot@example.com"]);
 });
 
+test("placeholder addresses in notes are not copied", () => {
+  const notes = "cc justin.heath@pending.local and justin@sellinggreaterphilly.com";
+  assert.deepEqual(emailsInNotes(notes, []), ["justin@sellinggreaterphilly.com"]);
+});
+
 test("empty notes yield no copy addresses", () => {
   assert.deepEqual(emailsInNotes(null, ["sam@example.com"]), []);
   assert.deepEqual(emailsInNotes("   ", ["sam@example.com"]), []);

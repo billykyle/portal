@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { prepareDeliverableBookingEmailForBooking } from "@/lib/client-contact";
 import { db } from "@/lib/db";
 import { bookings } from "@/lib/db/schema";
 import {
@@ -127,8 +128,9 @@ export async function settleBookingIntegrations(
 
   // Create/modify: skip Pepper "already on calendar" notify when Calendar write failed.
   // Cancel: always attempt both branded cancel emails; sync-issue alert is additive.
+  const prepared = await prepareDeliverableBookingEmailForBooking(input.bookingId, input.email);
   const skipNotify = calendarFailed && input.action !== "cancel";
-  const emails = await deps.sendEmails(input.email, { kind: input.action, skipNotify });
+  const emails = await deps.sendEmails(prepared.send, { kind: input.action, skipNotify });
   const clientEmailFailed = !emails.client.sent;
   const ownerEmailFailed = skipNotify ? false : !emails.notify.sent;
   const emailFailed = clientEmailFailed || ownerEmailFailed;
@@ -143,7 +145,7 @@ export async function settleBookingIntegrations(
   let alertSent = false;
   if (needsAlert) {
     const alert = await deps.sendSyncIssue({
-      ...input.email,
+      ...prepared.alert,
       bookingId: input.bookingId,
       action: input.action,
       failures,
@@ -153,7 +155,7 @@ export async function settleBookingIntegrations(
       logBookingSyncAlert({
         bookingId: input.bookingId,
         action: input.action,
-        clientEmail: input.email.clientEmail,
+        clientEmail: prepared.alert.clientEmail,
         clientName: input.email.clientName ?? null,
         address: input.email.address,
         start: input.email.start.toISOString(),

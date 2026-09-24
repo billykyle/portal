@@ -1,7 +1,14 @@
 import { randomUUID } from "crypto";
-import { and, eq, ilike } from "drizzle-orm";
+import { and, asc, eq, ilike } from "drizzle-orm";
+import {
+  alertUndeliverableClientEmail,
+  deliverableClientEmails,
+  NAS_IMPORT_INVITE_NOTE,
+  skippedPlaceholderDeliveryWarning,
+} from "./client-contact";
 import { db } from "./db";
-import { clients, media, shoots } from "./db/schema";
+import { clients, media, shoots, users } from "./db/schema";
+import { isPendingClientEmail } from "./signup-fields";
 import { formatInviteCode, parseInviteSequence } from "./invite";
 import {
   mediaFilenamesMissingFromNas,
@@ -141,7 +148,7 @@ async function upsertClientByName(displayName: string) {
       inviteCode: await nextInviteCode(),
       displayName,
       primaryEmail: pendingClientEmail(displayName),
-      notes: "Imported from the NAS share. Give the client this invite code so they can sign up.",
+      notes: NAS_IMPORT_INVITE_NOTE,
     })
     .returning();
   return { client, created: true };
@@ -277,11 +284,32 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       const becameReady = shootCreated || (existingCount === 0 && mediaResult.imported > 0);
       if (!becameReady) continue;
       result.ready += 1;
+      const members = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.clientId, client.id))
+        .orderBy(asc(users.createdAt));
+      const recipients = deliverableClientEmails({
+        preferred: client.primaryEmail,
+        primaryEmail: client.primaryEmail,
+        loginEmails: members.map((row) => row.email),
+      });
+      if (recipients.length === 0 && isPendingClientEmail(client.primaryEmail)) {
+        const message = skippedPlaceholderDeliveryWarning({
+          displayName: client.displayName,
+          inviteCode: client.inviteCode,
+          primaryEmail: client.primaryEmail,
+          where: nasRelativePath,
+        });
+        result.warnings.push(message);
+        await alertUndeliverableClientEmail(message);
+        continue;
+      }
       try {
         await notifyDeliveryWebhook(
           buildDeliveryPayload({
             event: "shoot.ready",
-            client,
+            client: { ...client, primaryEmail: recipients[0] ?? client.primaryEmail },
             shoot,
             fileCount: mediaResult.total,
           }),

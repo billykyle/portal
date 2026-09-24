@@ -1,4 +1,5 @@
 import { DEFAULT_BOOKING_NOTIFY_EMAIL } from "@/lib/email";
+import { isPendingClientEmail } from "@/lib/signup-fields";
 import { formatBookingWhen } from "./slots";
 
 export const BOOKING_SYNC_ISSUE_SUBJECT = "Portal booking sync issue";
@@ -158,6 +159,7 @@ export function bookingSyncIssueLines(input: {
   action: BookingSyncAction;
   clientName?: string | null;
   clientEmail: string;
+  primaryEmail?: string | null;
   address: string;
   services: string;
   start: Date;
@@ -166,8 +168,17 @@ export function bookingSyncIssueLines(input: {
   failures: readonly BookingSyncFailure[];
 }) {
   const when = formatBookingWhen(input.start, input.end, input.timeZone);
-  const client = [input.clientName?.trim(), input.clientEmail.trim()].filter(Boolean).join(" · ");
-  const failed = describeSyncFailures(input.failures);
+  const addressOnFile = input.clientEmail.trim() || String(input.primaryEmail ?? "").trim();
+  const client = [input.clientName?.trim(), addressOnFile].filter(Boolean).join(" · ");
+  const refusedPlaceholder =
+    input.failures.includes("client-email") && isPendingClientEmail(addressOnFile);
+  const placeholderFailure =
+    "the client email was not sent because the only address on file is a placeholder";
+  const failed = refusedPlaceholder
+    ? input.failures.length === 1
+      ? placeholderFailure
+      : `${describeSyncFailures(input.failures.filter((failure) => failure !== "client-email"))}; ${placeholderFailure}`
+    : describeSyncFailures(input.failures);
   const action =
     input.action === "cancel" ? "A portal cancellation" : input.action === "modify" ? "A portal modification" : "A portal booking";
   return {

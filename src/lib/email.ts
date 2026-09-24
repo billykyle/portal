@@ -1,3 +1,5 @@
+import { isPendingClientEmail } from "@/lib/signup-fields";
+
 /**
  * Shared Resend sender for password reset and booking confirm / modify / cancel.
  * Delivery webhooks (Pepper) stay separate — this is portal mail only.
@@ -64,6 +66,16 @@ function asList(value: string | string[] | undefined) {
   return uniqueEmails(Array.isArray(value) ? value : [value]);
 }
 
+export const CLIENT_EMAIL_SKIPPED_PLACEHOLDER = "CLIENT_EMAIL_SKIPPED_PLACEHOLDER";
+
+/** Drop `@pending.local` so a NAS placeholder can never be a Resend recipient. */
+export function deliverableRecipients(value: string | string[] | undefined) {
+  const requested = asList(value);
+  const to = requested.filter((email) => !isPendingClientEmail(email));
+  const dropped = requested.filter((email) => isPendingClientEmail(email));
+  return { to, dropped };
+}
+
 /**
  * POST one message to Resend. Soft-fails: never throws.
  * No-op when `RESEND_API_KEY` is unset.
@@ -72,8 +84,16 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const key = resendApiKey();
   if (!key) return { sent: false, reason: "resend-unconfigured" };
 
-  const to = asList(input.to);
-  if (to.length === 0) return { sent: false, reason: "no-recipients" };
+  const { to, dropped } = deliverableRecipients(input.to);
+  if (dropped.length > 0) {
+    console.error(
+      CLIENT_EMAIL_SKIPPED_PLACEHOLDER,
+      JSON.stringify({ dropped, subject: input.subject }),
+    );
+  }
+  if (to.length === 0) {
+    return { sent: false, reason: dropped.length > 0 ? "placeholder-recipient" : "no-recipients" };
+  }
 
   try {
     const res = await fetch(RESEND_ENDPOINT, {

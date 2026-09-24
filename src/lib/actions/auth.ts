@@ -20,6 +20,7 @@ import { clients, passwordResetTokens, users } from "@/lib/db/schema";
 import { emailConfigured, sendEmail } from "@/lib/email";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
+import { recordInviteRedeemedContact } from "@/lib/client-contact";
 import { parseAccountProfile, parsePasswordChange, parseSignupProfile } from "@/lib/signup-fields";
 
 export type ActionState = {
@@ -91,9 +92,10 @@ export async function signUp(_prev: ActionState | undefined, formData: FormData)
     })
     .returning();
 
-  if (!client.company) {
-    await db.update(clients).set({ company: profile.value.companyName }).where(eq(clients.id, client.id));
-  }
+  await recordInviteRedeemedContact(client, {
+    email: profile.value.email,
+    companyName: profile.value.companyName,
+  });
 
   await createSession({
     userId: user.id,

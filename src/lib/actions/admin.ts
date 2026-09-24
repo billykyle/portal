@@ -74,7 +74,12 @@ export async function syncNasFromAdmin() {
       reusedShoots: String(sync.shootsReused),
       removedShoots: String(sync.shootsRemoved),
       removedPhotos: String(sync.mediaRemoved),
-      warnings: String(sync.warnings.length),
+      warnings: String(sync.warnings.filter((warning) => !warning.includes("no real email")).length),
+      ...(sync.warnings.some((warning) => warning.includes("no real email"))
+        ? {
+            emailSkipped: sync.warnings.filter((warning) => warning.includes("no real email")).join(" "),
+          }
+        : {}),
       ready: String(sync.ready),
     }),
   );
