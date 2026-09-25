@@ -60,7 +60,6 @@ export default async function PublicShootPage({
         viewId={view}
         address={shoot.address}
         dateLabel={formatShootDate(shoot.shotDate)}
-        dropboxUrl={null}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={publicShootZipPath(shoot.publicToken)}
         media={files.map((item) => ({

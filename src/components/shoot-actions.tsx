@@ -26,20 +26,15 @@ export function ShootActions({
   folderName,
   zipUrl,
   shareToken,
-  dropboxUrl,
-  showBackup = false,
 }: {
   files: DownloadFile[];
   folderName: string;
   zipUrl?: string;
   shareToken?: string;
-  dropboxUrl?: string | null;
-  showBackup?: boolean;
 }) {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState<ZipJobProgress | null>(null);
   const [pending, setPending] = useState(false);
-  const [backupOpen, setBackupOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -179,16 +174,6 @@ export function ShootActions({
             </button>
           </>
         ) : null}
-        {showBackup ? (
-          <button
-            type="button"
-            onClick={() => setBackupOpen((open) => !open)}
-            aria-expanded={backupOpen}
-            className={`${chip} border border-white/20 text-[#8e8e93]`}
-          >
-            Dropbox
-          </button>
-        ) : null}
       </div>
       {needsPicker && menuOpen ? (
         <div
@@ -218,17 +203,6 @@ export function ShootActions({
             />
           </div>
         </div>
-      ) : null}
-      {backupOpen ? (
-        <p className="text-xs text-[#8e8e93]">
-          {dropboxUrl ? (
-            <a href={dropboxUrl} target="_blank" rel="noreferrer" className="break-all underline">
-              Open Dropbox
-            </a>
-          ) : (
-            "No Dropbox link for this shoot."
-          )}
-        </p>
       ) : null}
       {status ? <p className="text-xs text-[#8e8e93]">{status}</p> : null}
       {pending && progress && (progress.state === "preparing" || progress.state === "downloading") ? (

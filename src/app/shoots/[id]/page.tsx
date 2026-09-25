@@ -78,11 +78,9 @@ export default async function ShootPage({
         viewId={view}
         address={shoot.address}
         dateLabel={formatShootDate(shoot.shotDate)}
-        dropboxUrl={shoot.dropboxUrl}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={shootZipPath(shoot.id)}
         shareToken={shoot.publicToken}
-        showBackup
         media={files.map((item) => ({
           id: item.id,
           filename: item.filename,
