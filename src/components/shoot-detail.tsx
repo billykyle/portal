@@ -23,23 +23,19 @@ export function ShootDetail({
   viewId,
   address,
   dateLabel,
-  dropboxUrl,
   folderName,
   zipUrl,
   media,
   shareToken,
-  showBackup = false,
 }: {
   basePath: string;
   viewId?: string;
   address: string;
   dateLabel: string;
-  dropboxUrl: string | null;
   folderName: string;
   zipUrl?: string;
   media: ShootMedia[];
   shareToken?: string;
-  showBackup?: boolean;
 }) {
   const photos = media.filter((item) => item.type === "photo");
   const videos = media.filter((item) => item.type === "video");
@@ -66,8 +62,6 @@ export function ShootDetail({
             folderName={folderName}
             zipUrl={zipUrl}
             shareToken={shareToken}
-            dropboxUrl={dropboxUrl}
-            showBackup={showBackup}
           />
         </div>
       </div>

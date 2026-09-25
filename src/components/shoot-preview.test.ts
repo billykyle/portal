@@ -35,7 +35,6 @@ function renderShoot() {
       basePath: "/shoots/shoot-1",
       address: "12 Wood View Drive",
       dateLabel: "Sep 4, 2026",
-      dropboxUrl: null,
       folderName: "2026-09-04-12-wood-view",
       media,
     }),
@@ -44,6 +43,7 @@ function renderShoot() {
 
 test("client shoot photo previews are 3:2 in a three-column mobile grid", () => {
   const html = renderShoot();
+  assert.doesNotMatch(html, /Dropbox|Open Dropbox|dropbox/i);
   const photosStart = html.indexOf('id="photos"');
   const plansStart = html.indexOf('id="floor-plans"');
   assert.ok(photosStart >= 0 && plansStart > photosStart);
@@ -76,7 +76,6 @@ test("photos past the first rows do not request a preview in the initial HTML", 
       basePath: "/shoots/shoot-1",
       address: "900 Ocean Drive Unit 1502",
       dateLabel: "Sep 11, 2026",
-      dropboxUrl: null,
       folderName: "2026-09-11-900-ocean-drive",
       media: many,
     }),
@@ -155,7 +154,6 @@ test("opening a floor plan shows the original file", () => {
       viewId: "plan-pdf",
       address: "12 Wood View Drive",
       dateLabel: "Sep 4, 2026",
-      dropboxUrl: null,
       folderName: "2026-09-04-12-wood-view",
       media: plans,
     }),
@@ -171,7 +169,6 @@ test("opening a floor plan shows the original file", () => {
       viewId: "plan-jpg",
       address: "12 Wood View Drive",
       dateLabel: "Sep 4, 2026",
-      dropboxUrl: null,
       folderName: "2026-09-04-12-wood-view",
       media: plans,
     }),
@@ -190,7 +187,6 @@ test("shoot video uses an in-page player with a browser-playable type", () => {
       basePath: "/shoots/shoot-1",
       address: "188 33rd Street",
       dateLabel: "Aug 19, 2026",
-      dropboxUrl: null,
       folderName: "2026-08-19-188-33rd",
       media: [
         {
@@ -221,7 +217,6 @@ test("videos play at their own ratio and default to a lighter rendition", () => 
       basePath: "/shoots/shoot-1",
       address: "1843 Beacon Hill Drive",
       dateLabel: "Sep 4, 2026",
-      dropboxUrl: null,
       folderName: "2026-09-04-beacon-hill",
       media: [
         {
