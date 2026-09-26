@@ -29,11 +29,15 @@ export const metadata: Metadata = {
   title: "Admin",
 };
 
+/** Sync walks the share. Match the cron route so a live NAS is not cut off mid-run. */
+export const maxDuration = 300;
+
 export default async function AdminClientsPage({
   searchParams,
 }: {
   searchParams: Promise<{
     error?: string;
+    syncError?: string;
     minted?: string;
     synced?: string;
     clients?: string;
@@ -57,6 +61,7 @@ export default async function AdminClientsPage({
   await ensureDb();
   const {
     error,
+    syncError,
     minted,
     synced,
     clients: createdClients,
@@ -101,6 +106,7 @@ export default async function AdminClientsPage({
     minted: Boolean(minted),
     synced: Boolean(synced || emailSkipped),
     error: Boolean(error),
+    syncError: Boolean(syncError),
   };
   const loginsByClient = new Map<string, typeof logins>();
   for (const login of logins) {
@@ -177,8 +183,13 @@ export default async function AdminClientsPage({
         >
           <div className={formMeasureClass}>
             <SyncNasForm />
+            {syncError ? (
+              <p role="alert" className="mt-3 text-sm text-white">
+                {syncError}
+              </p>
+            ) : null}
             {synced ? (
-              <p className="mt-3 text-sm text-white">
+              <p role="status" className="mt-3 text-sm text-white">
                 Sync finished. {createdClients ?? "0"} new client{createdClients === "1" ? "" : "s"},{" "}
                 {shoots ?? "0"} new shoot{shoots === "1" ? "" : "s"}, {photos ?? "0"} new photo
                 {photos === "1" ? "" : "s"}. Reused {reusedClients ?? "0"} client

@@ -215,6 +215,22 @@ test("create_booking forwards the shoot and revalidates booking pages", async ()
   assert.equal((result.data as { booking: { bookingId: string } }).booking.bookingId, "booking-new");
 });
 
+test("sync_from_nas returns the same readable error the admin button shows", async () => {
+  const message = "Couldn't reach the NAS. Check that it's on and reachable.";
+  const result = await runAgentTool(
+    "sync_from_nas",
+    {},
+    stubOps({
+      async syncFromNas() {
+        return { ok: false, error: message };
+      },
+    }),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.error, message);
+});
+
 test("sync_from_nas returns the summary from the shared admin sync", async () => {
   const result = await runAgentTool(
     "sync_from_nas",

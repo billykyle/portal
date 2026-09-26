@@ -6,6 +6,7 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { fileSizeFromContentRange, mediaFileResponse, openMediaHeaders, planMediaResponse } from "./media-response";
 import { isNasAuthError } from "./nas-auth";
+import { nasConnectInit, withNasConnectRetry } from "./nas-connect";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import {
   acceptedPreview,
@@ -179,24 +180,32 @@ async function ensureHost(config: NasConfig) {
     return { ...config, host: resolvedHost };
   }
   const probe = process.env.NAS_SHARE_URL?.trim() || config.host;
-  const res = await fetch(probe, { method: "GET", redirect: "follow" });
+  const res = await withNasConnectRetry(() =>
+    fetch(probe, nasConnectInit({ method: "GET", redirect: "follow" })),
+  );
   resolvedHost = new URL(res.url).origin;
   return { ...config, host: resolvedHost };
 }
 
 async function verifyShare(config: NasConfig) {
+  return withNasConnectRetry(() => verifyShareOnce(config));
+}
+
+async function verifyShareOnce(config: NasConfig) {
   const live = await ensureHost(config);
-  const res = await fetch(`${apiBase(live)}/filemgr/externalVerifySharePassword`, {
-    method: "POST",
-    headers: jsonHeaders(live),
-    body: JSON.stringify({
-      share_id: live.shareId,
-      password: live.password,
-      token: "",
-      no_count: Boolean(cachedCookie),
+  const res = await fetch(
+    `${apiBase(live)}/filemgr/externalVerifySharePassword`,
+    nasConnectInit({
+      method: "POST",
+      headers: jsonHeaders(live),
+      body: JSON.stringify({
+        share_id: live.shareId,
+        password: live.password,
+        token: "",
+        no_count: Boolean(cachedCookie),
+      }),
     }),
-    cache: "no-store",
-  });
+  );
   const cookie = cookieFromResponse(res) ?? cachedCookie;
   const body = await readJson<
     UgosResponse<{ file_info?: Array<{ path: string; name: string; file_type: number }> }>
@@ -295,37 +304,41 @@ export function resolveNasPath(shareRoot: string, relativeOrAbsolute: string) {
 }
 
 export async function listNasDir(dirPath: string): Promise<NasFile[]> {
-  return withCookie(async (config, cookie) => {
-    const res = await fetch(`${apiBase(config)}/filemgr/getShearDirFileList`, {
-      method: "POST",
-      headers: jsonHeaders(config, cookie),
-      body: JSON.stringify({
-        token: "",
-        share_id: config.shareId,
-        password: config.password,
-        path: dirPath,
-        page: 1,
-        limit: 1000,
-        sort_type: 1,
-        as_dir: false,
-        reverse: false,
-        file_exts: [],
-      }),
-      cache: "no-store",
-    });
-    const body = await readJson<
-      UgosResponse<{ files?: Array<{ path: string; name: string; file_type: number; size: number }> }>
-    >(res);
-    if (body.code !== 200) {
-      throw new Error(body.msg || `NAS list failed for ${dirPath}`);
-    }
-    return (body.data?.files ?? []).map((file) => ({
-      path: file.path,
-      name: file.name,
-      fileType: file.file_type,
-      size: file.size,
-    }));
-  });
+  return withCookie(async (config, cookie) =>
+    withNasConnectRetry(async () => {
+      const res = await fetch(
+        `${apiBase(config)}/filemgr/getShearDirFileList`,
+        nasConnectInit({
+          method: "POST",
+          headers: jsonHeaders(config, cookie),
+          body: JSON.stringify({
+            token: "",
+            share_id: config.shareId,
+            password: config.password,
+            path: dirPath,
+            page: 1,
+            limit: 1000,
+            sort_type: 1,
+            as_dir: false,
+            reverse: false,
+            file_exts: [],
+          }),
+        }),
+      );
+      const body = await readJson<
+        UgosResponse<{ files?: Array<{ path: string; name: string; file_type: number; size: number }> }>
+      >(res);
+      if (body.code !== 200) {
+        throw new Error(body.msg || `NAS list failed for ${dirPath}`);
+      }
+      return (body.data?.files ?? []).map((file) => ({
+        path: file.path,
+        name: file.name,
+        fileType: file.file_type,
+        size: file.size,
+      }));
+    }),
+  );
 }
 
 export function isNasDirectory(file: NasFile) {

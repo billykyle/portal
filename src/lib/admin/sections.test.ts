@@ -37,7 +37,14 @@ test("admin sections start collapsed and remember an explicit open set", () => {
 });
 
 test("a search, custom sort, or create/sync result opens that admin module", () => {
-  const quiet = { query: "", sortIsDefault: true, minted: false, synced: false, error: false };
+  const quiet = {
+    query: "",
+    sortIsDefault: true,
+    minted: false,
+    synced: false,
+    error: false,
+    syncError: false,
+  };
   assert.equal(clientsSectionForce("clients:all", quiet), false);
   assert.equal(clientsSectionForce("clients:all", { ...quiet, query: "lepore" }), true);
   assert.equal(clientsSectionForce("clients:all", { ...quiet, sortIsDefault: false }), true);
@@ -45,6 +52,8 @@ test("a search, custom sort, or create/sync result opens that admin module", () 
   assert.equal(clientsSectionForce("clients:nas-sync", { ...quiet, minted: true }), false);
   assert.equal(clientsSectionForce("clients:nas-sync", { ...quiet, synced: true }), true);
   assert.equal(clientsSectionForce("clients:nas-sync", { ...quiet, error: true }), true);
+  assert.equal(clientsSectionForce("clients:nas-sync", { ...quiet, syncError: true }), true);
+  assert.equal(clientsSectionForce("clients:create-client", { ...quiet, syncError: true }), false);
   assert.equal(clientsSectionForce("clients:create-client", { ...quiet, error: true }), true);
   assert.equal(clientsSectionForce("clients:create-client", { ...quiet, error: true, synced: true }), false);
   assert.equal(bookingsSectionForce("bookings:upcoming", { notice: true }), true);
