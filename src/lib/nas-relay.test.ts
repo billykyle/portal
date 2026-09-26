@@ -43,15 +43,16 @@ test("a share cookie from the old relay is not reused", () => {
 });
 
 test("relay lookup posts the alias and uses the returned region", async () => {
-  let seen: { url: string; body: string } | null = null;
+  const seen: { url: string; body: string } = { url: "", body: "" };
   const origin = await discoverUgreenRelayOrigin("10128873", async (input, init) => {
-    seen = { url: String(input), body: String(init?.body ?? "") };
+    seen.url = String(input);
+    seen.body = String(init?.body ?? "");
     return new Response(
       JSON.stringify({ code: 200, data: { relayDomain: "us5.ug.link" }, msg: "SUCCESS" }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
   }, 30);
   assert.equal(origin, "https://10128873.us5.ug.link");
-  assert.equal(seen?.url, "https://api.ugnas.com/api/p2p/v2/ta/nodeInfo/byAlias");
-  assert.equal(seen?.body, JSON.stringify({ alias: "10128873" }));
+  assert.equal(seen.url, "https://api.ugnas.com/api/p2p/v2/ta/nodeInfo/byAlias");
+  assert.equal(seen.body, JSON.stringify({ alias: "10128873" }));
 });
