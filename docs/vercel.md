@@ -75,7 +75,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `PORTAL_PUBLIC_URL` | `https://portal.billy-kyle.com` | Absolute `/s/…` links in admin + webhooks. Not the admin entry. |
 | `ADMIN_PUBLIC_URL` | `https://admin.billy-kyle.com` | Absolute origin for admin emails and portal `/admin` redirects. |
 | `NAS_ENABLED` | `true` | Server-side UGOS proxy. |
-| `NAS_SHARE_HOST` | `https://YOUR-UGOS-HOST` | Fallback relay host. The app looks up the live `*.ug.link` relay from the UGREENlink id before connecting. |
+| `NAS_SHARE_HOST` | `https://YOUR-UGOS-HOST` | Fallback relay host. The app looks up the live `*.ug.link` relay from the UGREENlink id before connecting. Sync then allows one 88s wake so a sleeping disk can spin up. |
 | `NAS_SHARE_ID` | share id | From `?id=` on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | empty or the share password | Leave empty when the share has none. |
 | `NAS_SHARE_URL` | optional | Full `ug.link/.../share-download/?id=` URL. Parsed for the share id and UGREENlink id. |

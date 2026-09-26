@@ -5,8 +5,10 @@ import {
   NAS_UNREACHABLE_MESSAGE,
   isNasUnreachableError,
   nasConnectInit,
+  nasWakeBudgetMs,
   readableNasError,
   withNasConnectRetry,
+  withNasWake,
 } from "./nas-connect";
 
 test("UGOS device timeout and a hung fetch count as unreachable", () => {
@@ -61,6 +63,47 @@ test("the second connect attempt can succeed", async () => {
   });
   assert.equal(value, "ok");
   assert.equal(attempts, 2);
+});
+
+test("a sleeping NAS is warmed with a longer first try and pauses, under 90s", async () => {
+  assert.equal(nasWakeBudgetMs(), 88_000);
+  assert.ok(nasWakeBudgetMs() >= 60_000 && nasWakeBudgetMs() <= 90_000);
+  assert.ok(nasWakeBudgetMs() < 300_000);
+  const waits: number[] = [];
+  const timeouts: number[] = [];
+  let cleared = 0;
+  await assert.rejects(
+    () =>
+      withNasWake(
+        async (timeoutMs) => {
+          timeouts.push(timeoutMs);
+          throw new Error("connect to device timeout");
+        },
+        {
+          sleep: async (ms) => {
+            waits.push(ms);
+          },
+          onUnreachable: () => {
+            cleared += 1;
+          },
+        },
+      ),
+    /connect to device timeout/,
+  );
+  assert.deepEqual(timeouts, [30_000, 22_000, 20_000]);
+  assert.deepEqual(waits, [8_000, 8_000]);
+  assert.equal(cleared, 2);
+
+  let denied = 0;
+  await assert.rejects(
+    () =>
+      withNasWake(async () => {
+        denied += 1;
+        throw new Error("NAS share verify failed.");
+      }),
+    /NAS share verify failed/,
+  );
+  assert.equal(denied, 1);
 });
 
 test("NAS API calls get a connect deadline unless the caller already set one", () => {

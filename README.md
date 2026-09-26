@@ -188,6 +188,8 @@ NAS_STILLS_FOLDERS=Final,Photos
 
 The file API is not on `ug.link` itself. The share page asks `api.ugnas.com` which relay has the device (`10128873.us5.ug.link`, and that region changes), then calls `{relay}/ugreen/v1`. A saved `NAS_SHARE_HOST` from an old region answers `connect to device timeout` even when the NAS is on. The app does that lookup itself and only uses `NAS_SHARE_HOST` if the lookup fails.
 
+A sleeping hard drive can produce that same relay message when the first file call outlasts the relay. Sync pokes the relay, waits up to 30 seconds, then tries twice more with pauses (88 seconds). If the share login succeeds on the first try, that same window moves to the first folder listing, which is the call that reads the disks. Later folders stay on the short timeout. Photo requests keep the 15 second timeout so they stay inside their shorter function limit. The wake stays under 90 seconds, inside the 300 second sync limit.
+
 ### Folder layout (auto-import)
 
 ```
