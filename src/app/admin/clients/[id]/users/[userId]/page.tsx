@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminUserProfileForm } from "@/components/forms/admin-user-profile-form";
-import { PhoneShell } from "@/components/phone-shell";
+import { formMeasureClass, pageHeadingWrapClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -43,13 +43,13 @@ export default async function AdminUserProfilePage({
   return (
     <PhoneShell>
       <AdminHeader backHref={`/admin/clients/${client.id}`} backLabel={client.displayName} />
-      <header className="mb-8">
+      <header className={pageHeadingWrapClass}>
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">{teammateDisplayName(user)}</h1>
         {error ? <p className="mt-3 text-sm text-[#a1a1a1]">{error}</p> : null}
         {saved ? <p className="mt-3 text-sm text-white">Profile saved.</p> : null}
       </header>
-      <div className="pb-16 md:max-w-md">
+      <div className={`${formMeasureClass} ${pageStackClass}`}>
         <AdminUserProfileForm
           clientId={client.id}
           userId={user.id}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sectionLabelTextClass } from "@/components/phone-shell";
 import {
   BookingModifyCancelActions,
   bookingPrimaryButtonClass,
@@ -87,7 +88,7 @@ export function BookingConfirmation({
       <dl className="mt-10 w-full text-left">
         {services.length > 0 ? (
           <div className="border-b border-white/10 py-4">
-            <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Services</dt>
+            <dt className={sectionLabelTextClass}>Services</dt>
             <dd className="mt-2">
               <ul className="flex flex-col gap-0.5">
                 {services.map((service) => (
@@ -100,11 +101,11 @@ export function BookingConfirmation({
           </div>
         ) : null}
         <div className="border-b border-white/10 py-4">
-          <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Address</dt>
+          <dt className={sectionLabelTextClass}>Address</dt>
           <dd className="mt-2 text-[15px]">{booking.address}</dd>
         </div>
         <div className="border-b border-white/10 py-4">
-          <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">When</dt>
+          <dt className={sectionLabelTextClass}>When</dt>
           <dd className="mt-2 text-[15px]">
             {when}
             <span className="mt-1 block text-sm text-[#8e8e93]">
@@ -114,13 +115,13 @@ export function BookingConfirmation({
         </div>
         {notes ? (
           <div className="border-b border-white/10 py-4">
-            <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Notes</dt>
+            <dt className={sectionLabelTextClass}>Notes</dt>
             <dd className="mt-2 text-[15px]">{notes}</dd>
           </div>
         ) : null}
         {accessCodes ? (
           <div className="border-b border-white/10 py-4">
-            <dt className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Access</dt>
+            <dt className={sectionLabelTextClass}>Access</dt>
             <dd className="mt-2 text-[15px]">{accessCodes}</dd>
           </div>
         ) : null}

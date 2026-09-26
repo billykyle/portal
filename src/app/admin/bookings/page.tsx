@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
 import { BookingList } from "@/components/booking-list";
-import { PhoneShell } from "@/components/phone-shell";
+import { pageStackClass, PhoneShell } from "@/components/phone-shell";
 import {
   ADMIN_SECTIONS_COOKIE,
   bookingsSectionForce,
@@ -45,7 +45,7 @@ export default async function AdminBookingsPage({
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
       {updated ? <p className="mb-6 text-sm text-white">Shoot updated.</p> : null}
-      <div className="pb-8">
+      <div className={pageStackClass}>
         <AdminSection
           id="bookings:upcoming"
           label="Upcoming"

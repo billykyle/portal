@@ -7,7 +7,7 @@ import { AdminSection } from "@/components/admin-section";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
-import { PhoneShell } from "@/components/phone-shell";
+import { formMeasureClass, pageHeadingWrapClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { BookingList } from "@/components/booking-list";
 import { ShootList } from "@/components/shoot-list";
 import {
@@ -81,7 +81,7 @@ export default async function AdminClientPage({
   return (
     <PhoneShell wide>
       <AdminHeader backHref="/admin/clients" backLabel="Clients" />
-      <header className="mb-8">
+      <header className={pageHeadingWrapClass}>
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">{client.displayName}</h1>
         <p className="mt-2 text-sm text-[#c7c7cc]">{client.primaryEmail}</p>
@@ -93,9 +93,9 @@ export default async function AdminClientPage({
         ) : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
-      <div className="pb-8">
+      <div className={pageStackClass}>
         <AdminSection id="client:info" label="Client info" defaultOpen={detailOpen("client:info")}>
-          <div className="max-w-md">
+          <div className={formMeasureClass}>
             <EditClientForm client={client} />
           </div>
         </AdminSection>
@@ -141,6 +141,7 @@ export default async function AdminClientPage({
             allowCancel
             allowModify
             admin
+            columns={2}
           />
         </AdminSection>
         <AdminSection id="client:shoots" label="Shoots" defaultOpen={detailOpen("client:shoots")}>
@@ -162,7 +163,7 @@ export default async function AdminClientPage({
           />
         </AdminSection>
         <AdminSection id="client:delete" label="Delete client" defaultOpen={detailOpen("client:delete")}>
-          <div className="max-w-md">
+          <div className={formMeasureClass}>
             <DeleteClientForm clientId={client.id} inviteCode={client.inviteCode} />
           </div>
         </AdminSection>

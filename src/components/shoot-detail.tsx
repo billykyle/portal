@@ -5,6 +5,7 @@ import { ShootActions } from "@/components/shoot-actions";
 import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
 import { photoViewerHref } from "@/lib/photo-viewer";
+import { sectionLabelTextClass } from "@/components/phone-shell";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
 export type ShootMedia = {
@@ -49,8 +50,8 @@ export function ShootDetail({
   const nextPlan = activePlan ? plans[planIndex + 1] : null;
 
   return (
-    <div className="flex flex-col gap-6 pb-16">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+    <div className="flex flex-col gap-6 pb-16 lg:gap-8">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
         <header className="flex min-w-0 flex-col gap-1">
           <p className="text-sm text-[#8e8e93]">{dateLabel}</p>
           <h1 className="text-xl font-medium leading-snug lg:text-2xl">{address}</h1>
@@ -88,7 +89,7 @@ export function ShootDetail({
 
       {photos.length > 0 ? (
         <section id={mediaSectionId("photo")} className="flex flex-col gap-2">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("photo")}</h2>
+          <h2 className={sectionLabelTextClass}>{mediaLabel("photo")}</h2>
           <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6">
             {photos.map((item, index) => (
               <MediaTile
@@ -108,7 +109,7 @@ export function ShootDetail({
 
       {plans.length > 0 ? (
         <section id={mediaSectionId("floor_plan")} className="flex flex-col gap-2">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("floor_plan")}</h2>
+          <h2 className={sectionLabelTextClass}>{mediaLabel("floor_plan")}</h2>
           <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5">
             {plans.map((item, index) => (
               <MediaTile
@@ -127,7 +128,7 @@ export function ShootDetail({
 
       {videos.length > 0 ? (
         <section id={mediaSectionId("video")} className="flex flex-col gap-3">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{mediaLabel("video")}</h2>
+          <h2 className={sectionLabelTextClass}>{mediaLabel("video")}</h2>
           <div className="flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start">
             {videos.map((item) => (
               <VideoPlayer

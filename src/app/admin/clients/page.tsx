@@ -10,7 +10,7 @@ import { ClientSortSelect } from "@/components/client-sort-select";
 import { AdminBookShootForm } from "@/components/forms/admin-book-shoot-form";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
-import { PhoneShell } from "@/components/phone-shell";
+import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
 import { CLIENT_SORT_COOKIE, DEFAULT_CLIENT_SORT, parseClientSort, sortClients } from "@/lib/admin/client-sort";
 import {
@@ -146,7 +146,7 @@ export default async function AdminClientsPage({
           Removed {removed} and every teammate login, shoot, and photo on that record.
         </p>
       ) : null}
-      <div className="pb-8">
+      <div className={pageStackClass}>
         <AdminSection
           id="clients:book-shoot"
           label="Book a shoot"
@@ -175,7 +175,7 @@ export default async function AdminClientsPage({
             clientsSectionForce("clients:nas-sync", sectionSignals),
           )}
         >
-          <div className="max-w-md">
+          <div className={formMeasureClass}>
             <SyncNasForm />
             {synced ? (
               <p className="mt-3 text-sm text-white">
@@ -207,7 +207,7 @@ export default async function AdminClientsPage({
             clientsSectionForce("clients:create-client", sectionSignals),
           )}
         >
-          <div className="max-w-md">
+          <div className={formMeasureClass}>
             <MintClientForm minted={minted} />
           </div>
         </AdminSection>
@@ -220,23 +220,23 @@ export default async function AdminClientsPage({
             clientsSectionForce("clients:all", sectionSignals),
           )}
         >
-          <div className="mb-4">
+          <div className="mb-4 flex flex-col gap-3 lg:mb-6 lg:flex-row lg:items-center lg:gap-4">
+            <form action="/admin/clients" method="get" className="min-w-0 w-full lg:flex-1">
+              <label htmlFor="client-search" className="sr-only">
+                Find a client or login
+              </label>
+              <input
+                id="client-search"
+                name="q"
+                type="search"
+                defaultValue={query}
+                placeholder="Find a client or login"
+                autoComplete="off"
+                className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
+              />
+            </form>
             <ClientSortSelect value={sort} />
           </div>
-          <form action="/admin/clients" method="get" className="mb-4 lg:max-w-md">
-          <label htmlFor="client-search" className="sr-only">
-            Find a client or login
-          </label>
-          <input
-            id="client-search"
-            name="q"
-            type="search"
-            defaultValue={query}
-            placeholder="Find a client or login"
-            autoComplete="off"
-            className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
-          />
-        </form>
         {rows.length === 0 ? (
           <p className="text-sm text-[#8e8e93]">No clients yet.</p>
         ) : visible.length === 0 ? (
@@ -274,7 +274,7 @@ export default async function AdminClientsPage({
                   <li key={client.id} className="border-b border-white/10">
                     <Link
                       href={`/admin/clients/${client.id}`}
-                      className="grid grid-cols-[7rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-4 py-3.5 hover:bg-white/5"
+                      className="grid grid-cols-[7rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-4 py-4 hover:bg-white/5"
                     >
                       <p className="font-mono text-sm text-[#c7c7cc]">{client.inviteCode}</p>
                       <p className="truncate text-[15px]">{client.displayName}</p>

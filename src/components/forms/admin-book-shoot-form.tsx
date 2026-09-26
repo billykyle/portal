@@ -15,6 +15,7 @@ import {
 import { DEFAULT_TIMEZONE } from "@/lib/scheduling/rules";
 import { zonedDateTimeToUtc } from "@/lib/scheduling/zoned-time";
 import { useActionState } from "react";
+import { formMeasureClass } from "@/components/phone-shell";
 
 export type AdminBookClientOption = {
   id: string;
@@ -45,7 +46,7 @@ export function AdminBookShootForm({
   }, [state]);
 
   return (
-    <div className="max-w-md">
+    <div className={formMeasureClass}>
       {state?.ok ? (
         <div className="mb-4 flex flex-col gap-2">
           <p role="status" className="text-sm text-white">

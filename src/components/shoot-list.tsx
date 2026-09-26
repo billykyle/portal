@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { CopyPublicLink } from "@/components/copy-public-link";
+import { listSearchClass, shootCardGridClass } from "@/components/phone-shell";
 import { filterShoots } from "@/lib/shoot-search";
 
 export type ShootListItem = {
@@ -44,7 +45,7 @@ function ShootSearchField({
 }) {
   const searchId = useId();
   return (
-    <search className="mb-4 lg:mb-6 lg:max-w-md">
+    <search className={listSearchClass}>
       <label htmlFor={searchId} className="sr-only">
         Search shoots
       </label>
@@ -68,7 +69,7 @@ function LibraryRow({ shoot }: { shoot: ShootListItem }) {
     <li className="border-b border-white/10 lg:border-0">
       <Link
         href={shoot.href}
-        className="flex items-center gap-3 py-4 lg:h-full lg:rounded-xl lg:border lg:border-white/10 lg:px-4 lg:py-5 lg:hover:bg-white/5"
+        className="flex items-center gap-3 py-4 lg:h-full lg:rounded-xl lg:border lg:border-white/10 lg:p-5 lg:hover:bg-white/5"
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px]">{shoot.address}</p>
@@ -82,18 +83,20 @@ function LibraryRow({ shoot }: { shoot: ShootListItem }) {
 
 function AdminRow({ shoot }: { shoot: AdminShootListItem }) {
   return (
-    <li className="border-b border-white/10 py-4">
-      <Link href={shoot.href} className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px]">{shoot.address}</p>
-          <p className="text-sm text-[#8e8e93]">
-            {shoot.dateLabel} · {filesLabel(shoot.fileCount)}
-          </p>
+    <li className="border-b border-white/10 lg:border-0">
+      <div className="py-4 lg:flex lg:h-full lg:flex-col lg:rounded-xl lg:border lg:border-white/10 lg:p-5">
+        <Link href={shoot.href} className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px]">{shoot.address}</p>
+            <p className="text-sm text-[#8e8e93]">
+              {shoot.dateLabel} · {filesLabel(shoot.fileCount)}
+            </p>
+          </div>
+          <ChevronRight className="size-5 shrink-0 text-[#8e8e93]" />
+        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <CopyPublicLink token={shoot.publicToken} compact />
         </div>
-        <ChevronRight className="size-5 shrink-0 text-[#8e8e93]" />
-      </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <CopyPublicLink token={shoot.publicToken} compact />
       </div>
     </li>
   );
@@ -129,7 +132,7 @@ export function ShootList(props: LibraryProps | AdminProps) {
     const matches = filterShoots(props.shoots, query);
     return (
       <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
-        <ul>
+        <ul className={shootCardGridClass}>
           {matches.map((shoot) => (
             <AdminRow key={shoot.id} shoot={shoot} />
           ))}
@@ -141,7 +144,7 @@ export function ShootList(props: LibraryProps | AdminProps) {
   const matches = filterShoots(props.shoots, query);
   return (
     <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
-      <ul className="flex flex-col lg:grid lg:grid-cols-2 lg:gap-3 xl:grid-cols-3">
+      <ul className={shootCardGridClass}>
         {matches.map((shoot) => (
           <LibraryRow key={shoot.id} shoot={shoot} />
         ))}
