@@ -52,7 +52,7 @@ export default async function SchedulingConfirmedPage({
   return (
     <PhoneShell>
       <ClientHeader />
-      <div className="flex flex-1 flex-col items-center justify-center py-8 pb-16">
+      <div className="flex flex-col items-center pb-16 pt-2">
         <BookingConfirmation
           booking={booking}
           timeZone={hours.timeZone}

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { BookingList } from "@/components/booking-list";
 import { ClientHeader } from "@/components/client-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
-import { FormColumn, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
+import { desktopSplitClass, FormColumn, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { canModifyBooking, getClientBooking, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
@@ -90,12 +90,12 @@ export default async function SchedulingPage({
           {params.error}
         </p>
       ) : null}
-      <div className="grid gap-12 pb-16 lg:grid-cols-2 lg:items-start lg:gap-x-16">
+      <div className={desktopSplitClass}>
         <section className="min-w-0">
           <h2 className={sectionLabelClass}>
             {modifying ? "Modify shoot" : "Book a shoot"}
           </h2>
-          <FormColumn className="lg:max-w-none">
+          <FormColumn className="md:max-w-none lg:max-w-none">
             <BookShootForm
               key={`${modifying?.id ?? "book"}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
               address={fields.address}

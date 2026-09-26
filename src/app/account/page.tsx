@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ClientHeader } from "@/components/client-header";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { AccountProfileForm } from "@/components/forms/account-profile-form";
-import { PhoneShell, sectionLabelClass } from "@/components/phone-shell";
+import { desktopSplitClass, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -31,8 +31,8 @@ export default async function AccountPage() {
     <PhoneShell>
       <ClientHeader />
       <h1 className="sr-only">Account</h1>
-      <div className="grid gap-12 pb-16 md:max-w-md lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-x-16">
-        <div className="grid min-w-0 content-start gap-12">
+      <div className={desktopSplitClass}>
+        <div className="grid min-w-0 content-start gap-10">
           <section>
             <h2 className={sectionLabelClass}>Edit profile</h2>
             <AccountProfileForm

@@ -116,7 +116,7 @@ function TimesShell({
           {error}
         </p>
       ) : null}
-      <FormColumn className="pb-16 lg:max-w-none">{children}</FormColumn>
+      <FormColumn className="pb-16 md:max-w-none lg:max-w-none">{children}</FormColumn>
     </PhoneShell>
   );
 }

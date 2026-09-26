@@ -9,6 +9,7 @@ import {
   readCookie,
   serializeOpenSections,
 } from "@/lib/admin/sections";
+import { sectionLabelTextClass } from "@/components/phone-shell";
 import { cn } from "@/lib/utils";
 
 /**
@@ -57,7 +58,7 @@ export function AdminSection({
           aria-controls={panelId}
           onClick={toggle}
         >
-          <span className="text-sm uppercase tracking-[0.14em] text-[#8e8e93]">{label}</span>
+          <span className={sectionLabelTextClass}>{label}</span>
           <ChevronRight
             aria-hidden="true"
             className={cn(
@@ -78,7 +79,7 @@ export function AdminSection({
         )}
       >
         <div className={open ? "overflow-visible" : "overflow-hidden"} inert={open ? undefined : true}>
-          <div className="pt-1 pb-8">{children}</div>
+          <div className="pt-2 pb-6">{children}</div>
         </div>
       </div>
     </section>

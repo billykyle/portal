@@ -84,7 +84,7 @@ export default async function AdminModifyBookingTimesPage({
           {query.error}
         </p>
       ) : null}
-      <FormColumn className="pb-16 lg:max-w-none">
+      <FormColumn className="pb-16 md:max-w-none lg:max-w-none">
         <BookTimesPanel
           address={parsed.address}
           placeId={fields.placeId || undefined}

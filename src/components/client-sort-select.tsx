@@ -35,7 +35,7 @@ export function ClientSortSelect({ value }: { value: ClientSort }) {
           document.cookie = clientSortCookie(next, window.location.protocol === "https:");
           router.refresh();
         }}
-        className="h-11 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] pl-4 pr-10 text-sm text-white outline-none"
+        className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] pl-4 pr-10 text-sm text-white outline-none"
       >
         {CLIENT_SORTS.map((sort) => (
           <option key={sort} value={sort}>
