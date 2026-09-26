@@ -33,6 +33,18 @@ test("admin UI does not offer a manual attach-shoot form", () => {
   assert.match(sync, /Sync from NAS/);
 });
 
+test("a NAS sync failure stays on the sync section with a readable error", () => {
+  const action = readFileSync("src/lib/actions/admin.ts", "utf8");
+  assert.match(action, /syncError: result\.error/);
+  const sync = readFileSync("src/lib/admin/sync.ts", "utf8");
+  assert.match(sync, /readableNasError/);
+  const page = readFileSync("src/app/admin/clients/page.tsx", "utf8");
+  assert.match(page, /role="alert"/);
+  assert.match(page, /\{syncError\}/);
+  assert.match(page, /role="status"/);
+  assert.match(page, /Sync finished/);
+});
+
 test("admin NAS sync form keeps the button and drops the instructional blurb", () => {
   const html = renderToStaticMarkup(createElement(SyncNasForm));
   assert.match(html, /Sync from NAS/);

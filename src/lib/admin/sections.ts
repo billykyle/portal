@@ -65,9 +65,10 @@ export function clientsSectionForce(
     minted: boolean;
     synced: boolean;
     error: boolean;
+    syncError: boolean;
   },
 ) {
-  if (id === "clients:nas-sync") return input.synced || (input.error && !input.minted);
+  if (id === "clients:nas-sync") return input.synced || input.syncError || (input.error && !input.minted);
   if (id === "clients:create-client") return input.minted || (input.error && !input.synced);
   if (id === "clients:all") return input.query.trim().length > 0 || !input.sortIsDefault;
   return false;

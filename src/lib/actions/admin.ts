@@ -59,7 +59,7 @@ export async function syncNasFromAdmin() {
   }
   const result = await syncNasForAdmin();
   if (!result.ok) {
-    redirect(adminClientsUrl({ error: result.error }));
+    redirect(adminClientsUrl({ syncError: result.error }));
   }
   const sync = result.value;
   revalidatePath("/admin/clients");
