@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import type postgres from "postgres";
 import { getSql } from "./db";
+import { shareSessionMatchesRelay } from "./nas-relay";
 
 /** size_type=1 thumbs are ~40KB. Reject anything that looks like a full original. */
 export const MAX_PREVIEW_BYTES = 1_500_000;
@@ -219,6 +220,7 @@ export async function readFreshShareSession(ignoreCookie?: string) {
 export async function lockAndRefreshShareCookie(
   failedCookie: string | undefined,
   verify: () => Promise<{ cookie: string; host: string; rootPath: string }>,
+  expectedHost?: string,
 ) {
   await ensurePreviewSchema();
   let reserved: postgres.ReservedSql | null = null;
@@ -233,7 +235,7 @@ export async function lockAndRefreshShareCookie(
     if (
       current &&
       shareSessionFresh(current.updatedAt, Date.now(), NAS_SHARE_COOKIE_MAX_AGE_MS) &&
-      current.cookie !== failedCookie
+      shareSessionMatchesRelay(current, expectedHost, failedCookie)
     ) {
       return current;
     }

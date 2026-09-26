@@ -6,7 +6,8 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { fileSizeFromContentRange, mediaFileResponse, openMediaHeaders, planMediaResponse } from "./media-response";
 import { isNasAuthError } from "./nas-auth";
-import { nasConnectInit, withNasConnectRetry } from "./nas-connect";
+import { isNasUnreachableError, nasConnectInit, withNasConnectRetry } from "./nas-connect";
+import { discoverUgreenRelayOrigin, shareSessionMatchesRelay, ugreenLinkAlias } from "./nas-relay";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import {
   acceptedPreview,
@@ -166,17 +167,43 @@ function isMarketingShareHost(host: string) {
   }
 }
 
+function configuredNasHost(config: NasConfig) {
+  const fromEnv = process.env.NAS_SHARE_HOST?.trim().replace(/\/+$/, "") || "";
+  const candidate = (fromEnv || config.host).replace(/\/+$/, "");
+  if (!candidate || isMarketingShareHost(candidate)) return null;
+  return candidate;
+}
+
+/**
+ * UGREENlink moves a device between relays (`us15` → `us5`). A saved host
+ * then answers "connect to device timeout" even while the NAS is online.
+ * The share page asks api.ugnas.com which relay is live before any file call.
+ */
 async function ensureHost(config: NasConfig) {
   if (resolvedHost) {
     return { ...config, host: resolvedHost };
   }
-  const fromEnv = process.env.NAS_SHARE_HOST?.trim().replace(/\/+$/, "");
-  if (fromEnv && !isMarketingShareHost(fromEnv)) {
-    resolvedHost = fromEnv;
-    return { ...config, host: resolvedHost };
+  const alias =
+    ugreenLinkAlias(process.env.NAS_SHARE_URL) ||
+    ugreenLinkAlias(process.env.NAS_SHARE_HOST) ||
+    ugreenLinkAlias(config.host);
+  if (alias) {
+    try {
+      const discovered = await withNasConnectRetry(() => discoverUgreenRelayOrigin(alias));
+      if (discovered) {
+        resolvedHost = discovered;
+        return { ...config, host: resolvedHost };
+      }
+    } catch (error) {
+      console.error(
+        "UGREENlink relay lookup failed:",
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
-  if (!isMarketingShareHost(config.host)) {
-    resolvedHost = config.host.replace(/\/+$/, "");
+  const fallback = configuredNasHost(config);
+  if (fallback) {
+    resolvedHost = fallback;
     return { ...config, host: resolvedHost };
   }
   const probe = process.env.NAS_SHARE_URL?.trim() || config.host;
@@ -188,7 +215,14 @@ async function ensureHost(config: NasConfig) {
 }
 
 async function verifyShare(config: NasConfig) {
-  return withNasConnectRetry(() => verifyShareOnce(config));
+  try {
+    return await verifyShareOnce(config);
+  } catch (error) {
+    if (!isNasUnreachableError(error)) throw error;
+    // The saved relay may have moved. Look it up again on the second try.
+    resolvedHost = null;
+    return verifyShareOnce(config);
+  }
 }
 
 async function verifyShareOnce(config: NasConfig) {
@@ -228,15 +262,20 @@ function rememberShareSession(session: { cookie: string; host: string; rootPath:
 }
 
 async function refreshShareSession(base: NasConfig, failedCookie?: string) {
+  const live = await ensureHost(base);
   try {
-    const session = await lockAndRefreshShareCookie(failedCookie, async () => {
-      const verified = await verifyShare(base);
-      return {
-        cookie: verified.cookie,
-        host: verified.config.host,
-        rootPath: verified.rootPath,
-      };
-    });
+    const session = await lockAndRefreshShareCookie(
+      failedCookie,
+      async () => {
+        const verified = await verifyShare(base);
+        return {
+          cookie: verified.cookie,
+          host: verified.config.host,
+          rootPath: verified.rootPath,
+        };
+      },
+      live.host,
+    );
     rememberShareSession(session);
   } catch (error) {
     if (!(error instanceof PreviewStoreUnavailable)) throw error;
@@ -257,11 +296,13 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
       cachedCookie = null;
       cachedRootPath = null;
     }
+    const live = await ensureHost(base);
     if (!cachedCookie) {
       // Cold isolates used to each call verify and replace share_cookie, which
-      // cancelled every other in-flight tile (the blue ? icons).
+      // cancelled every other in-flight tile (the blue ? icons). A cookie from
+      // an old relay (us15 after the device moved to us5) is not that cookie.
       const shared = force ? null : await readFreshShareSession(failedCookie);
-      if (shared) rememberShareSession(shared);
+      if (shareSessionMatchesRelay(shared, live.host, failedCookie)) rememberShareSession(shared!);
     }
     if (!cachedCookie) {
       cookieInFlight ??= refreshShareSession(base, failedCookie).finally(() => {
@@ -269,13 +310,14 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
       });
       await cookieInFlight;
     }
-    const live = await ensureHost(base);
+    const current = await ensureHost(base);
     if (!cachedCookie) throw new Error("NAS share cookie is missing.");
-    return fn(live, cachedCookie);
+    return fn(current, cachedCookie);
   };
   try {
     return await run(false);
   } catch (error) {
+    if (isNasUnreachableError(error)) resolvedHost = null;
     // Re-verify only when the share cookie is actually dead. A failed
     // thumbnail/download used to clear the cookie and mint a new one, which
     // invalidated every other in-flight tile on this isolate (blue ? icons).
