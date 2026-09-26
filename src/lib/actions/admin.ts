@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
+import { readableNasError } from "@/lib/nas-connect";
 import {
   createClientRecord,
   deleteClientRecord,
@@ -57,32 +58,37 @@ export async function syncNasFromAdmin() {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
-  const result = await syncNasForAdmin();
-  if (!result.ok) {
-    redirect(adminClientsUrl({ syncError: result.error }));
+  try {
+    const result = await syncNasForAdmin();
+    if (!result.ok) {
+      redirect(adminClientsUrl({ syncError: readableNasError(result.error) }));
+    }
+    const sync = result.value;
+    revalidatePath("/admin/clients");
+    redirect(
+      adminClientsUrl({
+        synced: "1",
+        clients: String(sync.clientsCreated),
+        shoots: String(sync.shootsCreated),
+        photos: String(sync.mediaImported),
+        refreshed: String(sync.mediaUpdated),
+        reusedClients: String(sync.clientsReused),
+        reusedShoots: String(sync.shootsReused),
+        removedShoots: String(sync.shootsRemoved),
+        removedPhotos: String(sync.mediaRemoved),
+        warnings: String(sync.warnings.filter((warning) => !warning.includes("no real email")).length),
+        ...(sync.warnings.some((warning) => warning.includes("no real email"))
+          ? {
+              emailSkipped: sync.warnings.filter((warning) => warning.includes("no real email")).join(" "),
+            }
+          : {}),
+        ready: String(sync.ready),
+      }),
+    );
+  } catch (error) {
+    unstable_rethrow(error);
+    redirect(adminClientsUrl({ syncError: readableNasError(error) }));
   }
-  const sync = result.value;
-  revalidatePath("/admin/clients");
-  redirect(
-    adminClientsUrl({
-      synced: "1",
-      clients: String(sync.clientsCreated),
-      shoots: String(sync.shootsCreated),
-      photos: String(sync.mediaImported),
-      refreshed: String(sync.mediaUpdated),
-      reusedClients: String(sync.clientsReused),
-      reusedShoots: String(sync.shootsReused),
-      removedShoots: String(sync.shootsRemoved),
-      removedPhotos: String(sync.mediaRemoved),
-      warnings: String(sync.warnings.filter((warning) => !warning.includes("no real email")).length),
-      ...(sync.warnings.some((warning) => warning.includes("no real email"))
-        ? {
-            emailSkipped: sync.warnings.filter((warning) => warning.includes("no real email")).join(" "),
-          }
-        : {}),
-      ready: String(sync.ready),
-    }),
-  );
 }
 
 export async function updateClient(formData: FormData) {
