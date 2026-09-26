@@ -96,10 +96,10 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `PORTAL_AGENT_API_KEY` | Bearer token for the admin MCP connector at `/api/agent/mcp`. Not the admin password. Unset rejects every agent request. See [docs/agent.md](docs/agent.md). |
 | `DEMO_PASSWORD` | Password for the seeded `demo@example.com` user. |
 | `NAS_ENABLED` | `true` serves NAS-backed media through the server proxy (`/api/media/[id]`). Required for attach and sync. |
-| `NAS_SHARE_HOST` | UGOS share host after the ug.link redirect, e.g. `https://10128873.us15.ug.link`. |
+| `NAS_SHARE_HOST` | Fallback UGOS host, e.g. `https://10128873.us15.ug.link`. The app looks up the live relay from the UGREENlink id before each cold connect. |
 | `NAS_SHARE_ID` | Share id from the `?id=` query on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | Optional share password. Leave empty when the share has none. |
-| `NAS_SHARE_URL` | Optional full share URL. Used to parse `id` and discover the real host if `NAS_SHARE_HOST` is unset. |
+| `NAS_SHARE_URL` | Optional full share URL (`https://ug.link/10128873/filemgr/share-download/?id=…`). Used to parse the share id and the UGREENlink id. |
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). Floor plans and video are picked up separately (see folder layout). |
 | `NAS_CACHE_DIR` | Same-isolate scratch cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel (ephemeral). Durable grid previews live in Postgres (`media_thumbs`). |
 | `NAS_SYNC_INTERVAL_MINUTES` | How often a long-running Node process walks the share. Default `10`. `0` disables the timer. Ignored on Vercel. |
@@ -186,7 +186,9 @@ NAS_STILLS_FOLDERS=Final,Photos
 
 `NAS_SHARE_PASSWORD` is empty today. Keep the variable so a locked share can be wired without a code change.
 
-Do not put the short `ug.link` marketing URL in `NAS_SHARE_HOST`. That host serves the share UI, not the file API. The real API is `{NAS_SHARE_HOST}/ugreen/v1`.
+The file API is not on `ug.link` itself. The share page asks `api.ugnas.com` which relay has the device (`10128873.us5.ug.link`, and that region changes), then calls `{relay}/ugreen/v1`. A saved `NAS_SHARE_HOST` from an old region answers `connect to device timeout` even when the NAS is on. The app does that lookup itself and only uses `NAS_SHARE_HOST` if the lookup fails.
+
+A sleeping hard drive can produce that same relay message when the first file call outlasts the relay. Sync pokes the relay, waits up to 30 seconds, then tries twice more with pauses (88 seconds). If the share login succeeds on the first try, that same window moves to the first folder listing, which is the call that reads the disks. Later folders stay on the short timeout. Photo requests keep the 15 second timeout so they stay inside their shorter function limit. The wake stays under 90 seconds, inside the 300 second sync limit.
 
 ### Folder layout (auto-import)
 

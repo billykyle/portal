@@ -75,10 +75,10 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `PORTAL_PUBLIC_URL` | `https://portal.billy-kyle.com` | Absolute `/s/…` links in admin + webhooks. Not the admin entry. |
 | `ADMIN_PUBLIC_URL` | `https://admin.billy-kyle.com` | Absolute origin for admin emails and portal `/admin` redirects. |
 | `NAS_ENABLED` | `true` | Server-side UGOS proxy. |
-| `NAS_SHARE_HOST` | `https://YOUR-UGOS-HOST` | API host after the ug.link redirect, not the marketing SPA. |
+| `NAS_SHARE_HOST` | `https://YOUR-UGOS-HOST` | Fallback relay host. The app looks up the live `*.ug.link` relay from the UGREENlink id before connecting. Sync then allows one 88s wake so a sleeping disk can spin up. |
 | `NAS_SHARE_ID` | share id | From `?id=` on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | empty or the share password | Leave empty when the share has none. |
-| `NAS_SHARE_URL` | optional | Full share URL if you want host/id parsed from it. |
+| `NAS_SHARE_URL` | optional | Full `ug.link/.../share-download/?id=` URL. Parsed for the share id and UGREENlink id. |
 | `NAS_STILLS_FOLDERS` | `Final,Photos` | First match under each shoot wins for photos. Floor Plan folders and `.mov`/`.mp4` at the shoot root are imported separately. |
 | `NAS_CACHE_DIR` | `/tmp/nas-cache` | Optional on Vercel — the app already defaults to `/tmp/nas-cache` when `VERCEL=1`. Ephemeral scratch only. Grid previews are stored in Postgres (`media_thumbs`) so the next isolate does not re-download them from the NAS. |
 | `NAS_FS_ROOT` | unset on Vercel | Only on the machine that runs `npm run nas:renditions`. Local folder of the mounted share. Vercel does not transcode video. |

@@ -13,6 +13,8 @@ import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
 import { CLIENT_SORT_COOKIE, DEFAULT_CLIENT_SORT, parseClientSort, sortClients } from "@/lib/admin/client-sort";
+import { nasSyncPageNotice } from "@/lib/admin/sync-notice";
+import { isNasUnreachableError, readableNasError } from "@/lib/nas-connect";
 import {
   ADMIN_SECTIONS_COOKIE,
   clientsSectionForce,
@@ -31,6 +33,42 @@ export const metadata: Metadata = {
 
 /** Sync walks the share. Match the cron route so a live NAS is not cut off mid-run. */
 export const maxDuration = 300;
+
+function syncSummary(input: {
+  createdClients?: string;
+  shoots?: string;
+  photos?: string;
+  refreshed?: string;
+  reusedClients?: string;
+  reusedShoots?: string;
+  ready?: string;
+  removedPhotos?: string;
+  removedShoots?: string;
+  warnings?: string;
+}) {
+  const createdClients = input.createdClients ?? "0";
+  const shoots = input.shoots ?? "0";
+  const photos = input.photos ?? "0";
+  const reusedClients = input.reusedClients ?? "0";
+  const reusedShoots = input.reusedShoots ?? "0";
+  const lead = `Sync finished. ${createdClients} new client${createdClients === "1" ? "" : "s"}, ${shoots} new shoot${shoots === "1" ? "" : "s"}, ${photos} new photo${photos === "1" ? "" : "s"}.`;
+  const reused = `Reused ${reusedClients} client${reusedClients === "1" ? "" : "s"} / ${reusedShoots} shoot${reusedShoots === "1" ? "" : "s"}`;
+  const extra: string[] = [];
+  if (input.refreshed && input.refreshed !== "0") extra.push(`, refreshed ${input.refreshed} stills`);
+  if (input.ready && input.ready !== "0") {
+    extra.push(` · ${input.ready} shoot${input.ready === "1" ? "" : "s"} ready to deliver`);
+  }
+  if (input.removedPhotos && input.removedPhotos !== "0") {
+    extra.push(` · removed ${input.removedPhotos} file${input.removedPhotos === "1" ? "" : "s"} gone from NAS`);
+  }
+  if (input.removedShoots && input.removedShoots !== "0") {
+    extra.push(` · removed ${input.removedShoots} portal-only shoot${input.removedShoots === "1" ? "" : "s"}`);
+  }
+  if (input.warnings && input.warnings !== "0") {
+    extra.push(` · ${input.warnings} skipped folder${input.warnings === "1" ? "" : "s"}`);
+  }
+  return `${lead} ${reused}${extra.join("")}.`;
+}
 
 export default async function AdminClientsPage({
   searchParams,
@@ -100,13 +138,16 @@ export default async function AdminClientsPage({
   ]);
   const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
   const openSections = parseOpenSections(cookieStore.get(ADMIN_SECTIONS_COOKIE)?.value);
+  const syncNotice = nasSyncPageNotice({ error, syncError });
+  const syncNote =
+    emailSkipped && isNasUnreachableError(emailSkipped) ? readableNasError(emailSkipped) : emailSkipped;
   const sectionSignals = {
     query,
     sortIsDefault: sort === DEFAULT_CLIENT_SORT,
     minted: Boolean(minted),
     synced: Boolean(synced || emailSkipped),
-    error: Boolean(error),
-    syncError: Boolean(syncError),
+    error: Boolean(syncNotice.topError),
+    syncError: Boolean(syncNotice.syncError),
   };
   const loginsByClient = new Map<string, typeof logins>();
   for (const login of logins) {
@@ -146,7 +187,7 @@ export default async function AdminClientsPage({
     <PhoneShell wide>
       <AdminHeader />
       <h1 className="sr-only">Admin</h1>
-      {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
+      {syncNotice.topError ? <p className="mb-6 text-sm text-[#a1a1a1]">{syncNotice.topError}</p> : null}
       {removed ? (
         <p className="mb-6 text-sm text-white">
           Removed {removed} and every teammate login, shoot, and photo on that record.
@@ -182,31 +223,26 @@ export default async function AdminClientsPage({
           )}
         >
           <div className={formMeasureClass}>
-            <SyncNasForm />
-            {syncError ? (
-              <p role="alert" className="mt-3 text-sm text-white">
-                {syncError}
-              </p>
-            ) : null}
-            {synced ? (
-              <p role="status" className="mt-3 text-sm text-white">
-                Sync finished. {createdClients ?? "0"} new client{createdClients === "1" ? "" : "s"},{" "}
-                {shoots ?? "0"} new shoot{shoots === "1" ? "" : "s"}, {photos ?? "0"} new photo
-                {photos === "1" ? "" : "s"}. Reused {reusedClients ?? "0"} client
-                {reusedClients === "1" ? "" : "s"} / {reusedShoots ?? "0"} shoot
-                {reusedShoots === "1" ? "" : "s"}
-                {refreshed && refreshed !== "0" ? `, refreshed ${refreshed} stills` : ""}
-                {ready && ready !== "0" ? ` · ${ready} shoot${ready === "1" ? "" : "s"} ready to deliver` : ""}
-                {removedPhotos && removedPhotos !== "0"
-                  ? ` · removed ${removedPhotos} file${removedPhotos === "1" ? "" : "s"} gone from NAS`
-                  : ""}
-                {removedShoots && removedShoots !== "0"
-                  ? ` · removed ${removedShoots} portal-only shoot${removedShoots === "1" ? "" : "s"}`
-                  : ""}
-                {warnings && warnings !== "0" ? ` · ${warnings} skipped folder${warnings === "1" ? "" : "s"}` : ""}.
-              </p>
-            ) : null}
-            {emailSkipped ? <p className="mt-3 text-sm text-white">{emailSkipped}</p> : null}
+            <SyncNasForm
+              error={syncNotice.syncError || undefined}
+              status={
+                synced
+                  ? syncSummary({
+                      createdClients,
+                      shoots,
+                      photos,
+                      refreshed,
+                      reusedClients,
+                      reusedShoots,
+                      ready,
+                      removedPhotos,
+                      removedShoots,
+                      warnings,
+                    })
+                  : undefined
+              }
+              note={syncNote || undefined}
+            />
           </div>
         </AdminSection>
         <AdminSection

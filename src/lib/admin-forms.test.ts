@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AdminUserProfileForm } from "../components/forms/admin-user-profile-form";
 import { CancelBookingForm } from "../components/forms/cancel-booking-form";
 import { SyncNasForm } from "../components/forms/sync-nas-form";
+import { nasSyncPageNotice } from "./admin/sync-notice";
+import { NAS_UNREACHABLE_MESSAGE } from "./nas-connect";
 import { ShootList } from "../components/shoot-list";
 
 test("admin UI does not offer mark delivered", () => {
@@ -35,14 +37,47 @@ test("admin UI does not offer a manual attach-shoot form", () => {
 
 test("a NAS sync failure stays on the sync section with a readable error", () => {
   const action = readFileSync("src/lib/actions/admin.ts", "utf8");
-  assert.match(action, /syncError: result\.error/);
+  assert.match(action, /syncError: readableNasError\(result\.error\)/);
+  assert.match(action, /readableNasError\(error\)/);
   const sync = readFileSync("src/lib/admin/sync.ts", "utf8");
   assert.match(sync, /readableNasError/);
   const page = readFileSync("src/app/admin/clients/page.tsx", "utf8");
-  assert.match(page, /role="alert"/);
-  assert.match(page, /\{syncError\}/);
-  assert.match(page, /role="status"/);
+  assert.match(page, /nasSyncPageNotice/);
+  assert.match(page, /error=\{syncNotice\.syncError/);
+  assert.match(page, /status=/);
   assert.match(page, /Sync finished/);
+  assert.doesNotMatch(page, /\{syncError\}/);
+  assert.doesNotMatch(page, /\{error \?/);
+});
+
+test("raw relay text renders as the friendly sync message under the button", () => {
+  const fromSyncParam = nasSyncPageNotice({ syncError: "connect to device timeout" });
+  assert.equal(fromSyncParam.syncError, NAS_UNREACHABLE_MESSAGE);
+  assert.equal(fromSyncParam.topError, "");
+
+  const fromPageBanner = nasSyncPageNotice({ error: "connect to device timeout" });
+  assert.equal(fromPageBanner.syncError, NAS_UNREACHABLE_MESSAGE);
+  assert.equal(fromPageBanner.topError, "");
+
+  const other = nasSyncPageNotice({ error: "Name is required." });
+  assert.equal(other.syncError, "");
+  assert.equal(other.topError, "Name is required.");
+
+  const html = renderToStaticMarkup(
+    createElement(SyncNasForm, {
+      error: NAS_UNREACHABLE_MESSAGE,
+      status: "Sync finished. 1 new client, 0 new shoots, 2 new photos. Reused 0 clients / 0 shoots.",
+    }),
+  );
+  const buttonAt = html.indexOf("Sync from NAS");
+  const alertAt = html.indexOf("reach the NAS");
+  const statusAt = html.indexOf("Sync finished.");
+  assert.ok(buttonAt >= 0);
+  assert.ok(alertAt > buttonAt);
+  assert.ok(statusAt > buttonAt);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /role="status"/);
+  assert.doesNotMatch(html, /connect to device timeout/);
 });
 
 test("admin NAS sync form keeps the button and drops the instructional blurb", () => {

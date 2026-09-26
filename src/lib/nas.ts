@@ -6,7 +6,14 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { fileSizeFromContentRange, mediaFileResponse, openMediaHeaders, planMediaResponse } from "./media-response";
 import { isNasAuthError } from "./nas-auth";
-import { nasConnectInit, withNasConnectRetry } from "./nas-connect";
+import {
+  isNasUnreachableError,
+  NAS_CONNECT_TIMEOUT_MS,
+  nasConnectInit,
+  withNasConnectRetry,
+  withNasWake,
+} from "./nas-connect";
+import { discoverUgreenRelayOrigin, shareSessionMatchesRelay, ugreenLinkAlias } from "./nas-relay";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
 import {
   acceptedPreview,
@@ -43,6 +50,19 @@ let cachedCookie: string | null = null;
 let cachedRootPath: string | null = null;
 let cookieInFlight: Promise<void> | null = null;
 let resolvedHost: string | null = null;
+/**
+ * Sync arms this so a sleeping disk can spin up. Photo routes leave it off:
+ * their function limit is 60s, and the wake budget is 88s.
+ * Spent after a login that needed a retry, or after the first folder list.
+ */
+let diskWakeArmed = false;
+let diskWakeSpent = false;
+
+/** Call once at the start of a NAS sync. The next file login or folder list may wait. */
+export function armNasDiskWake() {
+  diskWakeArmed = true;
+  diskWakeSpent = false;
+}
 
 function parseShareIdFromUrl(url: string) {
   try {
@@ -166,17 +186,43 @@ function isMarketingShareHost(host: string) {
   }
 }
 
+function configuredNasHost(config: NasConfig) {
+  const fromEnv = process.env.NAS_SHARE_HOST?.trim().replace(/\/+$/, "") || "";
+  const candidate = (fromEnv || config.host).replace(/\/+$/, "");
+  if (!candidate || isMarketingShareHost(candidate)) return null;
+  return candidate;
+}
+
+/**
+ * UGREENlink moves a device between relays (`us15` → `us5`). A saved host
+ * then answers "connect to device timeout" even while the NAS is online.
+ * The share page asks api.ugnas.com which relay is live before any file call.
+ */
 async function ensureHost(config: NasConfig) {
   if (resolvedHost) {
     return { ...config, host: resolvedHost };
   }
-  const fromEnv = process.env.NAS_SHARE_HOST?.trim().replace(/\/+$/, "");
-  if (fromEnv && !isMarketingShareHost(fromEnv)) {
-    resolvedHost = fromEnv;
-    return { ...config, host: resolvedHost };
+  const alias =
+    ugreenLinkAlias(process.env.NAS_SHARE_URL) ||
+    ugreenLinkAlias(process.env.NAS_SHARE_HOST) ||
+    ugreenLinkAlias(config.host);
+  if (alias) {
+    try {
+      const discovered = await withNasConnectRetry(() => discoverUgreenRelayOrigin(alias));
+      if (discovered) {
+        resolvedHost = discovered;
+        return { ...config, host: resolvedHost };
+      }
+    } catch (error) {
+      console.error(
+        "UGREENlink relay lookup failed:",
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
-  if (!isMarketingShareHost(config.host)) {
-    resolvedHost = config.host.replace(/\/+$/, "");
+  const fallback = configuredNasHost(config);
+  if (fallback) {
+    resolvedHost = fallback;
     return { ...config, host: resolvedHost };
   }
   const probe = process.env.NAS_SHARE_URL?.trim() || config.host;
@@ -187,12 +233,35 @@ async function ensureHost(config: NasConfig) {
   return { ...config, host: resolvedHost };
 }
 
-async function verifyShare(config: NasConfig) {
-  return withNasConnectRetry(() => verifyShareOnce(config));
+/** Poke the relay the way the share page does, so a sleeping disk can spin up. */
+function warmRelay(host: string) {
+  const url = `${host.replace(/\/+$/, "")}/ugreen/v1/verify/heartbeat`;
+  void fetch(url, nasConnectInit({ method: "GET", signal: AbortSignal.timeout(8_000) })).catch(() => undefined);
 }
 
-async function verifyShareOnce(config: NasConfig) {
+async function verifyShare(config: NasConfig) {
+  const onUnreachable = () => {
+    // Next try looks up the relay again in case the saved region moved.
+    resolvedHost = null;
+  };
+  // Photo routes stay on the short timeout. Sync may wait for a cold spin-up.
+  if (!diskWakeArmed || diskWakeSpent) {
+    return withNasConnectRetry(() => verifyShareOnce(config, NAS_CONNECT_TIMEOUT_MS));
+  }
+  let attempts = 0;
+  const verified = await withNasWake((timeoutMs) => {
+    attempts += 1;
+    return verifyShareOnce(config, timeoutMs);
+  }, { onUnreachable });
+  // A retry means the budget was already used. A fast first login leaves it
+  // for the folder list, which is the call that actually reads the disks.
+  if (attempts > 1) diskWakeSpent = true;
+  return verified;
+}
+
+async function verifyShareOnce(config: NasConfig, timeoutMs: number) {
   const live = await ensureHost(config);
+  warmRelay(live.host);
   const res = await fetch(
     `${apiBase(live)}/filemgr/externalVerifySharePassword`,
     nasConnectInit({
@@ -204,6 +273,7 @@ async function verifyShareOnce(config: NasConfig) {
         token: "",
         no_count: Boolean(cachedCookie),
       }),
+      signal: AbortSignal.timeout(timeoutMs),
     }),
   );
   const cookie = cookieFromResponse(res) ?? cachedCookie;
@@ -228,15 +298,20 @@ function rememberShareSession(session: { cookie: string; host: string; rootPath:
 }
 
 async function refreshShareSession(base: NasConfig, failedCookie?: string) {
+  const live = await ensureHost(base);
   try {
-    const session = await lockAndRefreshShareCookie(failedCookie, async () => {
-      const verified = await verifyShare(base);
-      return {
-        cookie: verified.cookie,
-        host: verified.config.host,
-        rootPath: verified.rootPath,
-      };
-    });
+    const session = await lockAndRefreshShareCookie(
+      failedCookie,
+      async () => {
+        const verified = await verifyShare(base);
+        return {
+          cookie: verified.cookie,
+          host: verified.config.host,
+          rootPath: verified.rootPath,
+        };
+      },
+      live.host,
+    );
     rememberShareSession(session);
   } catch (error) {
     if (!(error instanceof PreviewStoreUnavailable)) throw error;
@@ -257,11 +332,13 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
       cachedCookie = null;
       cachedRootPath = null;
     }
+    const live = await ensureHost(base);
     if (!cachedCookie) {
       // Cold isolates used to each call verify and replace share_cookie, which
-      // cancelled every other in-flight tile (the blue ? icons).
+      // cancelled every other in-flight tile (the blue ? icons). A cookie from
+      // an old relay (us15 after the device moved to us5) is not that cookie.
       const shared = force ? null : await readFreshShareSession(failedCookie);
-      if (shared) rememberShareSession(shared);
+      if (shareSessionMatchesRelay(shared, live.host, failedCookie)) rememberShareSession(shared!);
     }
     if (!cachedCookie) {
       cookieInFlight ??= refreshShareSession(base, failedCookie).finally(() => {
@@ -269,13 +346,14 @@ async function withCookie<T>(fn: (config: NasConfig, cookie: string) => Promise<
       });
       await cookieInFlight;
     }
-    const live = await ensureHost(base);
+    const current = await ensureHost(base);
     if (!cachedCookie) throw new Error("NAS share cookie is missing.");
-    return fn(live, cachedCookie);
+    return fn(current, cachedCookie);
   };
   try {
     return await run(false);
   } catch (error) {
+    if (isNasUnreachableError(error)) resolvedHost = null;
     // Re-verify only when the share cookie is actually dead. A failed
     // thumbnail/download used to clear the cookie and mint a new one, which
     // invalidated every other in-flight tile on this isolate (blue ? icons).
@@ -303,42 +381,59 @@ export function resolveNasPath(shareRoot: string, relativeOrAbsolute: string) {
   return rel ? `${root}/${rel}` : root;
 }
 
-export async function listNasDir(dirPath: string): Promise<NasFile[]> {
-  return withCookie(async (config, cookie) =>
-    withNasConnectRetry(async () => {
-      const res = await fetch(
-        `${apiBase(config)}/filemgr/getShearDirFileList`,
-        nasConnectInit({
-          method: "POST",
-          headers: jsonHeaders(config, cookie),
-          body: JSON.stringify({
-            token: "",
-            share_id: config.shareId,
-            password: config.password,
-            path: dirPath,
-            page: 1,
-            limit: 1000,
-            sort_type: 1,
-            as_dir: false,
-            reverse: false,
-            file_exts: [],
-          }),
-        }),
-      );
-      const body = await readJson<
-        UgosResponse<{ files?: Array<{ path: string; name: string; file_type: number; size: number }> }>
-      >(res);
-      if (body.code !== 200) {
-        throw new Error(body.msg || `NAS list failed for ${dirPath}`);
-      }
-      return (body.data?.files ?? []).map((file) => ({
-        path: file.path,
-        name: file.name,
-        fileType: file.file_type,
-        size: file.size,
-      }));
+async function fetchNasDir(config: NasConfig, cookie: string, dirPath: string, timeoutMs: number) {
+  const live = diskWakeArmed ? await ensureHost(config) : config;
+  if (diskWakeArmed && !diskWakeSpent) warmRelay(live.host);
+  const res = await fetch(
+    `${apiBase(live)}/filemgr/getShearDirFileList`,
+    nasConnectInit({
+      method: "POST",
+      headers: jsonHeaders(live, cookie),
+      body: JSON.stringify({
+        token: "",
+        share_id: live.shareId,
+        password: live.password,
+        path: dirPath,
+        page: 1,
+        limit: 1000,
+        sort_type: 1,
+        as_dir: false,
+        reverse: false,
+        file_exts: [],
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
     }),
   );
+  const body = await readJson<
+    UgosResponse<{ files?: Array<{ path: string; name: string; file_type: number; size: number }> }>
+  >(res);
+  if (body.code !== 200) {
+    throw new Error(body.msg || `NAS list failed for ${dirPath}`);
+  }
+  return (body.data?.files ?? []).map((file) => ({
+    path: file.path,
+    name: file.name,
+    fileType: file.file_type,
+    size: file.size,
+  }));
+}
+
+export async function listNasDir(dirPath: string): Promise<NasFile[]> {
+  return withCookie(async (config, cookie) => {
+    // One long window per sync: login retries, or the first folder read.
+    if (diskWakeArmed && !diskWakeSpent) {
+      try {
+        return await withNasWake((timeoutMs) => fetchNasDir(config, cookie, dirPath, timeoutMs), {
+          onUnreachable: () => {
+            resolvedHost = null;
+          },
+        });
+      } finally {
+        diskWakeSpent = true;
+      }
+    }
+    return withNasConnectRetry(() => fetchNasDir(config, cookie, dirPath, NAS_CONNECT_TIMEOUT_MS));
+  });
 }
 
 export function isNasDirectory(file: NasFile) {

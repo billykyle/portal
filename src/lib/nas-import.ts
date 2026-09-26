@@ -16,6 +16,7 @@ import {
   shouldPruneShootsMissingFromNas,
 } from "./demo-shoots";
 import {
+  armNasDiskWake,
   getNasConfig,
   listNasDirectories,
   listNasMedia,
@@ -202,6 +203,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
   }
 
   const result: NasSyncResult = { ...EMPTY_SYNC, warnings: [] };
+  armNasDiskWake();
   const root = await nasShareRoot();
   const clientFolders = await listNasDirectories(root);
   const skipNames = new Set(
