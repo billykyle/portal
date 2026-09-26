@@ -70,7 +70,7 @@ test("raw relay text renders as the friendly sync message under the button", () 
     }),
   );
   const buttonAt = html.indexOf("Sync from NAS");
-  const alertAt = html.indexOf(NAS_UNREACHABLE_MESSAGE);
+  const alertAt = html.indexOf("reach the NAS");
   const statusAt = html.indexOf("Sync finished.");
   assert.ok(buttonAt >= 0);
   assert.ok(alertAt > buttonAt);
