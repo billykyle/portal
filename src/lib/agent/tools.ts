@@ -13,7 +13,10 @@ async function revalidatePaths(paths: string[]) {
   if (paths.length === 0) return;
   try {
     const { revalidatePath } = await import("next/cache");
-    for (const path of paths) revalidatePath(path);
+    for (const path of paths) {
+      if (path === "/") revalidatePath(path, "layout");
+      else revalidatePath(path);
+    }
   } catch (error) {
     console.error("agent revalidate failed", error);
   }
@@ -223,6 +226,23 @@ export function createPortalMcpServer(ops: AgentOps) {
     "Shoot metadata plus a media inventory of ids and filenames for photos, floor plans, and videos. Not the binary files. ready is true when the shoot has imported media. portalUrl is the signed-in /my-content/[slug] page; publicUrl stays the share link.",
     { shootId: z.string() },
     readOnly,
+  );
+  register(
+    "get_maintenance_notice",
+    "Read the saved portal maintenance notice. notice is null when nothing is saved. live is true only while now is inside the window. Does not email anyone.",
+    {},
+    readOnly,
+  );
+  register(
+    "set_maintenance_notice",
+    "Save one maintenance notice, or clear it. message, startsAt, and endsAt (ISO times) are required unless clear is true. Does not email clients. The banner shows only while now is inside the window.",
+    {
+      message: z.string().optional(),
+      startsAt: z.string().optional().describe("ISO start time."),
+      endsAt: z.string().optional().describe("ISO end time."),
+      clear: z.boolean().optional().describe("Delete the saved notice."),
+    },
+    write,
   );
   register(
     "get_shoot_share_link",

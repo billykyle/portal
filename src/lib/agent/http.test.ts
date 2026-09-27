@@ -44,6 +44,8 @@ function stubOps(): AgentOps {
     listShoots: fail,
     getShoot: fail,
     getShootShareLink: fail,
+    getMaintenanceNotice: async () => ({ notice: null }),
+    setMaintenanceNotice: fail,
   };
 }
 
@@ -131,6 +133,8 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
     "list_client_shoots",
     "get_shoot",
     "get_shoot_share_link",
+    "get_maintenance_notice",
+    "set_maintenance_notice",
   ]) {
     assert.ok(names.includes(name), name);
   }

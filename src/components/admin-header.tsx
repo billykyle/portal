@@ -13,6 +13,7 @@ export function AdminHeader({
 }) {
   return (
     <AppHeader
+      surface="admin"
       left={
         <div className="flex min-w-0 items-center gap-1">
           <NavMenu side="admin" />

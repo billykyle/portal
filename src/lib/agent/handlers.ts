@@ -250,6 +250,34 @@ export async function runAgentTool(
       if (!result.ok) return result;
       return { ok: true, data: { shoot: result.shoot }, revalidate: [] };
     }
+    case "get_maintenance_notice": {
+      const result = await ops.getMaintenanceNotice();
+      return { ok: true, data: result, revalidate: [] };
+    }
+    case "set_maintenance_notice": {
+      if (args.clear === true) {
+        const result = await ops.setMaintenanceNotice({ clear: true });
+        if (!result.ok) return result;
+        return { ok: true, data: { notice: null }, revalidate: ["/"] };
+      }
+      const message = text(args.message).trim();
+      const startsAt = text(args.startsAt).trim();
+      const endsAt = text(args.endsAt).trim();
+      if (!message || !startsAt || !endsAt) {
+        return { ok: false, error: "Message, start, and end are required." };
+      }
+      const start = new Date(startsAt);
+      const end = new Date(endsAt);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return { ok: false, error: "Start and end must be ISO times." };
+      }
+      if (start.getTime() >= end.getTime()) {
+        return { ok: false, error: "End must be after start." };
+      }
+      const result = await ops.setMaintenanceNotice({ message, startsAt: start, endsAt: end });
+      if (!result.ok) return result;
+      return { ok: true, data: { notice: result.notice }, revalidate: ["/"] };
+    }
     case "get_shoot_share_link": {
       const shootId = text(args.shootId).trim();
       if (!shootId) return { ok: false, error: "Shoot id is required." };

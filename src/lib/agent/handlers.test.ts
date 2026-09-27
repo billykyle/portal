@@ -26,6 +26,8 @@ function stubOps(overrides: Partial<AgentOps> = {}): AgentOps {
     listShoots: fail,
     getShoot: fail,
     getShootShareLink: fail,
+    getMaintenanceNotice: fail,
+    setMaintenanceNotice: fail,
     ...overrides,
   };
 }
@@ -322,6 +324,70 @@ test("sync_from_nas returns the summary from the shared admin sync", async () =>
   if (!result.ok) return;
   assert.equal((result.data as { sync: { ready: number } }).sync.ready, 1);
   assert.deepEqual(result.revalidate, ["/admin/clients", "/admin/home"]);
+});
+
+test("maintenance notice tools save or clear and never email", async () => {
+  const missing = await runAgentTool("set_maintenance_notice", { message: "Portal updates" }, stubOps());
+  assert.equal(missing.ok, false);
+
+  let cleared = false;
+  const clearedResult = await runAgentTool(
+    "set_maintenance_notice",
+    { clear: true, message: "ignored" },
+    stubOps({
+      async setMaintenanceNotice(input) {
+        assert.deepEqual(input, { clear: true });
+        cleared = true;
+        return { ok: true, notice: null };
+      },
+    }),
+  );
+  assert.equal(cleared, true);
+  assert.equal(clearedResult.ok, true);
+  if (clearedResult.ok) assert.deepEqual(clearedResult.revalidate, ["/"]);
+
+  const saved = await runAgentTool(
+    "set_maintenance_notice",
+    {
+      message: "Portal updates",
+      startsAt: "2026-09-28T13:00:00.000Z",
+      endsAt: "2026-09-28T15:00:00.000Z",
+    },
+    stubOps({
+      async setMaintenanceNotice(input) {
+        assert.equal("clear" in input, false);
+        if ("clear" in input) return { ok: true, notice: null };
+        assert.equal(input.message, "Portal updates");
+        return {
+          ok: true,
+          notice: {
+            message: input.message,
+            startsAt: input.startsAt.toISOString(),
+            endsAt: input.endsAt.toISOString(),
+            live: false,
+          },
+        };
+      },
+    }),
+  );
+  assert.equal(saved.ok, true);
+
+  const read = await runAgentTool(
+    "get_maintenance_notice",
+    {},
+    stubOps({
+      async getMaintenanceNotice() {
+        return { notice: null };
+      },
+    }),
+  );
+  assert.equal(read.ok, true);
+  if (read.ok) assert.deepEqual(read.data, { notice: null });
+
+  const tools = readFileSync("src/lib/agent/tools.ts", "utf8");
+  assert.match(tools, /get_maintenance_notice/);
+  assert.match(tools, /set_maintenance_notice/);
+  assert.doesNotMatch(tools, /Email all clients/);
 });
 
 test("agent tools do not reintroduce delivery tracking or attach-shoot", () => {
