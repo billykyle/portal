@@ -3,6 +3,7 @@ import { bookingNotifyEmail, normalizeEmail, uniqueEmails } from "@/lib/email";
 import { isPendingClientEmail } from "@/lib/signup-fields";
 import {
   EMAIL_FONT_STACK,
+  emailActionButtons,
   emailSignatureHtml,
   emailSignatureText,
   wrapBookingEmailHtml,
@@ -160,7 +161,10 @@ export function buildShootReminder(input: {
       `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #000000;border-collapse:collapse;">
 ${detailRows}
 </table>`,
-      `<p style="margin:24px 0 0;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.5;color:#000000;"><a href="${escapeHtml(links.modify)}" style="color:#000000;text-decoration:underline;">Modify</a>&nbsp;&nbsp;<a href="${escapeHtml(links.cancel)}" style="color:#000000;text-decoration:underline;">Cancel</a></p>`,
+      `<div style="padding-top:24px;">${emailActionButtons([
+        { href: links.modify, label: "Modify", variant: "primary" },
+        { href: links.cancel, label: "Cancel", variant: "secondary" },
+      ])}</div>`,
       `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
     ].join("\n"),
   });

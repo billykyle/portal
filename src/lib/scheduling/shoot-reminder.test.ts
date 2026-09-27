@@ -102,6 +102,12 @@ test("the reminder is a threaded reply with the address, access line, and manage
   assert.match(message.text, /\/scheduling\?modify=booking-1/);
   assert.match(message.text, /\/scheduling\/confirmed\/booking-1/);
   assert.match(message.html, /12 Wood View Drive/);
+  assert.match(message.html, /bgcolor="#000000"/);
+  assert.match(message.html, /bgcolor="#ffffff"/);
+  assert.match(message.html, /email-action-stack/);
+  assert.match(message.html, />Modify</);
+  assert.match(message.html, />Cancel</);
+  assert.doesNotMatch(message.html, /Modify<\/a>&nbsp;&nbsp;<a/);
   assert.equal(message.html.includes("billy@billyhere.com"), false);
   assert.equal(message.headers?.["In-Reply-To"], "<booking-booking-1@portal.billy-kyle.com>");
 

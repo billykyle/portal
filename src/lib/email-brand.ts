@@ -42,14 +42,81 @@ export function emailSignatureText() {
   ].join("\n");
 }
 
-export function bookingEmailCtaButton(href: string, label: string) {
-  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto;">
+export type EmailActionVariant = "primary" | "secondary";
+
+export type EmailAction = {
+  href: string;
+  label: string;
+  variant?: EmailActionVariant;
+};
+
+const EMAIL_ACTION_STYLES = {
+  primary: { bg: "#000000", color: "#ffffff", border: "#000000" },
+  secondary: { bg: "#ffffff", color: "#000000", border: "#8e8e93" },
+} as const;
+
+/**
+ * One action control. Colors, type, and radius are inline so the button
+ * still renders when a client drops `<style>` blocks. Outlook gets a VML
+ * roundrect; everyone else gets the anchor.
+ */
+export function emailActionButton(action: EmailAction, fluid = false) {
+  const variant = action.variant ?? "primary";
+  const style = EMAIL_ACTION_STYLES[variant];
+  const href = escapeHtml(action.href);
+  const label = escapeHtml(action.label);
+  const width = fluid ? ` width="100%"` : "";
+  return `<table role="presentation"${width} cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;">
   <tr>
-    <td align="center" bgcolor="#000000" style="background:#000000;border-radius:8px;">
-      <a href="${escapeHtml(href)}" style="display:inline-block;padding:14px 28px;font-family:${EMAIL_FONT_STACK};font-size:15px;line-height:1.2;font-weight:600;color:#ffffff;text-decoration:none;">${escapeHtml(label)}</a>
+    <td align="center" valign="middle" bgcolor="${style.bg}" style="border-radius:12px;background-color:${style.bg};border:1px solid ${style.border};">
+      <!--[if mso]>
+      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:48px;v-text-anchor:middle;width:220px;" arcsize="25%" strokecolor="${style.border}" strokeweight="1px" fillcolor="${style.bg}">
+        <w:anchorlock/>
+        <center style="color:${style.color};font-family:Segoe UI, Helvetica, Arial, sans-serif;font-size:16px;font-weight:bold;">${label}</center>
+      </v:roundrect>
+      <![endif]-->
+      <!--[if !mso]><!-->
+      <a href="${href}" target="_blank" style="display:${fluid ? "block" : "inline-block"};padding:14px 22px;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:20px;font-weight:500;color:${style.color};text-decoration:none;border-radius:12px;">${label}</a>
+      <!--<![endif]-->
     </td>
   </tr>
 </table>`;
+}
+
+/** One centered button, or a row that sits side by side and stacks under 480px. */
+export function emailActionButtons(actions: EmailAction[]) {
+  if (actions.length === 0) return "";
+  if (actions.length === 1) {
+    const action = actions[0]!;
+    return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto;">
+  <tr>
+    <td align="center">${emailActionButton(action, false)}</td>
+  </tr>
+</table>`;
+  }
+  const width = Math.floor(100 / actions.length);
+  const cells = actions
+    .map((action, index) => {
+      const padding =
+        index === 0
+          ? "padding:0 6px 0 0;"
+          : index === actions.length - 1
+            ? "padding:0 0 0 6px;"
+            : "padding:0 6px;";
+      return `<td class="email-action-stack" valign="middle" width="${width}%" style="${padding}">
+      ${emailActionButton(action, true)}
+    </td>`;
+    })
+    .join("\n");
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+  <tr>
+    ${cells}
+  </tr>
+</table>`;
+}
+
+export function bookingEmailCtaButton(href: string, label: string) {
+  return emailActionButtons([{ href, label, variant: "primary" }]);
 }
 
 export function wrapBookingEmailHtml(input: { title: string; preheader?: string; body: string }) {
@@ -65,6 +132,17 @@ export function wrapBookingEmailHtml(input: { title: string; preheader?: string;
 <meta name="color-scheme" content="light only">
 <meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(input.title)}</title>
+<style>
+  @media only screen and (max-width: 480px) {
+    .email-action-stack {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 0 0 12px 0 !important;
+    }
+  }
+</style>
 </head>
 <body style="margin:0;padding:0;background:#ffffff;color:#000000;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.5;">
 ${preheader}

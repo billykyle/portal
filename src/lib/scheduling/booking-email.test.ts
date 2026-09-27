@@ -169,6 +169,11 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assert.match(message.html, /Modify or cancel this shoot/);
   assert.match(message.html, /Add to calendar/);
   assert.match(message.html, /Google Calendar/);
+  assert.match(message.html, /bgcolor="#000000"/);
+  assert.match(message.html, /bgcolor="#ffffff"/);
+  assert.match(message.html, /border-radius:12px/);
+  assert.match(message.html, /v:roundrect/);
+  assert.doesNotMatch(message.html, /text-decoration:underline;">Google Calendar/);
   assert.match(message.html, /12 Wood View Drive, Princeton, NJ/);
   assert.equal(message.attachments?.length, 1);
   assert.equal(message.attachments?.[0]?.filename, "2026-09-22-billy-kyle.ics");

@@ -1,6 +1,7 @@
 import {
   EMAIL_FONT_STACK,
   bookingEmailCtaButton,
+  emailActionButtons,
   emailSignatureHtml,
   emailSignatureText,
   wrapBookingEmailHtml,
@@ -323,10 +324,11 @@ function pepperNoteHtml(note: string) {
 }
 
 function calendarCtaHtml(icsUrl: string, googleUrl: string) {
-  return `${bookingEmailCtaButton(icsUrl, "Add to calendar")}
-<p style="margin:12px 0 20px;text-align:center;font-family:${EMAIL_FONT_STACK};font-size:14px;line-height:1.45;">
-  <a href="${escapeHtml(googleUrl)}" style="color:#000000;text-decoration:underline;">Google Calendar</a>
-</p>`;
+  return `${emailActionButtons([
+    { href: icsUrl, label: "Add to calendar", variant: "primary" },
+    { href: googleUrl, label: "Google Calendar", variant: "secondary" },
+  ])}
+<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>`;
 }
 
 function buildClientMessage(
