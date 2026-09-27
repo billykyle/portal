@@ -8,7 +8,8 @@ test("client menu lists hub destinations and highlights the current section", ()
     ["Home", "My Content", "Scheduling"],
   );
   assert.equal(activeNavId("client", "/hub"), "home");
-  assert.equal(activeNavId("client", "/library"), "library");
+  assert.equal(activeNavId("client", "/my-content"), "library");
+  assert.equal(navItemsFor("client").find((item) => item.id === "library")?.href, "/my-content");
   assert.equal(activeNavId("client", "/shoots/shoot-1"), "library");
   assert.equal(activeNavId("client", "/scheduling/times"), "scheduling");
   assert.equal(activeNavId("client", "/scheduling/confirmed/abc"), "scheduling");

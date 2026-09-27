@@ -9,7 +9,7 @@ export type AppNavItem = {
 /** Primary client destinations. Labels match the hub cards. */
 export const CLIENT_NAV: AppNavItem[] = [
   { id: "home", href: "/hub", label: "Home" },
-  { id: "library", href: "/library", label: "My Content" },
+  { id: "library", href: "/my-content", label: "My Content" },
   { id: "scheduling", href: "/scheduling", label: "Scheduling" },
 ];
 
@@ -33,7 +33,7 @@ export function activeNavId(side: AppNavSide, pathname: string) {
     return null;
   }
   if (pathname === "/hub" || pathname.startsWith("/hub/")) return "home";
-  if (pathname === "/library" || pathname.startsWith("/library/") || pathname.startsWith("/shoots/")) {
+  if (pathname === "/my-content" || pathname.startsWith("/my-content/") || pathname.startsWith("/shoots/")) {
     return "library";
   }
   if (pathname === "/scheduling" || pathname.startsWith("/scheduling/")) return "scheduling";

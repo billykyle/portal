@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/clients", request.url));
   }
   if (
-    (pathname.startsWith("/library") ||
+    (pathname.startsWith("/my-content") ||
       pathname.startsWith("/hub") ||
       pathname.startsWith("/account") ||
       pathname.startsWith("/scheduling")) &&
@@ -70,8 +70,8 @@ export const config = {
     "/account/:path*",
     "/scheduling",
     "/scheduling/:path*",
-    "/library",
-    "/library/:path*",
+    "/my-content",
+    "/my-content/:path*",
     "/s",
     "/s/:path*",
     "/shoots/:path*",
