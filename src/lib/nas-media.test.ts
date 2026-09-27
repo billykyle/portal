@@ -12,6 +12,7 @@ import {
 } from "./nas-media";
 
 test("guesses type from extension, folder, then filename", () => {
+  assert.equal(guessMediaType("mix.mp3"), "audio");
   assert.equal(guessMediaType("walk.mp4"), "video");
   assert.equal(guessMediaType("188 33rd Street.mov"), "video");
   assert.equal(guessMediaType("Full-01.jpg"), "photo");

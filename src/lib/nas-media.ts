@@ -2,6 +2,7 @@ import type { MediaType } from "./db/schema";
 
 export const PHOTO_EXT = /\.(jpe?g|png|webp|heic|tif|tiff)$/i;
 export const VIDEO_EXT = /\.(mp4|mov|webm|m4v)$/i;
+export const AUDIO_EXT = /\.(mp3|wav|m4a)$/i;
 export const PLAN_FILE_EXT = /\.(jpe?g|png|webp|heic|tif|tiff|svg|pdf)$/i;
 
 export type ListedNasEntry = {
@@ -32,12 +33,17 @@ export function isImportableVideo(name: string) {
   return VIDEO_EXT.test(name);
 }
 
+export function isImportableAudio(name: string) {
+  return AUDIO_EXT.test(name);
+}
+
 export function isImportablePlan(name: string) {
   return PLAN_FILE_EXT.test(name);
 }
 
 export function guessMediaType(filename: string, folderHint = ""): MediaType {
   const lower = filename.toLowerCase();
+  if (AUDIO_EXT.test(lower)) return "audio";
   if (VIDEO_EXT.test(lower)) return "video";
   if (isFloorPlanFolderName(folderHint) || /(floor|plan)/.test(lower) || /\.svg$/.test(lower) || /\.pdf$/.test(lower)) {
     return "floor_plan";
@@ -147,6 +153,11 @@ export async function collectNasDeliverables(input: {
     for (const file of videoFiles) {
       push(file, "video", mediaImportFilename(file.path, file.name, shoot, stills?.path ?? null));
     }
+  }
+
+  const audioFiles = await collectMatchingFiles(shoot, isImportableAudio, input.list);
+  for (const file of audioFiles) {
+    push(file, "audio", mediaImportFilename(file.path, file.name, shoot, stills?.path ?? null));
   }
 
   return out;

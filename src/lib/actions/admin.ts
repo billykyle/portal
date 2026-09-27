@@ -51,6 +51,7 @@ export async function mintClient(formData: FormData) {
     primaryEmail: String(formData.get("primaryEmail") ?? ""),
     company: String(formData.get("company") ?? ""),
     notes: String(formData.get("notes") ?? ""),
+    category: String(formData.get("category") ?? ""),
   });
   if (!created.ok) {
     redirect(adminHomeUrl({ error: created.error }));
@@ -109,6 +110,7 @@ export async function updateClient(formData: FormData) {
     primaryEmail: String(formData.get("primaryEmail") ?? ""),
     company: String(formData.get("company") ?? ""),
     notes: String(formData.get("notes") ?? ""),
+    category: String(formData.get("category") ?? ""),
   });
   if (!saved.ok) {
     if (saved.where === "clients") redirect(adminClientsUrl({ error: saved.error }));
@@ -116,6 +118,7 @@ export async function updateClient(formData: FormData) {
   }
   revalidatePath("/admin/clients");
   revalidatePath(ADMIN_HOME);
+  revalidatePath(CLIENT_LIBRARY);
   revalidatePath(clientAdminPath(clientId));
   redirect(clientAdminPath(clientId, { saved: "1" }));
 }

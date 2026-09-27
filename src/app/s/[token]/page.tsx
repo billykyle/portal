@@ -68,16 +68,21 @@ export default async function PublicShootPage({
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={publicShootZipPath(shoot.publicToken)}
         closedSectionIds={closedSectionIds}
-        media={files.map((item) => ({
-          id: item.id,
-          filename: item.filename,
-          type: item.type,
-          url: resolveMediaUrl(item),
-          thumbUrl: resolveMediaThumbUrl(item),
-          width: item.width,
-          height: item.height,
-          renditions: playback.get(item.id) ?? [],
-        }))}
+        media={files.flatMap((item) => {
+          if (item.type !== "photo" && item.type !== "video" && item.type !== "floor_plan") return [];
+          return [
+            {
+              id: item.id,
+              filename: item.filename,
+              type: item.type,
+              url: resolveMediaUrl(item),
+              thumbUrl: resolveMediaThumbUrl(item),
+              width: item.width,
+              height: item.height,
+              renditions: playback.get(item.id) ?? [],
+            },
+          ];
+        })}
       />
     </PhoneShell>
   );

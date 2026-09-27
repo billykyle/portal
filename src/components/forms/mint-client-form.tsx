@@ -1,5 +1,7 @@
+import { CategoryField } from "@/components/category-field";
 import { Field, SubmitButton } from "@/components/field";
 import { mintClient } from "@/lib/actions/admin";
+import { NEW_CLIENT_CATEGORY } from "@/lib/client-category";
 
 export function MintClientForm({
   minted,
@@ -11,6 +13,7 @@ export function MintClientForm({
       <Field id="displayName" label="Display name" required autoComplete="off" />
       <Field id="primaryEmail" label="Primary contact email" type="email" required autoComplete="off" />
       <Field id="company" label="Company" autoComplete="off" />
+      <CategoryField defaultValue={NEW_CLIENT_CATEGORY} />
       <div className="flex flex-col gap-2">
         <label htmlFor="notes" className="text-[16px] font-normal text-white">
           Internal notes
