@@ -10,6 +10,7 @@ test("client menu lists hub destinations and highlights the current section", ()
   assert.equal(activeNavId("client", "/hub"), "home");
   assert.equal(activeNavId("client", "/my-content"), "library");
   assert.equal(navItemsFor("client").find((item) => item.id === "library")?.href, "/my-content");
+  assert.equal(activeNavId("client", "/my-content/269-pennock-bridge-road"), "library");
   assert.equal(activeNavId("client", "/shoots/shoot-1"), "library");
   assert.equal(activeNavId("client", "/scheduling/times"), "scheduling");
   assert.equal(activeNavId("client", "/scheduling/confirmed/abc"), "scheduling");
@@ -28,6 +29,7 @@ test("admin menu lists home, then clients and bookings", () => {
   assert.equal(activeNavId("admin", "/admin/home"), "home");
   assert.equal(activeNavId("admin", "/admin/clients"), "clients");
   assert.equal(activeNavId("admin", "/admin/clients/abc/users/user-1"), "clients");
+  assert.equal(activeNavId("admin", "/admin/clients/abc/shoots/269-pennock-bridge-road"), "clients");
   assert.equal(activeNavId("admin", "/shoots/shoot-1"), "clients");
   assert.equal(activeNavId("admin", "/admin/bookings"), "bookings");
   assert.equal(activeNavId("admin", "/admin/bookings/abc/times"), "bookings");

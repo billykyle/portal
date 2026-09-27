@@ -23,6 +23,7 @@ import {
   type BookingWhen,
 } from "@/lib/agent/present";
 import { db } from "@/lib/db";
+import { clientShootUrl } from "@/lib/shoot-slug";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, type Booking } from "@/lib/db/schema";
 import {
@@ -154,7 +155,16 @@ export type AgentOps = {
   >;
   getShoot(input: { shootId: string }): Promise<{ ok: true; shoot: ShootDetail } | { ok: false; error: string }>;
   getShootShareLink(input: { shootId: string }): Promise<
-    | { ok: true; shootId: string; publicToken: string; publicUrl: string; minted: boolean }
+    | {
+        ok: true;
+        shootId: string;
+        clientId: string;
+        slug: string;
+        publicToken: string;
+        publicUrl: string;
+        portalUrl: string;
+        minted: boolean;
+      }
     | { ok: false; error: string }
   >;
 };
@@ -170,6 +180,7 @@ export type ShootSummary = {
   dropboxUrl: string | null;
   publicToken: string;
   publicUrl: string;
+  portalUrl: string;
   mediaCounts: { photo: number; floor_plan: number; video: number; total: number };
   ready: boolean;
 };
@@ -257,6 +268,7 @@ function shootSummary(row: ShootRecord, items: { id: string; type: string; filen
     dropboxUrl: row.dropboxUrl,
     publicToken: share.publicToken,
     publicUrl: share.publicUrl,
+    portalUrl: clientShootUrl(row.slug),
     mediaCounts: media.counts,
     ready: media.ready,
   };
@@ -516,12 +528,17 @@ export const portalAgentOps: AgentOps = {
   async getShootShareLink({ shootId }) {
     const shared = await ensureShootPublicToken(shootId);
     if (!shared.ok) return shared;
+    const found = await getShootRecord(shootId);
+    if (!found.ok) return found;
     const link = shootShare(shared.value.token);
     return {
       ok: true,
       shootId,
+      clientId: found.value.clientId,
+      slug: found.value.slug,
       publicToken: link.publicToken,
       publicUrl: link.publicUrl,
+      portalUrl: clientShootUrl(found.value.slug),
       minted: shared.value.minted,
     };
   },

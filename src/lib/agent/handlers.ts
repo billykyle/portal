@@ -241,9 +241,15 @@ export async function runAgentTool(
           shootId: result.shootId,
           publicToken: result.publicToken,
           publicUrl: result.publicUrl,
+          portalUrl: result.portalUrl,
           minted: result.minted,
         },
-        revalidate: result.minted ? [`/shoots/${shootId}`] : [],
+        revalidate: result.minted
+          ? [
+              `/my-content/${result.slug}`,
+              `/admin/clients/${result.clientId}/shoots/${result.slug}`,
+            ]
+          : [],
       };
     }
     default:

@@ -1,40 +1,12 @@
-import { and, asc, eq } from "drizzle-orm";
-import type { Metadata } from "next";
-import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
-import { AdminHeader } from "@/components/admin-header";
-import { ClientHeader } from "@/components/client-header";
-import { PhoneShell } from "@/components/phone-shell";
-import { ShootDetail } from "@/components/shoot-detail";
+import { and, eq } from "drizzle-orm";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
+import { isUuid } from "@/lib/admin/ids";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { media, shoots } from "@/lib/db/schema";
-import { shootZipPath } from "@/lib/download-all";
-import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
-import { videoPlaybackById } from "@/lib/video-store";
-import { shootPageMetadata } from "@/lib/site-metadata";
-import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const { id } = await params;
-  try {
-    await ensureDb();
-    const [shoot] = await db.select().from(shoots).where(eq(shoots.id, id)).limit(1);
-    if (!shoot) return {};
-    return shootPageMetadata({
-      address: shoot.address,
-      dateLabel: formatShootDate(shoot.shotDate),
-    });
-  } catch {
-    return {};
-  }
-}
+import { shoots } from "@/lib/db/schema";
+import { adminShootPath, clientShootPath, syncShootSlug, withSearch } from "@/lib/shoot-slug";
 
 export default async function ShootPage({
   params,
@@ -50,6 +22,9 @@ export default async function ShootPage({
   }
   const { id } = await params;
   const { view } = await searchParams;
+  if (!isUuid(id)) {
+    notFound();
+  }
   await ensureDb();
   const [shoot] = admin
     ? await db.select().from(shoots).where(eq(shoots.id, id)).limit(1)
@@ -61,43 +36,15 @@ export default async function ShootPage({
   if (!shoot) {
     notFound();
   }
-  const files = await db
-    .select()
-    .from(media)
-    .where(eq(media.shootId, shoot.id))
-    .orderBy(asc(media.sortOrder));
-  const playback = await videoPlaybackById(files);
-  const closedSectionIds = [
-    ...parseClosedShootSections((await cookies()).get(SHOOT_SECTIONS_COOKIE)?.value),
-  ];
-
-  return (
-    <PhoneShell>
-      {admin ? (
-        <AdminHeader backHref={`/admin/clients/${shoot.clientId}`} backLabel="Client" />
-      ) : (
-        <ClientHeader />
-      )}
-      <ShootDetail
-        basePath={`/shoots/${shoot.id}`}
-        viewId={view}
-        address={shoot.address}
-        dateLabel={formatShootDate(shoot.shotDate)}
-        folderName={shootFolderName(shoot.shotDate, shoot.address)}
-        zipUrl={shootZipPath(shoot.id)}
-        shareToken={shoot.publicToken}
-        closedSectionIds={closedSectionIds}
-        media={files.map((item) => ({
-          id: item.id,
-          filename: item.filename,
-          type: item.type,
-          url: resolveMediaUrl(item),
-          thumbUrl: resolveMediaThumbUrl(item),
-          width: item.width,
-          height: item.height,
-          renditions: playback.get(item.id) ?? [],
-        }))}
-      />
-    </PhoneShell>
-  );
+  const slug =
+    shoot.slug ||
+    (await syncShootSlug({
+      shootId: shoot.id,
+      clientId: shoot.clientId,
+      title: shoot.address,
+      shotDate: shoot.shotDate,
+      slug: null,
+    }));
+  const path = admin ? adminShootPath(shoot.clientId, slug) : clientShootPath(slug);
+  permanentRedirect(withSearch(path, view ? `?view=${encodeURIComponent(view)}` : ""));
 }

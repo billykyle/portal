@@ -13,6 +13,9 @@ import { ShootList } from "../components/shoot-list";
 test("admin UI does not offer mark delivered", () => {
   const files = [
     "src/app/shoots/[id]/page.tsx",
+    "src/app/my-content/[slug]/page.tsx",
+    "src/app/admin/clients/[id]/shoots/[slug]/page.tsx",
+    "src/components/shoot-screen.tsx",
     "src/app/admin/clients/[id]/page.tsx",
     "src/lib/actions/admin.ts",
     "src/components/shoot-list.tsx",

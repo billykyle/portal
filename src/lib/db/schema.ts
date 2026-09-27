@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const mediaTypeEnum = pgEnum("media_type", ["photo", "video", "floor_plan"]);
 
@@ -43,11 +43,27 @@ export const shoots = pgTable("shoots", {
   publicToken: text("public_token").notNull().unique(),
   shotDate: text("shot_date").notNull(),
   address: text("address").notNull(),
+  slug: text("slug").notNull(),
   nasRelativePath: text("nas_relative_path"),
   dropboxUrl: text("dropbox_url"),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** Previous slugs for a shoot, so a renamed address still resolves. Unique per client. */
+export const shootSlugAliases = pgTable(
+  "shoot_slug_aliases",
+  {
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    shootId: uuid("shoot_id")
+      .notNull()
+      .references(() => shoots.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.clientId, table.slug] })],
+);
 
 export const media = pgTable("media", {
   id: uuid("id").defaultRandom().primaryKey(),
