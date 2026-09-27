@@ -155,8 +155,18 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   const clients = readFileSync("src/app/admin/clients/page.tsx", "utf8");
   assert.match(clients, /title: "Admin"/);
   assert.match(clients, /sr-only">Admin</);
-  assert.match(clients, /Create client/);
-  assert.doesNotMatch(clients, /pageTitleClass|Mint client/);
+  assert.doesNotMatch(clients, /pageTitleClass|Mint client|Create client/);
+
+  const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
+  assert.match(home, /title: "Home"/);
+  assert.match(home, /sr-only">Home</);
+  assert.match(home, /Create client/);
+  assert.match(home, /id="clients:nas-sync"/);
+  assert.match(home, /id="clients:book-shoot"/);
+  assert.match(home, /id="clients:all"/);
+  assert.match(home, /id="bookings:upcoming"/);
+  assert.match(home, /id="bookings:past"/);
+  assert.doesNotMatch(home, /pageTitleClass|Mint client/);
 
   const bookings = readFileSync("src/app/admin/bookings/page.tsx", "utf8");
   assert.match(bookings, /title: "Bookings"/);

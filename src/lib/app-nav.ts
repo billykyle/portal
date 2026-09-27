@@ -15,6 +15,7 @@ export const CLIENT_NAV: AppNavItem[] = [
 
 /** Top-level admin destinations that already exist as peer pages. */
 export const ADMIN_NAV: AppNavItem[] = [
+  { id: "home", href: "/admin/home", label: "Home" },
   { id: "clients", href: "/admin/clients", label: "Clients" },
   { id: "bookings", href: "/admin/bookings", label: "Bookings" },
 ];
@@ -26,6 +27,7 @@ export function navItemsFor(side: AppNavSide) {
 /** Which primary item owns this pathname, if any. Account stays outside the menu. */
 export function activeNavId(side: AppNavSide, pathname: string) {
   if (side === "admin") {
+    if (pathname === "/admin/home" || pathname.startsWith("/admin/home/")) return "home";
     if (pathname === "/admin/bookings" || pathname.startsWith("/admin/bookings/")) return "bookings";
     if (pathname === "/admin/clients" || pathname.startsWith("/admin/clients/") || pathname.startsWith("/shoots/")) {
       return "clients";

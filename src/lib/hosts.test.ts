@@ -123,11 +123,11 @@ test("portal /admin redirects to the admin host and keeps path + query", () => {
   );
 });
 
-test("admin host root goes to /admin; client paths go to the portal host", () => {
+test("admin host root goes to /admin/home; client paths go to the portal host", () => {
   delete process.env.ADMIN_PUBLIC_URL;
   process.env.PORTAL_PUBLIC_URL = "https://portal.billy-kyle.com";
   assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/" }), {
-    location: "https://admin.billy-kyle.com/admin",
+    location: "https://admin.billy-kyle.com/admin/home",
     status: 308,
   });
   assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/my-content" }), {
@@ -144,6 +144,7 @@ test("admin host root goes to /admin; client paths go to the portal host", () =>
   });
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin" }), null);
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin/clients" }), null);
+  assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin/home" }), null);
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/shoots/abc" }), null);
 });
 
