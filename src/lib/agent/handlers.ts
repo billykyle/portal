@@ -1,7 +1,7 @@
 import { readClientSortArgument } from "@/lib/admin/client-sort";
 import type { AgentOps } from "@/lib/agent/ops";
 import { clampLimit, normalizeBookingWhen } from "@/lib/agent/present";
-import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { ADMIN_HOME, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 export type ToolOutcome =
   | { ok: true; data: unknown; revalidate: string[] }
@@ -51,7 +51,7 @@ export async function runAgentTool(
         notes: optionalNullableText(args.notes),
       });
       if (!result.ok) return result;
-      return { ok: true, data: { client: result.client }, revalidate: ["/admin/clients"] };
+      return { ok: true, data: { client: result.client }, revalidate: ["/admin/clients", ADMIN_HOME] };
     }
     case "update_client": {
       const clientId = text(args.clientId).trim();
@@ -67,7 +67,7 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { client: result.client },
-        revalidate: ["/admin/clients", `/admin/clients/${clientId}`],
+        revalidate: ["/admin/clients", ADMIN_HOME, `/admin/clients/${clientId}`],
       };
     }
     case "delete_client": {
@@ -77,7 +77,7 @@ export async function runAgentTool(
       if (!confirmInviteCode.trim()) return { ok: false, error: "confirmInviteCode is required." };
       const result = await ops.deleteClient({ clientId, confirmInviteCode });
       if (!result.ok) return result;
-      return { ok: true, data: { deleted: result.client }, revalidate: ["/admin/clients"] };
+      return { ok: true, data: { deleted: result.client }, revalidate: ["/admin/clients", ADMIN_HOME] };
     }
     case "list_client_users": {
       const clientId = text(args.clientId).trim();
@@ -105,6 +105,7 @@ export async function runAgentTool(
         data: { user: result.user },
         revalidate: [
           "/admin/clients",
+          ADMIN_HOME,
           `/admin/clients/${clientId}`,
           `/admin/clients/${clientId}/users/${userId}`,
           CLIENT_ACCOUNT,
@@ -122,13 +123,13 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { removed: result.user },
-        revalidate: ["/admin/clients", `/admin/clients/${clientId}`],
+        revalidate: ["/admin/clients", ADMIN_HOME, `/admin/clients/${clientId}`],
       };
     }
     case "sync_from_nas": {
       const result = await ops.syncFromNas();
       if (!result.ok) return result;
-      return { ok: true, data: { sync: result.sync }, revalidate: ["/admin/clients"] };
+      return { ok: true, data: { sync: result.sync }, revalidate: ["/admin/clients", ADMIN_HOME] };
     }
     case "list_bookings": {
       const result = await ops.listBookings({
@@ -168,6 +169,7 @@ export async function runAgentTool(
           CLIENT_SCHEDULING,
           CLIENT_SCHEDULING_TIMES,
           "/admin/bookings",
+          ADMIN_HOME,
           `/admin/bookings/${bookingId}`,
         ],
       };
@@ -188,7 +190,7 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { booking: result.booking },
-        revalidate: [CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES, "/admin/bookings", "/admin/clients"],
+        revalidate: [CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES, "/admin/bookings", "/admin/clients", ADMIN_HOME],
       };
     }
     case "cancel_booking": {
@@ -208,6 +210,7 @@ export async function runAgentTool(
           CLIENT_SCHEDULING_TIMES,
           `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`,
           "/admin/bookings",
+          ADMIN_HOME,
           `/admin/bookings/${bookingId}`,
         ],
       };

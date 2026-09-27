@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { ADMIN_HOME, CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import { createOverrideBooking } from "@/lib/scheduling/admin-book";
 import { parseSchedulingServices } from "@/lib/scheduling/services";
 
@@ -40,6 +40,7 @@ export async function bookShootForClient(
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath("/admin/clients");
+  revalidatePath(ADMIN_HOME);
   revalidatePath("/admin/bookings");
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);

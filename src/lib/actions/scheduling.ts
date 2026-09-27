@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
-import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { ADMIN_HOME, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
@@ -305,6 +305,7 @@ export async function createBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
+  revalidatePath(ADMIN_HOME);
   await forgetSchedulingDraft("client");
   redirect(
     schedulingConfirmedHref(created.bookingId, {
@@ -390,6 +391,7 @@ export async function updateBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
+  revalidatePath(ADMIN_HOME);
   revalidatePath(`/admin/bookings/${settled.bookingId}`);
   await forgetSchedulingDraft(fromAdmin ? "admin" : "client");
   if (fromAdmin) {
@@ -446,6 +448,7 @@ export async function cancelBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath(`${CLIENT_SCHEDULING_CONFIRMED}/${booking.id}`);
   revalidatePath("/admin/bookings");
+  revalidatePath(ADMIN_HOME);
   if (admin && formData.get("fromAdmin") === "1") {
     const clientId = String(formData.get("clientId") ?? booking.clientId);
     redirect(`/admin/clients/${clientId}?bookingCancelled=1`);

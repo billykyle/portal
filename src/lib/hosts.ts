@@ -112,7 +112,7 @@ export function resolveHostRedirect(input: {
 
   if (isAdminHostname(hostname)) {
     if (pathname === "/") {
-      return { location: `${adminOrigin()}/admin${search}`, status: 308 };
+      return { location: `${adminOrigin()}/admin/home${search}`, status: 308 };
     }
     if (isClientPortalPath(pathname)) {
       return { location: `${publicPortalOrigin()}${pathname}${search}`, status: 308 };

@@ -5,7 +5,7 @@ import { getAdminSession } from "@/lib/admin-auth";
 
 export default async function AdminLoginPage() {
   if (await getAdminSession()) {
-    redirect("/admin/clients");
+    redirect("/admin/home");
   }
 
   return (
