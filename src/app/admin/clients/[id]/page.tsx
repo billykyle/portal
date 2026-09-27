@@ -21,6 +21,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
+import { adminShootPath } from "@/lib/shoot-slug";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { teammateDisplayName } from "@/lib/signup-fields";
@@ -152,7 +153,7 @@ export default async function AdminClientPage({
               const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
               return {
                 id: shoot.id,
-                href: `/shoots/${shoot.id}`,
+                href: adminShootPath(client.id, shoot.slug),
                 address: shoot.address,
                 shotDate: shoot.shotDate,
                 dateLabel: formatShootDate(shoot.shotDate),

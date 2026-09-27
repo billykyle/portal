@@ -144,7 +144,7 @@ Normal path: drop a folder on the NAS and **Sync from NAS** (see below). Creatin
 2. Fill display name, primary contact email, optional company and notes.
 3. **Create next BK code** — the app assigns `BK00002`, `BK00003`, …
 4. Shoots come from **Sync from NAS** on the clients list. There is no manual attach form.
-5. Tap a shoot row to open the same `/shoots/[id]` page clients see (photos, downloads, public share). Shoots mirror the NAS — there is no manual delete. The BK invite stays.
+5. Tap a shoot row to open `/admin/clients/[client]/shoots/[slug]` (clients see the same shoot at `/my-content/[slug]`). Old `/shoots/[id]` links redirect. Shoots mirror the NAS — there is no manual delete. The BK invite stays.
 
 Give the invite code to the client. Anyone with that code can create an account and see every shoot on it.
 

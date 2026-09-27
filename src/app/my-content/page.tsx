@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, shoots } from "@/lib/db/schema";
 import { formatShootDate } from "@/lib/media";
+import { clientShootPath } from "@/lib/shoot-slug";
 
 export const metadata: Metadata = {
   title: "My Content",
@@ -44,7 +45,7 @@ export default async function LibraryPage() {
         emptyLabel="No shoots yet. Billy will post them here."
         shoots={rows.map((shoot) => ({
           id: shoot.id,
-          href: `/shoots/${shoot.id}`,
+          href: clientShootPath(shoot.slug),
           address: shoot.address,
           shotDate: shoot.shotDate,
           dateLabel: formatShootDate(shoot.shotDate),

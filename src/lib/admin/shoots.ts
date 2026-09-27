@@ -12,6 +12,7 @@ const shootColumns = {
   publicToken: shoots.publicToken,
   shotDate: shoots.shotDate,
   address: shoots.address,
+  slug: shoots.slug,
   nasRelativePath: shoots.nasRelativePath,
   dropboxUrl: shoots.dropboxUrl,
   createdAt: shoots.createdAt,
@@ -23,6 +24,7 @@ export type ShootRecord = {
   publicToken: string;
   shotDate: string;
   address: string;
+  slug: string;
   nasRelativePath: string | null;
   dropboxUrl: string | null;
   createdAt: Date;
@@ -36,6 +38,7 @@ async function withClient(row: {
   publicToken: string;
   shotDate: string;
   address: string;
+  slug: string;
   nasRelativePath: string | null;
   dropboxUrl: string | null;
   createdAt: Date;

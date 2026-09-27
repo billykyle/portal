@@ -28,6 +28,7 @@ import { nasEnabled } from "./nas-flags";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "./delivery";
 import { clientFolderRelPath, parseShootFolderName, pendingClientEmail } from "./nas-folder";
 import { createPublicToken } from "./public-link";
+import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
 
 export type NasSyncResult = {
   skipped: boolean;
@@ -173,10 +174,19 @@ async function upsertShoot(input: {
     )
     .limit(1);
   if (existing) {
+    const slug = existing.slug
+      ? existing.slug
+      : await syncShootSlug({
+          shootId: existing.id,
+          clientId: input.clientId,
+          title: input.address,
+          shotDate: input.shotDate,
+          slug: null,
+        });
     if (existing.nasRelativePath !== input.nasRelativePath) {
       await db.update(shoots).set({ nasRelativePath: input.nasRelativePath }).where(eq(shoots.id, existing.id));
     }
-    return { shoot: { ...existing, nasRelativePath: input.nasRelativePath }, created: false };
+    return { shoot: { ...existing, slug, nasRelativePath: input.nasRelativePath }, created: false };
   }
   const [shoot] = await db
     .insert(shoots)
@@ -185,6 +195,11 @@ async function upsertShoot(input: {
       publicToken: createPublicToken(),
       shotDate: input.shotDate,
       address: input.address,
+      slug: await allocateShootSlug({
+        clientId: input.clientId,
+        title: input.address,
+        shotDate: input.shotDate,
+      }),
       nasRelativePath: input.nasRelativePath,
     })
     .returning();
