@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deliverDueReminders, type ReminderCandidate } from "./shoot-reminder-run";
 
-const now = new Date("2026-09-28T13:00:00.000Z");
+const now = new Date("2026-09-29T10:00:00.000Z");
 
 function candidate(overrides: Partial<ReminderCandidate> = {}): ReminderCandidate {
   return {
