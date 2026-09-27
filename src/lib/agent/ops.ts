@@ -24,6 +24,13 @@ import {
 } from "@/lib/agent/present";
 import { db } from "@/lib/db";
 import type { ClientCategory } from "@/lib/client-category";
+import { maintenanceIsLive } from "@/lib/maintenance";
+import {
+  clearMaintenanceNotice,
+  getMaintenanceNotice as loadMaintenanceNotice,
+  saveMaintenanceNotice,
+  type StoredMaintenanceNotice,
+} from "@/lib/maintenance-store";
 import { clientShootUrl } from "@/lib/shoot-slug";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, type Booking } from "@/lib/db/schema";
@@ -171,6 +178,17 @@ export type AgentOps = {
       }
     | { ok: false; error: string }
   >;
+  getMaintenanceNotice(): Promise<{ notice: MaintenanceNoticeDto | null }>;
+  setMaintenanceNotice(
+    input: { clear: true } | { message: string; startsAt: Date; endsAt: Date },
+  ): Promise<{ ok: true; notice: MaintenanceNoticeDto | null } | { ok: false; error: string }>;
+};
+
+export type MaintenanceNoticeDto = {
+  message: string;
+  startsAt: string;
+  endsAt: string;
+  live: boolean;
 };
 
 export type ShootSummary = {
@@ -258,6 +276,15 @@ async function bookingWithClient(bookingId: string) {
     .where(eq(bookings.id, bookingId))
     .limit(1);
   return row ?? null;
+}
+
+function maintenanceNoticeDto(notice: StoredMaintenanceNotice): MaintenanceNoticeDto {
+  return {
+    message: notice.message,
+    startsAt: notice.startsAt.toISOString(),
+    endsAt: notice.endsAt.toISOString(),
+    live: maintenanceIsLive(notice, new Date()),
+  };
 }
 
 function shootSummary(row: ShootRecord, items: { id: string; type: string; filename: string; sortOrder: number }[]): ShootSummary {
@@ -549,5 +576,20 @@ export const portalAgentOps: AgentOps = {
       portalUrl: clientShootUrl(found.value.slug),
       minted: shared.value.minted,
     };
+  },
+
+  async getMaintenanceNotice() {
+    await ensureDb();
+    const notice = await loadMaintenanceNotice();
+    return { notice: notice ? maintenanceNoticeDto(notice) : null };
+  },
+
+  async setMaintenanceNotice(input) {
+    if ("clear" in input) {
+      await clearMaintenanceNotice();
+      return { ok: true, notice: null };
+    }
+    const saved = await saveMaintenanceNotice(input);
+    return { ok: true, notice: maintenanceNoticeDto(saved) };
   },
 };

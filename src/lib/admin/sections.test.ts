@@ -167,6 +167,8 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   assert.match(home, /id="clients:all"/);
   assert.match(home, /id="bookings:upcoming"/);
   assert.match(home, /id="bookings:past"/);
+  assert.match(home, /id="home:maintenance"/);
+  assert.match(home, /Maintenance notice/);
   assert.doesNotMatch(home, /pageTitleClass|Mint client/);
 
   const bookings = readFileSync("src/app/admin/bookings/page.tsx", "utf8");

@@ -22,6 +22,7 @@ import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingStartAllowed } from "@/lib/scheduling/horizon";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
+import { reminderDateChanged } from "@/lib/scheduling/shoot-reminder";
 
 type ActorSession = { clientId: string; userId: string; email: string } | null;
 
@@ -205,6 +206,7 @@ export async function prepareBookingModification(input: {
       endsAt: end,
       notes: input.notes,
       driveSecondsFromPrior: offered.driveSecondsFromPrior ?? null,
+      ...(reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
       updatedAt: new Date(),
     })
     .where(

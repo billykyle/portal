@@ -7,6 +7,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
 import { BookingList } from "@/components/booking-list";
 import { AdminBookShootForm } from "@/components/forms/admin-book-shoot-form";
+import { MaintenanceNoticeForm } from "@/components/forms/maintenance-notice-form";
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
@@ -26,6 +27,8 @@ import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
 import { isNasUnreachableError, readableNasError } from "@/lib/nas-connect";
 import { ADMIN_HOME } from "@/lib/routes";
+import { formatEtDateTimeLocal } from "@/lib/maintenance";
+import { getMaintenanceNotice } from "@/lib/maintenance-store";
 import { listAdminBookings } from "@/lib/scheduling/bookings";
 import { placesConfigured, schedulingHours } from "@/lib/scheduling/config";
 
@@ -94,6 +97,10 @@ export default async function AdminHomePage({
     cancelled?: string;
     updated?: string;
     q?: string;
+    maintenance?: string;
+    maintenanceError?: string;
+    emailed?: string;
+    emailFailed?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
@@ -119,10 +126,14 @@ export default async function AdminHomePage({
     cancelled,
     updated,
     q,
+    maintenance,
+    maintenanceError,
+    emailed,
+    emailFailed,
   } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const [rows, logins, counts, cookieStore, confirmedJobs, bookingRows] = await Promise.all([
+  const [rows, logins, counts, cookieStore, confirmedJobs, bookingRows, notice] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
     db
       .select({
@@ -140,6 +151,7 @@ export default async function AdminHomePage({
       .from(bookings)
       .where(eq(bookings.status, "confirmed")),
     listAdminBookings(),
+    getMaintenanceNotice(),
   ]);
   const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
   const openSections = parseOpenSections(cookieStore.get(ADMIN_SECTIONS_COOKIE)?.value);
@@ -192,6 +204,17 @@ export default async function AdminHomePage({
   const upcoming = bookingRows.filter((row) => row.startsAt.getTime() >= now);
   const past = bookingRows.filter((row) => row.startsAt.getTime() < now);
   const hours = schedulingHours();
+  const emailedCount = emailed == null ? null : Number(emailed);
+  const failedCount = Number(emailFailed ?? "0");
+  const emailedMessage =
+    emailedCount == null || !Number.isFinite(emailedCount)
+      ? undefined
+      : emailedCount === 0 && failedCount === 0
+        ? "No clients to email."
+        : `Emailed ${emailedCount} client${emailedCount === 1 ? "" : "s"}.${
+            failedCount > 0 ? ` ${failedCount} failed.` : ""
+          }`;
+  const maintenanceOpen = Boolean(maintenance || maintenanceError || emailed);
 
   return (
     <PhoneShell wide>
@@ -219,6 +242,23 @@ export default async function AdminHomePage({
               end: job.endsAt.toISOString(),
             }))}
           />
+        </AdminSection>
+        <AdminSection
+          id="home:maintenance"
+          label="Maintenance notice"
+          defaultOpen={sectionStartsOpen(openSections, "home:maintenance", maintenanceOpen)}
+        >
+          <div className={formMeasureClass}>
+            <MaintenanceNoticeForm
+              message={notice?.message ?? ""}
+              startsAt={notice ? formatEtDateTimeLocal(notice.startsAt) : ""}
+              endsAt={notice ? formatEtDateTimeLocal(notice.endsAt) : ""}
+              saved={maintenance === "saved" ? "Saved." : undefined}
+              cleared={maintenance === "cleared" ? "Cleared." : undefined}
+              emailed={emailedMessage}
+              error={maintenanceError}
+            />
+          </div>
         </AdminSection>
         <AdminSection
           id="clients:nas-sync"

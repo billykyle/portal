@@ -107,9 +107,19 @@ export const bookings = pgTable("bookings", {
   clientEmailMessageId: text("client_email_message_id"),
   clientEmailReferences: text("client_email_references"),
   clientEmailSubject: text("client_email_subject"),
+  reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
   syncIssue: text("sync_issue"),
   driveSecondsFromPrior: integer("drive_seconds_from_prior"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** One saved notice. No row means nothing is scheduled. */
+export const maintenanceNotices = pgTable("maintenance_notices", {
+  id: text("id").primaryKey(),
+  message: text("message").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
