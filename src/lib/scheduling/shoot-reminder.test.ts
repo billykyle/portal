@@ -16,28 +16,32 @@ function at(iso: string) {
 }
 
 const shootTuesday2pm = at("2026-09-29T18:00:00.000Z");
-const monday9am = at("2026-09-28T13:00:00.000Z");
+const tuesday6am = at("2026-09-29T10:00:00.000Z");
 
-test("the reminder instant is 9:00am ET the day before the shoot", () => {
-  assert.equal(reminderInstant(shootTuesday2pm, zone).toISOString(), monday9am.toISOString());
+test("the reminder instant is 6:00am ET on the shoot day, in both DST offsets", () => {
+  assert.equal(reminderInstant(shootTuesday2pm, zone).toISOString(), tuesday6am.toISOString());
+  const shootJanuary2pm = at("2026-01-15T19:00:00.000Z");
+  assert.equal(reminderInstant(shootJanuary2pm, zone).toISOString(), "2026-01-15T11:00:00.000Z");
   assert.equal(reminderDateChanged(shootTuesday2pm, at("2026-09-29T20:00:00.000Z")), false);
   assert.equal(reminderDateChanged(shootTuesday2pm, at("2026-09-30T18:00:00.000Z")), true);
 });
 
-test("reminders wait until 9:00am ET, then send once, and skip late bookings under 12 hours", () => {
+test("reminders wait until 6:00am ET on the shoot day, catch up later that morning, and skip short-notice bookings", () => {
   const bookedSunday = {
     status: "confirmed",
     startsAt: shootTuesday2pm,
     createdAt: at("2026-09-27T15:00:00.000Z"),
     reminderSentAt: null,
   };
-  assert.equal(reminderDecision(bookedSunday, at("2026-09-28T12:59:00.000Z")), "wait");
-  assert.equal(reminderDecision(bookedSunday, monday9am), "send");
+  assert.equal(reminderDecision(bookedSunday, at("2026-09-29T09:59:00.000Z")), "wait");
+  assert.equal(reminderDecision(bookedSunday, tuesday6am), "send");
+  assert.equal(reminderDecision(bookedSunday, at("2026-09-29T14:00:00.000Z")), "send");
   assert.equal(
-    reminderDecision({ ...bookedSunday, reminderSentAt: monday9am }, at("2026-09-28T14:00:00.000Z")),
+    reminderDecision({ ...bookedSunday, reminderSentAt: tuesday6am }, at("2026-09-29T14:00:00.000Z")),
     "skip",
   );
-  assert.equal(reminderDecision({ ...bookedSunday, status: "cancelled" }, monday9am), "skip");
+  assert.equal(reminderDecision(bookedSunday, shootTuesday2pm), "skip");
+  assert.equal(reminderDecision({ ...bookedSunday, status: "cancelled" }, tuesday6am), "skip");
 
   const bookedMondayNight = {
     status: "confirmed",
@@ -45,15 +49,22 @@ test("reminders wait until 9:00am ET, then send once, and skip late bookings und
     createdAt: at("2026-09-29T02:00:00.000Z"),
     reminderSentAt: null,
   };
-  assert.equal(reminderDecision(bookedMondayNight, at("2026-09-29T02:00:00.000Z")), "skip");
+  assert.equal(reminderDecision(bookedMondayNight, tuesday6am), "skip");
 
   const bookedWithLead = {
     status: "confirmed",
     startsAt: shootTuesday2pm,
-    createdAt: at("2026-09-29T02:00:00.000Z"),
+    createdAt: at("2026-09-29T06:00:00.000Z"),
     reminderSentAt: null,
   };
-  assert.equal(reminderDecision(bookedWithLead, at("2026-09-29T02:00:00.000Z")), "send");
+  assert.equal(reminderDecision(bookedWithLead, tuesday6am), "send");
+  assert.equal(
+    reminderDecision(
+      { ...bookedWithLead, createdAt: at("2026-09-29T06:00:01.000Z") },
+      tuesday6am,
+    ),
+    "skip",
+  );
 });
 
 test("reminder recipients are the client and notes addresses, never notify or placeholders", () => {

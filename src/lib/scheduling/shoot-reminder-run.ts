@@ -13,8 +13,8 @@ import {
 } from "@/lib/scheduling/shoot-reminder";
 import type { BookingEmailThread } from "@/lib/scheduling/booking-email";
 
-/** How far ahead a due reminder can sit. Day-before 9am is always inside this. */
-const LOOKAHEAD_MS = 48 * 60 * 60 * 1000;
+/** Same-day 6am reminders are for shoots that have not started yet today. */
+const LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 const SEND_GAP_MS = 200;
 
 export type ReminderCandidate = {

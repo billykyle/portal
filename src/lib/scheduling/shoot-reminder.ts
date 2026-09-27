@@ -9,7 +9,7 @@ import {
   wrapBookingEmailHtml,
 } from "@/lib/email-brand";
 import { publicPortalOrigin } from "@/lib/hosts";
-import { addCalendarDays, calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "@/lib/scheduling/zoned-time";
+import { calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "@/lib/scheduling/zoned-time";
 import { emailsInNotes } from "@/lib/scheduling/notes-emails";
 import { formatBookingServices } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
@@ -22,8 +22,8 @@ import {
 
 /** Reminder clock. Independent of the scheduling display zone. */
 export const REMINDER_TIME_ZONE = "America/New_York";
-export const REMINDER_HOUR = 9;
-/** Catch-up sends stop once the shoot is inside this lead. */
+export const REMINDER_HOUR = 6;
+/** Bookings created inside this window before the shoot never get a reminder. */
 export const REMINDER_MIN_LEAD_MS = 12 * 60 * 60 * 1000;
 
 export const REMINDER_ACCESS_LINE = "Have access and lockbox info ready.";
@@ -37,11 +37,17 @@ export type ReminderBooking = {
   reminderSentAt: Date | null;
 };
 
-/** 9:00am ET on the calendar day before the shoot. */
+/** 6:00am on the shoot's calendar day in America/New_York, including across DST. */
 export function reminderInstant(startsAt: Date, timeZone = REMINDER_TIME_ZONE) {
   const shootDay = utcToZonedParts(startsAt, timeZone);
-  const dayBefore = addCalendarDays(shootDay, -1);
-  return zonedDateTimeToUtc(timeZone, { ...dayBefore, hour: REMINDER_HOUR, minute: 0, second: 0 });
+  return zonedDateTimeToUtc(timeZone, {
+    year: shootDay.year,
+    month: shootDay.month,
+    day: shootDay.day,
+    hour: REMINDER_HOUR,
+    minute: 0,
+    second: 0,
+  });
 }
 
 export function reminderShootDateKey(startsAt: Date, timeZone = REMINDER_TIME_ZONE) {
@@ -54,19 +60,18 @@ export function reminderDateChanged(previous: Date, next: Date, timeZone = REMIN
 }
 
 /**
- * Hourly cron sends once `now` is at or after 9:00am ET the day before.
- * A booking created after that instant is not mailed immediately: send only
- * while at least 12 hours remain. Otherwise skip. Already-sent and cancelled
- * bookings are skipped.
+ * Hourly cron sends once `now` is at or after 6:00am ET on the shoot day.
+ * A missed hour still sends later that morning until the shoot starts.
+ * A booking created less than 12 hours before the start is skipped, as are
+ * cancelled bookings and any reminder already sent.
  */
 export function reminderDecision(booking: ReminderBooking, now: Date): ReminderDecision {
   if (booking.status !== "confirmed") return "skip";
   if (booking.reminderSentAt) return "skip";
   if (booking.startsAt.getTime() <= now.getTime()) return "skip";
+  if (booking.startsAt.getTime() - booking.createdAt.getTime() < REMINDER_MIN_LEAD_MS) return "skip";
   const dueAt = reminderInstant(booking.startsAt);
   if (now.getTime() < dueAt.getTime()) return "wait";
-  const lead = booking.startsAt.getTime() - now.getTime();
-  if (lead < REMINDER_MIN_LEAD_MS) return "skip";
   return "send";
 }
 
