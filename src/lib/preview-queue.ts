@@ -1,8 +1,8 @@
-/** First rows are in the HTML so they start before hydration. */
-export const PREVIEW_EAGER_COUNT = 6;
+/** First tiles are in the HTML so they start before hydration. Kept small so a cold NAS is not hit all at once. */
+export const PREVIEW_EAGER_COUNT = 2;
 
-/** Additional tiles near the viewport share this many NAS preview requests. */
-export const PREVIEW_FETCH_CONCURRENCY = 3;
+/** Tiles near the viewport, and any retry, share this many NAS preview requests. */
+export const PREVIEW_FETCH_CONCURRENCY = 2;
 
 /** Start a tile shortly before it scrolls into view. */
 export const PREVIEW_NEAR_MARGIN = "240px";

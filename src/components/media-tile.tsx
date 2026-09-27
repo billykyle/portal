@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { acquirePreviewSlot, PREVIEW_NEAR_MARGIN } from "@/lib/preview-queue";
-import { THUMB_RETRY_LIMIT, withThumbRetry } from "@/lib/thumb-retry";
+import { THUMB_RETRY_LIMIT, thumbRetryDelayMs, withThumbRetry } from "@/lib/thumb-retry";
 
 export function MediaTile({
   href,
@@ -25,11 +25,14 @@ export function MediaTile({
 }) {
   const frameRef = useRef<HTMLElement>(null);
   const releaseRef = useRef<(() => void) | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [manualRetry, setManualRetry] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [near, setNear] = useState(eager);
   const [slotReady, setSlotReady] = useState(eager);
+  const bypassSlot = eager && attempt === 0 && manualRetry === 0 && !waiting;
   const aspectClass = ratio === "3/2" ? "aspect-[3/2]" : "aspect-square";
   const fitClass = contain ? "object-contain p-1" : "object-cover";
 
@@ -54,7 +57,13 @@ export function MediaTile({
   }, [near]);
 
   useEffect(() => {
-    if (!near || eager) return;
+    return () => {
+      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bypassSlot || !near || waiting) return;
     let cancelled = false;
     let release: (() => void) | null = null;
     void acquirePreviewSlot().then((done) => {
@@ -70,15 +79,16 @@ export function MediaTile({
       cancelled = true;
       release?.();
       if (releaseRef.current === release) releaseRef.current = null;
+      setSlotReady(false);
     };
-  }, [eager, near]);
+  }, [bypassSlot, near, waiting, attempt, manualRetry]);
 
   function finishSlot() {
     releaseRef.current?.();
     releaseRef.current = null;
   }
 
-  const showImage = near && (eager || slotReady) && !failed;
+  const showImage = near && !failed && !waiting && (bypassSlot || slotReady);
 
   return (
     <figure
@@ -89,6 +99,9 @@ export function MediaTile({
         <button
           type="button"
           onClick={() => {
+            if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = null;
+            setWaiting(false);
             setFailed(false);
             setAttempt(0);
             setManualRetry((current) => current + 1);
@@ -110,7 +123,14 @@ export function MediaTile({
             onLoad={finishSlot}
             onError={() => {
               if (attempt < THUMB_RETRY_LIMIT) {
-                setAttempt(attempt + 1);
+                if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+                finishSlot();
+                setWaiting(true);
+                retryTimerRef.current = window.setTimeout(() => {
+                  retryTimerRef.current = null;
+                  setWaiting(false);
+                  setAttempt((current) => current + 1);
+                }, thumbRetryDelayMs(attempt));
                 return;
               }
               finishSlot();

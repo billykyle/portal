@@ -16,6 +16,20 @@ export function nasWakeBudgetMs() {
   return NAS_WAKE_PLAN.reduce((sum, step) => sum + step.timeoutMs + step.backoffMs, 0);
 }
 
+/**
+ * Preview route maxDuration is 60s, so a sleeping disk cannot use the 88s sync plan.
+ * 12s + 8s + 12s + 10s + 12s = 54s. The first miss fires one heartbeat, then these retries.
+ */
+export const THUMB_SPINUP_PLAN = [
+  { timeoutMs: 12_000, backoffMs: 8_000 },
+  { timeoutMs: 12_000, backoffMs: 10_000 },
+  { timeoutMs: 12_000, backoffMs: 0 },
+] as const;
+
+export function thumbSpinupBudgetMs() {
+  return THUMB_SPINUP_PLAN.reduce((sum, step) => sum + step.timeoutMs + step.backoffMs, 0);
+}
+
 export const NAS_UNREACHABLE_MESSAGE = "Couldn't reach the NAS. Check that it's on and reachable.";
 
 function errorText(error: unknown) {
@@ -80,6 +94,38 @@ export async function withNasWake<T>(
     }
   }
   throw last instanceof Error ? last : new Error(NAS_UNREACHABLE_MESSAGE);
+}
+
+/**
+ * One thumbnail request waits out a disk spin-up. A wrong file or a bad preview
+ * is not retried. onWake runs once, for the heartbeat poke.
+ */
+export async function withThumbSpinup<T>(
+  run: (timeoutMs: number) => Promise<T>,
+  options: {
+    sleep?: (ms: number) => Promise<void>;
+    onWake?: () => void;
+  } = {},
+): Promise<T> {
+  const sleep = options.sleep ?? defaultSleep;
+  let woke = false;
+  let last: unknown;
+  for (let index = 0; index < THUMB_SPINUP_PLAN.length; index += 1) {
+    const step = THUMB_SPINUP_PLAN[index];
+    try {
+      return await run(step.timeoutMs);
+    } catch (error) {
+      last = error;
+      const more = index < THUMB_SPINUP_PLAN.length - 1;
+      if (!isNasUnreachableError(error) || !more) throw error;
+      if (!woke) {
+        woke = true;
+        options.onWake?.();
+      }
+      if (step.backoffMs > 0) await sleep(step.backoffMs);
+    }
+  }
+  throw last instanceof Error ? last : new Error("NAS thumbnail failed.");
 }
 
 /** Run a connect attempt, then one more if the NAS or relay did not answer. */
