@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { DeliverableSection } from "@/components/deliverable-section";
 import { MediaTile } from "@/components/media-tile";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
+import { ShootSectionNav } from "@/components/shoot-section-nav";
 import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
 import { photoViewerHref } from "@/lib/photo-viewer";
-import { sectionLabelTextClass } from "@/components/phone-shell";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
+import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
 export type ShootMedia = {
   id: string;
@@ -28,6 +30,7 @@ export function ShootDetail({
   zipUrl,
   media,
   shareToken,
+  closedSectionIds,
 }: {
   basePath: string;
   viewId?: string;
@@ -37,6 +40,8 @@ export function ShootDetail({
   zipUrl?: string;
   media: ShootMedia[];
   shareToken?: string;
+  /** Section ids the browser has closed. Omitted means every section starts open. */
+  closedSectionIds?: readonly string[];
 }) {
   const photos = media.filter((item) => item.type === "photo");
   const videos = media.filter((item) => item.type === "video");
@@ -48,6 +53,14 @@ export function ShootDetail({
   const activePlan = planIndex >= 0 ? plans[planIndex] : null;
   const prevPlan = activePlan ? plans[planIndex - 1] : null;
   const nextPlan = activePlan ? plans[planIndex + 1] : null;
+  const closed = new Set(closedSectionIds ?? []);
+  const jumps = [
+    photos.length > 0 ? { id: mediaSectionId("photo"), label: mediaLabel("photo"), count: photos.length } : null,
+    plans.length > 0
+      ? { id: mediaSectionId("floor_plan"), label: mediaLabel("floor_plan"), count: plans.length }
+      : null,
+    videos.length > 0 ? { id: mediaSectionId("video"), label: mediaLabel("video"), count: videos.length } : null,
+  ].filter((item) => item !== null);
 
   return (
     <div className="flex flex-col gap-6 pb-16 lg:gap-8">
@@ -67,29 +80,14 @@ export function ShootDetail({
         </div>
       </div>
 
-      {[photos, plans, videos].filter((group) => group.length > 0).length > 1 ? (
-        <nav className="flex flex-wrap gap-x-3 gap-y-1 text-sm" aria-label="Media on this shoot">
-          {photos.length > 0 ? (
-            <a href={`#${mediaSectionId("photo")}`} className="text-white underline-offset-2 hover:underline">
-              {mediaLabel("photo")} ({photos.length})
-            </a>
-          ) : null}
-          {plans.length > 0 ? (
-            <a href={`#${mediaSectionId("floor_plan")}`} className="text-white underline-offset-2 hover:underline">
-              {mediaLabel("floor_plan")} ({plans.length})
-            </a>
-          ) : null}
-          {videos.length > 0 ? (
-            <a href={`#${mediaSectionId("video")}`} className="text-white underline-offset-2 hover:underline">
-              {mediaLabel("video")} ({videos.length})
-            </a>
-          ) : null}
-        </nav>
-      ) : null}
+      <ShootSectionNav items={jumps} />
 
       {photos.length > 0 ? (
-        <section id={mediaSectionId("photo")} className="flex flex-col gap-2">
-          <h2 className={sectionLabelTextClass}>{mediaLabel("photo")}</h2>
+        <DeliverableSection
+          id={mediaSectionId("photo")}
+          label={mediaLabel("photo")}
+          defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("photo"))}
+        >
           <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6">
             {photos.map((item, index) => (
               <MediaTile
@@ -104,12 +102,15 @@ export function ShootDetail({
               />
             ))}
           </div>
-        </section>
+        </DeliverableSection>
       ) : null}
 
       {plans.length > 0 ? (
-        <section id={mediaSectionId("floor_plan")} className="flex flex-col gap-2">
-          <h2 className={sectionLabelTextClass}>{mediaLabel("floor_plan")}</h2>
+        <DeliverableSection
+          id={mediaSectionId("floor_plan")}
+          label={mediaLabel("floor_plan")}
+          defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("floor_plan"))}
+        >
           <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5">
             {plans.map((item, index) => (
               <MediaTile
@@ -123,12 +124,15 @@ export function ShootDetail({
               />
             ))}
           </div>
-        </section>
+        </DeliverableSection>
       ) : null}
 
       {videos.length > 0 ? (
-        <section id={mediaSectionId("video")} className="flex flex-col gap-3">
-          <h2 className={sectionLabelTextClass}>{mediaLabel("video")}</h2>
+        <DeliverableSection
+          id={mediaSectionId("video")}
+          label={mediaLabel("video")}
+          defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("video"))}
+        >
           <div className="flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start">
             {videos.map((item) => (
               <VideoPlayer
@@ -142,7 +146,7 @@ export function ShootDetail({
               />
             ))}
           </div>
-        </section>
+        </DeliverableSection>
       ) : null}
 
       {media.length === 0 ? (

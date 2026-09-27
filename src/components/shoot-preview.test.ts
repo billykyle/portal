@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
+import { parseClosedShootSections, serializeClosedShootSections, shootSectionStartsOpen } from "@/lib/shoot-sections";
 import { ViewerStill } from "./photo-viewer";
 import { ShootDetail, type ShootMedia } from "./shoot-detail";
 
@@ -255,6 +256,38 @@ test("videos play at their own ratio and default to a lighter rendition", () => 
   assert.doesNotMatch(video, /<select|Playback quality|1080p|>Original</);
   const photos = html.indexOf('id="photos"');
   assert.equal(photos, -1);
+});
+
+test("closed shoot sections are remembered per type and default open", () => {
+  assert.equal(shootSectionStartsOpen(parseClosedShootSections(null), "photos"), true);
+  assert.equal(shootSectionStartsOpen(parseClosedShootSections("floor-plans"), "photos"), true);
+  assert.equal(shootSectionStartsOpen(parseClosedShootSections("floor-plans,video"), "floor-plans"), false);
+  assert.equal(serializeClosedShootSections(["video", "photos"]), "photos,video");
+  assert.equal(shootSectionStartsOpen(parseClosedShootSections(serializeClosedShootSections(["photos"])), "photos"), false);
+});
+
+test("a closed deliverable section stays in the jump list and skips its thumbnails", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media,
+      closedSectionIds: ["floor-plans"],
+    }),
+  );
+  assert.match(html, /href="#photos"/);
+  assert.match(html, /href="#floor-plans"/);
+  assert.match(html, /Photos \(2\)/);
+  assert.match(html, /Floor plans \(1\)/);
+  const photos = html.slice(html.indexOf('id="photos"'), html.indexOf('id="floor-plans"'));
+  const plans = html.slice(html.indexOf('id="floor-plans"'));
+  assert.match(photos, /aria-expanded="true"/);
+  assert.match(photos, /src="\/thumbs\/front\.jpg"/);
+  assert.match(plans, /aria-expanded="false"/);
+  assert.doesNotMatch(plans, /src="\/plans\/level-1\.pdf"/);
+  assert.doesNotMatch(plans, /<img\b/);
 });
 
 test("floor plan tiles stay square", () => {

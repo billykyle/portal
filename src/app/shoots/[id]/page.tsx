@@ -1,5 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { ClientHeader } from "@/components/client-header";
@@ -14,6 +15,7 @@ import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 import { videoPlaybackById } from "@/lib/video-store";
 import { shootPageMetadata } from "@/lib/site-metadata";
+import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
 
 export async function generateMetadata({
   params,
@@ -65,6 +67,9 @@ export default async function ShootPage({
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
   const playback = await videoPlaybackById(files);
+  const closedSectionIds = [
+    ...parseClosedShootSections((await cookies()).get(SHOOT_SECTIONS_COOKIE)?.value),
+  ];
 
   return (
     <PhoneShell>
@@ -81,6 +86,7 @@ export default async function ShootPage({
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={shootZipPath(shoot.id)}
         shareToken={shoot.publicToken}
+        closedSectionIds={closedSectionIds}
         media={files.map((item) => ({
           id: item.id,
           filename: item.filename,
