@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, shoots, users, type Client } from "@/lib/db/schema";
 import { formatInviteCode, isInviteCode, normalizeInviteCode, parseInviteSequence } from "@/lib/invite";
+import { readClientCategory, type ClientCategory } from "@/lib/client-category";
 
 export async function listClientRows() {
   await ensureDb();
@@ -55,14 +56,17 @@ export async function createClientRecord(input: {
   primaryEmail?: string | null;
   company?: string | null;
   notes?: string | null;
+  category?: string | null;
 }): Promise<AdminResult<Client>> {
   await ensureDb();
   const displayName = String(input.displayName ?? "").trim();
   const primaryEmail = String(input.primaryEmail ?? "").trim().toLowerCase();
+  const category = readClientCategory(input.category);
   if (!displayName) return adminFail("Display name is required.");
   if (!primaryEmail || !primaryEmail.includes("@")) {
     return adminFail("Primary contact email is required.");
   }
+  if (!category) return adminFail("Category was not found.");
 
   const existing = await db.select({ inviteCode: clients.inviteCode }).from(clients);
   const next =
@@ -75,6 +79,7 @@ export async function createClientRecord(input: {
       primaryEmail,
       company: String(input.company ?? "").trim() || null,
       notes: String(input.notes ?? "").trim() || null,
+      category,
     })
     .returning();
   return { ok: true, value: client };
@@ -90,6 +95,7 @@ export async function updateClientRecord(input: {
   primaryEmail?: string | null;
   company?: string | null;
   notes?: string | null;
+  category?: string | null;
 }): Promise<ClientWriteResult> {
   await ensureDb();
   const clientId = String(input.clientId ?? "").trim();
@@ -109,6 +115,11 @@ export async function updateClientRecord(input: {
 
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
   if (!client) return { ok: false, error: "Client was not found.", where: "clients" };
+  const category: ClientCategory | null =
+    input.category === undefined ? client.category : readClientCategory(input.category);
+  if (!category) {
+    return { ok: false, error: "Category was not found.", where: "client" };
+  }
 
   const [saved] = await db
     .update(clients)
@@ -117,6 +128,7 @@ export async function updateClientRecord(input: {
       primaryEmail,
       company: company || null,
       notes: notes || null,
+      category,
     })
     .where(eq(clients.id, clientId))
     .returning();

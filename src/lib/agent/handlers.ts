@@ -1,6 +1,7 @@
 import { readClientSortArgument } from "@/lib/admin/client-sort";
 import type { AgentOps } from "@/lib/agent/ops";
 import { clampLimit, normalizeBookingWhen } from "@/lib/agent/present";
+import { isClientCategory } from "@/lib/client-category";
 import { ADMIN_HOME, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 export type ToolOutcome =
@@ -23,6 +24,12 @@ function optionalNullableText(value: unknown): string | null | undefined {
   return value;
 }
 
+/** Omitted category stays omitted. A present value is validated by the client record. */
+function categoryArgument(args: Record<string, unknown>): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(args, "category")) return undefined;
+  return typeof args.category === "string" ? args.category : "invalid";
+}
+
 export async function runAgentTool(
   name: string,
   args: Record<string, unknown>,
@@ -32,7 +39,18 @@ export async function runAgentTool(
     case "list_clients": {
       const sort = readClientSortArgument(args.sort);
       if (!sort.ok) return sort;
-      const clients = await ops.listClients({ query: optionalText(args.query), sort: sort.sort });
+      let category: Parameters<AgentOps["listClients"]>[0]["category"];
+      if (args.category != null && args.category !== "") {
+        if (typeof args.category !== "string" || !isClientCategory(args.category)) {
+          return { ok: false, error: "Category was not found." };
+        }
+        category = args.category;
+      }
+      const clients = await ops.listClients({
+        query: optionalText(args.query),
+        sort: sort.sort,
+        category,
+      });
       return { ok: true, data: { clients }, revalidate: [] };
     }
     case "get_client": {
@@ -49,6 +67,7 @@ export async function runAgentTool(
         primaryEmail: optionalText(args.primaryEmail),
         company: optionalNullableText(args.company),
         notes: optionalNullableText(args.notes),
+        category: categoryArgument(args),
       });
       if (!result.ok) return result;
       return { ok: true, data: { client: result.client }, revalidate: ["/admin/clients", ADMIN_HOME] };
@@ -62,6 +81,7 @@ export async function runAgentTool(
         primaryEmail: optionalText(args.primaryEmail),
         company: optionalNullableText(args.company),
         notes: optionalNullableText(args.notes),
+        category: categoryArgument(args),
       });
       if (!result.ok) return result;
       return {

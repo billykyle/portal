@@ -46,6 +46,7 @@ test("list_clients returns the op payload and does not revalidate", async () => 
             company: null,
             primaryEmail: "sam@example.com",
             notesSummary: "Repeat client",
+            category: "real_estate",
             userCount: 1,
             shootCount: 2,
             createdAt: "2026-09-04T00:00:00.000Z",
@@ -90,6 +91,68 @@ test("list_clients forwards sort and rejects an unknown sort before the op", asy
   assert.equal(invalid.ok, false);
   assert.equal(calls, 0);
   if (!invalid.ok) assert.match(invalid.error, /name-asc/);
+});
+
+test("list_clients filters by category and rejects an unknown category", async () => {
+  let seen: string | undefined;
+  const filtered = await runAgentTool(
+    "list_clients",
+    { category: "podcast" },
+    stubOps({
+      async listClients(input) {
+        seen = input.category;
+        return [];
+      },
+    }),
+  );
+  assert.equal(filtered.ok, true);
+  assert.equal(seen, "podcast");
+
+  let calls = 0;
+  const invalid = await runAgentTool(
+    "list_clients",
+    { category: "studio" },
+    stubOps({
+      async listClients() {
+        calls += 1;
+        return [];
+      },
+    }),
+  );
+  assert.equal(invalid.ok, false);
+  assert.equal(calls, 0);
+  if (!invalid.ok) assert.match(invalid.error, /Category was not found/);
+});
+
+test("update_client leaves category untouched when the argument is omitted", async () => {
+  let seen: string | null | undefined = "unset";
+  const result = await runAgentTool(
+    "update_client",
+    { clientId: "c1", displayName: "Sam" },
+    stubOps({
+      async updateClient(input) {
+        seen = input.category;
+        return {
+          ok: true,
+          client: {
+            id: "c1",
+            inviteCode: "BK00004",
+            displayName: "Sam",
+            company: null,
+            primaryEmail: "sam@example.com",
+            notesSummary: "",
+            notes: null,
+            category: "podcast",
+            userCount: 1,
+            shootCount: 1,
+            createdAt: "2026-09-04T00:00:00.000Z",
+          },
+        };
+      },
+    }),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(seen, undefined);
 });
 
 test("delete_client requires an id and a confirmation code before calling the op", async () => {

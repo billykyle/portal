@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CLIENT_SORTS } from "@/lib/admin/client-sort";
 import { runAgentTool } from "@/lib/agent/handlers";
 import type { AgentOps } from "@/lib/agent/ops";
+import { CLIENT_CATEGORIES } from "@/lib/client-category";
 
 const readOnly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
 const write = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -57,7 +58,7 @@ export function createPortalMcpServer(ops: AgentOps) {
 
   register(
     "list_clients",
-    "List portal clients. Each row includes invite code, display name, company, primary email, a short notes summary, user count, and shoot count. Optional query and sort. Omit sort to keep the current listing order.",
+    "List portal clients. Each row includes invite code, display name, company, primary email, category, a short notes summary, user count, and shoot count. Optional query, sort, and category. Omit sort to keep the current listing order.",
     {
       query: z.string().optional().describe("Optional case-insensitive match on invite code, name, company, or primary email."),
       sort: z
@@ -66,6 +67,10 @@ export function createPortalMcpServer(ops: AgentOps) {
         .describe(
           "Optional. name-asc, name-desc, company (no company last), newest, oldest, shoots (most first), or code (BK00001 upward).",
         ),
+      category: z
+        .enum(CLIENT_CATEGORIES)
+        .optional()
+        .describe("Optional filter: real_estate, construction, podcast, or other."),
     },
     readOnly,
   );
@@ -80,24 +85,32 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "create_client",
-    "Create the next BK invite code. Requires display name and primary email. Company and notes are optional.",
+    "Create the next BK invite code. Requires display name and primary email. Company, notes, and category are optional. Category defaults to other.",
     {
       displayName: z.string().describe("Client display name."),
       primaryEmail: z.string().describe("Primary contact email."),
       company: z.string().nullable().optional().describe("Company. Omit or null to leave empty."),
       notes: z.string().nullable().optional().describe("Internal notes. Omit or null to leave empty."),
+      category: z
+        .enum(CLIENT_CATEGORIES)
+        .optional()
+        .describe("real_estate, construction, podcast, or other. Omit to use other."),
     },
     write,
   );
   register(
     "update_client",
-    "Update client profile fields. Omitted fields stay as they are. Empty company or notes clears that field.",
+    "Update client profile fields. Omitted fields stay as they are. Empty company or notes clears that field. Omit category to leave it unchanged.",
     {
       clientId: z.string().describe("Client UUID."),
       displayName: z.string().optional(),
       primaryEmail: z.string().optional(),
       company: z.string().nullable().optional(),
       notes: z.string().nullable().optional(),
+      category: z
+        .enum(CLIENT_CATEGORIES)
+        .optional()
+        .describe("real_estate, construction, podcast, or other."),
     },
     write,
   );

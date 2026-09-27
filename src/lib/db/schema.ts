@@ -1,6 +1,13 @@
 import { integer, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-export const mediaTypeEnum = pgEnum("media_type", ["photo", "video", "floor_plan"]);
+export const mediaTypeEnum = pgEnum("media_type", ["photo", "video", "floor_plan", "audio"]);
+
+export const clientCategoryEnum = pgEnum("client_category", [
+  "real_estate",
+  "construction",
+  "podcast",
+  "other",
+]);
 
 export const clients = pgTable("clients", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -9,6 +16,7 @@ export const clients = pgTable("clients", {
   primaryEmail: text("primary_email").notNull(),
   company: text("company"),
   notes: text("notes"),
+  category: clientCategoryEnum("category").notNull().default("other"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

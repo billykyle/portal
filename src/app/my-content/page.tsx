@@ -1,14 +1,15 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ClientHeader } from "@/components/client-header";
-import { pageHeadingWrapClass, pageStackClass, pageTitleClass, PhoneShell } from "@/components/phone-shell";
-import { ShootList } from "@/components/shoot-list";
+import { PhoneShell } from "@/components/phone-shell";
+import { contentTemplate } from "@/components/templates/registry";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, shoots } from "@/lib/db/schema";
-import { formatShootDate } from "@/lib/media";
+import { clients, media, shoots } from "@/lib/db/schema";
+import { coverUrlByShoot } from "@/lib/episode-covers";
+import { formatShootDate, shootFolderName } from "@/lib/media";
 import { clientShootPath } from "@/lib/shoot-slug";
 
 export const metadata: Metadata = {
@@ -21,37 +22,57 @@ export default async function LibraryPage() {
     redirect("/");
   }
   await ensureDb();
-  const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
-  const rows = await db
-    .select()
-    .from(shoots)
-    .where(eq(shoots.clientId, session.clientId))
-    .orderBy(desc(shoots.shotDate), desc(shoots.createdAt));
+  const [[client], rows] = await Promise.all([
+    db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1),
+    db
+      .select()
+      .from(shoots)
+      .where(eq(shoots.clientId, session.clientId))
+      .orderBy(desc(shoots.shotDate), desc(shoots.createdAt)),
+  ]);
+  const category = client?.category ?? "other";
+  const covers =
+    category === "podcast" && rows.length > 0
+      ? coverUrlByShoot(
+          await db
+            .select()
+            .from(media)
+            .where(
+              inArray(
+                media.shootId,
+                rows.map((shoot) => shoot.id),
+              ),
+            )
+            .orderBy(asc(media.sortOrder)),
+        )
+      : new Map<string, string | null>();
+  const Library = contentTemplate(category).Library;
 
   return (
     <PhoneShell>
       <ClientHeader />
-      <div className={pageHeadingWrapClass}>
-        <h1 className={pageTitleClass}>
-          {client?.displayName ?? "Your shoots"}
-        </h1>
-        {client?.primaryEmail ? (
-          <p className="mt-1 text-sm text-[#8e8e93]">{client.primaryEmail}</p>
-        ) : null}
-        {client?.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
-      </div>
-      <div className={pageStackClass}>
-      <ShootList
-        emptyLabel="No shoots yet. Billy will post them here."
+      <Library
+        client={
+          client
+            ? {
+                displayName: client.displayName,
+                primaryEmail: client.primaryEmail,
+                company: client.company,
+              }
+            : null
+        }
         shoots={rows.map((shoot) => ({
           id: shoot.id,
           href: clientShootPath(shoot.slug),
           address: shoot.address,
           shotDate: shoot.shotDate,
           dateLabel: formatShootDate(shoot.shotDate),
+          folderName: shootFolderName(shoot.shotDate, shoot.address),
+          thumbUrl: covers.get(shoot.id) ?? null,
+          fileCount: 0,
+          publicToken: shoot.publicToken,
         }))}
       />
-      </div>
     </PhoneShell>
   );
 }

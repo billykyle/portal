@@ -9,7 +9,7 @@ import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { formMeasureClass, pageHeadingWrapClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { BookingList } from "@/components/booking-list";
-import { ShootList } from "@/components/shoot-list";
+import { contentTemplate } from "@/components/templates/registry";
 import {
   ADMIN_SECTIONS_COOKIE,
   clientDetailSectionForce,
@@ -20,7 +20,8 @@ import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
-import { formatShootDate } from "@/lib/media";
+import { coverUrlByShoot } from "@/lib/episode-covers";
+import { formatShootDate, shootFolderName } from "@/lib/media";
 import { adminShootPath } from "@/lib/shoot-slug";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { schedulingHours } from "@/lib/scheduling/config";
@@ -78,6 +79,8 @@ export default async function AdminClientPage({
   const mediaRows = await db.select().from(media);
   const bookingRows = await listClientBookingsAdmin(client.id);
   const hours = schedulingHours();
+  const covers = client.category === "podcast" ? coverUrlByShoot(mediaRows) : new Map<string, string | null>();
+  const AdminShoots = contentTemplate(client.category).AdminShoots;
 
   return (
     <PhoneShell wide>
@@ -146,18 +149,18 @@ export default async function AdminClientPage({
           />
         </AdminSection>
         <AdminSection id="client:shoots" label="Shoots" defaultOpen={detailOpen("client:shoots")}>
-          <ShootList
-            variant="admin"
-            emptyLabel="No shoots attached yet."
+          <AdminShoots
             shoots={shootRows.map((shoot) => {
-              const count = mediaRows.filter((item) => item.shootId === shoot.id).length;
+              const files = mediaRows.filter((item) => item.shootId === shoot.id);
               return {
                 id: shoot.id,
                 href: adminShootPath(client.id, shoot.slug),
                 address: shoot.address,
                 shotDate: shoot.shotDate,
                 dateLabel: formatShootDate(shoot.shotDate),
-                fileCount: count,
+                folderName: shootFolderName(shoot.shotDate, shoot.address),
+                thumbUrl: covers.get(shoot.id) ?? null,
+                fileCount: files.length,
                 publicToken: shoot.publicToken,
               };
             })}

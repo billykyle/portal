@@ -132,6 +132,7 @@ test("admin create-client copy does not say mint", () => {
         primaryEmail: "sam@example.com",
         company: null,
         notes: null,
+        category: "real_estate",
       },
     }),
   );

@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 import { AdminHeader } from "@/components/admin-header";
 import { ClientHeader } from "@/components/client-header";
 import { PhoneShell } from "@/components/phone-shell";
-import { ShootDetail } from "@/components/shoot-detail";
+import { contentTemplate } from "@/components/templates/registry";
 import { db } from "@/lib/db";
-import { media } from "@/lib/db/schema";
+import { clients, media } from "@/lib/db/schema";
 import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
@@ -37,6 +37,12 @@ export async function ShootScreen({
   const closedSectionIds = [
     ...parseClosedShootSections((await cookies()).get(SHOOT_SECTIONS_COOKIE)?.value),
   ];
+  const [owner] = await db
+    .select({ category: clients.category })
+    .from(clients)
+    .where(eq(clients.id, shoot.clientId))
+    .limit(1);
+  const ShootView = contentTemplate(owner?.category ?? "other").Shoot;
 
   return (
     <PhoneShell>
@@ -45,7 +51,7 @@ export async function ShootScreen({
       ) : (
         <ClientHeader />
       )}
-      <ShootDetail
+      <ShootView
         basePath={admin ? adminShootPath(shoot.clientId, shoot.slug) : clientShootPath(shoot.slug)}
         viewId={view}
         address={shoot.address}
@@ -62,6 +68,7 @@ export async function ShootScreen({
           thumbUrl: resolveMediaThumbUrl(item),
           width: item.width,
           height: item.height,
+          sortOrder: item.sortOrder,
           renditions: playback.get(item.id) ?? [],
         }))}
       />

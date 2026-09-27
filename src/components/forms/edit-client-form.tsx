@@ -1,5 +1,7 @@
+import { CategoryField } from "@/components/category-field";
 import { Field, SubmitButton } from "@/components/field";
 import { updateClient } from "@/lib/actions/admin";
+import type { ClientCategory } from "@/lib/client-category";
 
 export function EditClientForm({
   client,
@@ -11,6 +13,7 @@ export function EditClientForm({
     primaryEmail: string;
     company: string | null;
     notes: string | null;
+    category: ClientCategory;
   };
 }) {
   return (
@@ -45,6 +48,7 @@ export function EditClientForm({
         defaultValue={client.company ?? ""}
         autoComplete="off"
       />
+      <CategoryField defaultValue={client.category} />
       <div className="flex flex-col gap-2">
         <label htmlFor="notes" className="text-[16px] font-normal text-white">
           Internal notes

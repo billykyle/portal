@@ -22,6 +22,7 @@ function stubOps(): AgentOps {
         company: "Lepore Realty",
         primaryEmail: "sam@example.com",
         notesSummary: "",
+        category: "real_estate",
         userCount: 1,
         shootCount: 1,
         createdAt: "2026-09-04T00:00:00.000Z",

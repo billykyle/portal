@@ -23,6 +23,7 @@ import {
   type BookingWhen,
 } from "@/lib/agent/present";
 import { db } from "@/lib/db";
+import type { ClientCategory } from "@/lib/client-category";
 import { clientShootUrl } from "@/lib/shoot-slug";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, type Booking } from "@/lib/db/schema";
@@ -42,6 +43,7 @@ export type ClientSummary = {
   company: string | null;
   primaryEmail: string;
   notesSummary: string;
+  category: ClientCategory;
   userCount: number;
   shootCount: number;
   createdAt: string;
@@ -67,13 +69,14 @@ export type BookingDto = {
 };
 
 export type AgentOps = {
-  listClients(input: { query?: string; sort?: ClientSort }): Promise<ClientSummary[]>;
+  listClients(input: { query?: string; sort?: ClientSort; category?: ClientCategory }): Promise<ClientSummary[]>;
   getClient(input: { id?: string; inviteCode?: string }): Promise<{ ok: true; client: ClientDetail } | { ok: false; error: string }>;
   createClient(input: {
     displayName?: string;
     primaryEmail?: string;
     company?: string | null;
     notes?: string | null;
+    category?: string | null;
   }): Promise<{ ok: true; client: ClientDetail } | { ok: false; error: string }>;
   updateClient(input: {
     clientId: string;
@@ -81,6 +84,7 @@ export type AgentOps = {
     primaryEmail?: string;
     company?: string | null;
     notes?: string | null;
+    category?: string | null;
   }): Promise<{ ok: true; client: ClientDetail } | { ok: false; error: string }>;
   deleteClient(input: { clientId: string; confirmInviteCode: string }): Promise<
     { ok: true; client: { id: string; inviteCode: string } } | { ok: false; error: string }
@@ -198,6 +202,7 @@ function summaryFrom(client: {
   company: string | null;
   primaryEmail: string;
   notes: string | null;
+  category: ClientCategory;
   createdAt: Date;
 }, counts: { users: Map<string, number>; shoots: Map<string, number> }): ClientSummary {
   return {
@@ -207,6 +212,7 @@ function summaryFrom(client: {
     company: client.company,
     primaryEmail: client.primaryEmail,
     notesSummary: notesSummary(client.notes),
+    category: client.category,
     userCount: counts.users.get(client.id) ?? 0,
     shootCount: counts.shoots.get(client.id) ?? 0,
     createdAt: client.createdAt.toISOString(),
@@ -275,10 +281,11 @@ function shootSummary(row: ShootRecord, items: { id: string; type: string; filen
 }
 
 export const portalAgentOps: AgentOps = {
-  async listClients({ query, sort }) {
+  async listClients({ query, sort, category }) {
     const [rows, counts] = await Promise.all([listClientRows(), clientCounts()]);
     const listed = rows
       .map((row) => summaryFrom(row, counts))
+      .filter((row) => !category || row.category === category)
       .filter((row) => clientMatchesQuery(row, query));
     return sort ? sortClients(listed, sort) : listed;
   },
@@ -306,6 +313,7 @@ export const portalAgentOps: AgentOps = {
       primaryEmail: input.primaryEmail ?? existing.value.primaryEmail,
       company: input.company === undefined ? existing.value.company ?? "" : input.company ?? "",
       notes: input.notes === undefined ? existing.value.notes ?? "" : input.notes ?? "",
+      category: input.category,
     });
     if (!saved.ok) return { ok: false, error: saved.error };
     const counts = await clientCounts();

@@ -1,0 +1,78 @@
+import type { ReactNode } from "react";
+import type { ShootMedia } from "@/components/shoot-detail";
+import type { PlayerRendition } from "@/components/video-player";
+
+export type TemplateClient = {
+  displayName: string;
+  primaryEmail: string;
+  company: string | null;
+};
+
+export type TemplateShootCard = {
+  id: string;
+  href: string;
+  address: string;
+  shotDate: string;
+  dateLabel: string;
+  folderName: string;
+  thumbUrl: string | null;
+  fileCount: number;
+  publicToken: string;
+};
+
+export type TemplateMedia = {
+  id: string;
+  url: string;
+  thumbUrl?: string;
+  filename: string;
+  type: "photo" | "video" | "floor_plan" | "audio";
+  width?: number | null;
+  height?: number | null;
+  sortOrder: number;
+  renditions?: PlayerRendition[];
+};
+
+export type TemplateLibraryProps = {
+  client: TemplateClient | null;
+  shoots: TemplateShootCard[];
+};
+
+export type TemplateAdminShootsProps = {
+  shoots: TemplateShootCard[];
+};
+
+export type TemplateShootProps = {
+  basePath: string;
+  viewId?: string;
+  address: string;
+  dateLabel: string;
+  folderName: string;
+  zipUrl?: string;
+  media: TemplateMedia[];
+  shareToken?: string;
+  closedSectionIds?: readonly string[];
+};
+
+export type ContentTemplate = {
+  Library: (props: TemplateLibraryProps) => ReactNode;
+  AdminShoots: (props: TemplateAdminShootsProps) => ReactNode;
+  Shoot: (props: TemplateShootProps) => ReactNode;
+};
+
+export function galleryMedia(media: TemplateMedia[]): ShootMedia[] {
+  return media.flatMap((item) => {
+    if (item.type !== "photo" && item.type !== "video" && item.type !== "floor_plan") return [];
+    return [
+      {
+        id: item.id,
+        url: item.url,
+        thumbUrl: item.thumbUrl,
+        filename: item.filename,
+        type: item.type,
+        width: item.width,
+        height: item.height,
+        renditions: item.renditions,
+      },
+    ];
+  });
+}
