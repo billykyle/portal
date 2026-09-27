@@ -122,6 +122,17 @@ export async function syncShootSlug(input: {
   return next;
 }
 
+export async function canonicalShootForId(input: { shootId: string; clientId?: string }) {
+  const filters = [eq(shoots.id, input.shootId)];
+  if (input.clientId) filters.push(eq(shoots.clientId, input.clientId));
+  const [shoot] = await db
+    .select({ id: shoots.id, clientId: shoots.clientId, slug: shoots.slug })
+    .from(shoots)
+    .where(and(...filters))
+    .limit(1);
+  return shoot ?? null;
+}
+
 /** Current slug, or the shoot an older slug still points at. */
 export async function resolveClientShoot(clientId: string, slug: string) {
   const [current] = await db
