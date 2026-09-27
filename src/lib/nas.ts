@@ -12,6 +12,7 @@ import {
   nasConnectInit,
   withNasConnectRetry,
   withNasWake,
+  withThumbSpinup,
 } from "./nas-connect";
 import { discoverUgreenRelayOrigin, shareSessionMatchesRelay, ugreenLinkAlias } from "./nas-relay";
 import { collectNasDeliverables, type NasDeliverable } from "./nas-media";
@@ -518,9 +519,22 @@ function extensionFrom(name: string, fallback: string) {
   return ext || fallback;
 }
 
-const queueNasThumbnail = createQueue(3);
+const queueNasThumbnail = createQueue(2);
 
-async function fetchNasThumbnailBytes(nasPath: string) {
+/** One heartbeat per isolate. Parallel tiles must not each poke the relay. */
+let thumbnailWakeSent = false;
+
+function pokeThumbnailWake() {
+  if (thumbnailWakeSent) return;
+  thumbnailWakeSent = true;
+  const base = getNasConfig();
+  if (!base) return;
+  void ensureHost(base)
+    .then((live) => warmRelay(live.host))
+    .catch(() => undefined);
+}
+
+async function fetchNasThumbnailBytes(nasPath: string, timeoutMs: number) {
   return withCookie(async (config, cookie) => {
     const url = new URL(`${apiBase(config)}/filemgr/shareThumbnail`);
     url.searchParams.set("path", nasPath);
@@ -528,7 +542,11 @@ async function fetchNasThumbnailBytes(nasPath: string) {
     // size_type=3 is ~1920px / 400KB — too heavy for a 3-column phone grid.
     // size_type=1 is ~44KB and still sharp enough for tiles.
     url.searchParams.set("size_type", "1");
-    const res = await fetch(url, { headers: mediaHeaders(config, cookie), cache: "no-store" });
+    const res = await fetch(url, {
+      headers: mediaHeaders(config, cookie),
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     const type = res.headers.get("content-type") ?? "";
     if (type.includes("application/json") || type.includes("text/") || !res.ok) {
       const body = await res.text();
@@ -572,16 +590,9 @@ export async function loadNasThumbnailBytes(nasPath: string) {
         /* The winner of the queue writes the scratch file; otherwise refetch. */
       }
     }
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        return await fetchNasThumbnailBytes(nasPath);
-      } catch (error) {
-        lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
-      }
-    }
-    throw lastError instanceof Error ? lastError : new Error("NAS thumbnail failed.");
+    return withThumbSpinup((timeoutMs) => fetchNasThumbnailBytes(nasPath, timeoutMs), {
+      onWake: pokeThumbnailWake,
+    });
   });
 }
 

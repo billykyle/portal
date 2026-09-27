@@ -17,14 +17,16 @@ test("client menu lists hub destinations and highlights the current section", ()
   assert.equal(activeNavId("client", "/account"), null);
 });
 
-test("admin menu lists clients and bookings only", () => {
+test("admin menu lists home, then clients and bookings", () => {
   assert.deepEqual(
     navItemsFor("admin").map((item) => [item.label, item.href]),
     [
+      ["Home", "/admin/home"],
       ["Clients", "/admin/clients"],
       ["Bookings", "/admin/bookings"],
     ],
   );
+  assert.equal(activeNavId("admin", "/admin/home"), "home");
   assert.equal(activeNavId("admin", "/admin/clients"), "clients");
   assert.equal(activeNavId("admin", "/admin/clients/abc/users/user-1"), "clients");
   assert.equal(activeNavId("admin", "/admin/clients/abc/shoots/269-pennock-bridge-road"), "clients");

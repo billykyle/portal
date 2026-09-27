@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { AdminHeader } from "@/components/admin-header";
 import { ClientHeader } from "@/components/client-header";
 import { PhoneShell } from "@/components/phone-shell";
@@ -7,6 +8,7 @@ import { db } from "@/lib/db";
 import { media } from "@/lib/db/schema";
 import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
 import { adminShootPath, clientShootPath } from "@/lib/shoot-slug";
 import { videoPlaybackById } from "@/lib/video-store";
 
@@ -32,6 +34,9 @@ export async function ShootScreen({
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
   const playback = await videoPlaybackById(files);
+  const closedSectionIds = [
+    ...parseClosedShootSections((await cookies()).get(SHOOT_SECTIONS_COOKIE)?.value),
+  ];
 
   return (
     <PhoneShell>
@@ -48,6 +53,7 @@ export async function ShootScreen({
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={shootZipPath(shoot.id)}
         shareToken={shoot.publicToken}
+        closedSectionIds={closedSectionIds}
         media={files.map((item) => ({
           id: item.id,
           filename: item.filename,

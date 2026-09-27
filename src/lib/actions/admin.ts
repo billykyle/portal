@@ -12,7 +12,7 @@ import {
 import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
 import { syncNasForAdmin } from "@/lib/admin/sync";
 import { getAdminSession } from "@/lib/admin-auth";
-import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
+import { ADMIN_HOME, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
 
 export type AdminState = {
   error?: string;
@@ -22,6 +22,11 @@ export type AdminState = {
 function adminClientsUrl(params: Record<string, string>) {
   const query = new URLSearchParams(params);
   return `/admin/clients?${query.toString()}`;
+}
+
+function adminHomeUrl(params: Record<string, string>) {
+  const query = new URLSearchParams(params);
+  return `${ADMIN_HOME}?${query.toString()}`;
 }
 
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {
@@ -48,10 +53,11 @@ export async function mintClient(formData: FormData) {
     notes: String(formData.get("notes") ?? ""),
   });
   if (!created.ok) {
-    redirect(adminClientsUrl({ error: created.error }));
+    redirect(adminHomeUrl({ error: created.error }));
   }
   revalidatePath("/admin/clients");
-  redirect(adminClientsUrl({ minted: created.value.inviteCode }));
+  revalidatePath(ADMIN_HOME);
+  redirect(adminHomeUrl({ minted: created.value.inviteCode }));
 }
 
 export async function syncNasFromAdmin() {
@@ -61,12 +67,13 @@ export async function syncNasFromAdmin() {
   try {
     const result = await syncNasForAdmin();
     if (!result.ok) {
-      redirect(adminClientsUrl({ syncError: readableNasError(result.error) }));
+      redirect(adminHomeUrl({ syncError: readableNasError(result.error) }));
     }
     const sync = result.value;
     revalidatePath("/admin/clients");
+    revalidatePath(ADMIN_HOME);
     redirect(
-      adminClientsUrl({
+      adminHomeUrl({
         synced: "1",
         clients: String(sync.clientsCreated),
         shoots: String(sync.shootsCreated),
@@ -87,7 +94,7 @@ export async function syncNasFromAdmin() {
     );
   } catch (error) {
     unstable_rethrow(error);
-    redirect(adminClientsUrl({ syncError: readableNasError(error) }));
+    redirect(adminHomeUrl({ syncError: readableNasError(error) }));
   }
 }
 
@@ -108,6 +115,7 @@ export async function updateClient(formData: FormData) {
     redirect(clientAdminPath(clientId, { error: saved.error }));
   }
   revalidatePath("/admin/clients");
+  revalidatePath(ADMIN_HOME);
   revalidatePath(clientAdminPath(clientId));
   redirect(clientAdminPath(clientId, { saved: "1" }));
 }
@@ -140,6 +148,7 @@ export async function deleteClient(formData: FormData) {
     redirect(adminClientsUrl({ error: removed.error }));
   }
   revalidatePath("/admin/clients");
+  revalidatePath(ADMIN_HOME);
   redirect(adminClientsUrl({ removed: removed.value.inviteCode }));
 }
 
@@ -171,6 +180,7 @@ export async function updateUserProfile(formData: FormData) {
   }
 
   revalidatePath("/admin/clients");
+  revalidatePath(ADMIN_HOME);
   revalidatePath(clientAdminPath(clientId));
   revalidatePath(userProfilePath(clientId, userId));
   revalidatePath(CLIENT_ACCOUNT);

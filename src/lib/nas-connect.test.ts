@@ -8,7 +8,9 @@ import {
   nasWakeBudgetMs,
   readableNasError,
   withNasConnectRetry,
+  thumbSpinupBudgetMs,
   withNasWake,
+  withThumbSpinup,
 } from "./nas-connect";
 
 test("UGOS device timeout and a hung fetch count as unreachable", () => {
@@ -104,6 +106,60 @@ test("a sleeping NAS is warmed with a longer first try and pauses, under 90s", a
     /NAS share verify failed/,
   );
   assert.equal(denied, 1);
+});
+
+test("a thumbnail waits out a short spin-up, under the 60s preview limit", async () => {
+  assert.equal(thumbSpinupBudgetMs(), 54_000);
+  assert.ok(thumbSpinupBudgetMs() >= 30_000 && thumbSpinupBudgetMs() <= 60_000);
+  const waits: number[] = [];
+  const timeouts: number[] = [];
+  let wakes = 0;
+  await assert.rejects(
+    () =>
+      withThumbSpinup(
+        async (timeoutMs) => {
+          timeouts.push(timeoutMs);
+          throw new Error("connect to device timeout");
+        },
+        {
+          sleep: async (ms) => {
+            waits.push(ms);
+          },
+          onWake: () => {
+            wakes += 1;
+          },
+        },
+      ),
+    /connect to device timeout/,
+  );
+  assert.deepEqual(timeouts, [12_000, 12_000, 12_000]);
+  assert.deepEqual(waits, [8_000, 10_000]);
+  assert.equal(wakes, 1);
+
+  let denied = 0;
+  let wakesOnBadFile = 0;
+  await assert.rejects(
+    () =>
+      withThumbSpinup(
+        async () => {
+          denied += 1;
+          throw new Error("NAS thumbnail was 9000000 bytes — not a grid preview.");
+        },
+        { onWake: () => { wakesOnBadFile += 1; } },
+      ),
+    /not a grid preview/,
+  );
+  assert.equal(denied, 1);
+  assert.equal(wakesOnBadFile, 0);
+
+  let attempts = 0;
+  const loaded = await withThumbSpinup(async () => {
+    attempts += 1;
+    if (attempts === 1) throw new Error("The operation was aborted due to timeout");
+    return "jpg";
+  }, { sleep: async () => undefined, onWake: () => undefined });
+  assert.equal(loaded, "jpg");
+  assert.equal(attempts, 2);
 });
 
 test("NAS API calls get a connect deadline unless the caller already set one", () => {

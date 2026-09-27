@@ -43,11 +43,16 @@ export async function middleware(request: NextRequest) {
   const session = await valid(request.cookies.get(SESSION_COOKIE)?.value);
   const admin = await valid(request.cookies.get(ADMIN_COOKIE)?.value);
 
-  if ((pathname.startsWith("/admin/clients") || pathname.startsWith("/admin/bookings")) && !admin) {
+  if (
+    (pathname.startsWith("/admin/clients") ||
+      pathname.startsWith("/admin/bookings") ||
+      pathname.startsWith("/admin/home")) &&
+    !admin
+  ) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
   if (pathname === "/admin" && admin) {
-    return NextResponse.redirect(new URL("/admin/clients", request.url));
+    return NextResponse.redirect(new URL("/admin/home", request.url));
   }
   if (
     (pathname.startsWith("/my-content") ||

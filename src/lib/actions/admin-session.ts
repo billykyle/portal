@@ -16,7 +16,7 @@ export async function adminLogin(_prev: AdminSessionState | undefined, formData:
     return { error: "Password is incorrect." };
   }
   await createAdminSession();
-  redirect("/admin/clients");
+  redirect("/admin/home");
 }
 
 export async function adminLogout() {
