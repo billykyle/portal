@@ -450,6 +450,32 @@ export async function listNasDirectories(dirPath: string) {
   return entries.filter(isNasDirectory).filter((entry) => !isHiddenNasName(entry.name));
 }
 
+/**
+ * POST a share-scoped filemgr call. The share cookie can list and download;
+ * write routes answer with a UGOS code instead of a cookie error.
+ * Callers must not log `body` — it includes the share password.
+ */
+export async function nasSharePost(apiPath: string, body: Record<string, unknown>) {
+  return withCookie(async (config, cookie) => {
+    const res = await fetch(
+      `${apiBase(config)}/${apiPath.replace(/^\/+/, "")}`,
+      nasConnectInit({
+        method: "POST",
+        headers: jsonHeaders(config, cookie),
+        body: JSON.stringify({
+          token: "",
+          share_id: config.shareId,
+          password: config.password,
+          ...body,
+        }),
+        signal: AbortSignal.timeout(NAS_CONNECT_TIMEOUT_MS),
+      }),
+    );
+    const parsed = await readJson<UgosResponse<unknown>>(res);
+    return { code: parsed.code, msg: parsed.msg ?? "" };
+  });
+}
+
 export async function findStillsFolder(shootFolderPath: string) {
   const config = getNasConfig();
   if (!config) throw new Error("NAS share is not configured.");
