@@ -157,6 +157,7 @@ export const zipJobs = pgTable("zip_jobs", {
 /** One visitor submission on upload.billy-kyle.com. Bytes live in Blob until the NAS copy verifies. */
 export const uploadSubmissions = pgTable("upload_submissions", {
   id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
   label: text("label").notNull(),
   email: text("email").notNull(),
   folderName: text("folder_name").notNull(),

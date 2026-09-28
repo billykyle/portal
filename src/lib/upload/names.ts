@@ -5,27 +5,27 @@ const MAX_LABEL = 80;
 const MAX_FOLDER = 180;
 const MAX_FILE_NAME = 180;
 
-export function uploadDay(now = new Date(), timeZone = "America/New_York") {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-  return `${year}-${month}-${day}`;
+function cleanSegment(raw: string | null | undefined) {
+  return String(raw ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/[\\/]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function sanitizeUploadName(
+  raw: string | null | undefined,
+): { ok: true; value: string } | { ok: false; error: string } {
+  const cleaned = cleanSegment(raw);
+  if (!cleaned) return { ok: false, error: "Enter your name." };
+  if (cleaned.length > MAX_LABEL) return { ok: false, error: "Keep it shorter." };
+  return { ok: true, value: cleaned };
 }
 
 export function sanitizeUploadLabel(
   raw: string | null | undefined,
 ): { ok: true; value: string } | { ok: false; error: string } {
-  const cleaned = String(raw ?? "")
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/[\\/]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const cleaned = cleanSegment(raw);
   if (!cleaned) return { ok: false, error: "Enter what you are uploading." };
   if (cleaned.length > MAX_LABEL) return { ok: false, error: "Keep it shorter." };
   return { ok: true, value: cleaned };
@@ -56,17 +56,11 @@ export function uniqueFileName(name: string, taken: Iterable<string>) {
   return `${stem}-${n}${ext}`;
 }
 
-export function sanitizeFolderEmail(email: string) {
-  return email.replace(/[\u0000-\u001f\u007f\\/]/g, "").trim().slice(0, 120);
-}
-
-/** `<YYYY-MM-DD> <label> - <email>`, capped so the segment stays a single folder name. */
-export function submissionFolderBase(input: { day: string; label: string; email: string }) {
-  const email = sanitizeFolderEmail(input.email);
-  const suffix = ` - ${email}`;
-  const prefix = `${input.day} `;
-  const room = Math.max(1, MAX_FOLDER - prefix.length - suffix.length);
-  return `${prefix}${input.label.slice(0, room)}${suffix}`;
+/** `<what they're uploading> - <name>`. Email stays out of the folder. */
+export function submissionFolderBase(input: { label: string; name: string }) {
+  const suffix = ` - ${input.name}`;
+  const room = Math.max(1, MAX_FOLDER - suffix.length);
+  return `${input.label.slice(0, room)}${suffix}`;
 }
 
 /** Never overwrite. The second folder is `name-2`, then `name-3`. */

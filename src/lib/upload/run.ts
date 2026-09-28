@@ -37,6 +37,7 @@ export async function moveUploadSubmission(id: string) {
   });
   const totalBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
   const mailInput = {
+    name: submission.name,
     label: submission.label,
     email: submission.email,
     fileCount: files.length,

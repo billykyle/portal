@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Enter what you are uploading." }, { status: 400 });
+    return NextResponse.json({ error: "Enter your name." }, { status: 400 });
   }
   const parsed = parseUploadRequest(body);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });

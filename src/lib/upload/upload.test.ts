@@ -8,11 +8,11 @@ import {
   NAS_UPLOAD_DIR_NAME,
   sanitizeFileName,
   sanitizeUploadLabel,
+  sanitizeUploadName,
   submissionFolderBase,
   uniqueFileName,
   uniqueFolderName,
   uploadBlobPath,
-  uploadDay,
 } from "@/lib/upload/names";
 import {
   consumeUploadRate,
@@ -28,12 +28,10 @@ afterEach(() => {
   delete process.env.UPLOAD_MAX_BYTES;
 });
 
-test("upload day is the America/New_York calendar date", () => {
-  assert.equal(uploadDay(new Date("2026-09-28T03:30:00Z")), "2026-09-27");
-  assert.equal(uploadDay(new Date("2026-09-28T04:30:00Z")), "2026-09-28");
-});
-
 test("labels, file names, and folder names stay a single safe segment", () => {
+  assert.deepEqual(sanitizeUploadName("  Alex  "), { ok: true, value: "Alex" });
+  assert.equal(sanitizeUploadName("   ").ok, false);
+  assert.deepEqual(sanitizeUploadName("Alex/Kim"), { ok: true, value: "Alex Kim" });
   assert.deepEqual(sanitizeUploadLabel("  Headshots  "), { ok: true, value: "Headshots" });
   assert.equal(sanitizeUploadLabel("   ").ok, false);
   assert.equal(sanitizeUploadLabel("a".repeat(81)).ok, false);
@@ -43,11 +41,11 @@ test("labels, file names, and folder names stay a single safe segment", () => {
   assert.equal(uniqueFileName("a.jpg", ["a.jpg"]), "a-2.jpg");
   assert.equal(uniqueFileName("a.jpg", ["a.jpg", "a-2.jpg"]), "a-3.jpg");
   const base = submissionFolderBase({
-    day: "2026-09-28",
     label: "Headshots",
-    email: "guest@example.com",
+    name: "Alex Kim",
   });
-  assert.equal(base, "2026-09-28 Headshots - guest@example.com");
+  assert.equal(base, "Headshots - Alex Kim");
+  assert.equal(base.includes("@"), false);
   assert.equal(uniqueFolderName(base, []), base);
   assert.equal(uniqueFolderName(base, [base]), `${base}-2`);
   assert.equal(uniqueFolderName(base, [base, `${base}-2`]), `${base}-3`);
@@ -62,9 +60,10 @@ test("labels, file names, and folder names stay a single safe segment", () => {
   assert.equal(findUploadDirectory([{ name: "upload", path: "/share/upload", isDir: false }]), null);
 });
 
-test("request validation requires a label, a real email, and sized files", () => {
+test("request validation requires a name, a real email, a label, and sized files", () => {
   const ok = parseUploadRequest(
     {
+      name: " Alex ",
       label: " Selects ",
       email: "Guest@Example.com",
       files: [
@@ -76,18 +75,26 @@ test("request validation requires a label, a real email, and sized files", () =>
   );
   assert.equal(ok.ok, true);
   if (!ok.ok) return;
+  assert.equal(ok.name, "Alex");
   assert.equal(ok.email, "guest@example.com");
   assert.equal(ok.label, "Selects");
   assert.deepEqual(
     ok.files.map((file) => file.safeName),
     ["a.jpg", "a-2.jpg"],
   );
-  assert.equal(parseUploadRequest({ label: "", email: "a@b.co", files: [{ name: "a", size: 1 }] }).ok, false);
-  assert.equal(parseUploadRequest({ label: "Cut", email: "not-an-email", files: [{ name: "a", size: 1 }] }).ok, false);
-  assert.equal(parseUploadRequest({ label: "Cut", email: "a@pending.local", files: [{ name: "a", size: 1 }] }).ok, false);
-  assert.equal(parseUploadRequest({ label: "Cut", email: "a@b.co", files: [] }).ok, false);
+  const missingName = parseUploadRequest({ name: "", label: "Cut", email: "a@b.co", files: [{ name: "a", size: 1 }] });
+  assert.equal(missingName.ok, false);
+  if (!missingName.ok) assert.equal(missingName.error, "Enter your name.");
+  const badEmail = parseUploadRequest({ name: "Alex", label: "Cut", email: "not-an-email", files: [{ name: "a", size: 1 }] });
+  assert.equal(badEmail.ok, false);
+  if (!badEmail.ok) assert.equal(badEmail.error, "Enter a valid email.");
+  assert.equal(parseUploadRequest({ name: "Alex", label: "Cut", email: "a@pending.local", files: [{ name: "a", size: 1 }] }).ok, false);
+  const missingLabel = parseUploadRequest({ name: "Alex", label: "", email: "a@b.co", files: [{ name: "a", size: 1 }] });
+  assert.equal(missingLabel.ok, false);
+  if (!missingLabel.ok) assert.equal(missingLabel.error, "Enter what you are uploading.");
+  assert.equal(parseUploadRequest({ name: "Alex", label: "Cut", email: "a@b.co", files: [] }).ok, false);
   assert.equal(
-    parseUploadRequest({ label: "Cut", email: "a@b.co", files: [{ name: "a", size: 101 }] }, {
+    parseUploadRequest({ name: "Alex", label: "Cut", email: "a@b.co", files: [{ name: "a", size: 101 }] }, {
       maxBytes: 100,
       maxFiles: 5,
       maxTotalBytes: 1000,
@@ -189,7 +196,7 @@ function memoryDeps(options?: {
 test("a finished copy verifies size, deletes blobs, and names the NAS folder", async () => {
   const { deps, deleted } = memoryDeps();
   const result = await moveSubmission({
-    folderName: "2026-09-28 Headshots - guest@example.com",
+    folderName: "Headshots - Alex",
     files: [
       {
         id: "1",
@@ -203,13 +210,13 @@ test("a finished copy verifies size, deletes blobs, and names the NAS folder", a
   });
   assert.equal(result.status, "stored");
   if (result.status !== "stored") return;
-  assert.equal(result.nasPath, "/share/upload/2026-09-28 Headshots - guest@example.com");
+  assert.equal(result.nasPath, "/share/upload/Headshots - Alex");
   assert.deepEqual(deleted, ["uploads/sub/1/a.jpg"]);
   assert.equal(notificationFor(result, { receivedNotifiedAt: null, failureNotifiedAt: null }), "received");
 });
 
 test("an existing NAS folder is kept by appending -2 and blobs stay when mkdir fails", async () => {
-  const base = "2026-09-28 Headshots - guest@example.com";
+  const base = "Headshots - Alex";
   const blocked = memoryDeps({
     existing: [base],
     mkdir: { ok: false, reason: "NAS could not create the folder (1010 Token cannot be empty!)." },
@@ -231,7 +238,7 @@ test("an existing NAS folder is kept by appending -2 and blobs stay when mkdir f
 test("a size mismatch keeps the blob", async () => {
   const { deps, deleted } = memoryDeps({ stat: 1 });
   const result = await moveSubmission({
-    folderName: "2026-09-28 Cut - a@b.co",
+    folderName: "Cut - Alex",
     files: [{ id: "1", safeName: "a.jpg", size: 4, blobPathname: "uploads/a", copiedBytes: 0 }],
     deps,
   });
@@ -242,7 +249,7 @@ test("a size mismatch keeps the blob", async () => {
 test("a byte budget stops mid-file without emailing or deleting", async () => {
   const { deps, deleted } = memoryDeps({ budgetBytes: MOVE_CHUNK_BYTES });
   const result = await moveSubmission({
-    folderName: "2026-09-28 Cut - a@b.co",
+    folderName: "Cut - Alex",
     files: [
       {
         id: "1",
@@ -263,20 +270,23 @@ test("a byte budget stops mid-file without emailing or deleting", async () => {
 
 test("Billy's notice is one email and includes the folder", () => {
   const received = filesReceivedMessage({
+    name: "Alex Kim",
     label: "Headshots",
     email: "guest@example.com",
     fileCount: 2,
     totalBytes: 1536,
-    nasPath: "/share/upload/2026-09-28 Headshots - guest@example.com",
+    nasPath: "/share/upload/Headshots - Alex Kim",
   });
   assert.equal(received.to, DEFAULT_BOOKING_NOTIFY_EMAIL);
   assert.equal(received.subject, "Files received");
-  assert.match(received.text, /Headshots/);
-  assert.match(received.text, /guest@example.com/);
+  assert.match(received.text, /Name: Alex Kim/);
+  assert.match(received.text, /Email: guest@example.com/);
+  assert.match(received.text, /What: Headshots/);
   assert.match(received.text, /Files: 2/);
-  assert.match(received.text, /\/share\/upload\/2026-09-28 Headshots - guest@example.com/);
+  assert.match(received.text, /\/share\/upload\/Headshots - Alex Kim/);
   assert.equal(formatBytes(1536), "1.5 KB");
   const failed = moveFailedMessage({
+    name: "Alex Kim",
     label: "Headshots",
     email: "guest@example.com",
     fileCount: 2,

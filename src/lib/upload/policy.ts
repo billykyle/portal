@@ -1,5 +1,5 @@
 import { parseLoginEmail } from "@/lib/signup-fields";
-import { sanitizeFileName, sanitizeUploadLabel, uniqueFileName } from "@/lib/upload/names";
+import { sanitizeFileName, sanitizeUploadLabel, sanitizeUploadName, uniqueFileName } from "@/lib/upload/names";
 
 type Bucket = { count: number; resetAt: number };
 
@@ -80,14 +80,16 @@ export function parseUploadRequest(
   body: unknown,
   limits = uploadLimits(),
 ):
-  | { ok: true; label: string; email: string; files: UploadRequestFile[] }
+  | { ok: true; name: string; label: string; email: string; files: UploadRequestFile[] }
   | { ok: false; error: string; status: number } {
-  if (!body || typeof body !== "object") return { ok: false, error: "Enter what you are uploading.", status: 400 };
-  const record = body as { label?: unknown; email?: unknown; files?: unknown };
-  const label = sanitizeUploadLabel(typeof record.label === "string" ? record.label : "");
-  if (!label.ok) return { ok: false, error: label.error, status: 400 };
+  if (!body || typeof body !== "object") return { ok: false, error: "Enter your name.", status: 400 };
+  const record = body as { name?: unknown; label?: unknown; email?: unknown; files?: unknown };
+  const name = sanitizeUploadName(typeof record.name === "string" ? record.name : "");
+  if (!name.ok) return { ok: false, error: name.error, status: 400 };
   const email = parseLoginEmail(typeof record.email === "string" ? record.email : "");
   if (!email.ok) return { ok: false, error: email.error, status: 400 };
+  const label = sanitizeUploadLabel(typeof record.label === "string" ? record.label : "");
+  if (!label.ok) return { ok: false, error: label.error, status: 400 };
   if (!Array.isArray(record.files) || record.files.length === 0) {
     return { ok: false, error: "Choose a file.", status: 400 };
   }
@@ -115,5 +117,5 @@ export function parseUploadRequest(
       size,
     });
   }
-  return { ok: true, label: label.value, email: email.value, files };
+  return { ok: true, name: name.value, label: label.value, email: email.value, files };
 }

@@ -198,6 +198,7 @@ async function createTables() {
   await sql`
     CREATE TABLE IF NOT EXISTS upload_submissions (
       id uuid PRIMARY KEY,
+      name text NOT NULL,
       label text NOT NULL,
       email text NOT NULL,
       folder_name text NOT NULL,
@@ -226,6 +227,7 @@ async function createTables() {
   await sql`CREATE INDEX IF NOT EXISTS upload_files_submission_idx ON upload_files (submission_id)`;
   await sql`CREATE INDEX IF NOT EXISTS upload_submissions_status_idx ON upload_submissions (status)`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS upload_submissions_folder_uidx ON upload_submissions (folder_name)`;
+  await sql`ALTER TABLE upload_submissions ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT ''`;
   await ensurePreviewSchema();
 }
 

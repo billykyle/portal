@@ -2,18 +2,19 @@ import { randomUUID } from "crypto";
 import { and, eq, lt, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { uploadFiles, uploadSubmissions } from "@/lib/db/schema";
-import { submissionFolderBase, uniqueFolderName, uploadBlobPath, uploadDay } from "@/lib/upload/names";
+import { submissionFolderBase, uniqueFolderName, uploadBlobPath } from "@/lib/upload/names";
 import { MOVE_LOCK_MS } from "@/lib/upload/move";
 import type { UploadRequestFile } from "@/lib/upload/policy";
 
 export async function reserveUploadSubmission(input: {
+  name: string;
   label: string;
   email: string;
   files: UploadRequestFile[];
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  const base = submissionFolderBase({ day: uploadDay(now), label: input.label, email: input.email });
+  const base = submissionFolderBase({ label: input.label, name: input.name });
   const takenRows = await db.select({ folderName: uploadSubmissions.folderName }).from(uploadSubmissions);
   const folderName = uniqueFolderName(
     base,
@@ -34,6 +35,7 @@ export async function reserveUploadSubmission(input: {
   });
   await db.insert(uploadSubmissions).values({
     id: submissionId,
+    name: input.name,
     label: input.label,
     email: input.email,
     folderName,

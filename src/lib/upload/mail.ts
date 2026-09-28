@@ -2,6 +2,7 @@ import { emailSignatureHtml, emailSignatureText, wrapBookingEmailHtml } from "@/
 import { bookingNotifyEmail } from "@/lib/email";
 
 export type UploadNotice = {
+  name: string;
   label: string;
   email: string;
   fileCount: number;
@@ -34,8 +35,9 @@ export function formatBytes(bytes: number) {
 
 function lines(notice: UploadNotice, extra?: string) {
   return [
-    `What: ${notice.label}`,
+    `Name: ${notice.name}`,
     `Email: ${notice.email}`,
+    `What: ${notice.label}`,
     `Files: ${notice.fileCount}`,
     `Size: ${formatBytes(notice.totalBytes)}`,
     `Folder: ${notice.nasPath || "—"}`,

@@ -18,8 +18,9 @@ const PREVIEW_PROGRESS: ProgressFile[] = [
 
 export function UploadForm({ initial = "form" }: { initial?: Phase }) {
   const [phase, setPhase] = useState<Phase>(initial);
-  const [label, setLabel] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [label, setLabel] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<ProgressFile[]>(initial === "uploading" ? PREVIEW_PROGRESS : []);
   const [error, setError] = useState("");
@@ -39,12 +40,16 @@ export function UploadForm({ initial = "form" }: { initial?: Phase }) {
     event.preventDefault();
     if (phase !== "form") return;
     setError("");
-    if (!label.trim()) {
-      setError("Enter what you are uploading.");
+    if (!name.trim()) {
+      setError("Enter your name.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.includes("..")) {
       setError("Enter a valid email.");
+      return;
+    }
+    if (!label.trim()) {
+      setError("Enter what you are uploading.");
       return;
     }
     if (files.length === 0) {
@@ -61,8 +66,9 @@ export function UploadForm({ initial = "form" }: { initial?: Phase }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          label: label.trim(),
+          name: name.trim(),
           email: email.trim(),
+          label: label.trim(),
           files: files.map((file) => ({ name: file.name, size: file.size })),
         }),
       });
@@ -140,11 +146,11 @@ export function UploadForm({ initial = "form" }: { initial?: Phase }) {
             ) : (
               <form className="flex flex-col gap-5" onSubmit={onSubmit} noValidate>
                 <Field
-                  id="label"
-                  label="What are you uploading?"
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  autoComplete="off"
+                  id="name"
+                  label="Name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  autoComplete="name"
                   required
                 />
                 <Field
@@ -154,6 +160,14 @@ export function UploadForm({ initial = "form" }: { initial?: Phase }) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
+                  required
+                />
+                <Field
+                  id="label"
+                  label="What are you uploading?"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  autoComplete="off"
                   required
                 />
                 <div className="flex flex-col gap-2">
