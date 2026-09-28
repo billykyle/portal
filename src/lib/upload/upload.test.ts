@@ -5,7 +5,7 @@ import { filesReceivedMessage, formatBytes, moveFailedMessage } from "@/lib/uplo
 import { moveSubmission, MOVE_CHUNK_BYTES, notificationFor } from "@/lib/upload/move";
 import {
   findUploadDirectory,
-  NAS_UPLOAD_DIR_NAME,
+  NAS_UPLOADS_PATH,
   sanitizeFileName,
   sanitizeUploadLabel,
   sanitizeUploadName,
@@ -53,11 +53,12 @@ test("labels, file names, and folder names stay a single safe segment", () => {
   assert.equal(
     findUploadDirectory([
       { name: "Upload", path: "/share/Upload", isDir: true },
-      { name: NAS_UPLOAD_DIR_NAME, path: "/share/upload", isDir: true },
+      { name: "Uploads", path: NAS_UPLOADS_PATH, isDir: true },
     ])?.path,
-    "/share/upload",
+    NAS_UPLOADS_PATH,
   );
-  assert.equal(findUploadDirectory([{ name: "upload", path: "/share/upload", isDir: false }]), null);
+  assert.equal(findUploadDirectory([{ name: "upload", path: "/share/upload", isDir: true }]), null);
+  assert.equal(findUploadDirectory([{ name: "Uploads", path: NAS_UPLOADS_PATH, isDir: false }]), null);
 });
 
 test("request validation requires a name, a real email, a label, and sized files", () => {
@@ -194,7 +195,7 @@ function memoryDeps(options?: {
 }
 
 test("a finished copy verifies size, deletes blobs, and names the NAS folder", async () => {
-  const { deps, deleted } = memoryDeps();
+  const { deps, deleted } = memoryDeps({ uploadPath: NAS_UPLOADS_PATH });
   const result = await moveSubmission({
     folderName: "Headshots - Alex",
     files: [
@@ -210,7 +211,7 @@ test("a finished copy verifies size, deletes blobs, and names the NAS folder", a
   });
   assert.equal(result.status, "stored");
   if (result.status !== "stored") return;
-  assert.equal(result.nasPath, "/share/upload/Headshots - Alex");
+  assert.equal(result.nasPath, `${NAS_UPLOADS_PATH}/Headshots - Alex`);
   assert.deepEqual(deleted, ["uploads/sub/1/a.jpg"]);
   assert.equal(notificationFor(result, { receivedNotifiedAt: null, failureNotifiedAt: null }), "received");
 });

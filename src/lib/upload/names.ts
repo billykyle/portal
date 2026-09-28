@@ -1,5 +1,8 @@
-/** Exact directory name on the share. Case-sensitive — `Upload` is a different folder. */
-export const NAS_UPLOAD_DIR_NAME = "upload";
+/**
+ * Existing drop folder on the Client Deliverables share, beside the client folders.
+ * Case-sensitive: `Uploads`, not `upload`.
+ */
+export const NAS_UPLOADS_PATH = "/home/billykyle/Work/Client Deliverables/Uploads";
 
 const MAX_LABEL = 80;
 const MAX_FOLDER = 180;
@@ -79,5 +82,6 @@ export function uploadBlobPath(submissionId: string, fileId: string, safeName: s
 export function findUploadDirectory(
   entries: Array<{ name: string; path: string; isDir: boolean }>,
 ) {
-  return entries.find((entry) => entry.isDir && entry.name === NAS_UPLOAD_DIR_NAME) ?? null;
+  const name = NAS_UPLOADS_PATH.split("/").pop();
+  return entries.find((entry) => entry.isDir && entry.name === name) ?? null;
 }

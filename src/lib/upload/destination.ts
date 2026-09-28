@@ -1,45 +1,16 @@
 import { del, head } from "@vercel/blob";
-import {
-  isHiddenNasName,
-  isNasDirectory,
-  listNasDir,
-  nasSharePost,
-  nasShareRoot,
-  type NasFile,
-} from "@/lib/nas";
-import { NAS_UPLOAD_DIR_NAME, findUploadDirectory } from "@/lib/upload/names";
+import { isNasDirectory, listNasDir, nasSharePost } from "@/lib/nas";
+import { NAS_UPLOADS_PATH } from "@/lib/upload/names";
 import type { MoveDeps } from "@/lib/upload/move";
 
-function asListing(entries: NasFile[]) {
-  return entries.map((entry) => ({
-    name: entry.name,
-    path: entry.path,
-    isDir: isNasDirectory(entry),
-  }));
-}
-
-/** Existing folder named `upload`, matched case-sensitively. Never creates one. */
+/** The configured Uploads directory. Never creates it. */
 export async function locateNasUploadFolder(): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
-  const override = process.env.NAS_UPLOAD_PATH?.trim() ?? "";
-  if (override) {
-    if (!override.startsWith("/") || override.split("/").includes("..")) {
-      return { ok: false, reason: "NAS_UPLOAD_PATH must be an absolute path." };
-    }
-    return { ok: true, path: override.replace(/\/+$/, "") };
-  }
   try {
-    const root = await nasShareRoot();
-    const top = asListing(await listNasDir(root));
-    const direct = findUploadDirectory(top);
-    if (direct) return { ok: true, path: direct.path };
-    for (const child of top) {
-      if (!child.isDir || isHiddenNasName(child.name)) continue;
-      const nested = findUploadDirectory(asListing(await listNasDir(child.path)));
-      if (nested) return { ok: true, path: nested.path };
-    }
-    return { ok: false, reason: `No folder named ${NAS_UPLOAD_DIR_NAME} on the NAS share (${root}).` };
+    await listNasDir(NAS_UPLOADS_PATH);
+    return { ok: true, path: NAS_UPLOADS_PATH };
   } catch (error) {
-    return { ok: false, reason: error instanceof Error ? error.message : "Could not read the NAS." };
+    const reason = error instanceof Error ? error.message : "Could not read the NAS.";
+    return { ok: false, reason: `${NAS_UPLOADS_PATH}: ${reason}` };
   }
 }
 
