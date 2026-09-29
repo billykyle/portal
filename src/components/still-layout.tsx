@@ -1,7 +1,9 @@
 "use client";
 
+import { ListRowPreview } from "@/components/list-row-preview";
 import { MediaTile } from "@/components/media-tile";
 import { useSectionLayout } from "@/components/section-layout";
+import { listPreviewSrc } from "@/lib/list-preview";
 import { photoViewerHref } from "@/lib/photo-viewer";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
@@ -31,12 +33,13 @@ export function StillLayout({
   if (layout === "list") {
     return (
       <ul>
-        {items.map((item) => (
+        {items.map((item, index) => (
           <li
             key={item.id}
-            className="flex items-center justify-between gap-3 border-b border-white/10 py-3 text-sm"
+            className="flex items-center gap-3 border-b border-white/10 py-2 text-sm"
           >
-            <a href={photoViewerHref(basePath, item.id)} className="min-w-0 truncate text-[#c7c7cc]">
+            <ListRowPreview src={listPreviewSrc(item)} contain={contain} eager={index < PREVIEW_EAGER_COUNT} />
+            <a href={photoViewerHref(basePath, item.id)} className="min-w-0 flex-1 truncate text-[#c7c7cc]">
               {item.filename}
             </a>
             <a href={item.url} download={item.filename} className="shrink-0 text-white">

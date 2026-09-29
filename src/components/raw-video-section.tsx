@@ -10,6 +10,7 @@ export type RawVideoItem = {
   id: string;
   url: string;
   filename: string;
+  thumbUrl?: string | null;
   width?: number | null;
   height?: number | null;
   byteSize?: number | null;
@@ -54,6 +55,7 @@ export function RawVideoSection({
           id: item.id,
           url: item.url,
           filename: item.filename,
+          thumbUrl: item.thumbUrl,
           width: item.width,
           height: item.height,
         }))}

@@ -1,12 +1,16 @@
 "use client";
 
+import { ListRowPreview } from "@/components/list-row-preview";
 import { useSectionLayout } from "@/components/section-layout";
 import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
+import { listPreviewSrc } from "@/lib/list-preview";
+import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
 export type VideoLayoutItem = {
   id: string;
   url: string;
   filename: string;
+  thumbUrl?: string | null;
   width?: number | null;
   height?: number | null;
   renditions?: PlayerRendition[];
@@ -18,11 +22,12 @@ const CLIPS_GRID = "grid grid-cols-3 items-start gap-1.5 lg:grid-cols-4 lg:gap-2
 function VideoList({ items }: { items: VideoLayoutItem[] }) {
   return (
     <ul>
-      {items.map((item) => (
-        <li key={item.id} className="border-b border-white/10 py-3">
-          <div className="flex items-start justify-between gap-3 text-sm">
+      {items.map((item, index) => (
+        <li key={item.id} className="border-b border-white/10 py-2">
+          <div className="flex items-start gap-3 text-sm">
+            <ListRowPreview src={listPreviewSrc(item)} eager={index < PREVIEW_EAGER_COUNT} />
             <details className="min-w-0 flex-1">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+              <summary className="flex h-12 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 truncate text-[#c7c7cc]">{item.filename}</span>
                 <span className="shrink-0 text-white">Play</span>
               </summary>
@@ -38,7 +43,7 @@ function VideoList({ items }: { items: VideoLayoutItem[] }) {
                 />
               </div>
             </details>
-            <a href={item.url} download={item.filename} className="shrink-0 text-white">
+            <a href={item.url} download={item.filename} className="flex h-12 shrink-0 items-center text-white">
               Download
             </a>
           </div>

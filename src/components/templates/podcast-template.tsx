@@ -7,6 +7,7 @@ import { PreviewImage } from "@/components/preview-image";
 import { ShootActions } from "@/components/shoot-actions";
 import { RawVideoSection, rawVideoJump } from "@/components/raw-video-section";
 import { ShootSectionNav } from "@/components/shoot-section-nav";
+import { FileDownloadList } from "@/components/file-download-list";
 import { StillLayout } from "@/components/still-layout";
 import type { ContentTemplate, TemplateShootCard } from "@/components/templates/types";
 import { VideoLayout } from "@/components/video-layout";
@@ -160,19 +161,7 @@ function PodcastShoot({
           defaultOpen={shootSectionStartsOpen(closed, SECTIONS.audio)}
           layout={shootSectionLayout(listed, SECTIONS.audio)}
         >
-          <ul>
-            {groups.audio.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between gap-3 border-b border-white/10 py-3 text-sm text-[#c7c7cc]"
-              >
-                <span className="min-w-0 truncate">{item.filename}</span>
-                <a href={item.url} download={item.filename} className="shrink-0 text-white">
-                  Download
-                </a>
-              </li>
-            ))}
-          </ul>
+          <FileDownloadList items={groups.audio} />
         </DeliverableSection>
       ) : null}
 

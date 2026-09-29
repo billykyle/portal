@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { listPreviewSrc } from "@/lib/list-preview";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 import {
   parseListShootSections,
@@ -60,6 +61,7 @@ test("client shoot photo previews are 3:2 in a three-column mobile grid", () => 
   const photos = html.slice(photosStart, plansStart);
 
   assert.match(photos, /class="grid grid-cols-3 gap-1\.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6"/);
+  assert.doesNotMatch(photos, /size-12/);
   assert.doesNotMatch(photos, /grid-cols-1|grid-cols-2|sm:grid-cols-|md:grid-cols-/);
   assert.equal(photos.match(/aspect-\[3\/2\] w-full object-cover/g)?.length, 2);
   assert.doesNotMatch(photos, /aspect-square/);
@@ -305,6 +307,7 @@ const mixedMedia: ShootMedia[] = [
     id: "vid-1",
     url: "/api/media/vid-1",
     filename: "walkthrough.mp4",
+    thumbUrl: "/api/media/vid-1/thumb",
     type: "video",
     width: 1920,
     height: 1080,
@@ -504,18 +507,24 @@ test("list view is rows for stills and a playable file row for video", () => {
   assert.match(photos, />front\.jpg</);
   assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-1"/);
   assert.match(photos, /href="\/photos\/front\.jpg"/);
-  assert.doesNotMatch(photos, /<img\b|grid-cols-3|aspect-\[3\/2\]/);
+  assert.match(photos, /size-12/);
+  assert.match(photos, /src="\/thumbs\/front\.jpg"/);
+  assert.match(photos, /src="\/thumbs\/yard\.jpg"/);
+  assert.doesNotMatch(photos, /grid-cols-3|aspect-\[3\/2\]/);
 
   const plans = html.slice(html.indexOf('id="floor-plans"'), html.indexOf('id="video"'));
   assert.match(plans, /data-layout="list"/);
   assert.match(plans, />level-1\.pdf</);
   assert.match(plans, /href="\/plans\/level-1\.pdf"/);
+  assert.match(plans, /size-12/);
   assert.doesNotMatch(plans, /<img\b|aspect-square|grid-cols-3/);
 
   const video = html.slice(html.indexOf('id="video"'), html.indexOf('id="raw-video"'));
   assert.match(video, /data-layout="list"/);
   assert.match(video, />walkthrough\.mp4</);
   assert.match(video, />Play</);
+  assert.match(video, /size-12/);
+  assert.match(video, /src="\/api\/media\/vid-1\/thumb"/);
   assert.match(video, /<video\b[^>]*controls/);
   assert.match(video, /<source[^>]*src="\/api\/media\/vid-1\?rendition=720"/);
   assert.match(video, /href="\/api\/media\/vid-1"/);
@@ -523,6 +532,8 @@ test("list view is rows for stills and a playable file row for video", () => {
 
   const raw = html.slice(html.indexOf('id="raw-video"'));
   assert.match(raw, /data-layout="list"/);
+  assert.match(raw, /size-12/);
+  assert.doesNotMatch(raw, /<img\b/);
   assert.match(raw, /2 files · 4\.2 GB/);
   assert.match(raw, />Raw Video\/A001\.mov</);
   assert.match(raw, />Play</);
@@ -560,8 +571,11 @@ test("one section can be a list while the others stay on the grid", () => {
   const video = html.slice(html.indexOf('id="video"'), html.indexOf('id="raw-video"'));
   const raw = html.slice(html.indexOf('id="raw-video"'));
   assert.match(photos, /data-layout="list"/);
-  assert.doesNotMatch(photos, /<img\b/);
+  assert.match(photos, /size-12/);
+  assert.match(photos, /src="\/thumbs\/front\.jpg"/);
+  assert.doesNotMatch(photos, /grid-cols-3/);
   assert.match(plans, /data-layout="grid"/);
+  assert.doesNotMatch(plans, /size-12/);
   assert.match(plans, /aspect-square/);
   assert.match(video, /data-layout="grid"/);
   assert.match(video, /lg:grid lg:grid-cols-2/);
@@ -624,6 +638,7 @@ test("podcast sections switch between the current layout and a file list", () =>
   assert.match(audio, /data-layout="grid"/);
   assert.match(audio, />episode\.mp3</);
   assert.match(audio, /href="\/api\/media\/audio-1"/);
+  assert.doesNotMatch(audio, /size-12/);
   assert.match(stills, /grid-cols-3/);
   assert.doesNotMatch(grid, /id="raw-video"/);
 
@@ -648,9 +663,24 @@ test("podcast sections switch between the current layout and a file list", () =>
   assert.match(listedAudio, /data-layout="list"/);
   assert.match(listedAudio, />episode\.mp3</);
   assert.match(listedAudio, /href="\/api\/media\/audio-1"/);
+  assert.match(listedAudio, /size-12/);
+  assert.doesNotMatch(listedAudio, /<img\b/);
+  assert.match(listedFull, /size-12/);
+  assert.doesNotMatch(listedFull, /<img\b/);
   assert.match(listedStills, /data-layout="list"/);
   assert.match(listedStills, />cover\.jpg</);
-  assert.doesNotMatch(listedStills, /<img\b|grid-cols-3/);
+  assert.match(listedStills, /size-12/);
+  assert.match(listedStills, /src="\/thumbs\/cover\.jpg"/);
+  assert.doesNotMatch(listedStills, /grid-cols-3/);
+});
+
+test("a list row uses a low-res thumb and leaves files without one blank", () => {
+  assert.equal(listPreviewSrc({ url: "/photos/front.jpg", thumbUrl: "/thumbs/front.jpg" }), "/thumbs/front.jpg");
+  assert.equal(listPreviewSrc({ url: "/api/media/vid-1", thumbUrl: "/api/media/vid-1/thumb?v=abc" }), "/api/media/vid-1/thumb?v=abc");
+  assert.equal(listPreviewSrc({ url: "/photos/front.jpg" }), "/photos/front.jpg");
+  assert.equal(listPreviewSrc({ url: "/api/media/vid-1", thumbUrl: "/api/media/vid-1" }), null);
+  assert.equal(listPreviewSrc({ url: "/plans/level-1.pdf" }), null);
+  assert.equal(listPreviewSrc({ url: "/api/media/audio-1", filename: "episode.mp3" } as { url: string }), null);
 });
 
 test("floor plan tiles stay square", () => {
