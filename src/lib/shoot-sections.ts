@@ -38,18 +38,23 @@ export function readCookie(header: string, name: string) {
   return null;
 }
 
-export function shootSectionsCookie(value: string, secure = false) {
+/** One year, path-wide cookie. An empty value clears it. */
+export function preferenceCookie(name: string, value: string, secure = false) {
   if (!value) {
-    return `${SHOOT_SECTIONS_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+    return `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
   }
   const parts = [
-    `${SHOOT_SECTIONS_COOKIE}=${encodeURIComponent(value)}`,
+    `${name}=${encodeURIComponent(value)}`,
     "Path=/",
     `Max-Age=${YEAR_SECONDS}`,
     "SameSite=Lax",
   ];
   if (secure) parts.push("Secure");
   return parts.join("; ");
+}
+
+export function shootSectionsCookie(value: string, secure = false) {
+  return preferenceCookie(SHOOT_SECTIONS_COOKIE, value, secure);
 }
 
 export function shootSectionStartsOpen(closed: ReadonlySet<string>, id: string) {

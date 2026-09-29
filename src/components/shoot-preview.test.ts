@@ -3,6 +3,12 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
+import {
+  parseListShootSections,
+  serializeListShootSections,
+  shootLayoutCookie,
+  shootSectionLayout,
+} from "@/lib/shoot-layout";
 import { parseClosedShootSections, serializeClosedShootSections, shootSectionStartsOpen } from "@/lib/shoot-sections";
 import { defaultTemplate } from "./templates/default-template";
 import { podcastTemplate } from "./templates/podcast-template";
@@ -458,6 +464,193 @@ test("real estate, default, and podcast layouts pin raw video last", () => {
     ),
     /Raw video|id="raw-video"/,
   );
+});
+
+test("layout is remembered per section type and defaults to grid", () => {
+  assert.equal(shootSectionLayout(parseListShootSections(null), "photos"), "grid");
+  assert.equal(shootSectionLayout(parseListShootSections("photos"), "floor-plans"), "grid");
+  assert.equal(shootSectionLayout(parseListShootSections("photos,raw-video"), "photos"), "list");
+  assert.equal(shootSectionLayout(parseListShootSections("photos,raw-video"), "raw-video"), "list");
+  assert.equal(serializeListShootSections(["video", "photos"]), "photos,video");
+  assert.equal(
+    shootSectionLayout(parseListShootSections(serializeListShootSections(["clips"])), "clips"),
+    "list",
+  );
+  assert.match(shootLayoutCookie("photos", true), /^bk_shoot_layout=photos; Path=\/; Max-Age=\d+; SameSite=Lax; Secure$/);
+  assert.equal(shootLayoutCookie("", false), "bk_shoot_layout=; Path=/; Max-Age=0; SameSite=Lax");
+});
+
+test("list view is rows for stills and a playable file row for video", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media: mixedMedia,
+      listSectionIds: ["photos", "floor-plans", "video", "raw-video"],
+    }),
+  );
+  assert.deepEqual(sectionOrder(html), ["photos", "floor-plans", "video", "raw-video"]);
+  const jumps = html.slice(html.indexOf('aria-label="Media on this shoot"'), html.indexOf('id="photos"'));
+  assert.match(jumps, /Photos \(2\)/);
+  assert.match(jumps, /Raw video \(2\)/);
+  assert.doesNotMatch(jumps, /files ·|GB/);
+
+  const photos = html.slice(html.indexOf('id="photos"'), html.indexOf('id="floor-plans"'));
+  assert.match(photos, /data-layout="list"/);
+  assert.match(photos, /aria-pressed="false"[^>]*>Grid</);
+  assert.match(photos, /aria-pressed="true"[^>]*>List</);
+  assert.match(photos, />front\.jpg</);
+  assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-1"/);
+  assert.match(photos, /href="\/photos\/front\.jpg"/);
+  assert.doesNotMatch(photos, /<img\b|grid-cols-3|aspect-\[3\/2\]/);
+
+  const plans = html.slice(html.indexOf('id="floor-plans"'), html.indexOf('id="video"'));
+  assert.match(plans, /data-layout="list"/);
+  assert.match(plans, />level-1\.pdf</);
+  assert.match(plans, /href="\/plans\/level-1\.pdf"/);
+  assert.doesNotMatch(plans, /<img\b|aspect-square|grid-cols-3/);
+
+  const video = html.slice(html.indexOf('id="video"'), html.indexOf('id="raw-video"'));
+  assert.match(video, /data-layout="list"/);
+  assert.match(video, />walkthrough\.mp4</);
+  assert.match(video, />Play</);
+  assert.match(video, /<video\b[^>]*controls/);
+  assert.match(video, /<source[^>]*src="\/api\/media\/vid-1\?rendition=720"/);
+  assert.match(video, /href="\/api\/media\/vid-1"/);
+  assert.doesNotMatch(video, /lg:grid-cols-2|href="[^"]*rendition=/);
+
+  const raw = html.slice(html.indexOf('id="raw-video"'));
+  assert.match(raw, /data-layout="list"/);
+  assert.match(raw, /2 files · 4\.2 GB/);
+  assert.match(raw, />Raw Video\/A001\.mov</);
+  assert.match(raw, />Play</);
+  assert.match(raw, /<source[^>]*src="\/api\/media\/raw-1"/);
+  assert.match(raw, /href="\/api\/media\/raw-1"/);
+  assert.doesNotMatch(raw, /lg:grid-cols-2|rendition=/);
+
+  const empty = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media: [],
+      listSectionIds: ["photos", "floor-plans", "video", "raw-video", "audio", "thumbnails"],
+    }),
+  );
+  assert.doesNotMatch(empty, /id="photos"|id="floor-plans"|id="video"|id="raw-video"|Grid|List/);
+  assert.match(empty, /No files on this shoot yet/);
+});
+
+test("one section can be a list while the others stay on the grid", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media: mixedMedia,
+      listSectionIds: ["photos"],
+    }),
+  );
+  const photos = html.slice(html.indexOf('id="photos"'), html.indexOf('id="floor-plans"'));
+  const plans = html.slice(html.indexOf('id="floor-plans"'), html.indexOf('id="video"'));
+  const video = html.slice(html.indexOf('id="video"'), html.indexOf('id="raw-video"'));
+  const raw = html.slice(html.indexOf('id="raw-video"'));
+  assert.match(photos, /data-layout="list"/);
+  assert.doesNotMatch(photos, /<img\b/);
+  assert.match(plans, /data-layout="grid"/);
+  assert.match(plans, /aspect-square/);
+  assert.match(video, /data-layout="grid"/);
+  assert.match(video, /lg:grid lg:grid-cols-2/);
+  assert.doesNotMatch(video, />Play</);
+  assert.match(raw, /data-layout="grid"/);
+  assert.match(raw, /2 files · 4\.2 GB/);
+  assert.match(raw, /lg:grid lg:grid-cols-2/);
+});
+
+test("podcast sections switch between the current layout and a file list", () => {
+  const shared = {
+    basePath: "/my-content/harbor",
+    address: "Episode 4 with Jonah Hale",
+    dateLabel: "Sep 12, 2026",
+    folderName: "2026-09-12 - Episode 4",
+    media: [
+      {
+        id: "full",
+        url: "/api/media/full",
+        filename: "full-episode.mp4",
+        type: "video" as const,
+        sortOrder: 0,
+        width: 1920,
+        height: 1080,
+      },
+      {
+        id: "clip",
+        url: "/api/media/clip",
+        filename: "clip.mp4",
+        type: "video" as const,
+        sortOrder: 1,
+        width: 1080,
+        height: 1920,
+      },
+      {
+        id: "audio-1",
+        url: "/api/media/audio-1",
+        filename: "episode.mp3",
+        type: "audio" as const,
+        sortOrder: 2,
+      },
+      {
+        id: "still",
+        url: "/thumbs/cover.jpg",
+        filename: "cover.jpg",
+        type: "photo" as const,
+        sortOrder: 3,
+      },
+    ],
+  };
+  const grid = renderToStaticMarkup(createElement(podcastTemplate.Shoot, shared));
+  const full = grid.slice(grid.indexOf('id="full-episode"'), grid.indexOf('id="clips"'));
+  const clips = grid.slice(grid.indexOf('id="clips"'), grid.indexOf('id="audio"'));
+  const audio = grid.slice(grid.indexOf('id="audio"'), grid.indexOf('id="thumbnails"'));
+  const stills = grid.slice(grid.indexOf('id="thumbnails"'));
+  assert.match(full, /data-layout="grid"/);
+  assert.match(full, /<video\b/);
+  assert.doesNotMatch(full, />Play</);
+  assert.match(clips, /grid-cols-3 items-start/);
+  assert.match(audio, /data-layout="grid"/);
+  assert.match(audio, />episode\.mp3</);
+  assert.match(audio, /href="\/api\/media\/audio-1"/);
+  assert.match(stills, /grid-cols-3/);
+  assert.doesNotMatch(grid, /id="raw-video"/);
+
+  const listed = renderToStaticMarkup(
+    createElement(podcastTemplate.Shoot, {
+      ...shared,
+      listSectionIds: ["full-episode", "clips", "audio", "thumbnails"],
+    }),
+  );
+  const listedFull = listed.slice(listed.indexOf('id="full-episode"'), listed.indexOf('id="clips"'));
+  const listedClips = listed.slice(listed.indexOf('id="clips"'), listed.indexOf('id="audio"'));
+  const listedAudio = listed.slice(listed.indexOf('id="audio"'), listed.indexOf('id="thumbnails"'));
+  const listedStills = listed.slice(listed.indexOf('id="thumbnails"'));
+  assert.match(listedFull, /data-layout="list"/);
+  assert.match(listedFull, />full-episode\.mp4</);
+  assert.match(listedFull, />Play</);
+  assert.match(listedFull, /<video\b/);
+  assert.match(listedClips, /data-layout="list"/);
+  assert.match(listedClips, />clip\.mp4</);
+  assert.match(listedClips, />Play</);
+  assert.doesNotMatch(listedClips, /grid-cols-3/);
+  assert.match(listedAudio, /data-layout="list"/);
+  assert.match(listedAudio, />episode\.mp3</);
+  assert.match(listedAudio, /href="\/api\/media\/audio-1"/);
+  assert.match(listedStills, /data-layout="list"/);
+  assert.match(listedStills, />cover\.jpg</);
+  assert.doesNotMatch(listedStills, /<img\b|grid-cols-3/);
 });
 
 test("floor plan tiles stay square", () => {

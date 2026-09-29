@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { DeliverableSection } from "@/components/deliverable-section";
-import { MediaTile } from "@/components/media-tile";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { ShootActions } from "@/components/shoot-actions";
 import { RawVideoSection, rawVideoJump } from "@/components/raw-video-section";
 import { ShootSectionNav } from "@/components/shoot-section-nav";
-import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
+import { StillLayout } from "@/components/still-layout";
+import { VideoLayout } from "@/components/video-layout";
+import type { PlayerRendition } from "@/components/video-player";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
 import { photoViewerHref } from "@/lib/photo-viewer";
-import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
+import { shootSectionLayout } from "@/lib/shoot-layout";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
 export type ShootMedia = {
@@ -33,6 +34,7 @@ export function ShootDetail({
   media,
   shareToken,
   closedSectionIds,
+  listSectionIds,
 }: {
   basePath: string;
   viewId?: string;
@@ -44,6 +46,8 @@ export function ShootDetail({
   shareToken?: string;
   /** Section ids the browser has closed. Omitted means every section starts open. */
   closedSectionIds?: readonly string[];
+  /** Section ids this browser shows as a file list. Omitted means grid. */
+  listSectionIds?: readonly string[];
 }) {
   const photos = media.filter((item) => item.type === "photo");
   const videos = media.filter((item) => item.type === "video");
@@ -57,6 +61,7 @@ export function ShootDetail({
   const prevPlan = activePlan ? plans[planIndex - 1] : null;
   const nextPlan = activePlan ? plans[planIndex + 1] : null;
   const closed = new Set(closedSectionIds ?? []);
+  const listed = new Set(listSectionIds ?? []);
   const jumps = [
     photos.length > 0 ? { id: mediaSectionId("photo"), label: mediaLabel("photo"), count: photos.length } : null,
     plans.length > 0
@@ -91,21 +96,9 @@ export function ShootDetail({
           id={mediaSectionId("photo")}
           label={mediaLabel("photo")}
           defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("photo"))}
+          layout={shootSectionLayout(listed, mediaSectionId("photo"))}
         >
-          <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6">
-            {photos.map((item, index) => (
-              <MediaTile
-                key={item.id}
-                href={hrefFor(item.id)}
-                src={item.thumbUrl ?? item.url}
-                filename={item.filename}
-                downloadUrl={item.url}
-                contain={false}
-                ratio="3/2"
-                eager={index < PREVIEW_EAGER_COUNT}
-              />
-            ))}
-          </div>
+          <StillLayout items={photos} basePath={basePath} contain={false} ratio="3/2" />
         </DeliverableSection>
       ) : null}
 
@@ -114,20 +107,9 @@ export function ShootDetail({
           id={mediaSectionId("floor_plan")}
           label={mediaLabel("floor_plan")}
           defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("floor_plan"))}
+          layout={shootSectionLayout(listed, mediaSectionId("floor_plan"))}
         >
-          <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5">
-            {plans.map((item, index) => (
-              <MediaTile
-                key={item.id}
-                href={hrefFor(item.id)}
-                src={item.thumbUrl ?? item.url}
-                filename={item.filename}
-                downloadUrl={item.url}
-                contain
-                eager={index < PREVIEW_EAGER_COUNT}
-              />
-            ))}
-          </div>
+          <StillLayout items={plans} basePath={basePath} contain ratio="square" />
         </DeliverableSection>
       ) : null}
 
@@ -136,24 +118,13 @@ export function ShootDetail({
           id={mediaSectionId("video")}
           label={mediaLabel("video")}
           defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("video"))}
+          layout={shootSectionLayout(listed, mediaSectionId("video"))}
         >
-          <div className="flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start">
-            {videos.map((item) => (
-              <VideoPlayer
-                key={item.id}
-                id={item.id}
-                url={item.url}
-                filename={item.filename}
-                width={item.width}
-                height={item.height}
-                renditions={item.renditions}
-              />
-            ))}
-          </div>
+          <VideoLayout items={videos} columns="pair" />
         </DeliverableSection>
       ) : null}
 
-      <RawVideoSection videos={rawVideos} closed={closed} />
+      <RawVideoSection videos={rawVideos} closed={closed} listed={listed} />
 
       {media.length === 0 ? (
         <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p>

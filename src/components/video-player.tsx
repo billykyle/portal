@@ -19,6 +19,7 @@ export function VideoPlayer({
   width,
   height,
   renditions = [],
+  caption = true,
 }: {
   id: string;
   url: string;
@@ -26,6 +27,8 @@ export function VideoPlayer({
   width?: number | null;
   height?: number | null;
   renditions?: PlayerRendition[];
+  /** File name and download under the frame. List rows supply their own. */
+  caption?: boolean;
 }) {
   const reportedRef = useRef(false);
   const [size, setSize] = useState(() => (width && height ? { width, height } : null));
@@ -89,12 +92,14 @@ export function VideoPlayer({
           <source src={playUrl} type={playbackSourceType(resolved === "original" ? filename : `${filename}.mp4`)} />
         </video>
       </div>
-      <figcaption className="flex items-center justify-between gap-3 px-1 text-sm text-[#c7c7cc]">
-        <span className="min-w-0 truncate">{filename}</span>
-        <a href={url} download={filename} className="shrink-0 text-white">
-          Download
-        </a>
-      </figcaption>
+      {caption ? (
+        <figcaption className="flex items-center justify-between gap-3 px-1 text-sm text-[#c7c7cc]">
+          <span className="min-w-0 truncate">{filename}</span>
+          <a href={url} download={filename} className="shrink-0 text-white">
+            Download
+          </a>
+        </figcaption>
+      ) : null}
     </figure>
   );
 }

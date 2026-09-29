@@ -13,6 +13,7 @@ import { videoPlaybackById } from "@/lib/video-store";
 import { publicShootPath, publicShootUrl } from "@/lib/public-link";
 import { getPublicShoot } from "@/lib/public-shoot";
 import { shootPageMetadata } from "@/lib/site-metadata";
+import { parseListShootSections, SHOOT_LAYOUT_COOKIE } from "@/lib/shoot-layout";
 import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
 
 export async function generateMetadata({
@@ -53,9 +54,9 @@ export default async function PublicShootPage({
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
   const playback = await videoPlaybackById(files);
-  const closedSectionIds = [
-    ...parseClosedShootSections((await cookies()).get(SHOOT_SECTIONS_COOKIE)?.value),
-  ];
+  const jar = await cookies();
+  const closedSectionIds = [...parseClosedShootSections(jar.get(SHOOT_SECTIONS_COOKIE)?.value)];
+  const listSectionIds = [...parseListShootSections(jar.get(SHOOT_LAYOUT_COOKIE)?.value)];
 
   return (
     <PhoneShell>
@@ -68,6 +69,7 @@ export default async function PublicShootPage({
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={publicShootZipPath(shoot.publicToken)}
         closedSectionIds={closedSectionIds}
+        listSectionIds={listSectionIds}
         media={files.flatMap((item) => {
           if (!isShootGalleryType(item.type)) return [];
           return [
