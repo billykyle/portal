@@ -79,7 +79,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `NAS_SHARE_ID` | share id | From `?id=` on the share-download URL. |
 | `NAS_SHARE_PASSWORD` | empty or the share password | Leave empty when the share has none. |
 | `NAS_SHARE_URL` | optional | Full `ug.link/.../share-download/?id=` URL. Parsed for the share id and UGREENlink id. |
-| `NAS_STILLS_FOLDERS` | `Final,Photos` | First match under each shoot wins for photos. Floor Plan folders and `.mov`/`.mp4` at the shoot root are imported separately. |
+| `NAS_STILLS_FOLDERS` | `Final,Photos` | First match under each shoot wins for photos. Floor Plan, Video, and Raw Video folders, plus `.mov`/`.mp4` at the shoot root, are imported separately. |
 | `NAS_CACHE_DIR` | `/tmp/nas-cache` | Optional on Vercel — the app already defaults to `/tmp/nas-cache` when `VERCEL=1`. Ephemeral scratch only. Grid previews are stored in Postgres (`media_thumbs`) so the next isolate does not re-download them from the NAS. |
 | `NAS_FS_ROOT` | unset on Vercel | Only on the machine that runs `npm run nas:renditions`. Local folder of the mounted share. Vercel does not transcode video. |
 | `NAS_FS_PREFIX` | unset on Vercel | NAS path prefix that sits above `NAS_FS_ROOT`. See README, "Video shape and lighter playback". |

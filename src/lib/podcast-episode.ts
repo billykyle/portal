@@ -98,6 +98,7 @@ export function isVerticalClip(file: Pick<PodcastFile, "filename" | "width" | "h
 }
 
 function isVideo(file: PodcastFile) {
+  if (file.type === "raw_video") return false;
   return file.type === "video" || VIDEO_EXT.test(file.filename);
 }
 

@@ -4,6 +4,7 @@ import {
   collectNasDeliverables,
   guessMediaType,
   isFloorPlanFolderName,
+  isRawVideoFolderName,
   isVideoFolderName,
   mediaImportFilename,
   selectFloorPlanFolders,
@@ -20,6 +21,8 @@ test("guesses type from extension, folder, then filename", () => {
   assert.equal(guessMediaType("Full-01.jpg", "Floor Plan"), "floor_plan");
   assert.equal(guessMediaType("layout.svg"), "floor_plan");
   assert.equal(guessMediaType("plan.pdf"), "floor_plan");
+  assert.equal(guessMediaType("A001.mov", "Raw Video"), "raw_video");
+  assert.equal(guessMediaType("A001.mov", "Video"), "video");
 });
 
 test("recognizes floor-plan and video folder names", () => {
@@ -32,6 +35,13 @@ test("recognizes floor-plan and video folder names", () => {
   assert.equal(isVideoFolderName("Videos"), true);
   assert.equal(isVideoFolderName("January Videos"), true);
   assert.equal(isVideoFolderName("Photos"), false);
+  assert.equal(isVideoFolderName("Raw Video"), false);
+  assert.equal(isRawVideoFolderName("Raw Video"), true);
+  assert.equal(isRawVideoFolderName("Raw Videos"), true);
+  assert.equal(isRawVideoFolderName("raw-video"), true);
+  assert.equal(isRawVideoFolderName("raw_video"), true);
+  assert.equal(isRawVideoFolderName("Video"), false);
+  assert.equal(isRawVideoFolderName("January Videos"), false);
 });
 
 test("picks the first preferred stills folder", () => {
@@ -193,6 +203,50 @@ test("imports a video-only monthly folder and a 3D floorplan sibling", async () 
       ["photo", "Full-1.jpg"],
       ["floor_plan", "Floor Plan/1st_floor.jpg"],
       ["floor_plan", "3D Floorplan/2nd_floor.png"],
+    ],
+  );
+});
+
+test("imports a Raw Video sibling as raw clips and leaves finished video alone", async () => {
+  const shoot = "/share/Sam/2026.09.12 - 14 Harbor Lane";
+  const files = await collectNasDeliverables({
+    shootFolderPath: shoot,
+    stillsFolders: ["Final", "Photos"],
+    list: (dir) => {
+      if (dir === shoot) {
+        return [
+          { name: "Final", path: `${shoot}/Final`, isDir: true },
+          { name: "Video", path: `${shoot}/Video`, isDir: true },
+          { name: "Raw Video", path: `${shoot}/Raw Video`, isDir: true },
+          { name: "14 Harbor Lane.mov", path: `${shoot}/14 Harbor Lane.mov`, isDir: false },
+        ];
+      }
+      if (dir === `${shoot}/Final`) {
+        return [{ name: "Full-01.jpg", path: `${shoot}/Final/Full-01.jpg`, isDir: false }];
+      }
+      if (dir === `${shoot}/Video`) {
+        return [{ name: "tour.mp4", path: `${shoot}/Video/tour.mp4`, isDir: false }];
+      }
+      if (dir === `${shoot}/Raw Video`) {
+        return [
+          { name: "A001.mov", path: `${shoot}/Raw Video/A001.mov`, isDir: false },
+          { name: "selects", path: `${shoot}/Raw Video/selects`, isDir: true },
+        ];
+      }
+      if (dir === `${shoot}/Raw Video/selects`) {
+        return [{ name: "B002.mp4", path: `${shoot}/Raw Video/selects/B002.mp4`, isDir: false }];
+      }
+      return [];
+    },
+  });
+  assert.deepEqual(
+    files.map((file) => [file.type, file.name]),
+    [
+      ["photo", "Full-01.jpg"],
+      ["video", "14 Harbor Lane.mov"],
+      ["video", "Video/tour.mp4"],
+      ["raw_video", "Raw Video/A001.mov"],
+      ["raw_video", "Raw Video/selects/B002.mp4"],
     ],
   );
 });

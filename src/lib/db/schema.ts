@@ -1,6 +1,6 @@
 import { bigint, integer, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-export const mediaTypeEnum = pgEnum("media_type", ["photo", "video", "floor_plan", "audio"]);
+export const mediaTypeEnum = pgEnum("media_type", ["photo", "video", "floor_plan", "audio", "raw_video"]);
 
 export const clientCategoryEnum = pgEnum("client_category", [
   "real_estate",

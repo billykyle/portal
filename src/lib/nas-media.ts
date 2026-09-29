@@ -21,7 +21,17 @@ export function isFloorPlanFolderName(name: string) {
   return /(floor\s*plans?|floorplans?|\bplans?\b)/i.test(name);
 }
 
+/**
+ * Sibling folder Billy already uses for unedited clips.
+ * Accepted names: "Raw Video", "Raw Videos", and the same words with a space, hyphen, or underscore.
+ * This is not a finished `Video` / `Videos` folder.
+ */
+export function isRawVideoFolderName(name: string) {
+  return /\braw[\s_-]*videos?\b/i.test(name);
+}
+
 export function isVideoFolderName(name: string) {
+  if (isRawVideoFolderName(name)) return false;
   return /\bvideos?\b/i.test(name);
 }
 
@@ -44,7 +54,7 @@ export function isImportablePlan(name: string) {
 export function guessMediaType(filename: string, folderHint = ""): MediaType {
   const lower = filename.toLowerCase();
   if (AUDIO_EXT.test(lower)) return "audio";
-  if (VIDEO_EXT.test(lower)) return "video";
+  if (VIDEO_EXT.test(lower)) return isRawVideoFolderName(folderHint) ? "raw_video" : "video";
   if (isFloorPlanFolderName(folderHint) || /(floor|plan)/.test(lower) || /\.svg$/.test(lower) || /\.pdf$/.test(lower)) {
     return "floor_plan";
   }
@@ -62,6 +72,10 @@ export function selectFloorPlanFolders<T extends { name: string }>(dirs: T[]) {
 
 export function selectVideoFolders<T extends { name: string }>(dirs: T[]) {
   return dirs.filter((dir) => isVideoFolderName(dir.name));
+}
+
+export function selectRawVideoFolders<T extends { name: string }>(dirs: T[]) {
+  return dirs.filter((dir) => isRawVideoFolderName(dir.name));
 }
 
 export function mediaImportFilename(
@@ -103,7 +117,7 @@ async function collectMatchingFiles(
 /**
  * Photos from Final/Photos (first preferred match), floor plans from Floor Plan
  * (and 3D Floorplan) including nested folders, videos from the shoot root and
- * any Video/Videos folder.
+ * any Video/Videos folder, and raw clips from a sibling Raw Video folder.
  */
 export async function collectNasDeliverables(input: {
   shootFolderPath: string;
@@ -152,6 +166,13 @@ export async function collectNasDeliverables(input: {
     const videoFiles = await collectMatchingFiles(videoDir.path, isImportableVideo, input.list);
     for (const file of videoFiles) {
       push(file, "video", mediaImportFilename(file.path, file.name, shoot, stills?.path ?? null));
+    }
+  }
+
+  for (const rawDir of selectRawVideoFolders(dirs)) {
+    const rawFiles = await collectMatchingFiles(rawDir.path, isImportableVideo, input.list);
+    for (const file of rawFiles) {
+      push(file, "raw_video", mediaImportFilename(file.path, file.name, shoot, stills?.path ?? null));
     }
   }
 

@@ -67,13 +67,15 @@ export function summarizeMedia(items: MediaInventoryItem[]) {
   const photos = pick("photo");
   const floorPlans = pick("floor_plan");
   const videos = pick("video");
+  const rawVideos = pick("raw_video");
   const counts = {
     photo: photos.length,
     floor_plan: floorPlans.length,
     video: videos.length,
+    raw_video: rawVideos.length,
     total: sorted.length,
   };
-  return { counts, ready: counts.total > 0, photos, floorPlans, videos };
+  return { counts, ready: counts.total > 0, photos, floorPlans, videos, rawVideos };
 }
 
 export function shootShare(token: string) {

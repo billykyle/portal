@@ -1,4 +1,4 @@
-export const ZIP_MEDIA_TYPES = ["photo", "floor_plan", "video"] as const;
+export const ZIP_MEDIA_TYPES = ["photo", "floor_plan", "video", "raw_video"] as const;
 export type ZipMediaType = (typeof ZIP_MEDIA_TYPES)[number];
 
 export type TypedDownloadFile = {
@@ -9,6 +9,7 @@ export type TypedDownloadFile = {
 
 export function zipTypeLabel(type: string) {
   if (type === "floor_plan") return "Floor plans";
+  if (type === "raw_video") return "Raw video";
   if (type === "video") return "Video";
   return "Photos";
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ShootMedia } from "@/components/shoot-detail";
+import { isShootGalleryType } from "@/lib/media";
 import type { PlayerRendition } from "@/components/video-player";
 
 export type TemplateClient = {
@@ -25,7 +26,7 @@ export type TemplateMedia = {
   url: string;
   thumbUrl?: string;
   filename: string;
-  type: "photo" | "video" | "floor_plan" | "audio";
+  type: "photo" | "video" | "floor_plan" | "audio" | "raw_video";
   width?: number | null;
   height?: number | null;
   sortOrder: number;
@@ -61,7 +62,7 @@ export type ContentTemplate = {
 
 export function galleryMedia(media: TemplateMedia[]): ShootMedia[] {
   return media.flatMap((item) => {
-    if (item.type !== "photo" && item.type !== "video" && item.type !== "floor_plan") return [];
+    if (!isShootGalleryType(item.type)) return [];
     return [
       {
         id: item.id,
