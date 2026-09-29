@@ -1,0 +1,302 @@
+import assert from "node:assert/strict";
+import { afterEach, test } from "node:test";
+import { DEFAULT_BOOKING_NOTIFY_EMAIL } from "@/lib/email";
+import { filesReceivedMessage, formatBytes, moveFailedMessage } from "@/lib/upload/mail";
+import { moveSubmission, MOVE_CHUNK_BYTES, notificationFor } from "@/lib/upload/move";
+import {
+  findUploadDirectory,
+  NAS_UPLOADS_PATH,
+  sanitizeFileName,
+  sanitizeUploadLabel,
+  sanitizeUploadName,
+  submissionFolderBase,
+  uniqueFileName,
+  uniqueFolderName,
+  uploadBlobPath,
+} from "@/lib/upload/names";
+import {
+  consumeUploadRate,
+  DEFAULT_UPLOAD_MAX_BYTES,
+  parseUploadRequest,
+  resetUploadRateForTests,
+  UPLOAD_RATE_LIMIT,
+} from "@/lib/upload/policy";
+import { authorizeBlobUpload } from "@/lib/upload/token";
+
+afterEach(() => {
+  resetUploadRateForTests();
+  delete process.env.UPLOAD_MAX_BYTES;
+});
+
+test("labels, file names, and folder names stay a single safe segment", () => {
+  assert.deepEqual(sanitizeUploadName("  Alex  "), { ok: true, value: "Alex" });
+  assert.equal(sanitizeUploadName("   ").ok, false);
+  assert.deepEqual(sanitizeUploadName("Alex/Kim"), { ok: true, value: "Alex Kim" });
+  assert.deepEqual(sanitizeUploadLabel("  Headshots  "), { ok: true, value: "Headshots" });
+  assert.equal(sanitizeUploadLabel("   ").ok, false);
+  assert.equal(sanitizeUploadLabel("a".repeat(81)).ok, false);
+  assert.equal(sanitizeFileName("../../etc/passwd"), "passwd");
+  assert.equal(sanitizeFileName("..\\notes?.pdf"), "notes.pdf");
+  assert.equal(sanitizeFileName("   "), "file");
+  assert.equal(uniqueFileName("a.jpg", ["a.jpg"]), "a-2.jpg");
+  assert.equal(uniqueFileName("a.jpg", ["a.jpg", "a-2.jpg"]), "a-3.jpg");
+  const base = submissionFolderBase({
+    label: "Headshots",
+    name: "Alex Kim",
+  });
+  assert.equal(base, "Headshots - Alex Kim");
+  assert.equal(base.includes("@"), false);
+  assert.equal(uniqueFolderName(base, []), base);
+  assert.equal(uniqueFolderName(base, [base]), `${base}-2`);
+  assert.equal(uniqueFolderName(base, [base, `${base}-2`]), `${base}-3`);
+  assert.equal(uploadBlobPath("sub", "file", "a.jpg"), "uploads/sub/file/a.jpg");
+  assert.equal(
+    findUploadDirectory([
+      { name: "Upload", path: "/share/Upload", isDir: true },
+      { name: "Uploads", path: NAS_UPLOADS_PATH, isDir: true },
+    ])?.path,
+    NAS_UPLOADS_PATH,
+  );
+  assert.equal(findUploadDirectory([{ name: "upload", path: "/share/upload", isDir: true }]), null);
+  assert.equal(findUploadDirectory([{ name: "Uploads", path: NAS_UPLOADS_PATH, isDir: false }]), null);
+});
+
+test("request validation requires a name, a real email, a label, and sized files", () => {
+  const ok = parseUploadRequest(
+    {
+      name: " Alex ",
+      label: " Selects ",
+      email: "Guest@Example.com",
+      files: [
+        { name: "../a.jpg", size: 10 },
+        { name: "a.jpg", size: 20 },
+      ],
+    },
+    { maxBytes: 100, maxFiles: 5, maxTotalBytes: 100 },
+  );
+  assert.equal(ok.ok, true);
+  if (!ok.ok) return;
+  assert.equal(ok.name, "Alex");
+  assert.equal(ok.email, "guest@example.com");
+  assert.equal(ok.label, "Selects");
+  assert.deepEqual(
+    ok.files.map((file) => file.safeName),
+    ["a.jpg", "a-2.jpg"],
+  );
+  const missingName = parseUploadRequest({ name: "", label: "Cut", email: "a@b.co", files: [{ name: "a", size: 1 }] });
+  assert.equal(missingName.ok, false);
+  if (!missingName.ok) assert.equal(missingName.error, "Enter your name.");
+  const badEmail = parseUploadRequest({ name: "Alex", label: "Cut", email: "not-an-email", files: [{ name: "a", size: 1 }] });
+  assert.equal(badEmail.ok, false);
+  if (!badEmail.ok) assert.equal(badEmail.error, "Enter a valid email.");
+  assert.equal(parseUploadRequest({ name: "Alex", label: "Cut", email: "a@pending.local", files: [{ name: "a", size: 1 }] }).ok, false);
+  const missingLabel = parseUploadRequest({ name: "Alex", label: "", email: "a@b.co", files: [{ name: "a", size: 1 }] });
+  assert.equal(missingLabel.ok, false);
+  if (!missingLabel.ok) assert.equal(missingLabel.error, "Enter what you are uploading.");
+  assert.equal(parseUploadRequest({ name: "Alex", label: "Cut", email: "a@b.co", files: [] }).ok, false);
+  assert.equal(
+    parseUploadRequest({ name: "Alex", label: "Cut", email: "a@b.co", files: [{ name: "a", size: 101 }] }, {
+      maxBytes: 100,
+      maxFiles: 5,
+      maxTotalBytes: 1000,
+    }).ok,
+    false,
+  );
+  assert.equal(DEFAULT_UPLOAD_MAX_BYTES, 50 * 1024 * 1024 * 1024);
+});
+
+test("rate limit allows a handful of submissions per hour", () => {
+  for (let i = 0; i < UPLOAD_RATE_LIMIT; i += 1) {
+    assert.equal(consumeUploadRate("198.51.100.8", 1_000).ok, true);
+  }
+  const blocked = consumeUploadRate("198.51.100.8", 1_000);
+  assert.equal(blocked.ok, false);
+  assert.equal(consumeUploadRate("198.51.100.9", 1_000).ok, true);
+});
+
+test("blob tokens only match the reserved pathname", () => {
+  const files = [{ id: "file-1", blobPathname: "uploads/sub/file-1/a.jpg", sizeBytes: 12, status: "pending" }];
+  assert.deepEqual(
+    authorizeBlobUpload({
+      pathname: "uploads/sub/file-1/a.jpg",
+      clientPayload: JSON.stringify({ submissionId: "sub", fileId: "file-1" }),
+      submissionStatus: "open",
+      files,
+    }),
+    { ok: true, sizeBytes: 12 },
+  );
+  assert.equal(
+    authorizeBlobUpload({
+      pathname: "uploads/other/a.jpg",
+      clientPayload: JSON.stringify({ fileId: "file-1" }),
+      submissionStatus: "open",
+      files,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    authorizeBlobUpload({
+      pathname: files[0].blobPathname,
+      clientPayload: JSON.stringify({ fileId: "file-1" }),
+      submissionStatus: "staged",
+      files,
+    }).ok,
+    false,
+  );
+});
+
+function memoryDeps(options?: {
+  uploadPath?: string;
+  existing?: string[];
+  mkdir?: { ok: true } | { ok: false; reason: string };
+  stat?: number | null;
+  budgetBytes?: number;
+}) {
+  const store = new Map<string, Uint8Array>();
+  const deleted: string[] = [];
+  const reads: number[] = [];
+  const deps = {
+    locate: async () =>
+      options?.uploadPath === ""
+        ? { ok: false as const, reason: "No folder named upload on the NAS share." }
+        : { ok: true as const, path: options?.uploadPath ?? "/share/upload" },
+    listNames: async () => options?.existing ?? [],
+    mkdir: async () => options?.mkdir ?? { ok: true as const },
+    readChunk: async ({ begin, length }: { begin: number; length: number }) => {
+      reads.push(begin);
+      return new Uint8Array(length).fill(7);
+    },
+    writeChunk: async ({
+      name,
+      begin,
+      bytes,
+    }: {
+      name: string;
+      begin: number;
+      bytes: Uint8Array;
+    }) => {
+      const current = store.get(name) ?? new Uint8Array(0);
+      const next = new Uint8Array(begin + bytes.byteLength);
+      next.set(current.subarray(0, begin));
+      next.set(bytes, begin);
+      store.set(name, next);
+      return { ok: true as const };
+    },
+    statSize: async (_dir: string, name: string) => {
+      if (options && "stat" in options) return options.stat ?? null;
+      return store.get(name)?.byteLength ?? null;
+    },
+    deleteBlob: async (pathname: string) => {
+      deleted.push(pathname);
+    },
+    budgetBytes: options?.budgetBytes,
+  };
+  return { deps, store, deleted, reads };
+}
+
+test("a finished copy verifies size, deletes blobs, and names the NAS folder", async () => {
+  const { deps, deleted } = memoryDeps({ uploadPath: NAS_UPLOADS_PATH });
+  const result = await moveSubmission({
+    folderName: "Headshots - Alex",
+    files: [
+      {
+        id: "1",
+        safeName: "a.jpg",
+        size: 4,
+        blobPathname: "uploads/sub/1/a.jpg",
+        copiedBytes: 0,
+      },
+    ],
+    deps,
+  });
+  assert.equal(result.status, "stored");
+  if (result.status !== "stored") return;
+  assert.equal(result.nasPath, `${NAS_UPLOADS_PATH}/Headshots - Alex`);
+  assert.deepEqual(deleted, ["uploads/sub/1/a.jpg"]);
+  assert.equal(notificationFor(result, { receivedNotifiedAt: null, failureNotifiedAt: null }), "received");
+});
+
+test("an existing NAS folder is kept by appending -2 and blobs stay when mkdir fails", async () => {
+  const base = "Headshots - Alex";
+  const blocked = memoryDeps({
+    existing: [base],
+    mkdir: { ok: false, reason: "NAS could not create the folder (1010 Token cannot be empty!)." },
+  });
+  const failed = await moveSubmission({
+    folderName: base,
+    files: [{ id: "1", safeName: "a.jpg", size: 4, blobPathname: "uploads/a", copiedBytes: 0 }],
+    deps: blocked.deps,
+  });
+  assert.equal(failed.status, "failed");
+  if (failed.status !== "failed") return;
+  assert.equal(failed.folderName, `${base}-2`);
+  assert.equal(blocked.deleted.length, 0);
+  assert.equal(blocked.reads.length, 0);
+  assert.equal(notificationFor(failed, { receivedNotifiedAt: null, failureNotifiedAt: null }), "failed");
+  assert.equal(notificationFor(failed, { receivedNotifiedAt: null, failureNotifiedAt: new Date() }), "none");
+});
+
+test("a size mismatch keeps the blob", async () => {
+  const { deps, deleted } = memoryDeps({ stat: 1 });
+  const result = await moveSubmission({
+    folderName: "Cut - Alex",
+    files: [{ id: "1", safeName: "a.jpg", size: 4, blobPathname: "uploads/a", copiedBytes: 0 }],
+    deps,
+  });
+  assert.equal(result.status, "failed");
+  assert.equal(deleted.length, 0);
+});
+
+test("a byte budget stops mid-file without emailing or deleting", async () => {
+  const { deps, deleted } = memoryDeps({ budgetBytes: MOVE_CHUNK_BYTES });
+  const result = await moveSubmission({
+    folderName: "Cut - Alex",
+    files: [
+      {
+        id: "1",
+        safeName: "big.bin",
+        size: MOVE_CHUNK_BYTES * 3,
+        blobPathname: "uploads/big",
+        copiedBytes: 0,
+      },
+    ],
+    deps,
+  });
+  assert.equal(result.status, "partial");
+  if (result.status !== "partial") return;
+  assert.equal(result.copied[0]?.copiedBytes, MOVE_CHUNK_BYTES);
+  assert.equal(deleted.length, 0);
+  assert.equal(notificationFor(result, { receivedNotifiedAt: null, failureNotifiedAt: null }), "none");
+});
+
+test("Billy's notice is one email and includes the folder", () => {
+  const received = filesReceivedMessage({
+    name: "Alex Kim",
+    label: "Headshots",
+    email: "guest@example.com",
+    fileCount: 2,
+    totalBytes: 1536,
+    nasPath: "/share/upload/Headshots - Alex Kim",
+  });
+  assert.equal(received.to, DEFAULT_BOOKING_NOTIFY_EMAIL);
+  assert.equal(received.subject, "Files received");
+  assert.match(received.text, /Name: Alex Kim/);
+  assert.match(received.text, /Email: guest@example.com/);
+  assert.match(received.text, /What: Headshots/);
+  assert.match(received.text, /Files: 2/);
+  assert.match(received.text, /\/share\/upload\/Headshots - Alex Kim/);
+  assert.equal(formatBytes(1536), "1.5 KB");
+  const failed = moveFailedMessage({
+    name: "Alex Kim",
+    label: "Headshots",
+    email: "guest@example.com",
+    fileCount: 2,
+    totalBytes: 1536,
+    nasPath: "",
+    reason: "No folder named upload on the NAS share.",
+  });
+  assert.equal(failed.to, DEFAULT_BOOKING_NOTIFY_EMAIL);
+  assert.equal(failed.subject, "Upload move failed");
+  assert.match(failed.text, /No folder named upload/);
+  assert.match(failed.text, /cloud storage/);
+});
