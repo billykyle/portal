@@ -19,6 +19,7 @@ export type ShootMedia = {
   type: "photo" | "video" | "floor_plan" | "raw_video";
   width?: number | null;
   height?: number | null;
+  byteSize?: number | null;
   renditions?: PlayerRendition[];
 };
 

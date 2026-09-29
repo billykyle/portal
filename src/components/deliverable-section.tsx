@@ -27,11 +27,14 @@ export function requestShootSection(id: string) {
 export function DeliverableSection({
   id,
   label,
+  detail,
   defaultOpen,
   children,
 }: {
   id: string;
   label: string;
+  /** Extra header text. Only Raw video uses this. */
+  detail?: string;
   defaultOpen: boolean;
   children: React.ReactNode;
 }) {
@@ -40,7 +43,9 @@ export function DeliverableSection({
   const [open, setOpen] = useState(defaultOpen);
   const [seenDefault, setSeenDefault] = useState(defaultOpen);
   const openRef = useRef(open);
-  openRef.current = open;
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
   if (defaultOpen !== seenDefault) {
     setSeenDefault(defaultOpen);
     if (defaultOpen) setOpen(true);
@@ -95,7 +100,10 @@ export function DeliverableSection({
           aria-controls={panelId}
           onClick={() => remember(!open)}
         >
-          <span className={sectionLabelTextClass}>{label}</span>
+          <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <span className={sectionLabelTextClass}>{label}</span>
+            {detail ? <span className="text-sm tabular-nums text-[#c7c7cc]">{detail}</span> : null}
+          </span>
           <ChevronRight
             aria-hidden="true"
             className={cn(

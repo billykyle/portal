@@ -100,6 +100,7 @@ export async function importNasStills(
           sortOrder,
           type: file.type,
           url: `/api/media/${prev.id}`,
+          byteSize: file.size > 0 ? file.size : null,
         })
         .where(eq(media.id, prev.id));
       updated += 1;
@@ -112,6 +113,7 @@ export async function importNasStills(
         filename: file.name,
         url: `/api/media/${id}`,
         nasRelativePath: file.path,
+        byteSize: file.size > 0 ? file.size : null,
         sortOrder,
       });
     }

@@ -1,6 +1,7 @@
 import { DeliverableSection } from "@/components/deliverable-section";
 import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
 import { mediaLabel, mediaSectionId } from "@/lib/media";
+import { rawVideoHeaderDetail } from "@/lib/raw-video-size";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
 export type RawVideoItem = {
@@ -9,6 +10,7 @@ export type RawVideoItem = {
   filename: string;
   width?: number | null;
   height?: number | null;
+  byteSize?: number | null;
   renditions?: PlayerRendition[];
 };
 
@@ -39,6 +41,7 @@ export function RawVideoSection({
     <DeliverableSection
       id={id}
       label={mediaLabel("raw_video")}
+      detail={rawVideoHeaderDetail(videos)}
       defaultOpen={shootSectionStartsOpen(closed, id)}
     >
       <div className="flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start">

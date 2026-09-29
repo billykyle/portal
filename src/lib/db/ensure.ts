@@ -105,6 +105,7 @@ async function createTables() {
   `;
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS width integer`;
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS height integer`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS byte_size bigint`;
   await sql`
     CREATE TABLE IF NOT EXISTS media_renditions (
       media_id uuid NOT NULL REFERENCES media(id) ON DELETE CASCADE,

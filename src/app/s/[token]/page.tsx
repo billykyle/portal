@@ -79,6 +79,7 @@ export default async function PublicShootPage({
               thumbUrl: resolveMediaThumbUrl(item),
               width: item.width,
               height: item.height,
+              byteSize: item.byteSize,
               renditions: playback.get(item.id) ?? [],
             },
           ];

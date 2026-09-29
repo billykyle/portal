@@ -9,12 +9,15 @@ export type ListedNasEntry = {
   name: string;
   path: string;
   isDir: boolean;
+  /** Bytes from the NAS listing, when that call included a size. */
+  size?: number;
 };
 
 export type NasDeliverable = {
   name: string;
   path: string;
   type: MediaType;
+  byteSize: number | null;
 };
 
 export function isFloorPlanFolderName(name: string) {
@@ -135,7 +138,13 @@ export async function collectNasDeliverables(input: {
   const push = (file: ListedNasEntry, type: MediaType, importName: string) => {
     if (seen.has(file.path)) return;
     seen.add(file.path);
-    out.push({ name: importName, path: file.path, type });
+    const size = file.size;
+    out.push({
+      name: importName,
+      path: file.path,
+      type,
+      byteSize: typeof size === "number" && Number.isFinite(size) && size >= 0 ? Math.round(size) : null,
+    });
   };
 
   if (stills) {
