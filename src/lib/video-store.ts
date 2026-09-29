@@ -23,6 +23,7 @@ export async function listVideoRenditions(mediaIds: string[]): Promise<StoredRen
 }
 
 export async function videoPlaybackById(files: readonly { id: string; type: string }[]) {
+  // Finished video only. Raw clips stay on the original file (no lighter rendition).
   const ids = files.filter((file) => file.type === "video").map((file) => file.id);
   const rows = await listVideoRenditions(ids);
   const map = new Map<string, { quality: VideoQuality; url: string }[]>();

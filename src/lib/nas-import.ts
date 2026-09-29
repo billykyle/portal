@@ -73,7 +73,7 @@ export async function importNasStills(
   const files = options.files ?? (await listNasMedia(shootFolderPath));
   if (files.length === 0) {
     if (options.required) {
-      throw new Error(`No photos, floor plans, or video under ${shootFolderPath}.`);
+      throw new Error(`No photos, floor plans, video, or raw video under ${shootFolderPath}.`);
     }
     return { imported: 0, updated: 0, removed: 0, total: 0 };
   }
@@ -208,7 +208,7 @@ async function upsertShoot(input: {
 
 /**
  * Walk `Client Deliverables / {client} / {date} - {address}` for Final|Photos
- * stills, Floor Plan folders, and video files. NAS is the source of truth:
+ * stills, Floor Plan folders, finished video, and Raw Video clips. NAS is the source of truth:
  * new drops appear, files gone from the share are removed from the portal,
  * and shoots with no matching folder are pruned.
  */
@@ -264,10 +264,10 @@ export async function syncNasShare(): Promise<NasSyncResult> {
           await db.delete(shoots).where(eq(shoots.id, empty.id));
           result.shootsRemoved += 1;
           result.warnings.push(
-            `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no photos, floor plans, or video on NAS).`,
+            `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no photos, floor plans, video, or raw video on NAS).`,
           );
         } else {
-          result.warnings.push(`Skipped ${nasRelativePath} — no photos, floor plans, or video.`);
+          result.warnings.push(`Skipped ${nasRelativePath} — no photos, floor plans, video, or raw video.`);
         }
         continue;
       }
@@ -294,7 +294,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
         seenShootIds.delete(shoot.id);
         result.shootsRemoved += 1;
         result.warnings.push(
-          `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no photos, floor plans, or video on NAS).`,
+          `Removed empty shoot ${parsed.shotDate} — ${parsed.address} (no photos, floor plans, video, or raw video on NAS).`,
         );
         continue;
       }

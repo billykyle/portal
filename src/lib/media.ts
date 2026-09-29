@@ -50,14 +50,21 @@ export function shootFolderName(shotDate: string, address: string) {
 
 export function mediaLabel(type: string) {
   if (type === "floor_plan") return "Floor plans";
+  if (type === "raw_video") return "Raw video";
   if (type === "video") return "Video";
   return "Photos";
 }
 
 export function mediaSectionId(type: string) {
   if (type === "floor_plan") return "floor-plans";
+  if (type === "raw_video") return "raw-video";
   if (type === "video") return "video";
   return "photos";
+}
+
+/** Types drawn on the photo / plan / video shoot page. Audio stays on the podcast layout. */
+export function isShootGalleryType(type: string): type is "photo" | "video" | "floor_plan" | "raw_video" {
+  return type === "photo" || type === "video" || type === "floor_plan" || type === "raw_video";
 }
 
 export function isPdfFilename(filename: string) {

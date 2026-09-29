@@ -11,7 +11,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 3. Forgot password — email reset link (or an on-screen link when email is not configured).
 4. Hub — after sign-in, exactly two choices: **My Content** and **Scheduling**.
 5. My Content — the existing library: every shoot for that invite code, labeled date + address, newest first.
-6. Shoot — in-app photo viewer, inline video, floor plans, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
+6. Shoot — in-app photo viewer, inline video, floor plans, raw video clips, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video / Raw video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
 7. Scheduling — two steps. **Step 1** (`/scheduling`): expand Real Estate, Construction, or Podcast. Real Estate and Construction stay multi-select; Podcast is one of **1 episode** or **2 episodes**. Type a single shoot address (Places Autocomplete fills the same field — not split street/city/state/ZIP). Availability prefetch starts once the address and at least one service are valid. **Step 2** (`/scheduling/times`): available times only after that address is set; last good slots stay on screen while times refresh. Slot length is the **sum** of selected service minutes, never longest-only. Upcoming bookings show every selected option as `Industry · Option` (for example `Real Estate · Photography` or `Podcast · 1 episode`). Travel hard-block is live drive time only (Google Maps when `GOOGLE_MAPS_API_KEY` is set); there is no extra pad. Google Calendar is source of truth when wired: work `billy@atmosimagery.com` **and** personal `bkyle015@gmail.com` — a time is busy if either calendar is busy. US Holidays is not used. Geography is never guessed. No prices in this flow. After **Book shoot**, if `RESEND_API_KEY` is set, the portal sends **two** Resend emails (no CC/BCC): a client confirmation to the session email, and a `New shoot: …` alert to `billy@billyhere.com` (or `BOOKING_NOTIFY_EMAIL`). A Calendar or email failure does not undo the saved shoot, but the confirmation page says so instead of looking fully successful. Billy also gets `Portal booking sync issue` (or a `PORTAL_BOOKING_SYNC_ALERT` log plus an admin `sync_issue` flag if that alert cannot send). Calendar writes use a deterministic event id so retries do not double-create. A Workspace Admin must allow external calendar edit sharing (or domain-wide delegation) for live Calendar create. Pepper is not required.
 8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
 9. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, or creates a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
@@ -22,7 +22,7 @@ Invite codes are the client primary key. They start at **BK00001** and increment
 
 Billy’s end-to-end path (this is the product, not a future maybe):
 
-1. Drop stills for a client into **Client Deliverables / {client} / {date} - {address} / Final** (or `Photos`). Put floor plans in **Floor Plan** (nested folders are fine) and video as `.mp4`/`.mov` on that shoot folder.
+1. Drop stills for a client into **Client Deliverables / {client} / {date} - {address} / Final** (or `Photos`). Put floor plans in **Floor Plan** (nested folders are fine), finished video as `.mp4`/`.mov` on that shoot folder, and unedited clips in **Raw Video**.
 2. Sync (`npm run nas:sync` or **Sync from NAS** in admin). The portal upserts the client, creates the shoot + public link, and imports JPGs.
 3. A delivery email goes out with that portal link.
 
@@ -201,6 +201,7 @@ Client Deliverables /
       3D Floorplan/             → more floor plans
       *.mp4  *.mov              → video sitting on the shoot folder
       Video/  or  Videos/       → video in a sibling folder
+      Raw Video/                → raw clips (also Raw Videos, raw-video, raw_video)
     {YYYY.MM.DD} - {Month} Videos /
       *.mp4  *.mov              → video-only shoot (same date - address rule)
 ```
@@ -210,9 +211,10 @@ Client Deliverables /
 - **Photos** come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`).
 - **Floor plans** come from any sibling folder whose name matches `Floor Plan`, `Floorplan`, `3D Floorplan`, or `Plans`, including nested folders. JPGs, PNGs, SVG, and PDF are imported. Nested copies (`W sqft` / `Wo sqft`, `jpg-with-dim` / `jpg-without-dim`) are all kept; the portal filename includes the relative path so they do not overwrite each other.
 - **Video** comes from `.mp4` / `.mov` / `.webm` / `.m4v` on the shoot folder itself, inside a `Video`/`Videos` folder, or inside Final/Photos. Monthly `{date} - January Videos` folders are valid shoots.
-- A file is typed by extension first (video), then by the folder it lives in (floor plan), then by `floor`/`plan` in the filename, otherwise photo.
+- **Raw video** comes from a sibling folder named `Raw Video` or `Raw Videos` (a hyphen or underscore is fine: `raw-video`, `raw_video`). Nested files are kept. Those clips are not finished video, so they are not transcoded and the shoot page lists them in their own section at the bottom. A shoot that only has this folder is still created.
+- A file is typed by extension first (video, or raw video when the folder name is Raw Video), then by the folder it lives in (floor plan), then by `floor`/`plan` in the filename, otherwise photo.
 - Folders that are not `date - address` are skipped (logged as warnings). Client-level `Floor Plan` or `Photos` buckets that are not a shoot folder are ignored.
-- **NAS is the source of truth for files.** Sync adds new photos, floor plans, and video, updates paths, and deletes portal files that are not on the share (including leftover `/samples/` placeholders). A shoot is created when any of those files exist — empty NAS folders do not become 0-file portal shoots, and existing empty ones are removed. Shoots with no matching NAS folder are removed. Clients are not deleted if their folder disappears. If the share walk returns zero client folders, orphan prune is skipped so a failed listing cannot wipe the library.
+- **NAS is the source of truth for files.** Sync adds new photos, floor plans, video, and raw video, updates paths, and deletes portal files that are not on the share (including leftover `/samples/` placeholders). A shoot is created when any of those files exist — empty NAS folders do not become 0-file portal shoots, and existing empty ones are removed. Shoots with no matching NAS folder are removed. Clients are not deleted if their folder disappears. If the share walk returns zero client folders, orphan prune is skipped so a failed listing cannot wipe the library.
 
 ### Clear demo / test shoots on BK00001
 

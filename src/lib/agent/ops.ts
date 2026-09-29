@@ -203,7 +203,7 @@ export type ShootSummary = {
   publicToken: string;
   publicUrl: string;
   portalUrl: string;
-  mediaCounts: { photo: number; floor_plan: number; video: number; total: number };
+  mediaCounts: { photo: number; floor_plan: number; video: number; raw_video: number; total: number };
   ready: boolean;
 };
 
@@ -211,6 +211,7 @@ export type ShootDetail = ShootSummary & {
   photos: { id: string; filename: string; sortOrder: number }[];
   floorPlans: { id: string; filename: string; sortOrder: number }[];
   videos: { id: string; filename: string; sortOrder: number }[];
+  rawVideos: { id: string; filename: string; sortOrder: number }[];
 };
 
 function summaryFrom(client: {
@@ -556,6 +557,7 @@ export const portalAgentOps: AgentOps = {
         photos: media.photos,
         floorPlans: media.floorPlans,
         videos: media.videos,
+        rawVideos: media.rawVideos,
       },
     };
   },

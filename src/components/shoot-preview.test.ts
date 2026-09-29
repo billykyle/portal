@@ -4,6 +4,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 import { parseClosedShootSections, serializeClosedShootSections, shootSectionStartsOpen } from "@/lib/shoot-sections";
+import { defaultTemplate } from "./templates/default-template";
+import { podcastTemplate } from "./templates/podcast-template";
+import { realEstateTemplate } from "./templates/real-estate-template";
 import { ViewerStill } from "./photo-viewer";
 import { ShootDetail, type ShootMedia } from "./shoot-detail";
 
@@ -288,6 +291,160 @@ test("a closed deliverable section stays in the jump list and skips its thumbnai
   assert.match(plans, /aria-expanded="false"/);
   assert.doesNotMatch(plans, /src="\/plans\/level-1\.pdf"/);
   assert.doesNotMatch(plans, /<img\b/);
+});
+
+const mixedMedia: ShootMedia[] = [
+  ...media,
+  {
+    id: "vid-1",
+    url: "/api/media/vid-1",
+    filename: "walkthrough.mp4",
+    type: "video",
+    width: 1920,
+    height: 1080,
+    renditions: [{ quality: "720", url: "/api/media/vid-1?rendition=720" }],
+  },
+  {
+    id: "raw-1",
+    url: "/api/media/raw-1",
+    filename: "Raw Video/A001.mov",
+    type: "raw_video",
+    width: 3840,
+    height: 2160,
+  },
+  {
+    id: "raw-2",
+    url: "/api/media/raw-2",
+    filename: "Raw Video/A002.mov",
+    type: "raw_video",
+  },
+];
+
+function sectionOrder(html: string) {
+  return ["photos", "floor-plans", "video", "raw-video"].filter((id) => html.includes(`id="${id}"`));
+}
+
+test("raw video is a last section with a jump link, and it is hidden when absent", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media: mixedMedia,
+    }),
+  );
+  assert.deepEqual(sectionOrder(html), ["photos", "floor-plans", "video", "raw-video"]);
+  const jumps = html.slice(html.indexOf('aria-label="Media on this shoot"'), html.indexOf('id="photos"'));
+  assert.match(jumps, /Photos \(2\)/);
+  assert.match(jumps, /Floor plans \(1\)/);
+  assert.match(jumps, /Video \(1\)/);
+  assert.match(jumps, /Raw video \(2\)/);
+  assert.ok(jumps.indexOf("Video (1)") < jumps.indexOf("Raw video (2)"));
+  assert.ok(jumps.lastIndexOf("Raw video (2)") > jumps.lastIndexOf("Floor plans (1)"));
+  const raw = html.slice(html.indexOf('id="raw-video"'));
+  assert.match(raw, /aria-expanded="true"/);
+  assert.match(raw, />Raw video</);
+  assert.match(raw, /<source[^>]*src="\/api\/media\/raw-1"/);
+  assert.match(raw, /<source[^>]*src="\/api\/media\/raw-2"/);
+  assert.match(raw, /href="\/api\/media\/raw-1"/);
+  assert.match(raw, /href="\/api\/media\/raw-2"/);
+  assert.doesNotMatch(raw, /rendition=|Playback quality|<select|>Original</);
+  const finished = html.slice(html.indexOf('id="video"'), html.indexOf('id="raw-video"'));
+  assert.match(finished, /src="\/api\/media\/vid-1\?rendition=720"/);
+  assert.doesNotMatch(renderShoot(), /Raw video|id="raw-video"/);
+});
+
+test("a closed raw video section stays in the jump list and skips its players", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media: mixedMedia,
+      closedSectionIds: ["raw-video"],
+    }),
+  );
+  assert.match(html, /href="#raw-video"/);
+  assert.match(html, /Raw video \(2\)/);
+  const raw = html.slice(html.indexOf('id="raw-video"'));
+  assert.match(raw, /aria-expanded="false"/);
+  assert.doesNotMatch(raw, /<video\b|<source\b/);
+});
+
+test("real estate, default, and podcast layouts pin raw video last", () => {
+  const shared = {
+    basePath: "/my-content/harbor",
+    address: "14 Harbor Lane",
+    dateLabel: "Sep 12, 2026",
+    folderName: "2026-09-12 - 14 Harbor Lane",
+    media: mixedMedia.map((item, index) => ({ ...item, sortOrder: index })),
+  };
+  const realEstate = renderToStaticMarkup(createElement(realEstateTemplate.Shoot, shared));
+  const construction = renderToStaticMarkup(createElement(defaultTemplate.Shoot, shared));
+  assert.deepEqual(sectionOrder(realEstate), ["photos", "floor-plans", "video", "raw-video"]);
+  assert.deepEqual(sectionOrder(construction), ["photos", "floor-plans", "video", "raw-video"]);
+  assert.match(realEstate, /Raw video \(2\)/);
+  assert.match(construction, /Raw video \(2\)/);
+
+  const episode = renderToStaticMarkup(
+    createElement(podcastTemplate.Shoot, {
+      ...shared,
+      address: "Episode 4 with Jonah Hale",
+      media: [
+        {
+          id: "full",
+          url: "/api/media/full",
+          filename: "full-episode.mp4",
+          type: "video" as const,
+          sortOrder: 0,
+          width: 1920,
+          height: 1080,
+        },
+        {
+          id: "clip",
+          url: "/api/media/clip",
+          filename: "clip.mp4",
+          type: "video" as const,
+          sortOrder: 1,
+          width: 1080,
+          height: 1920,
+        },
+        {
+          id: "still",
+          url: "/thumbs/cover.jpg",
+          filename: "cover.jpg",
+          type: "photo" as const,
+          sortOrder: 2,
+        },
+        {
+          id: "raw-1",
+          url: "/api/media/raw-1",
+          filename: "Raw Video/A001.mov",
+          type: "raw_video" as const,
+          sortOrder: 3,
+        },
+      ],
+    }),
+  );
+  const fullAt = episode.indexOf('id="full-episode"');
+  const clipsAt = episode.indexOf('id="clips"');
+  const stillsAt = episode.indexOf('id="thumbnails"');
+  const rawAt = episode.indexOf('id="raw-video"');
+  assert.ok(fullAt >= 0 && clipsAt > fullAt && stillsAt > clipsAt && rawAt > stillsAt);
+  assert.match(episode, /Raw video \(1\)/);
+  const clips = episode.slice(clipsAt, stillsAt);
+  assert.doesNotMatch(clips, /Raw Video\/A001/);
+  assert.doesNotMatch(
+    renderToStaticMarkup(
+      createElement(podcastTemplate.Shoot, {
+        ...shared,
+        media: shared.media.filter((item) => item.type !== "raw_video"),
+      }),
+    ),
+    /Raw video|id="raw-video"/,
+  );
 });
 
 test("floor plan tiles stay square", () => {

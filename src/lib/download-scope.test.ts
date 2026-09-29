@@ -41,6 +41,30 @@ test("filters files and names scoped zips", () => {
   assert.equal(withZipTypes("/api/s/tok/zip", ["photo"]), "/api/s/tok/zip?types=photo");
 });
 
+test("raw video is its own zip scope after finished video", () => {
+  const withRaw = [...files, { filename: "Raw Video/A001.mov", type: "raw_video" as const }];
+  assert.deepEqual(presentMediaTypes(withRaw), ["photo", "floor_plan", "video", "raw_video"]);
+  assert.deepEqual(parseZipTypesParam("raw_video"), ["raw_video"]);
+  assert.deepEqual(
+    filterFilesByZipTypes(withRaw, ["raw_video"]).map((file) => file.filename),
+    ["Raw Video/A001.mov"],
+  );
+  assert.deepEqual(
+    filterFilesByZipTypes(withRaw, ["video"]).map((file) => file.filename),
+    ["walk.mp4"],
+  );
+  assert.deepEqual(zipDownloadOptions(["photo", "video", "raw_video"]), [
+    { id: "all", label: "Everything" },
+    { id: "photo", label: "Photos" },
+    { id: "video", label: "Video" },
+    { id: "raw_video", label: "Raw video" },
+  ]);
+  assert.equal(
+    zipScopeFolderName("2026-09-04 - 12 Wood View Drive", ["raw_video"], ["photo", "raw_video"]),
+    "2026-09-04 - 12 Wood View Drive - Raw video",
+  );
+});
+
 test("offers Everything plus each present type when mixed", () => {
   assert.deepEqual(zipDownloadOptions(["photo"]), [{ id: "photo", label: "Photos" }]);
   assert.deepEqual(zipDownloadOptions(["photo", "floor_plan"]), [

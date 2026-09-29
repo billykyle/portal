@@ -8,7 +8,7 @@ import { ShootDetail } from "@/components/shoot-detail";
 import { db } from "@/lib/db";
 import { media } from "@/lib/db/schema";
 import { publicShootZipPath } from "@/lib/download-all";
-import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { formatShootDate, isShootGalleryType, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 import { videoPlaybackById } from "@/lib/video-store";
 import { publicShootPath, publicShootUrl } from "@/lib/public-link";
 import { getPublicShoot } from "@/lib/public-shoot";
@@ -69,7 +69,7 @@ export default async function PublicShootPage({
         zipUrl={publicShootZipPath(shoot.publicToken)}
         closedSectionIds={closedSectionIds}
         media={files.flatMap((item) => {
-          if (item.type !== "photo" && item.type !== "video" && item.type !== "floor_plan") return [];
+          if (!isShootGalleryType(item.type)) return [];
           return [
             {
               id: item.id,

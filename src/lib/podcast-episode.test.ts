@@ -51,6 +51,17 @@ test("podcast files split into full episode, clips, audio, and stills", () => {
   assert.equal(isVerticalClip(groups.clips[1]), false);
 });
 
+test("raw clips stay out of the episode and clip groups", () => {
+  const groups = groupPodcastFiles([
+    { id: "full", filename: "full-episode.mp4", type: "video", sortOrder: 0, width: 1920, height: 1080 },
+    { id: "raw", filename: "Raw Video/A001.mp4", type: "raw_video", sortOrder: 1, width: 3840, height: 2160 },
+  ]);
+  assert.equal(groups.full?.id, "full");
+  assert.deepEqual(groups.clips, []);
+  assert.deepEqual(groups.stills, []);
+  assert.deepEqual(groups.audio, []);
+});
+
 test("without a full/episode/master name, the largest video is the episode", () => {
   const groups = groupPodcastFiles([
     { id: "small", filename: "teaser.mp4", type: "video", sortOrder: 0, width: 640, height: 360 },

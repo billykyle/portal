@@ -1,7 +1,7 @@
 export type DownloadFile = {
   url: string;
   filename: string;
-  type?: "photo" | "video" | "floor_plan";
+  type?: "photo" | "video" | "floor_plan" | "raw_video";
 };
 
 export type ZipJobState = "preparing" | "downloading" | "done" | "failed";

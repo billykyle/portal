@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   guessMediaType,
   isPdfFilename,
+  isShootGalleryType,
   mediaLabel,
   mediaSectionId,
   resolveMediaThumbUrl,
@@ -36,6 +37,11 @@ test("re-exports type detection used by the shoot page", () => {
   assert.equal(mediaSectionId("floor_plan"), "floor-plans");
   assert.equal(mediaSectionId("video"), "video");
   assert.equal(mediaSectionId("photo"), "photos");
+  assert.equal(mediaLabel("raw_video"), "Raw video");
+  assert.equal(mediaLabel("video"), "Video");
+  assert.equal(mediaSectionId("raw_video"), "raw-video");
+  assert.equal(isShootGalleryType("raw_video"), true);
+  assert.equal(isShootGalleryType("audio"), false);
   assert.equal(isPdfFilename("plan.PDF"), true);
   assert.equal(isPdfFilename("1st_floor.jpg"), false);
 });

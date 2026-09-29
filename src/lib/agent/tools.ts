@@ -223,7 +223,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "get_shoot",
-    "Shoot metadata plus a media inventory of ids and filenames for photos, floor plans, and videos. Not the binary files. ready is true when the shoot has imported media. portalUrl is the signed-in /my-content/[slug] page; publicUrl stays the share link.",
+    "Shoot metadata plus a media inventory of ids and filenames for photos, floor plans, finished video, and raw video. Not the binary files. ready is true when the shoot has imported media. portalUrl is the signed-in /my-content/[slug] page; publicUrl stays the share link.",
     { shootId: z.string() },
     readOnly,
   );

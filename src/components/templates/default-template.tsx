@@ -5,6 +5,7 @@ import { PhotoViewer } from "@/components/photo-viewer";
 import { pageHeadingWrapClass, pageStackClass, pageTitleClass } from "@/components/phone-shell";
 import { ShootActions } from "@/components/shoot-actions";
 import { ShootList } from "@/components/shoot-list";
+import { RawVideoSection, rawVideoJump } from "@/components/raw-video-section";
 import { ShootSectionNav } from "@/components/shoot-section-nav";
 import { VideoPlayer } from "@/components/video-player";
 import { galleryMedia, type ContentTemplate } from "@/components/templates/types";
@@ -70,6 +71,7 @@ function DefaultShoot({
   const photos = media.filter((item) => item.type === "photo");
   const videos = media.filter((item) => item.type === "video");
   const plans = media.filter((item) => item.type === "floor_plan");
+  const rawVideos = media.filter((item) => item.type === "raw_video");
   const files = media.map((item) => ({ url: item.url, filename: item.filename, type: item.type }));
   const hrefFor = (id?: string) => photoViewerHref(basePath, id);
   const activePhoto = Boolean(viewId && photos.some((item) => item.id === viewId));
@@ -84,6 +86,7 @@ function DefaultShoot({
       ? { id: mediaSectionId("floor_plan"), label: mediaLabel("floor_plan"), count: plans.length }
       : null,
     videos.length > 0 ? { id: mediaSectionId("video"), label: mediaLabel("video"), count: videos.length } : null,
+    rawVideoJump(rawVideos.length),
   ].filter((item) => item !== null);
 
   return (
@@ -167,6 +170,8 @@ function DefaultShoot({
           </div>
         </DeliverableSection>
       ) : null}
+
+      <RawVideoSection videos={rawVideos} closed={closed} />
 
       {media.length === 0 ? <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p> : null}
 

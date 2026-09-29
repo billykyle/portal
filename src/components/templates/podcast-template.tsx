@@ -6,6 +6,7 @@ import { PhotoViewer } from "@/components/photo-viewer";
 import { pageHeadingWrapClass, pageStackClass, pageTitleClass, shootCardGridClass } from "@/components/phone-shell";
 import { PreviewImage } from "@/components/preview-image";
 import { ShootActions } from "@/components/shoot-actions";
+import { RawVideoSection, rawVideoJump } from "@/components/raw-video-section";
 import { ShootSectionNav } from "@/components/shoot-section-nav";
 import type { ContentTemplate, TemplateShootCard } from "@/components/templates/types";
 import { VideoPlayer } from "@/components/video-player";
@@ -95,6 +96,7 @@ function PodcastShoot({
   closedSectionIds,
 }: Parameters<ContentTemplate["Shoot"]>[0]) {
   const groups = groupPodcastFiles(media);
+  const rawVideos = media.filter((item) => item.type === "raw_video");
   const identity = parseEpisodeIdentity(address, folderName);
   const files = media.map((item) =>
     item.type === "audio"
@@ -110,6 +112,7 @@ function PodcastShoot({
     groups.clips.length > 0 ? { id: SECTIONS.clips, label: "Clips", count: groups.clips.length } : null,
     groups.audio.length > 0 ? { id: SECTIONS.audio, label: "Audio", count: groups.audio.length } : null,
     stills.length > 0 ? { id: SECTIONS.stills, label: "Thumbnails", count: stills.length } : null,
+    rawVideoJump(rawVideos.length),
   ].filter((item) => item !== null);
 
   return (
@@ -210,6 +213,8 @@ function PodcastShoot({
           </div>
         </DeliverableSection>
       ) : null}
+
+      <RawVideoSection videos={rawVideos} closed={closed} />
 
       {media.length === 0 ? <p className="text-sm text-[#8e8e93]">No files on this episode yet.</p> : null}
 

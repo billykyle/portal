@@ -72,12 +72,13 @@ async function createTables() {
   `;
   await sql`
     DO $$ BEGIN
-      CREATE TYPE media_type AS ENUM ('photo', 'video', 'floor_plan', 'audio');
+      CREATE TYPE media_type AS ENUM ('photo', 'video', 'floor_plan', 'audio', 'raw_video');
     EXCEPTION
       WHEN duplicate_object THEN null;
     END $$
   `;
   await sql`ALTER TYPE media_type ADD VALUE IF NOT EXISTS 'audio'`;
+  await sql`ALTER TYPE media_type ADD VALUE IF NOT EXISTS 'raw_video'`;
   await sql`
     DO $$ BEGIN
       CREATE TYPE client_category AS ENUM ('real_estate', 'construction', 'podcast', 'other');
