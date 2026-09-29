@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { clients, media } from "@/lib/db/schema";
 import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { parseListShootSections, SHOOT_LAYOUT_COOKIE } from "@/lib/shoot-layout";
 import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
 import { adminShootPath, clientShootPath } from "@/lib/shoot-slug";
 import { videoPlaybackById } from "@/lib/video-store";
@@ -34,9 +35,9 @@ export async function ShootScreen({
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
   const playback = await videoPlaybackById(files);
-  const closedSectionIds = [
-    ...parseClosedShootSections((await cookies()).get(SHOOT_SECTIONS_COOKIE)?.value),
-  ];
+  const jar = await cookies();
+  const closedSectionIds = [...parseClosedShootSections(jar.get(SHOOT_SECTIONS_COOKIE)?.value)];
+  const listSectionIds = [...parseListShootSections(jar.get(SHOOT_LAYOUT_COOKIE)?.value)];
   const [owner] = await db
     .select({ category: clients.category })
     .from(clients)
@@ -60,6 +61,7 @@ export async function ShootScreen({
         zipUrl={shootZipPath(shoot.id)}
         shareToken={shoot.publicToken}
         closedSectionIds={closedSectionIds}
+        listSectionIds={listSectionIds}
         media={files.map((item) => ({
           id: item.id,
           filename: item.filename,

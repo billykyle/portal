@@ -1,7 +1,9 @@
 import { DeliverableSection } from "@/components/deliverable-section";
-import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
+import { VideoLayout } from "@/components/video-layout";
+import type { PlayerRendition } from "@/components/video-player";
 import { mediaLabel, mediaSectionId } from "@/lib/media";
 import { rawVideoHeaderDetail } from "@/lib/raw-video-size";
+import { shootSectionLayout } from "@/lib/shoot-layout";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
 export type RawVideoItem = {
@@ -31,9 +33,11 @@ export function rawVideoJump(count: number) {
 export function RawVideoSection({
   videos,
   closed,
+  listed,
 }: {
   videos: RawVideoItem[];
   closed: ReadonlySet<string>;
+  listed: ReadonlySet<string>;
 }) {
   if (videos.length === 0) return null;
   const id = mediaSectionId("raw_video");
@@ -43,19 +47,18 @@ export function RawVideoSection({
       label={mediaLabel("raw_video")}
       detail={rawVideoHeaderDetail(videos)}
       defaultOpen={shootSectionStartsOpen(closed, id)}
+      layout={shootSectionLayout(listed, id)}
     >
-      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start">
-        {videos.map((item) => (
-          <VideoPlayer
-            key={item.id}
-            id={item.id}
-            url={item.url}
-            filename={item.filename}
-            width={item.width}
-            height={item.height}
-          />
-        ))}
-      </div>
+      <VideoLayout
+        items={videos.map((item) => ({
+          id: item.id,
+          url: item.url,
+          filename: item.filename,
+          width: item.width,
+          height: item.height,
+        }))}
+        columns="pair"
+      />
     </DeliverableSection>
   );
 }

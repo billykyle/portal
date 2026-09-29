@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { CopyPublicLink } from "@/components/copy-public-link";
 import { DeliverableSection } from "@/components/deliverable-section";
-import { MediaTile } from "@/components/media-tile";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { pageHeadingWrapClass, pageStackClass, pageTitleClass, shootCardGridClass } from "@/components/phone-shell";
 import { PreviewImage } from "@/components/preview-image";
 import { ShootActions } from "@/components/shoot-actions";
 import { RawVideoSection, rawVideoJump } from "@/components/raw-video-section";
 import { ShootSectionNav } from "@/components/shoot-section-nav";
+import { StillLayout } from "@/components/still-layout";
 import type { ContentTemplate, TemplateShootCard } from "@/components/templates/types";
-import { VideoPlayer } from "@/components/video-player";
+import { VideoLayout } from "@/components/video-layout";
 import { groupPodcastFiles, parseEpisodeIdentity } from "@/lib/podcast-episode";
-import { photoViewerHref } from "@/lib/photo-viewer";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
+import { shootSectionLayout } from "@/lib/shoot-layout";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
 const SECTIONS = {
@@ -94,6 +94,7 @@ function PodcastShoot({
   media,
   shareToken,
   closedSectionIds,
+  listSectionIds,
 }: Parameters<ContentTemplate["Shoot"]>[0]) {
   const groups = groupPodcastFiles(media);
   const rawVideos = media.filter((item) => item.type === "raw_video");
@@ -103,10 +104,10 @@ function PodcastShoot({
       ? { url: item.url, filename: item.filename }
       : { url: item.url, filename: item.filename, type: item.type },
   );
-  const hrefFor = (id?: string) => photoViewerHref(basePath, id);
   const stills = groups.stills;
   const activeStill = Boolean(viewId && stills.some((item) => item.id === viewId));
   const closed = new Set(closedSectionIds ?? []);
+  const listed = new Set(listSectionIds ?? []);
   const jumps = [
     groups.full ? { id: SECTIONS.full, label: "Full episode", count: 1 } : null,
     groups.clips.length > 0 ? { id: SECTIONS.clips, label: "Clips", count: groups.clips.length } : null,
@@ -135,15 +136,9 @@ function PodcastShoot({
           id={SECTIONS.full}
           label="Full episode"
           defaultOpen={shootSectionStartsOpen(closed, SECTIONS.full)}
+          layout={shootSectionLayout(listed, SECTIONS.full)}
         >
-          <VideoPlayer
-            id={groups.full.id}
-            url={groups.full.url}
-            filename={groups.full.filename}
-            width={groups.full.width}
-            height={groups.full.height}
-            renditions={groups.full.renditions}
-          />
+          <VideoLayout items={[groups.full]} columns="single" />
         </DeliverableSection>
       ) : null}
 
@@ -152,20 +147,9 @@ function PodcastShoot({
           id={SECTIONS.clips}
           label="Clips"
           defaultOpen={shootSectionStartsOpen(closed, SECTIONS.clips)}
+          layout={shootSectionLayout(listed, SECTIONS.clips)}
         >
-          <div className="grid grid-cols-3 items-start gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5">
-            {groups.clips.map((item) => (
-              <VideoPlayer
-                key={item.id}
-                id={item.id}
-                url={item.url}
-                filename={item.filename}
-                width={item.width}
-                height={item.height}
-                renditions={item.renditions}
-              />
-            ))}
-          </div>
+          <VideoLayout items={groups.clips} columns="clips" />
         </DeliverableSection>
       ) : null}
 
@@ -174,6 +158,7 @@ function PodcastShoot({
           id={SECTIONS.audio}
           label="Audio"
           defaultOpen={shootSectionStartsOpen(closed, SECTIONS.audio)}
+          layout={shootSectionLayout(listed, SECTIONS.audio)}
         >
           <ul>
             {groups.audio.map((item) => (
@@ -196,25 +181,13 @@ function PodcastShoot({
           id={SECTIONS.stills}
           label="Thumbnails"
           defaultOpen={shootSectionStartsOpen(closed, SECTIONS.stills)}
+          layout={shootSectionLayout(listed, SECTIONS.stills)}
         >
-          <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6">
-            {stills.map((item, index) => (
-              <MediaTile
-                key={item.id}
-                href={hrefFor(item.id)}
-                src={item.thumbUrl ?? item.url}
-                filename={item.filename}
-                downloadUrl={item.url}
-                contain={false}
-                ratio="3/2"
-                eager={index < PREVIEW_EAGER_COUNT}
-              />
-            ))}
-          </div>
+          <StillLayout items={stills} basePath={basePath} contain={false} ratio="3/2" />
         </DeliverableSection>
       ) : null}
 
-      <RawVideoSection videos={rawVideos} closed={closed} />
+      <RawVideoSection videos={rawVideos} closed={closed} listed={listed} />
 
       {media.length === 0 ? <p className="text-sm text-[#8e8e93]">No files on this episode yet.</p> : null}
 

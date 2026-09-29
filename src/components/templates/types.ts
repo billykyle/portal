@@ -53,6 +53,8 @@ export type TemplateShootProps = {
   media: TemplateMedia[];
   shareToken?: string;
   closedSectionIds?: readonly string[];
+  /** Section ids this browser shows as a file list. Omitted means grid. */
+  listSectionIds?: readonly string[];
 };
 
 export type ContentTemplate = {
