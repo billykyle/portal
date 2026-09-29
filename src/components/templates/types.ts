@@ -29,6 +29,7 @@ export type TemplateMedia = {
   type: "photo" | "video" | "floor_plan" | "audio" | "raw_video";
   width?: number | null;
   height?: number | null;
+  byteSize?: number | null;
   sortOrder: number;
   renditions?: PlayerRendition[];
 };
@@ -72,6 +73,7 @@ export function galleryMedia(media: TemplateMedia[]): ShootMedia[] {
         type: item.type,
         width: item.width,
         height: item.height,
+        byteSize: item.byteSize,
         renditions: item.renditions,
       },
     ];

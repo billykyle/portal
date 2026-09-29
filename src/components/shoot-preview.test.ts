@@ -311,12 +311,14 @@ const mixedMedia: ShootMedia[] = [
     type: "raw_video",
     width: 3840,
     height: 2160,
+    byteSize: Math.round(2.1 * 1024 * 1024 * 1024),
   },
   {
     id: "raw-2",
     url: "/api/media/raw-2",
     filename: "Raw Video/A002.mov",
     type: "raw_video",
+    byteSize: Math.round(2.1 * 1024 * 1024 * 1024),
   },
 ];
 
@@ -340,11 +342,14 @@ test("raw video is a last section with a jump link, and it is hidden when absent
   assert.match(jumps, /Floor plans \(1\)/);
   assert.match(jumps, /Video \(1\)/);
   assert.match(jumps, /Raw video \(2\)/);
+  assert.doesNotMatch(jumps, /files ·|GB/);
   assert.ok(jumps.indexOf("Video (1)") < jumps.indexOf("Raw video (2)"));
   assert.ok(jumps.lastIndexOf("Raw video (2)") > jumps.lastIndexOf("Floor plans (1)"));
   const raw = html.slice(html.indexOf('id="raw-video"'));
   assert.match(raw, /aria-expanded="true"/);
   assert.match(raw, />Raw video</);
+  assert.match(raw, /2 files · 4\.2 GB/);
+  assert.doesNotMatch(html.slice(0, html.indexOf('id="raw-video"')), /files ·/);
   assert.match(raw, /<source[^>]*src="\/api\/media\/raw-1"/);
   assert.match(raw, /<source[^>]*src="\/api\/media\/raw-2"/);
   assert.match(raw, /href="\/api\/media\/raw-1"/);
@@ -369,6 +374,7 @@ test("a closed raw video section stays in the jump list and skips its players", 
   assert.match(html, /href="#raw-video"/);
   assert.match(html, /Raw video \(2\)/);
   const raw = html.slice(html.indexOf('id="raw-video"'));
+  assert.match(raw, /2 files · 4\.2 GB/);
   assert.match(raw, /aria-expanded="false"/);
   assert.doesNotMatch(raw, /<video\b|<source\b/);
 });
@@ -387,6 +393,10 @@ test("real estate, default, and podcast layouts pin raw video last", () => {
   assert.deepEqual(sectionOrder(construction), ["photos", "floor-plans", "video", "raw-video"]);
   assert.match(realEstate, /Raw video \(2\)/);
   assert.match(construction, /Raw video \(2\)/);
+  assert.match(realEstate, /2 files · 4\.2 GB/);
+  assert.match(construction, /2 files · 4\.2 GB/);
+  assert.doesNotMatch(realEstate.slice(0, realEstate.indexOf('id="raw-video"')), /files ·/);
+  assert.doesNotMatch(construction.slice(0, construction.indexOf('id="raw-video"')), /files ·/);
 
   const episode = renderToStaticMarkup(
     createElement(podcastTemplate.Shoot, {
@@ -424,6 +434,7 @@ test("real estate, default, and podcast layouts pin raw video last", () => {
           filename: "Raw Video/A001.mov",
           type: "raw_video" as const,
           sortOrder: 3,
+          byteSize: 800 * 1024 * 1024,
         },
       ],
     }),
@@ -434,6 +445,8 @@ test("real estate, default, and podcast layouts pin raw video last", () => {
   const rawAt = episode.indexOf('id="raw-video"');
   assert.ok(fullAt >= 0 && clipsAt > fullAt && stillsAt > clipsAt && rawAt > stillsAt);
   assert.match(episode, /Raw video \(1\)/);
+  assert.match(episode.slice(rawAt), /1 file · 800 MB/);
+  assert.doesNotMatch(episode.slice(0, rawAt), /files ·|file ·/);
   const clips = episode.slice(clipsAt, stillsAt);
   assert.doesNotMatch(clips, /Raw Video\/A001/);
   assert.doesNotMatch(

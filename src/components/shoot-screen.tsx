@@ -68,6 +68,7 @@ export async function ShootScreen({
           thumbUrl: resolveMediaThumbUrl(item),
           width: item.width,
           height: item.height,
+          byteSize: item.byteSize,
           sortOrder: item.sortOrder,
           renditions: playback.get(item.id) ?? [],
         }))}

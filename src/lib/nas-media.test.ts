@@ -218,7 +218,7 @@ test("imports a Raw Video sibling as raw clips and leaves finished video alone",
           { name: "Final", path: `${shoot}/Final`, isDir: true },
           { name: "Video", path: `${shoot}/Video`, isDir: true },
           { name: "Raw Video", path: `${shoot}/Raw Video`, isDir: true },
-          { name: "14 Harbor Lane.mov", path: `${shoot}/14 Harbor Lane.mov`, isDir: false },
+          { name: "14 Harbor Lane.mov", path: `${shoot}/14 Harbor Lane.mov`, isDir: false, size: 80_000_000 },
         ];
       }
       if (dir === `${shoot}/Final`) {
@@ -229,12 +229,12 @@ test("imports a Raw Video sibling as raw clips and leaves finished video alone",
       }
       if (dir === `${shoot}/Raw Video`) {
         return [
-          { name: "A001.mov", path: `${shoot}/Raw Video/A001.mov`, isDir: false },
+          { name: "A001.mov", path: `${shoot}/Raw Video/A001.mov`, isDir: false, size: 2_200_000_000 },
           { name: "selects", path: `${shoot}/Raw Video/selects`, isDir: true },
         ];
       }
       if (dir === `${shoot}/Raw Video/selects`) {
-        return [{ name: "B002.mp4", path: `${shoot}/Raw Video/selects/B002.mp4`, isDir: false }];
+        return [{ name: "B002.mp4", path: `${shoot}/Raw Video/selects/B002.mp4`, isDir: false, size: 900_000_000 }];
       }
       return [];
     },
@@ -249,4 +249,8 @@ test("imports a Raw Video sibling as raw clips and leaves finished video alone",
       ["raw_video", "Raw Video/selects/B002.mp4"],
     ],
   );
+  assert.equal(files.find((file) => file.name === "Full-01.jpg")?.byteSize, null);
+  assert.equal(files.find((file) => file.name === "14 Harbor Lane.mov")?.byteSize, 80_000_000);
+  assert.equal(files.find((file) => file.name === "Raw Video/A001.mov")?.byteSize, 2_200_000_000);
+  assert.equal(files.find((file) => file.name === "Raw Video/selects/B002.mp4")?.byteSize, 900_000_000);
 });

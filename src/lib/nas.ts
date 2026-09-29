@@ -498,6 +498,7 @@ export async function listNasMedia(shootFolderPath: string): Promise<NasMediaFil
         name: file.name,
         path: file.path,
         isDir: isNasDirectory(file),
+        size: file.size,
       }));
     },
   });
@@ -505,7 +506,7 @@ export async function listNasMedia(shootFolderPath: string): Promise<NasMediaFil
     path: file.path,
     name: file.name,
     fileType: 0,
-    size: 0,
+    size: file.byteSize ?? 0,
     type: file.type,
   }));
 }
