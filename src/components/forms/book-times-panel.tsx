@@ -25,6 +25,7 @@ export function BookTimesPanel({
   address,
   placeId,
   services,
+  commercialHours = null,
   notes = "",
   error,
   modifyBookingId,
@@ -34,6 +35,7 @@ export function BookTimesPanel({
   address: string;
   placeId?: string;
   services: string[];
+  commercialHours?: number | null;
   notes?: string;
   error?: string;
   modifyBookingId?: string;
@@ -42,8 +44,8 @@ export function BookTimesPanel({
 }) {
   const router = useRouter();
   const query = useMemo<AvailabilityQuery>(
-    () => ({ address, placeId, services, modify: modifyBookingId }),
-    [address, placeId, services, modifyBookingId],
+    () => ({ address, placeId, services, commercialHours, modify: modifyBookingId }),
+    [address, commercialHours, placeId, services, modifyBookingId],
   );
   const queryKey = availabilityQueryKey(query);
   const cached = peekAvailability(query);
@@ -125,6 +127,7 @@ export function BookTimesPanel({
     <BookTimesForm
       availability={display.availability}
       services={services}
+      commercialHours={commercialHours}
       notes={notes}
       placeId={placeId}
       error={error}

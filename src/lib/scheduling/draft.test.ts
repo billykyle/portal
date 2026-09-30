@@ -21,6 +21,7 @@ function draft(overrides: Partial<SchedulingDraft> = {}): SchedulingDraft {
     address: "12 Wood View Drive, Princeton, NJ",
     placeId: "ChIJ123",
     services: ["Real Estate · Photography"],
+    commercialHours: null,
     notes: "Lockbox on the porch",
     modifyBookingId: null,
     updatedAt: new Date("2026-09-21T12:00:00.000Z"),
@@ -50,6 +51,7 @@ test("draft input drops unknown services and keeps notes multiline", () => {
     address: "12 Wood View Drive",
     placeId: "ChIJ123",
     services: ["Real Estate · Photography", "Construction · Video"],
+    commercialHours: null,
     notes: "Gate code\n4455",
     modifyBookingId: bookingId,
   });
@@ -67,9 +69,15 @@ test("form data becomes a draft without a query string", () => {
     address: "12 Wood View Drive, Princeton, NJ",
     placeId: "ChIJ123",
     services: ["Real Estate · Photography", "Construction · Video"],
+    commercialHours: null,
     notes: "Lockbox on the porch",
     modifyBookingId: bookingId,
   });
+  form.append("service", "Commercial video");
+  form.set("commercialHours", "4");
+  assert.equal(draftInputFromForm(form).commercialHours, 4);
+  form.delete("commercialHours");
+  assert.equal(draftInputFromForm(form).commercialHours, null);
 });
 
 test("flow fields prefer a matching draft and fall back to the booking", () => {
@@ -83,12 +91,14 @@ test("flow fields prefer a matching draft and fall back to the booking", () => {
     address: "12 Wood View Drive, Princeton, NJ",
     placeId: "ChIJ123",
     services: ["Real Estate · Photography"],
+    commercialHours: null,
     notes: "Lockbox on the porch",
   });
   assert.deepEqual(schedulingFlowFields(draft({ modifyBookingId: bookingId }), bookingId, saved), {
     address: "12 Wood View Drive, Princeton, NJ",
     placeId: "ChIJ123",
     services: ["Real Estate · Photography"],
+    commercialHours: null,
     notes: "Lockbox on the porch",
   });
   assert.deepEqual(schedulingFlowFields(draft(), bookingId, saved).address, saved.address);

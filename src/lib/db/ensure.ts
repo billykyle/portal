@@ -164,6 +164,7 @@ async function createTables() {
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_email_references text`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_email_subject text`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent_at timestamptz`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commercial_video_hours integer`;
   await sql`
     CREATE TABLE IF NOT EXISTS maintenance_notices (
       id text PRIMARY KEY,
@@ -196,6 +197,7 @@ async function createTables() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `;
+  await sql`ALTER TABLE booking_drafts ADD COLUMN IF NOT EXISTS commercial_video_hours integer`;
   await sql`CREATE INDEX IF NOT EXISTS booking_drafts_expires_idx ON booking_drafts (expires_at)`;
   await sql`
     CREATE TABLE IF NOT EXISTS upload_submissions (

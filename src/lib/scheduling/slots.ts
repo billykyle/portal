@@ -3,8 +3,22 @@ import { bookingStartAllowed } from "./horizon";
 import { addCalendarDays, calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 import type { SchedulingHours } from "./config";
 
+/** True when the slot ends on the same Eastern day at or before close. */
+export function slotEndsByClose(start: Date, end: Date, timeZone: string, closeHour: number) {
+  const startParts = utcToZonedParts(start, timeZone);
+  const endParts = utcToZonedParts(end, timeZone);
+  if (
+    endParts.year !== startParts.year ||
+    endParts.month !== startParts.month ||
+    endParts.day !== startParts.day
+  ) {
+    return false;
+  }
+  return endParts.hour * 60 + endParts.minute <= closeHour * 60;
+}
+
 export function generateCandidateSlots(
-  input: SchedulingHours & { now: Date; retainStarts?: readonly Date[] },
+  input: SchedulingHours & { now: Date; retainStarts?: readonly Date[]; requireEndByClose?: boolean },
 ): Interval[] {
   const slots: Interval[] = [];
   const nowParts = utcToZonedParts(input.now, input.timeZone);
@@ -21,6 +35,9 @@ export function generateCandidateSlots(
       const min = minute % 60;
       const start = zonedDateTimeToUtc(input.timeZone, { ...day, hour, minute: min });
       const end = new Date(start.getTime() + duration * 60 * 1000);
+      if (input.requireEndByClose && !slotEndsByClose(start, end, input.timeZone, input.closeHour)) {
+        continue;
+      }
       const retained = retainStarts.has(start.getTime());
       if (start.getTime() < minStart && !retained) continue;
       if (

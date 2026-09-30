@@ -4,6 +4,7 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
 import {
   bookingServiceList,
   bookingSlotMinutes,
+  COMMERCIAL_VIDEO_SERVICE,
   formatBookingServices,
   formatSchedulingService,
   isExclusiveIndustry,
@@ -50,8 +51,10 @@ test("scheduling services are Billy's industry catalog", () => {
     "Construction · Video",
     "Podcast · 1 episode",
     "Podcast · 2 episodes",
+    "Commercial video",
   ]);
-  assert.equal(SCHEDULING_SERVICES.length, 8);
+  assert.equal(SCHEDULING_SERVICES.length, 9);
+  assert.equal(COMMERCIAL_VIDEO_SERVICE, "Commercial video");
   assert.equal(schedulingServiceId("Real Estate", "Photography"), "Real Estate · Photography");
   assert.equal(schedulingServiceId("Podcast", "1 episode"), "Podcast · 1 episode");
 });
@@ -67,6 +70,9 @@ test("parseSchedulingService keeps the canonical industry · option label", () =
   assert.equal(parseSchedulingService("Wedding"), null);
   assert.equal(parseSchedulingService("real estate · photography"), null);
   assert.equal(parseSchedulingService("Photography"), null);
+  assert.equal(parseSchedulingService("Commercial video"), "Commercial video");
+  assert.equal(parseSchedulingService("  Commercial video  "), "Commercial video");
+  assert.equal(parseSchedulingService("Commercial · Video"), null);
 });
 
 test("parseSchedulingService maps the retired flat labels", () => {
@@ -189,4 +195,26 @@ test("bookingSlotMinutes sums locked option times including Aerial Photos", () =
     bookingSlotMinutes(["Real Estate · Photography", "Podcast · 2 episodes", "Podcast · 1 episode"]),
     105,
   );
+});
+
+test("Commercial video uses whole hours from 1 through 8 and sums with other services", () => {
+  assert.equal(bookingSlotMinutes(["Commercial video"]), null);
+  assert.equal(bookingSlotMinutes(["Commercial video"], null), null);
+  assert.equal(bookingSlotMinutes(["Commercial video"], 0), null);
+  assert.equal(bookingSlotMinutes(["Commercial video"], 9), null);
+  assert.equal(bookingSlotMinutes(["Commercial video"], 1.5), null);
+  for (const hours of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    assert.equal(bookingSlotMinutes(["Commercial video"], hours), hours * 60);
+  }
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography", "Commercial video"], 2), 45 + 120);
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography"], 8), 45);
+  assert.deepEqual(parseSchedulingServices(["Commercial video", "Real Estate · Video"]), [
+    "Real Estate · Video",
+    "Commercial video",
+  ]);
+  assert.deepEqual(toggleSchedulingService(["Real Estate · Photography"], "Commercial video"), [
+    "Real Estate · Photography",
+    "Commercial video",
+  ]);
+  assert.equal(formatBookingServices(["Commercial video"]), "Commercial video");
 });

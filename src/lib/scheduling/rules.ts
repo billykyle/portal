@@ -72,10 +72,15 @@
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.
+ *    Commercial video has no fixed minutes (Billy, 2026-09-30). The client
+ *    or admin chooses 1 through 8 whole hours, and that length is added to
+ *    the sum. Without a chosen length, no times are offered.
  * 7. Offer window (Billy, 2026-09-20): America/New_York start times from
  *    {@link DEFAULT_OPEN_HOUR} through {@link DEFAULT_CLOSE_HOUR} inclusive,
  *    on {@link DEFAULT_STEP_MINUTES}-minute steps. A 6:00pm start is offered
- *    even if the computed end runs past 6:00pm.
+ *    even if the computed end runs past 6:00pm. Commercial video, alone or
+ *    combined with other services, must end at or before 6:00pm, so a longer
+ *    block has fewer start times. Other services still offer a 6:00pm start.
  * 8. Bookable days (Billy, 2026-09-21): no same-day bookings in
  *    America/New_York, and never Tuesday, Saturday, or Sunday. Allowed new
  *    starts are Monday, Wednesday, Thursday, Friday — and never today.

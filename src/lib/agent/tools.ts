@@ -178,11 +178,18 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "modify_booking",
-    "Admin modify of a confirmed booking that has not started. Same path as the admin Bookings form: address, services, time, and notes, then the Shoot changes email and calendar update. Omit a field to keep the current value. Services use labels like \"Real Estate · Photography\". startsAt and endsAt are ISO timestamps; omit endsAt to use the offered slot for that start.",
+    "Admin modify of a confirmed booking that has not started. Same path as the admin Bookings form: address, services, time, and notes, then the Shoot changes email and calendar update. Omit a field to keep the current value. Services use labels like \"Real Estate · Photography\" or \"Commercial video\". Commercial video needs commercialHours from 1 through 8; omit it to keep the saved length. startsAt and endsAt are ISO timestamps; omit endsAt to use the offered slot for that start.",
     {
       bookingId: z.string(),
       address: z.string().optional(),
       services: z.array(z.string()).optional(),
+      commercialHours: z
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Whole hours for Commercial video, from 1 through 8."),
       startsAt: z.string().optional().describe("ISO start time."),
       endsAt: z.string().nullable().optional().describe("ISO end time. Must match the offered slot when set."),
       notes: z.string().nullable().optional(),
@@ -191,15 +198,22 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "create_booking",
-    "Book a shoot for an existing client at an exact America/New_York date and time. Ignores availability, the 15-minute grid, business hours, same-day limits, blocked weekdays, and drive time. An overlap is returned as a warning and the booking is still created. Does not send Billy's New shoot email. Still creates the Google Calendar event, sends the client confirmation (with Add to calendar), and copies addresses found in notes. client is a client id, an exact display name, or a BK code such as BK00004. Unknown or ambiguous names are rejected and close matches are listed. date is YYYY-MM-DD. time accepts 10, 10:30, 10:30am, 2pm, 2:15 PM, or 14:15. services are one or more of: Real Estate · Photography, Real Estate · Video, Real Estate · Aerial Photos, Real Estate · Zillow 360, Construction · Photography, Construction · Video, Podcast · 1 episode, Podcast · 2 episodes.",
+    "Book a shoot for an existing client at an exact America/New_York date and time. Ignores availability, the 15-minute grid, business hours, same-day limits, blocked weekdays, and drive time. An overlap is returned as a warning and the booking is still created. Does not send Billy's New shoot email. Still creates the Google Calendar event, sends the client confirmation (with Add to calendar), and copies addresses found in notes. client is a client id, an exact display name, or a BK code such as BK00004. Unknown or ambiguous names are rejected and close matches are listed. date is YYYY-MM-DD. time accepts 10, 10:30, 10:30am, 2pm, 2:15 PM, or 14:15. services are one or more of: Real Estate · Photography, Real Estate · Video, Real Estate · Aerial Photos, Real Estate · Zillow 360, Construction · Photography, Construction · Video, Podcast · 1 episode, Podcast · 2 episodes, Commercial video. Commercial video requires commercialHours, a whole number from 1 through 8. That length is what the booking occupies.",
     {
       client: z.string().describe("Client id, exact display name, or BK code."),
       address: z.string().describe("Full street address."),
       services: z
         .array(z.string())
         .describe(
-          "Service ids such as \"Real Estate · Photography\". Podcast episode counts are exclusive.",
+          "Service ids such as \"Real Estate · Photography\" or \"Commercial video\". Podcast episode counts are exclusive.",
         ),
+      commercialHours: z
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Required when services include Commercial video. Whole hours from 1 through 8."),
       date: z.string().describe("Shoot date as YYYY-MM-DD."),
       time: z.string().describe("Shoot time in America/New_York, for example 10:30am or 14:15."),
       notes: z.string().optional().describe("Access info, lockbox, or other information. Optional."),

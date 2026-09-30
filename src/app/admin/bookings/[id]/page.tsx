@@ -65,6 +65,7 @@ export default async function AdminModifyBookingPage({
     address: booking.address,
     notes: booking.notes,
     services: bookingServiceList(booking),
+    commercialHours: booking.commercialVideoHours,
     updatedAt: booking.updatedAt,
   });
 
@@ -84,10 +85,11 @@ export default async function AdminModifyBookingPage({
           </p>
         ) : null}
         <BookShootForm
-          key={`${booking.id}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
+          key={`${booking.id}:${fields.address}:${fields.services.join("\n")}:${fields.commercialHours ?? ""}:${fields.notes}`}
           address={fields.address}
           placeId={fields.placeId}
           services={fields.services}
+          commercialHours={fields.commercialHours}
           notes={fields.notes}
           placesConfigured={placesConfigured()}
           modifyBookingId={booking.id}

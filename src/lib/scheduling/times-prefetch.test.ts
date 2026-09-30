@@ -116,8 +116,45 @@ test("readAvailabilityQuery pulls address, place, services, and modify", () => {
     address: "12 Wood View Drive",
     placeId: "ChIJ123",
     services: ["Real Estate · Photography"],
+    commercialHours: null,
     modify: "11111111-1111-4111-8111-111111111111",
   });
+});
+
+test("Commercial video waits for a whole-hour length before prefetch", () => {
+  assert.equal(
+    canPrefetchAvailability({
+      address: "12 Wood View Drive",
+      services: ["Commercial video"],
+    }),
+    false,
+  );
+  assert.equal(
+    canPrefetchAvailability({
+      address: "12 Wood View Drive",
+      services: ["Commercial video"],
+      commercialHours: 3,
+    }),
+    true,
+  );
+  const three = availabilityQueryKey({
+    address: "12 Wood View Drive",
+    services: ["Commercial video"],
+    commercialHours: 3,
+  });
+  const eight = availabilityQueryKey({
+    address: "12 Wood View Drive",
+    services: ["Commercial video"],
+    commercialHours: 8,
+  });
+  assert.notEqual(three, eight);
+  const params = availabilitySearchParams({
+    address: "12 Wood View Drive",
+    services: ["Commercial video", "Real Estate · Photography"],
+    commercialHours: 2,
+  });
+  assert.deepEqual(params.getAll("service"), ["Real Estate · Photography", "Commercial video"]);
+  assert.equal(params.get("commercialHours"), "2");
 });
 
 test("loading copy keeps the ellipsis", () => {

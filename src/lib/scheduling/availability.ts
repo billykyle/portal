@@ -9,8 +9,13 @@ import {
   lastBookableDate,
 } from "./horizon";
 import { mergeIntervals, overlaps, sameInterval, subtractInterval, type Interval } from "./intervals";
-import { bookingSlotMinutes, parseSchedulingServices } from "./services";
-import { formatSlotRange, generateCandidateSlots } from "./slots";
+import {
+  bookingSlotMinutes,
+  COMMERCIAL_VIDEO_HOURS_ERROR,
+  includesCommercialVideo,
+  parseSchedulingServices,
+} from "./services";
+import { formatSlotRange, generateCandidateSlots, slotEndsByClose } from "./slots";
 import {
   pickNextJobs,
   pickPriorJobs,
@@ -73,15 +78,13 @@ export async function offerSlotsForAddress(
   rawAddress: string,
   sources: AvailabilitySources,
   services: readonly string[] = [],
-  options?: { retainStarts?: readonly Date[] },
+  options?: { retainStarts?: readonly Date[]; commercialHours?: number | null },
 ): Promise<AvailabilityResult> {
   const parsed = parseShootAddress(rawAddress);
   const now = sources.now ?? new Date();
   const selected = parseSchedulingServices(services);
-  const hours = hoursForNow(
-    now,
-    selected.length > 0 ? bookingSlotMinutes(selected) : undefined,
-  );
+  const slotMinutes = selected.length > 0 ? bookingSlotMinutes(selected, options?.commercialHours) : undefined;
+  const hours = hoursForNow(now, slotMinutes ?? undefined);
   const notices: string[] = [];
   const window = {
     firstBookableDate: calendarDateKey(firstBookableDate(now, hours)),
@@ -101,10 +104,25 @@ export async function offerSlotsForAddress(
     };
   }
 
+  if (selected.length > 0 && slotMinutes == null) {
+    return {
+      address: parsed.address,
+      timeZone: hours.timeZone,
+      calendarConfigured: sources.calendarConfigured,
+      driveTimeConfigured: sources.driveTimeConfigured,
+      ...window,
+      slots: [],
+      notices,
+      error: COMMERCIAL_VIDEO_HOURS_ERROR,
+    };
+  }
+
+  const requireEndByClose = includesCommercialVideo(selected);
   const candidates = generateCandidateSlots({
     ...hours,
     now,
     retainStarts: options?.retainStarts,
+    requireEndByClose,
   });
   const busy = mergeIntervals(sources.busy);
   const afterBusy = candidates.filter((slot) => !busy.some((block) => overlaps(slot, block)));
@@ -185,7 +203,10 @@ export async function offerSlotsForAddress(
     calendarConfigured: sources.calendarConfigured,
     driveTimeConfigured: sources.driveTimeConfigured,
     ...window,
-    slots: keepRetainedStarts(slots, options?.retainStarts, hours.slotMinutes, hours.timeZone),
+    slots: keepRetainedStarts(slots, options?.retainStarts, hours.slotMinutes, hours.timeZone, {
+      requireEndByClose,
+      closeHour: hours.closeHour,
+    }),
     notices,
   };
 }
@@ -196,6 +217,7 @@ export function keepRetainedStarts(
   retainStarts: readonly Date[] | undefined,
   slotMinutes: number,
   timeZone: string,
+  options?: { requireEndByClose?: boolean; closeHour?: number },
 ): OfferedSlot[] {
   if (!retainStarts?.length) return slots;
   const existing = new Set(slots.map((slot) => new Date(slot.start).getTime()));
@@ -203,6 +225,12 @@ export function keepRetainedStarts(
   for (const start of retainStarts) {
     if (existing.has(start.getTime())) continue;
     const end = new Date(start.getTime() + Math.max(5, slotMinutes) * 60 * 1000);
+    if (
+      options?.requireEndByClose &&
+      !slotEndsByClose(start, end, timeZone, options.closeHour ?? 18)
+    ) {
+      continue;
+    }
     const labels = formatSlotRange(start, end, timeZone);
     extra.push({
       start: start.toISOString(),

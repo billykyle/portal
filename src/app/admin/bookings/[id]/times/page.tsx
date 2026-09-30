@@ -14,7 +14,11 @@ import {
   type LegacySchedulingQuery,
 } from "@/lib/scheduling/draft";
 import { migrateLegacySchedulingDraft, readSchedulingDraft } from "@/lib/scheduling/draft-store";
-import { bookingServiceList } from "@/lib/scheduling/services";
+import {
+  bookingServiceList,
+  COMMERCIAL_VIDEO_HOURS_ERROR,
+  includesCommercialVideo,
+} from "@/lib/scheduling/services";
 import { schedulingEditorHref } from "@/lib/scheduling/urls";
 
 export const metadata: Metadata = {
@@ -63,10 +67,16 @@ export default async function AdminModifyBookingTimesPage({
     address: booking.address,
     notes: booking.notes,
     services: bookingServiceList(booking),
+    commercialHours: booking.commercialVideoHours,
     updatedAt: booking.updatedAt,
   });
   if (fields.services.length === 0) {
     redirect(schedulingEditorHref({ fromAdmin: true, bookingId: booking.id, error: "Pick at least one service." }));
+  }
+  if (includesCommercialVideo(fields.services) && fields.commercialHours == null) {
+    redirect(
+      schedulingEditorHref({ fromAdmin: true, bookingId: booking.id, error: COMMERCIAL_VIDEO_HOURS_ERROR }),
+    );
   }
   const parsed = parseShootAddress(fields.address);
   if (!parsed.ok) {
@@ -89,6 +99,7 @@ export default async function AdminModifyBookingTimesPage({
           address={parsed.address}
           placeId={fields.placeId || undefined}
           services={fields.services}
+          commercialHours={fields.commercialHours}
           notes={fields.notes}
           error={query.error}
           modifyBookingId={booking.id}

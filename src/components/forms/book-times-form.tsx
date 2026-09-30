@@ -23,6 +23,7 @@ import { schedulingEditorHref } from "@/lib/scheduling/urls";
 export function BookTimesForm({
   availability,
   services,
+  commercialHours = null,
   notes = "",
   placeId = "",
   error,
@@ -34,6 +35,7 @@ export function BookTimesForm({
 }: {
   availability: AvailabilityResult;
   services: string[];
+  commercialHours?: number | null;
   notes?: string;
   placeId?: string;
   error?: string;
@@ -63,8 +65,11 @@ export function BookTimesForm({
   );
   const [slotError, setSlotError] = useState("");
   const selectedSlotRef = useRef(selectedSlot);
-  selectedSlotRef.current = selectedSlot;
   const slotSignature = availability.slots.map((slot) => `${slot.start}|${slot.end}`).join("\n");
+
+  useEffect(() => {
+    selectedSlotRef.current = selectedSlot;
+  }, [selectedSlot]);
 
   useEffect(() => {
     const current = selectedSlotRef.current;
@@ -131,6 +136,7 @@ export function BookTimesForm({
         {services.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
         ))}
+        {commercialHours != null ? <input type="hidden" name="commercialHours" value={commercialHours} /> : null}
         <input type="hidden" name="notes" value={notes} />
         {selectedSlot ? <input type="hidden" name="slot" value={selectedSlot} /> : null}
         <fieldset className="flex flex-col gap-2">

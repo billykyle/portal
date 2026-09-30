@@ -49,6 +49,15 @@ test("preview labels the eastern start, and overlap is only a real collision", (
   assert.equal(utcToZonedParts(window.start, DEFAULT_TIMEZONE).hour, 19);
   assert.equal(utcToZonedParts(window.start, DEFAULT_TIMEZONE).minute, 40);
   assert.equal(window.end.getTime() - window.start.getTime(), 45 * 60 * 1000);
+  const commercial = adminShootWindow("2026-09-22", "9am", ["Commercial video"], DEFAULT_TIMEZONE, 3);
+  assert.ok(commercial);
+  assert.equal(commercial.end.getTime() - commercial.start.getTime(), 3 * 60 * 60 * 1000);
+  assert.equal(adminShootWindow("2026-09-22", "9am", ["Commercial video"]), null);
+  assert.equal(
+    adminShootWindow("2026-09-22", "9am", ["Real Estate · Photography"], DEFAULT_TIMEZONE, 8)!.end.getTime() -
+      adminShootWindow("2026-09-22", "9am", ["Real Estate · Photography"])!.start.getTime(),
+    45 * 60 * 1000,
+  );
   assert.equal(
     shootOverlapWarning(window, [{ start: et(2026, 9, 22, 18, 0), end: et(2026, 9, 22, 19, 39) }]),
     null,

@@ -17,6 +17,9 @@ import {
 } from "./admin-time";
 import { DEFAULT_TIMEZONE } from "./rules";
 import {
+  COMMERCIAL_VIDEO_HOURS_ERROR,
+  commercialVideoHoursForServices,
+  includesCommercialVideo,
   parseSchedulingService,
   parseSchedulingServices,
   SCHEDULING_SERVICES,
@@ -47,6 +50,7 @@ export type OverrideBookingInput = {
   client: string;
   address: string;
   services: readonly string[];
+  commercialHours?: number | null;
   date: string;
   time: string;
   notes?: string | null;
@@ -70,6 +74,7 @@ type InsertedBooking = {
   clientId: string;
   address: string;
   services: SchedulingService[];
+  commercialVideoHours: number | null;
   startsAt: Date;
   endsAt: Date;
   notes: string | null;
@@ -180,11 +185,16 @@ export async function createOverrideBooking(
   const services = parseOverrideServices(input.services);
   if (!services.ok) return services;
 
+  const commercialVideoHours = commercialVideoHoursForServices(services.services, input.commercialHours);
+  if (includesCommercialVideo(services.services) && commercialVideoHours == null) {
+    return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR };
+  }
+
   if (!parseAdminShootDate(input.date)) return { ok: false, error: "Enter a date as YYYY-MM-DD." };
   const clock = parseAdminShootTime(input.time);
   if (!clock.ok) return clock;
 
-  const window = adminShootWindow(input.date, input.time, services.services, timeZone);
+  const window = adminShootWindow(input.date, input.time, services.services, timeZone, commercialVideoHours);
   if (!window) return { ok: false, error: "Could not read that time." };
 
   const notes = input.notes?.trim() || null;
@@ -208,6 +218,7 @@ export async function createOverrideBooking(
     clientId: client.id,
     address: address.address,
     services: services.services,
+    commercialVideoHours,
     startsAt: window.start,
     endsAt: window.end,
     notes,
@@ -324,6 +335,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
           createdByUserId: null,
           address: row.address,
           services: row.services,
+          commercialVideoHours: row.commercialVideoHours,
           startsAt: row.startsAt,
           endsAt: row.endsAt,
           status: "confirmed",
