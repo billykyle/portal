@@ -81,11 +81,12 @@ async function createTables() {
   await sql`ALTER TYPE media_type ADD VALUE IF NOT EXISTS 'raw_video'`;
   await sql`
     DO $$ BEGIN
-      CREATE TYPE client_category AS ENUM ('real_estate', 'construction', 'podcast', 'other');
+      CREATE TYPE client_category AS ENUM ('real_estate', 'construction', 'podcast', 'other', 'commercial');
     EXCEPTION
       WHEN duplicate_object THEN null;
     END $$
   `;
+  await sql`ALTER TYPE client_category ADD VALUE IF NOT EXISTS 'commercial'`;
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS category client_category`;
   await sql`UPDATE clients SET category = 'real_estate' WHERE category IS NULL`;
   await sql`ALTER TABLE clients ALTER COLUMN category SET DEFAULT 'other'`;

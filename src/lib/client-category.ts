@@ -1,4 +1,4 @@
-export const CLIENT_CATEGORIES = ["real_estate", "construction", "podcast", "other"] as const;
+export const CLIENT_CATEGORIES = ["real_estate", "construction", "podcast", "other", "commercial"] as const;
 
 export type ClientCategory = (typeof CLIENT_CATEGORIES)[number];
 
@@ -7,6 +7,7 @@ export const CLIENT_CATEGORY_LABEL: Record<ClientCategory, string> = {
   construction: "Construction",
   podcast: "Podcast",
   other: "Other",
+  commercial: "Commercial",
 };
 
 /** New records, including Create client. Billy can change them. */
@@ -14,7 +15,7 @@ export const NEW_CLIENT_CATEGORY: ClientCategory = "other";
 
 export type ContentTemplateId = "realEstate" | "default" | "podcast";
 
-/** construction uses default until it has its own layout. */
+/** Construction and commercial use default until each has its own layout. */
 export function templateIdForCategory(category: ClientCategory): ContentTemplateId {
   if (category === "real_estate") return "realEstate";
   if (category === "podcast") return "podcast";

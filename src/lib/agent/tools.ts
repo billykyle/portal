@@ -73,7 +73,7 @@ export function createPortalMcpServer(ops: AgentOps) {
       category: z
         .enum(CLIENT_CATEGORIES)
         .optional()
-        .describe("Optional filter: real_estate, construction, podcast, or other."),
+        .describe("Optional filter: real_estate, construction, podcast, other, or commercial."),
     },
     readOnly,
   );
@@ -97,7 +97,7 @@ export function createPortalMcpServer(ops: AgentOps) {
       category: z
         .enum(CLIENT_CATEGORIES)
         .optional()
-        .describe("real_estate, construction, podcast, or other. Omit to use other."),
+        .describe("real_estate, construction, podcast, other, or commercial. Omit to use other."),
     },
     write,
   );
@@ -113,7 +113,7 @@ export function createPortalMcpServer(ops: AgentOps) {
       category: z
         .enum(CLIENT_CATEGORIES)
         .optional()
-        .describe("real_estate, construction, podcast, or other."),
+        .describe("real_estate, construction, podcast, other, or commercial."),
     },
     write,
   );

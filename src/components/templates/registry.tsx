@@ -15,5 +15,7 @@ export const contentTemplates = {
 
 export function contentTemplate(category: ClientCategory): ContentTemplate {
   if (category === "construction") return contentTemplates.construction;
+  // Commercial uses the default shoots layout until it has its own.
+  if (category === "commercial") return contentTemplates.default;
   return contentTemplates[templateIdForCategory(category)];
 }
