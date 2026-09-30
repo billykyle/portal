@@ -12,6 +12,7 @@ export function BookShootForm({
   address,
   placeId,
   services,
+  commercialHours = null,
   notes,
   addressError,
   placesConfigured,
@@ -21,6 +22,7 @@ export function BookShootForm({
   address: string;
   placeId?: string;
   services: string[];
+  commercialHours?: number | null;
   notes?: string;
   addressError?: string;
   placesConfigured: boolean;
@@ -30,14 +32,16 @@ export function BookShootForm({
   const [typedAddress, setTypedAddress] = useState(address);
   const [typedPlaceId, setTypedPlaceId] = useState(placeId ?? "");
   const [pickedServices, setPickedServices] = useState(services);
+  const [pickedHours, setPickedHours] = useState<number | null>(commercialHours);
   const query = useMemo(
     () => ({
       address: typedAddress,
       placeId: typedPlaceId,
       services: pickedServices,
+      commercialHours: pickedHours,
       modify: modifyBookingId,
     }),
-    [modifyBookingId, pickedServices, typedAddress, typedPlaceId],
+    [modifyBookingId, pickedHours, pickedServices, typedAddress, typedPlaceId],
   );
   const queryKey = availabilityQueryKey(query);
 
@@ -72,7 +76,9 @@ export function BookShootForm({
       />
       <ServiceFieldset
         selected={services}
+        commercialHours={commercialHours}
         onSelectedChange={setPickedServices}
+        onCommercialHoursChange={setPickedHours}
       />
       <SubmitButton>Continue</SubmitButton>
     </BookTimesNavigation>

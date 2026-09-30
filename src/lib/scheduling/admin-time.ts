@@ -74,12 +74,15 @@ export function adminShootWindow(
   time: string,
   services: readonly string[],
   timeZone = DEFAULT_TIMEZONE,
+  commercialHours?: number | null,
 ): { start: Date; end: Date; timeZone: string } | null {
   const day = parseAdminShootDate(date);
   const clock = parseAdminShootTime(time);
   if (!day || !clock.ok) return null;
+  const minutes = bookingSlotMinutes(services, commercialHours);
+  if (minutes == null) return null;
   const start = zonedDateTimeToUtc(timeZone, { ...day, hour: clock.hour, minute: clock.minute });
-  const end = new Date(start.getTime() + bookingSlotMinutes(services) * 60 * 1000);
+  const end = new Date(start.getTime() + minutes * 60 * 1000);
   return { start, end, timeZone };
 }
 

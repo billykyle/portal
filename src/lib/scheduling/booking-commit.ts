@@ -21,7 +21,13 @@ import {
 import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingStartAllowed } from "@/lib/scheduling/horizon";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
-import { bookingServiceList, parseSchedulingServices } from "@/lib/scheduling/services";
+import {
+  bookingServiceList,
+  COMMERCIAL_VIDEO_HOURS_ERROR,
+  commercialVideoHoursForServices,
+  includesCommercialVideo,
+  parseSchedulingServices,
+} from "@/lib/scheduling/services";
 import { reminderDateChanged } from "@/lib/scheduling/shoot-reminder";
 
 type ActorSession = { clientId: string; userId: string; email: string } | null;
@@ -90,6 +96,7 @@ export async function prepareBookingModification(input: {
   address: string;
   services: readonly string[];
   notes: string | null;
+  commercialHours?: number | null;
   startIso: string | null;
   endIso: string | null;
 }): Promise<BookingModifyFailure | PreparedBookingModification> {
@@ -114,6 +121,13 @@ export async function prepareBookingModification(input: {
   if (services.length === 0) {
     return { ok: false, error: "Pick at least one service.", stage: "book" };
   }
+  const commercialHours = commercialVideoHoursForServices(
+    services,
+    input.commercialHours !== undefined ? input.commercialHours : booking.commercialVideoHours,
+  );
+  if (includesCommercialVideo(services) && commercialHours == null) {
+    return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR, stage: "book" };
+  }
   if (!input.startIso) {
     return { ok: false, error: "Pick a time.", stage: "times", address: input.address };
   }
@@ -133,6 +147,7 @@ export async function prepareBookingModification(input: {
   );
   const availability = await offerSlotsForAddress(input.address, sources, services, {
     retainStarts: [booking.startsAt],
+    commercialHours,
   });
   if (availability.error) {
     return { ok: false, error: availability.error, stage: "book" };
@@ -202,6 +217,7 @@ export async function prepareBookingModification(input: {
     .set({
       address: availability.address,
       services,
+      commercialVideoHours: commercialHours,
       startsAt: start,
       endsAt: end,
       notes: input.notes,

@@ -74,6 +74,7 @@ export default async function SchedulingPage({
           address: modifying.address,
           notes: modifying.notes,
           services: bookingServiceList(modifying),
+          commercialHours: modifying.commercialVideoHours,
           updatedAt: modifying.updatedAt,
         }
       : null,
@@ -97,10 +98,11 @@ export default async function SchedulingPage({
           </h2>
           <FormColumn className="md:max-w-none lg:max-w-none">
             <BookShootForm
-              key={`${modifying?.id ?? "book"}:${fields.address}:${fields.services.join("\n")}:${fields.notes}`}
+              key={`${modifying?.id ?? "book"}:${fields.address}:${fields.services.join("\n")}:${fields.commercialHours ?? ""}:${fields.notes}`}
               address={fields.address}
               placeId={fields.placeId}
               services={fields.services}
+              commercialHours={fields.commercialHours}
               notes={fields.notes}
               placesConfigured={placesConfigured()}
               modifyBookingId={modifying?.id}

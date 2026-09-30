@@ -70,6 +70,7 @@ export async function loadOfferedAvailability(input: {
   address: string;
   placeId?: string | null;
   services: readonly string[];
+  commercialHours?: number | null;
   modifying?: ModifyAvailabilityContext | null;
 }): Promise<OfferedAvailabilityResult> {
   const services = parseSchedulingServices(input.services);
@@ -97,6 +98,7 @@ export async function loadOfferedAvailability(input: {
 
   const availability = await offerSlotsForAddress(resolved.address, sources, services, {
     retainStarts: input.modifying ? [input.modifying.startsAt] : undefined,
+    commercialHours: input.commercialHours,
   });
   if (availability.error) {
     return { ok: false, kind: "availability", error: availability.error };

@@ -90,6 +90,7 @@ function AdminBookShootFields({
 }) {
   const [clientId, setClientId] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [commercialHours, setCommercialHours] = useState<number | null>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const intervals = useMemo(
@@ -105,8 +106,8 @@ function AdminBookShootFields({
     return formatAdminShootPreview(start);
   }, [date, time]);
   const window = useMemo(
-    () => (services.length > 0 ? adminShootWindow(date, time, services) : null),
-    [date, services, time],
+    () => (services.length > 0 ? adminShootWindow(date, time, services, DEFAULT_TIMEZONE, commercialHours) : null),
+    [commercialHours, date, services, time],
   );
   const overlap = window ? shootOverlapWarning(window, intervals) : null;
 
@@ -114,7 +115,12 @@ function AdminBookShootFields({
     <form action={action} className="flex flex-col gap-4" autoComplete="off">
       <ClientCombobox clients={clients} clientId={clientId} onClientId={setClientId} />
       <AddressAutocomplete placesConfigured={placesConfigured} />
-      <ServiceFieldset selected={services} onSelectedChange={setServices} />
+      <ServiceFieldset
+        selected={services}
+        commercialHours={commercialHours}
+        onSelectedChange={setServices}
+        onCommercialHoursChange={setCommercialHours}
+      />
       <div className="flex flex-col gap-2">
         <label htmlFor="book-date" className="text-[16px] font-normal text-white">
           Date

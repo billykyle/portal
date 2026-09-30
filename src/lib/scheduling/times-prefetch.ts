@@ -1,6 +1,11 @@
 import { parseShootAddress } from "./address";
 import type { AvailabilityResult } from "./availability";
-import { parseSchedulingServices } from "./services";
+import {
+  commercialVideoHoursForServices,
+  includesCommercialVideo,
+  parseCommercialVideoHours,
+  parseSchedulingServices,
+} from "./services";
 
 export const AVAILABILITY_PREFETCH_DEBOUNCE_MS = 320;
 export const AVAILABILITY_FRESH_MS = 90_000;
@@ -9,11 +14,16 @@ export type AvailabilityQuery = {
   address: string;
   placeId?: string | null;
   services: readonly string[];
+  commercialHours?: number | null;
   modify?: string | null;
 };
 
 export function canPrefetchAvailability(query: AvailabilityQuery) {
-  if (parseSchedulingServices(query.services).length === 0) return false;
+  const services = parseSchedulingServices(query.services);
+  if (services.length === 0) return false;
+  if (includesCommercialVideo(services) && parseCommercialVideoHours(query.commercialHours) == null) {
+    return false;
+  }
   return parseShootAddress(query.address).ok;
 }
 
@@ -23,6 +33,7 @@ export function availabilityQueryKey(query: AvailabilityQuery) {
     address: String(query.address ?? "").replace(/\s+/g, " ").trim(),
     placeId: String(query.placeId ?? "").trim(),
     services,
+    commercialHours: commercialVideoHoursForServices(services, query.commercialHours),
     modify: String(query.modify ?? "").trim(),
   });
 }
@@ -34,9 +45,12 @@ export function availabilitySearchParams(query: AvailabilityQuery) {
   const modify = String(query.modify ?? "").trim();
   if (address) params.set("address", address);
   if (placeId) params.set("placeId", placeId);
-  for (const service of parseSchedulingServices(query.services)) {
+  const services = parseSchedulingServices(query.services);
+  for (const service of services) {
     params.append("service", service);
   }
+  const commercialHours = commercialVideoHoursForServices(services, query.commercialHours);
+  if (commercialHours != null) params.set("commercialHours", String(commercialHours));
   if (modify) params.set("modify", modify);
   return params;
 }
@@ -82,6 +96,7 @@ export function readAvailabilityQuery(form: Pick<FormData, "get" | "getAll">): A
     address: String(form.get("address") ?? ""),
     placeId: String(form.get("placeId") ?? ""),
     services: form.getAll("service").map((value) => String(value)),
+    commercialHours: parseCommercialVideoHours(form.get("commercialHours")),
     modify: String(form.get("modify") ?? form.get("bookingId") ?? ""),
   };
 }

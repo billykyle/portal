@@ -5,6 +5,7 @@ import { keepRetainedStarts, offerSlotsForAddress, publicCalendarError, withoutO
 import { schedulingIntegrations } from "./config";
 import { mergeIntervals, overlaps, subtractInterval } from "./intervals";
 import { DEFAULT_TIMEZONE, TRAVEL_PAD_MINUTES } from "./rules";
+import { COMMERCIAL_VIDEO_HOURS_ERROR } from "./services";
 import { generateCandidateSlots } from "./slots";
 import { pickNextJob, pickNextJobs, pickPriorJob, travelFits } from "./travel";
 import { calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
@@ -211,6 +212,37 @@ test("candidate slots are 9:00–18:00 starts on 15-minute steps in America/New_
   const last = slots[slots.length - 1];
   assert.equal(last.start.getTime(), et(2026, 9, 21, 18).getTime());
   assert.equal(last.end.getTime(), et(2026, 9, 21, 19, 30).getTime());
+});
+
+test("Commercial video must end by 6:00pm, so longer blocks have fewer starts", () => {
+  const base = {
+    now: et(2026, 9, 20, 6),
+    timeZone: DEFAULT_TIMEZONE,
+    openHour: 9,
+    closeHour: 18,
+    stepMinutes: 15,
+    daysAhead: 2,
+    minLeadMinutes: 0,
+    requireEndByClose: true,
+  };
+  const eight = generateCandidateSlots({ ...base, slotMinutes: 8 * 60 });
+  const mondayEight = eight.filter((slot) => utcToZonedParts(slot.start, DEFAULT_TIMEZONE).day === 21);
+  assert.equal(mondayEight[0]?.start.getTime(), et(2026, 9, 21, 9).getTime());
+  assert.equal(mondayEight[mondayEight.length - 1]?.start.getTime(), et(2026, 9, 21, 10).getTime());
+  assert.equal(mondayEight[mondayEight.length - 1]?.end.getTime(), et(2026, 9, 21, 18).getTime());
+  assert.equal(
+    mondayEight.some((slot) => slot.start.getTime() === et(2026, 9, 21, 10, 15).getTime()),
+    false,
+  );
+
+  const one = generateCandidateSlots({ ...base, slotMinutes: 60 });
+  const mondayOne = one.filter((slot) => utcToZonedParts(slot.start, DEFAULT_TIMEZONE).day === 21);
+  assert.equal(mondayOne[mondayOne.length - 1]?.start.getTime(), et(2026, 9, 21, 17).getTime());
+  assert.equal(mondayOne[mondayOne.length - 1]?.end.getTime(), et(2026, 9, 21, 18).getTime());
+  assert.equal(
+    mondayOne.some((slot) => slot.start.getTime() === et(2026, 9, 21, 17, 15).getTime()),
+    false,
+  );
 });
 
 test("a 6:00pm start is offered even when the job end runs past close", () => {
@@ -463,6 +495,61 @@ test("offered slots use the summed service duration instead of 90 minutes", asyn
   const podcastSlot = podcast.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 10).getTime());
   assert.ok(podcastSlot);
   assert.equal(startMs(podcastSlot.end), et(2026, 9, 21, 11, 45).getTime());
+
+  const photo = await offerSlotsForAddress(PHILLY, sources, ["Real Estate · Photography"]);
+  const six = photo.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 18).getTime());
+  assert.ok(six);
+  assert.equal(startMs(six.end), et(2026, 9, 21, 18, 45).getTime());
+});
+
+test("Commercial video occupies the chosen hours and blocks that long", async () => {
+  const now = et(2026, 9, 20, 9);
+  const sources = {
+    now,
+    busy: [],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  };
+  const missing = await offerSlotsForAddress(PHILLY, sources, ["Commercial video"]);
+  assert.equal(missing.error, COMMERCIAL_VIDEO_HOURS_ERROR);
+  assert.equal(missing.slots.length, 0);
+
+  for (const hours of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const result = await offerSlotsForAddress(PHILLY, sources, ["Commercial video"], { commercialHours: hours });
+    const start = result.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+    assert.ok(start, `${hours} hour start`);
+    assert.equal(startMs(start.end), et(2026, 9, 21, 9 + hours).getTime());
+    const lastStartHour = 18 - hours;
+    const last = result.slots.find(
+      (slot) => startMs(slot.start) === et(2026, 9, 21, lastStartHour).getTime() && slot.dateKey === "2026-09-21",
+    );
+    assert.ok(last, `${hours} hour last start`);
+    assert.equal(startMs(last.end), et(2026, 9, 21, 18).getTime());
+    assert.equal(
+      result.slots.some(
+        (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, lastStartHour, 15).getTime(),
+      ),
+      false,
+    );
+    assert.equal(result.slots.some((slot) => slot.dateKey === "2026-09-22"), false);
+  }
+
+  const combined = await offerSlotsForAddress(
+    PHILLY,
+    sources,
+    ["Commercial video", "Real Estate · Photography"],
+    { commercialHours: 1 },
+  );
+  const combinedStart = combined.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+  assert.ok(combinedStart);
+  assert.equal(startMs(combinedStart.end), et(2026, 9, 21, 10, 45).getTime());
+  const combinedLast = combined.slots.find(
+    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 16, 15).getTime(),
+  );
+  assert.ok(combinedLast);
+  assert.equal(startMs(combinedLast.end), et(2026, 9, 21, 18).getTime());
 });
 
 test("modifying a booking does not let its own window block the same slot", async () => {

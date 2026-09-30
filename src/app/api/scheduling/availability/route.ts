@@ -7,7 +7,12 @@ import {
   loadModifyAvailabilityContext,
   loadOfferedAvailability,
 } from "@/lib/scheduling/load-offered-availability";
-import { parseSchedulingServices } from "@/lib/scheduling/services";
+import {
+  COMMERCIAL_VIDEO_HOURS_ERROR,
+  includesCommercialVideo,
+  parseCommercialVideoHours,
+  parseSchedulingServices,
+} from "@/lib/scheduling/services";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +27,10 @@ export async function GET(request: NextRequest) {
   const services = parseSchedulingServices(request.nextUrl.searchParams.getAll("service"));
   if (services.length === 0) {
     return NextResponse.json({ error: "Pick at least one service.", kind: "address" }, { status: 400 });
+  }
+  const commercialHours = parseCommercialVideoHours(request.nextUrl.searchParams.get("commercialHours"));
+  if (includesCommercialVideo(services) && commercialHours == null) {
+    return NextResponse.json({ error: COMMERCIAL_VIDEO_HOURS_ERROR, kind: "address" }, { status: 400 });
   }
 
   const modifyId = request.nextUrl.searchParams.get("modify");
@@ -38,6 +47,7 @@ export async function GET(request: NextRequest) {
     address: request.nextUrl.searchParams.get("address") ?? "",
     placeId: request.nextUrl.searchParams.get("placeId"),
     services,
+    commercialHours,
     modifying,
   });
   if (!result.ok) {

@@ -32,9 +32,22 @@ export function schedulingServiceId<I extends string, O extends string>(
   return `${industry} · ${option}`;
 }
 
-export const SCHEDULING_SERVICES = SCHEDULING_INDUSTRIES.flatMap((group) =>
-  group.options.map((option) => schedulingServiceId(group.industry, option)),
-);
+/** Stored and displayed exactly as "Commercial video". Length is chosen in whole hours. */
+export const COMMERCIAL_VIDEO_SERVICE = "Commercial video" as const;
+
+export const COMMERCIAL_VIDEO_MIN_HOURS = 1;
+export const COMMERCIAL_VIDEO_MAX_HOURS = 8;
+
+export const COMMERCIAL_VIDEO_HOUR_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+
+export const COMMERCIAL_VIDEO_HOURS_ERROR = "Choose how long you need Commercial video.";
+
+export const SCHEDULING_SERVICES = [
+  ...SCHEDULING_INDUSTRIES.flatMap((group) =>
+    group.options.map((option) => schedulingServiceId(group.industry, option)),
+  ),
+  COMMERCIAL_VIDEO_SERVICE,
+];
 
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
 
@@ -53,11 +66,49 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Podcast · 2 episodes": 105,
 } as const;
 
-/** Sum of selected option minutes — never longest-only. Empty / unknown → default slot. */
-export function bookingSlotMinutes(services: readonly string[]): number {
+export function commercialHourLabel(hours: number) {
+  return hours === 1 ? "1 hour" : `${hours} hours`;
+}
+
+/** Whole hours 1–8. Anything else, including a blank, is not a length. */
+export function parseCommercialVideoHours(raw: unknown): number | null {
+  if (typeof raw === "number") return commercialHour(raw);
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  if (!/^\d+$/.test(text)) return null;
+  return commercialHour(Number(text));
+}
+
+function commercialHour(value: number): number | null {
+  if (!Number.isInteger(value)) return null;
+  if (value < COMMERCIAL_VIDEO_MIN_HOURS || value > COMMERCIAL_VIDEO_MAX_HOURS) return null;
+  return value;
+}
+
+export function includesCommercialVideo(services: readonly string[]) {
+  return parseSchedulingServices(services).includes(COMMERCIAL_VIDEO_SERVICE);
+}
+
+/** Hours to store. Cleared when Commercial video is not one of the services. */
+export function commercialVideoHoursForServices(services: readonly string[], raw: unknown): number | null {
+  if (!includesCommercialVideo(services)) return null;
+  return parseCommercialVideoHours(raw);
+}
+
+/**
+ * Sum of selected option minutes — never longest-only. Empty / unknown → default slot.
+ * Commercial video adds `hours * 60` and returns null until those hours are 1–8.
+ */
+export function bookingSlotMinutes(
+  services: readonly string[],
+  commercialHours?: number | null,
+): number | null {
   const parsed = parseSchedulingServices(services);
   if (parsed.length === 0) return DEFAULT_SLOT_MINUTES;
+  const hours = parseCommercialVideoHours(commercialHours);
+  if (parsed.includes(COMMERCIAL_VIDEO_SERVICE) && hours == null) return null;
   return parsed.reduce((total, service) => {
+    if (service === COMMERCIAL_VIDEO_SERVICE) return total + (hours ?? 0) * 60;
     const minutes = SCHEDULING_SERVICE_MINUTES[service as keyof typeof SCHEDULING_SERVICE_MINUTES];
     return total + (minutes ?? DEFAULT_SLOT_MINUTES);
   }, 0);

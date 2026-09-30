@@ -6,7 +6,7 @@ import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { ADMIN_HOME, CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import { createOverrideBooking } from "@/lib/scheduling/admin-book";
-import { parseSchedulingServices } from "@/lib/scheduling/services";
+import { parseCommercialVideoHours, parseSchedulingServices } from "@/lib/scheduling/services";
 
 export type AdminBookState = {
   ok: boolean;
@@ -32,6 +32,7 @@ export async function bookShootForClient(
     client: String(formData.get("clientId") ?? ""),
     address: String(formData.get("address") ?? ""),
     services,
+    commercialHours: parseCommercialVideoHours(formData.get("commercialHours")),
     date: String(formData.get("date") ?? ""),
     time: String(formData.get("time") ?? ""),
     notes: String(formData.get("notes") ?? ""),

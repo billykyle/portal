@@ -32,6 +32,7 @@ function toDraft(row: typeof bookingDrafts.$inferSelect): SchedulingDraft | null
     address: row.address,
     placeId: row.placeId,
     services: row.services ?? [],
+    commercialHours: row.commercialVideoHours,
     notes: row.notes,
     modifyBookingId: row.modifyBookingId,
   });
@@ -105,6 +106,7 @@ export async function writeSchedulingDraft(
     address: data.address,
     placeId: data.placeId || null,
     services: data.services,
+    commercialVideoHours: data.commercialHours,
     notes: data.notes || null,
     modifyBookingId: data.modifyBookingId,
     expiresAt,

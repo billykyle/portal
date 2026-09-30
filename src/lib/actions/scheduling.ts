@@ -33,7 +33,11 @@ import {
 import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingStartAllowed } from "@/lib/scheduling/horizon";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
-import { parseSchedulingServices } from "@/lib/scheduling/services";
+import {
+  COMMERCIAL_VIDEO_HOURS_ERROR,
+  includesCommercialVideo,
+  parseSchedulingServices,
+} from "@/lib/scheduling/services";
 import { draftInputFromForm, type SchedulingDraftInput } from "@/lib/scheduling/draft";
 import { clearSchedulingDraft, writeSchedulingDraft } from "@/lib/scheduling/draft-store";
 import {
@@ -112,6 +116,10 @@ export async function continueToTimes(formData: FormData) {
     await fail("Pick at least one service.");
     return;
   }
+  if (includesCommercialVideo(input.services) && input.commercialHours == null) {
+    await fail(COMMERCIAL_VIDEO_HOURS_ERROR);
+    return;
+  }
   const parsed = parseShootAddress(input.address);
   if (!parsed.ok) {
     await fail(parsed.error);
@@ -188,7 +196,9 @@ export async function createBooking(formData: FormData) {
       await failTimes(sources.error);
       return;
     }
-    const availability = await offerSlotsForAddress(address, sources, services);
+    const availability = await offerSlotsForAddress(address, sources, services, {
+      commercialHours: draftInput.commercialHours,
+    });
     if (availability.error) {
       await failBook(availability.error);
       return;
@@ -234,6 +244,7 @@ export async function createBooking(formData: FormData) {
         createdByUserId: session.userId,
         address: availability.address,
         services,
+        commercialVideoHours: draftInput.commercialHours,
         startsAt: start,
         endsAt: end,
         status: "confirmed",
@@ -366,6 +377,7 @@ export async function updateBooking(formData: FormData) {
       address,
       services,
       notes,
+      commercialHours: draftInput.commercialHours,
       startIso: parsedSlot?.startIso ?? null,
       endIso: parsedSlot?.endIso ?? null,
     });

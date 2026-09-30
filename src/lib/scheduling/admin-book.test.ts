@@ -8,6 +8,7 @@ import {
   type OverrideBookingDeps,
   type OverrideBookingSource,
 } from "./admin-book";
+import { COMMERCIAL_VIDEO_HOURS_ERROR } from "./services";
 import { DEFAULT_TIMEZONE } from "./rules";
 import { utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 
@@ -78,6 +79,65 @@ test("client resolution is exact and lists close matches instead of guessing", (
   const missingCode = resolveBookingClient("BK99999", [client()]);
   assert.equal(missingCode.ok, false);
   if (!missingCode.ok) assert.match(missingCode.error, /BK99999/);
+});
+
+test("commercial video override refuses a missing length and occupies the chosen hours", async () => {
+  const missing = await createOverrideBooking(
+    {
+      source: "admin-ui",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Commercial video"],
+      date: "2026-09-22",
+      time: "9am",
+    },
+    {
+      listClients: async () => [client()],
+      listConfirmedIntervals: async () => [],
+      insertBooking: async () => {
+        throw new Error("should not insert");
+      },
+      settle: async () => {
+        throw new Error("should not settle");
+      },
+      calendarOn: () => false,
+    },
+  );
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.equal(missing.error, COMMERCIAL_VIDEO_HOURS_ERROR);
+
+  let occupied = 0;
+  let storedHours: number | null = null;
+  const booked = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Commercial video"],
+      commercialHours: 5,
+      date: "2026-09-22",
+      time: "9am",
+    },
+    {
+      listClients: async () => [client()],
+      listConfirmedIntervals: async () => [],
+      insertBooking: async (row) => {
+        occupied = row.endsAt.getTime() - row.startsAt.getTime();
+        storedHours = row.commercialVideoHours;
+        return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+      },
+      settle: async () => ({
+        issues: { calendar: false, email: false, alertFailed: false },
+        calendarEventId: "evt_commercial",
+        billyNotified: false,
+        alertSent: false,
+      }),
+      calendarOn: () => true,
+    },
+  );
+  assert.equal(booked.ok, true);
+  assert.equal(occupied, 5 * 60 * 60 * 1000);
+  assert.equal(storedHours, 5);
 });
 
 test("override booking ignores weekday, same-day, grid, hours, and drive time", async () => {

@@ -140,6 +140,7 @@ export type AgentOps = {
     bookingId: string;
     address?: string;
     services?: string[];
+    commercialHours?: number | null;
     startsAt?: string;
     endsAt?: string | null;
     notes?: string | null;
@@ -157,6 +158,7 @@ export type AgentOps = {
     client: string;
     address: string;
     services: string[];
+    commercialHours?: number | null;
     date: string;
     time: string;
     notes?: string | null;
@@ -467,6 +469,7 @@ export const portalAgentOps: AgentOps = {
       session: null,
       address: input.address === undefined ? booking.address : input.address,
       services: input.services === undefined ? bookingServiceList(booking) : input.services,
+      commercialHours: input.commercialHours,
       notes,
       startIso: input.startsAt?.trim() || booking.startsAt.toISOString(),
       endIso: input.endsAt?.trim() ? input.endsAt.trim() : null,
@@ -519,6 +522,7 @@ export const portalAgentOps: AgentOps = {
       client: input.client,
       address: input.address,
       services: input.services,
+      commercialHours: input.commercialHours,
       date: input.date,
       time: input.time,
       notes: input.notes,

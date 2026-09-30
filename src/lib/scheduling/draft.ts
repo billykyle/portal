@@ -1,5 +1,5 @@
 import { ADMIN_BOOKINGS } from "@/lib/routes";
-import { parseSchedulingServices } from "./services";
+import { commercialVideoHoursForServices, parseCommercialVideoHours, parseSchedulingServices } from "./services";
 import { adminBookingHref, adminBookingTimesHref, schedulingBookHref, schedulingTimesHref } from "./urls";
 
 /** Opaque id cookie for the client book/modify draft. */
@@ -19,6 +19,7 @@ export type SchedulingDraftInput = {
   address: string;
   placeId: string;
   services: string[];
+  commercialHours: number | null;
   notes: string;
   modifyBookingId: string | null;
 };
@@ -33,6 +34,7 @@ export type SchedulingFlowBooking = {
   address: string;
   notes?: string | null;
   services: readonly string[];
+  commercialHours?: number | null;
   updatedAt?: Date;
 };
 
@@ -40,6 +42,7 @@ export type SchedulingFlowFields = {
   address: string;
   placeId: string;
   services: string[];
+  commercialHours: number | null;
   notes: string;
 };
 
@@ -102,17 +105,20 @@ export function normalizeDraftInput(input: {
   address?: string | null;
   placeId?: string | null;
   services?: readonly string[] | null;
+  commercialHours?: number | null;
   notes?: string | null;
   modifyBookingId?: string | null;
 }): SchedulingDraftInput {
   const modify = String(input.modifyBookingId ?? "").trim().slice(0, LIMITS.modify);
+  const services = parseSchedulingServices(input.services ?? []);
   return {
     address: String(input.address ?? "")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, LIMITS.address),
     placeId: String(input.placeId ?? "").trim().slice(0, LIMITS.placeId),
-    services: parseSchedulingServices(input.services ?? []),
+    services,
+    commercialHours: commercialVideoHoursForServices(services, input.commercialHours),
     notes: String(input.notes ?? "").trim().slice(0, LIMITS.notes),
     modifyBookingId: modify || null,
   };
@@ -123,6 +129,7 @@ export function draftInputFromForm(form: Pick<FormData, "get" | "getAll">): Sche
     address: String(form.get("address") ?? ""),
     placeId: String(form.get("placeId") ?? ""),
     services: form.getAll("service").map((value) => String(value)),
+    commercialHours: parseCommercialVideoHours(form.get("commercialHours")),
     notes: String(form.get("notes") ?? ""),
     modifyBookingId: String(form.get("modify") ?? form.get("bookingId") ?? ""),
   });
@@ -142,13 +149,20 @@ export function schedulingFlowFields(
   modifyId: string,
   booking: SchedulingFlowBooking | null,
 ): SchedulingFlowFields {
-  const empty: SchedulingFlowFields = { address: "", placeId: "", services: [], notes: "" };
+  const empty: SchedulingFlowFields = {
+    address: "",
+    placeId: "",
+    services: [],
+    commercialHours: null,
+    notes: "",
+  };
   const fromBooking = (): SchedulingFlowFields =>
     booking
       ? {
           address: booking.address,
           placeId: "",
           services: parseSchedulingServices(booking.services),
+          commercialHours: commercialVideoHoursForServices(booking.services, booking.commercialHours),
           notes: booking.notes?.trim() ?? "",
         }
       : empty;
@@ -163,6 +177,7 @@ export function schedulingFlowFields(
         address: draft.address,
         placeId: draft.placeId,
         services: draft.services,
+        commercialHours: draft.commercialHours,
         notes: draft.notes,
       };
     }
