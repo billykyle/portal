@@ -7,6 +7,7 @@ export const clientCategoryEnum = pgEnum("client_category", [
   "construction",
   "podcast",
   "other",
+  "commercial",
 ]);
 
 export const clients = pgTable("clients", {
