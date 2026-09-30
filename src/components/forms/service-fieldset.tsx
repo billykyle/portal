@@ -15,6 +15,7 @@ import {
 } from "@/lib/scheduling/services";
 
 const COMMERCIAL_HOURS_MESSAGE = "Enter whole hours from 1 through 8.";
+const COMMERCIAL_VIDEO_LABEL = "Commercial Video";
 
 export function ServiceFieldset({
   selected,
@@ -219,14 +220,14 @@ export function ServiceFieldset({
                 type="button"
                 aria-label={
                   hoursSummary
-                    ? `${COMMERCIAL_VIDEO_SERVICE}, ${hoursSummary} selected`
-                    : COMMERCIAL_VIDEO_SERVICE
+                    ? `${COMMERCIAL_VIDEO_LABEL}, ${hoursSummary} selected`
+                    : COMMERCIAL_VIDEO_LABEL
                 }
                 className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
               >
                 <span className="min-w-0">
-                  <span className="block text-[15px]">{COMMERCIAL_VIDEO_SERVICE}</span>
-                  <span className="block text-sm text-[#8e8e93]">{hoursSummary ?? "1–8 hours"}</span>
+                  <span className="block text-[15px]">{COMMERCIAL_VIDEO_LABEL}</span>
+                  <span className="block text-sm text-[#8e8e93]">Select your hours</span>
                 </span>
                 <ChevronDown
                   aria-hidden
