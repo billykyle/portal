@@ -36,10 +36,9 @@ test("admin sections start collapsed and remember an explicit open set", () => {
   assert.match(adminSectionsCookie(""), /Max-Age=0/);
 });
 
-test("a search, custom sort, or create/sync result opens that admin module", () => {
+test("a search or create/sync result opens that admin module", () => {
   const quiet = {
     query: "",
-    sortIsDefault: true,
     minted: false,
     synced: false,
     error: false,
@@ -47,7 +46,7 @@ test("a search, custom sort, or create/sync result opens that admin module", () 
   };
   assert.equal(clientsSectionForce("clients:all", quiet), false);
   assert.equal(clientsSectionForce("clients:all", { ...quiet, query: "lepore" }), true);
-  assert.equal(clientsSectionForce("clients:all", { ...quiet, sortIsDefault: false }), true);
+  assert.equal(sectionStartsOpen(parseOpenSections("clients:all,bookings:past"), "bookings:past", false), true);
   assert.equal(clientsSectionForce("clients:create-client", { ...quiet, minted: true }), true);
   assert.equal(clientsSectionForce("clients:nas-sync", { ...quiet, minted: true }), false);
   assert.equal(clientsSectionForce("clients:nas-sync", { ...quiet, synced: true }), true);
@@ -165,6 +164,12 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   assert.match(home, /id="clients:nas-sync"/);
   assert.match(home, /id="clients:book-shoot"/);
   assert.match(home, /id="clients:all"/);
+  assert.match(home, /remember=\{false\}/);
+  assert.match(home, /"name-asc"/);
+  assert.doesNotMatch(home, /sectionStartsOpen\(\s*openSections,\s*"clients:all"/);
+  const clientsPage = readFileSync("src/app/admin/clients/page.tsx", "utf8");
+  assert.match(clientsPage, /parseClientSort/);
+  assert.doesNotMatch(clientsPage, /showSort=\{false\}/);
   assert.match(home, /id="bookings:upcoming"/);
   assert.match(home, /id="bookings:past"/);
   assert.match(home, /id="home:maintenance"/);

@@ -61,7 +61,6 @@ export function clientsSectionForce(
   id: string,
   input: {
     query: string;
-    sortIsDefault: boolean;
     minted: boolean;
     synced: boolean;
     error: boolean;
@@ -70,7 +69,8 @@ export function clientsSectionForce(
 ) {
   if (id === "clients:nas-sync") return input.synced || input.syncError || (input.error && !input.minted);
   if (id === "clients:create-client") return input.minted || (input.error && !input.synced);
-  if (id === "clients:all") return input.query.trim().length > 0 || !input.sortIsDefault;
+  // A custom sort must not reopen All clients. Search results still do.
+  if (id === "clients:all") return input.query.trim().length > 0;
   return false;
 }
 

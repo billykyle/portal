@@ -20,11 +20,14 @@ export function AdminSection({
   id,
   label,
   defaultOpen,
+  remember = true,
   children,
 }: {
   id: string;
   label: string;
   defaultOpen: boolean;
+  /** False keeps this section out of the open/closed cookie. */
+  remember?: boolean;
   children: React.ReactNode;
 }) {
   const headingId = useId();
@@ -40,7 +43,8 @@ export function AdminSection({
     const next = !open;
     setOpen(next);
     const ids = new Set(parseOpenSections(readCookie(document.cookie, ADMIN_SECTIONS_COOKIE)));
-    if (next) ids.add(id);
+    if (!remember) ids.delete(id);
+    else if (next) ids.add(id);
     else ids.delete(id);
     document.cookie = adminSectionsCookie(
       serializeOpenSections(ids),
