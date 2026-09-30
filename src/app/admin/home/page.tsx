@@ -12,7 +12,7 @@ import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
-import { CLIENT_SORT_COOKIE, DEFAULT_CLIENT_SORT, parseClientSort, sortClients } from "@/lib/admin/client-sort";
+import { sortClients } from "@/lib/admin/client-sort";
 import {
   ADMIN_SECTIONS_COOKIE,
   bookingsSectionForce,
@@ -153,14 +153,12 @@ export default async function AdminHomePage({
     listAdminBookings(),
     getMaintenanceNotice(),
   ]);
-  const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
   const openSections = parseOpenSections(cookieStore.get(ADMIN_SECTIONS_COOKIE)?.value);
   const syncNotice = nasSyncPageNotice({ error, syncError });
   const syncNote =
     emailSkipped && isNasUnreachableError(emailSkipped) ? readableNasError(emailSkipped) : emailSkipped;
   const sectionSignals = {
     query,
-    sortIsDefault: sort === DEFAULT_CLIENT_SORT,
     minted: Boolean(minted),
     synced: Boolean(synced || emailSkipped),
     error: Boolean(syncNotice.topError),
@@ -198,7 +196,7 @@ export default async function AdminHomePage({
       ...client,
       shootCount: counts.shoots.get(client.id) ?? 0,
     })),
-    sort,
+    "name-asc",
   );
   const now = Date.now();
   const upcoming = bookingRows.filter((row) => row.startsAt.getTime() >= now);
@@ -308,18 +306,15 @@ export default async function AdminHomePage({
         <AdminSection
           id="clients:all"
           label="All clients"
-          defaultOpen={sectionStartsOpen(
-            openSections,
-            "clients:all",
-            clientsSectionForce("clients:all", sectionSignals),
-          )}
+          remember={false}
+          defaultOpen={clientsSectionForce("clients:all", sectionSignals)}
         >
           <AdminClientDirectory
             rowsEmpty={rows.length === 0}
             visible={visible}
             query={query}
-            sort={sort}
             searchAction={ADMIN_HOME}
+            showSort={false}
           />
         </AdminSection>
         <AdminSection

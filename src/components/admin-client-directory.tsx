@@ -9,12 +9,14 @@ export function AdminClientDirectory({
   query,
   sort,
   searchAction,
+  showSort = true,
 }: {
   rowsEmpty: boolean;
   visible: { id: string; inviteCode: string; displayName: string; company: string | null; primaryEmail: string }[];
   query: string;
-  sort: ClientSort;
+  sort?: ClientSort;
   searchAction: string;
+  showSort?: boolean;
 }) {
   return (
     <>
@@ -33,7 +35,7 @@ export function AdminClientDirectory({
             className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
           />
         </form>
-        <ClientSortSelect value={sort} />
+        {showSort && sort ? <ClientSortSelect value={sort} /> : null}
       </div>
       {rowsEmpty ? (
         <p className="text-sm text-[#8e8e93]">No clients yet.</p>
