@@ -32,7 +32,7 @@ export function schedulingServiceId<I extends string, O extends string>(
   return `${industry} · ${option}`;
 }
 
-/** Stored and displayed exactly as "Commercial video". Length is chosen in whole hours. */
+/** Stored exactly as "Commercial video". The booking label capitalizes Video. Length is chosen in whole hours. */
 export const COMMERCIAL_VIDEO_SERVICE = "Commercial video" as const;
 
 export const COMMERCIAL_VIDEO_MIN_HOURS = 1;
