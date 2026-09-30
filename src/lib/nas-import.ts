@@ -77,7 +77,14 @@ export async function importNasStills(
     }
     return { imported: 0, updated: 0, removed: 0, total: 0 };
   }
-  const existing = await db.select().from(media).where(eq(media.shootId, shootId));
+  // Match by filename. Path, sort, type, url, and byte size are written from the NAS listing, not read back.
+  const existing = await db
+    .select({
+      id: media.id,
+      filename: media.filename,
+    })
+    .from(media)
+    .where(eq(media.shootId, shootId));
   if (files.length === 0) {
     for (const prev of existing) {
       await db.delete(media).where(eq(media.id, prev.id));
