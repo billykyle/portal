@@ -147,6 +147,8 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
   assert.equal(cancel?.annotations?.destructiveHint, true);
   const listClientsTool = tools.find((tool) => tool.name === "list_clients");
   assert.deepEqual(listClientsTool?.inputSchema?.properties?.sort?.enum, [
+    "code-desc",
+    "code-asc",
     "name-asc",
     "name-desc",
     "company",

@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { CLIENT_SORTS } from "@/lib/admin/client-sort";
+import { AGENT_CLIENT_SORTS } from "@/lib/admin/client-sort";
 import { runAgentTool } from "@/lib/agent/handlers";
 import type { AgentOps } from "@/lib/agent/ops";
 import { CLIENT_CATEGORIES } from "@/lib/client-category";
@@ -65,10 +65,10 @@ export function createPortalMcpServer(ops: AgentOps) {
     {
       query: z.string().optional().describe("Optional case-insensitive match on invite code, name, company, or primary email."),
       sort: z
-        .enum(CLIENT_SORTS)
+        .enum(AGENT_CLIENT_SORTS)
         .optional()
         .describe(
-          "Optional. name-asc, name-desc, company (no company last), newest, oldest, shoots (most first), or code (BK00001 upward).",
+          "Optional. code-desc (highest BK code first), code-asc or code (BK00001 upward), name-asc, name-desc, company (no company last), newest, oldest, or shoots (most first).",
         ),
       category: z
         .enum(CLIENT_CATEGORIES)
