@@ -4,27 +4,32 @@ import { parseInviteSequence } from "@/lib/invite";
 export const CLIENT_SORT_COOKIE = "bk_client_sort";
 
 export const CLIENT_SORTS = [
+  "code-desc",
+  "code-asc",
   "name-asc",
   "name-desc",
   "company",
   "newest",
   "oldest",
   "shoots",
-  "code",
 ] as const;
 
 export type ClientSort = (typeof CLIENT_SORTS)[number];
 
-export const DEFAULT_CLIENT_SORT: ClientSort = "name-asc";
+/** Menu values, plus the older `code` sort (same order as code-asc). */
+export const AGENT_CLIENT_SORTS = [...CLIENT_SORTS, "code"] as const;
+
+export const DEFAULT_CLIENT_SORT: ClientSort = "code-desc";
 
 export const CLIENT_SORT_LABELS: Record<ClientSort, string> = {
+  "code-desc": "Code high to low",
+  "code-asc": "Code low to high",
   "name-asc": "Name A to Z",
   "name-desc": "Name Z to A",
   company: "Company A to Z",
   newest: "Newest added",
   oldest: "Oldest added",
   shoots: "Most shoots",
-  code: "Invite code",
 };
 
 const CLIENT_SORT_SET = new Set<string>(CLIENT_SORTS);
@@ -41,6 +46,7 @@ export function parseClientSort(value: string | null | undefined): ClientSort {
   } catch {
     decoded = value;
   }
+  if (decoded === "code") return "code-asc";
   return isClientSort(decoded) ? decoded : DEFAULT_CLIENT_SORT;
 }
 
@@ -49,10 +55,11 @@ export function readClientSortArgument(
   value: unknown,
 ): { ok: true; sort?: ClientSort } | { ok: false; error: string } {
   if (value === undefined || value === null || value === "") return { ok: true };
+  if (value === "code") return { ok: true, sort: "code-asc" };
   if (typeof value === "string" && isClientSort(value)) return { ok: true, sort: value };
   return {
     ok: false,
-    error: "Sort must be name-asc, name-desc, company, newest, oldest, shoots, or code.",
+    error: "Sort must be code-desc, code-asc, name-asc, name-desc, company, newest, oldest, shoots, or code.",
   };
 }
 
@@ -111,15 +118,21 @@ export function compareClients(sort: ClientSort, left: SortableClient, right: So
       return timestamp(left.createdAt) - timestamp(right.createdAt);
     case "shoots":
       return right.shootCount - left.shootCount;
-    case "code": {
-      const leftCode = parseInviteSequence(left.inviteCode);
-      const rightCode = parseInviteSequence(right.inviteCode);
-      if (leftCode === null && rightCode === null) return 0;
-      if (leftCode === null) return 1;
-      if (rightCode === null) return -1;
-      return leftCode - rightCode;
-    }
+    case "code-desc":
+      return compareInviteCode(left, right, "desc");
+    case "code-asc":
+      return compareInviteCode(left, right, "asc");
   }
+}
+
+/** Unreadable codes stay last in either direction. */
+function compareInviteCode(left: SortableClient, right: SortableClient, direction: "asc" | "desc") {
+  const leftCode = parseInviteSequence(left.inviteCode);
+  const rightCode = parseInviteSequence(right.inviteCode);
+  if (leftCode === null && rightCode === null) return 0;
+  if (leftCode === null) return 1;
+  if (rightCode === null) return -1;
+  return direction === "asc" ? leftCode - rightCode : rightCode - leftCode;
 }
 
 /** Case-insensitive, stable sort. Does not mutate `rows`. */

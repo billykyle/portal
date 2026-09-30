@@ -77,7 +77,7 @@ test("list_clients forwards sort and rejects an unknown sort before the op", asy
     }),
   );
   assert.equal(sorted.ok, true);
-  assert.equal(seen, "code");
+  assert.equal(seen, "code-asc");
 
   let calls = 0;
   const invalid = await runAgentTool(
