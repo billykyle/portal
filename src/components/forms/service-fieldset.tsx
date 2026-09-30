@@ -1,19 +1,20 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  COMMERCIAL_VIDEO_HOUR_OPTIONS,
-  COMMERCIAL_VIDEO_HOURS_ERROR,
   COMMERCIAL_VIDEO_SERVICE,
   commercialHourLabel,
   includesCommercialVideo,
   isExclusiveIndustry,
+  parseCommercialVideoHours,
   SCHEDULING_INDUSTRIES,
   schedulingServiceId,
   toggleSchedulingService,
 } from "@/lib/scheduling/services";
+
+const COMMERCIAL_HOURS_MESSAGE = "Enter whole hours from 1 through 8.";
 
 export function ServiceFieldset({
   selected,
@@ -33,6 +34,9 @@ export function ServiceFieldset({
   const pickedRef = useRef(picked);
   const [hours, setHours] = useState<number | null>(commercialHours);
   const hoursRef = useRef(hours);
+  const [hoursText, setHoursText] = useState(commercialHours != null ? String(commercialHours) : "");
+  const [commercialOpen, setCommercialOpen] = useState(() => selected.includes(COMMERCIAL_VIDEO_SERVICE));
+  const hoursId = useId();
   const [error, setError] = useState("");
   const [openIndustries, setOpenIndustries] = useState<string[]>(() =>
     industriesWithSelection(selected),
@@ -55,7 +59,8 @@ export function ServiceFieldset({
       }
       if (includesCommercialVideo(pickedRef.current) && hoursRef.current == null) {
         event.preventDefault();
-        setError(COMMERCIAL_VIDEO_HOURS_ERROR);
+        setCommercialOpen(true);
+        setError(COMMERCIAL_HOURS_MESSAGE);
       }
     }
     owner.addEventListener("submit", onSubmit);
@@ -75,13 +80,24 @@ export function ServiceFieldset({
     setError("");
   }
 
-  function chooseHours(next: number) {
-    setHours(next);
-    onCommercialHoursChange?.(next);
+  function applyHoursText(text: string) {
+    const parsed = parseCommercialVideoHours(text);
+    const chooseService = text.trim() !== "";
+    setHoursText(text);
+    setHours(parsed);
+    onCommercialHoursChange?.(parsed);
+    const hasService = picked.includes(COMMERCIAL_VIDEO_SERVICE);
+    if (hasService !== chooseService) {
+      const next = toggleSchedulingService(picked, COMMERCIAL_VIDEO_SERVICE);
+      setPicked(next);
+      onSelectedChange?.(next);
+    }
     setError("");
   }
 
   const commercial = picked.includes(COMMERCIAL_VIDEO_SERVICE);
+  const hoursInvalid = hoursText.trim() !== "" && hours == null;
+  const hoursSummary = hours != null ? commercialHourLabel(hours) : null;
 
   return (
     <fieldset ref={fieldsetRef} className="flex flex-col gap-3">
@@ -193,51 +209,60 @@ export function ServiceFieldset({
           );
         })}
         <li>
-          <div
-            className={`rounded-xl border ${
-              commercial ? "border-white bg-white/5" : "border-white/10"
-            }`}
-          >
-            <button
-              type="button"
-              aria-pressed={commercial}
-              onClick={() => toggle(COMMERCIAL_VIDEO_SERVICE)}
-              className="flex min-h-12 w-full cursor-pointer items-center gap-3 px-4 py-3 text-left"
+          <Collapsible open={commercialOpen} onOpenChange={setCommercialOpen}>
+            <div
+              className={`rounded-xl border ${
+                commercial ? "border-white bg-white/5" : "border-white/10"
+              }`}
             >
-              <span
-                aria-hidden
-                className={`grid size-4 shrink-0 place-items-center rounded-[3px] border ${
-                  commercial ? "border-white bg-white" : "border-white/50 bg-transparent"
-                }`}
+              <CollapsibleTrigger
+                type="button"
+                aria-label={
+                  hoursSummary
+                    ? `${COMMERCIAL_VIDEO_SERVICE}, ${hoursSummary} selected`
+                    : COMMERCIAL_VIDEO_SERVICE
+                }
+                className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
               >
-                {commercial ? <Check className="size-3 text-black" strokeWidth={3} /> : null}
-              </span>
-              <span className="text-[15px]">{COMMERCIAL_VIDEO_SERVICE}</span>
-            </button>
-            {commercial ? (
-              <div className="grid grid-cols-2 gap-2 px-3 pb-3 lg:grid-cols-4">
-                {COMMERCIAL_VIDEO_HOUR_OPTIONS.map((option) => {
-                  const checked = hours === option;
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      aria-pressed={checked}
-                      onClick={() => chooseHours(option)}
-                      className={`flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-3 py-3 text-[15px] text-white ${
-                        checked ? "border-white bg-white/5" : "border-white/10"
-                      }`}
-                    >
-                      {commercialHourLabel(option)}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
+                <span className="min-w-0">
+                  <span className="block text-[15px]">{COMMERCIAL_VIDEO_SERVICE}</span>
+                  <span className="block text-sm text-[#8e8e93]">{hoursSummary ?? "1–8 hours"}</span>
+                </span>
+                <ChevronDown
+                  aria-hidden
+                  className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
+                    commercialOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="px-3 pb-3">
+                  <label htmlFor={hoursId} className="sr-only">
+                    Hours
+                  </label>
+                  <input
+                    id={hoursId}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={hoursText}
+                    placeholder="Hours"
+                    aria-invalid={hoursInvalid}
+                    onChange={(event) => applyHoursText(event.target.value)}
+                    className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
+                  />
+                  {hoursInvalid || error === COMMERCIAL_HOURS_MESSAGE ? (
+                    <p className="mt-2 text-sm text-[#a1a1a1]">{COMMERCIAL_HOURS_MESSAGE}</p>
+                  ) : null}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </li>
       </ul>
-      {error ? <p className="text-sm text-[#a1a1a1]">{error}</p> : null}
+      {error && error !== COMMERCIAL_HOURS_MESSAGE ? (
+        <p className="text-sm text-[#a1a1a1]">{error}</p>
+      ) : null}
     </fieldset>
   );
 }

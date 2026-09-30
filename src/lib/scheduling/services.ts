@@ -38,8 +38,6 @@ export const COMMERCIAL_VIDEO_SERVICE = "Commercial video" as const;
 export const COMMERCIAL_VIDEO_MIN_HOURS = 1;
 export const COMMERCIAL_VIDEO_MAX_HOURS = 8;
 
-export const COMMERCIAL_VIDEO_HOUR_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
-
 export const COMMERCIAL_VIDEO_HOURS_ERROR = "Choose how long you need Commercial video.";
 
 export const SCHEDULING_SERVICES = [
