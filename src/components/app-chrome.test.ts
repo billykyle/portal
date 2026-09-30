@@ -18,6 +18,8 @@ test("signed-in headers use the hamburger menu and keep the centered logo clear"
   assert.doesNotMatch(client, />Home</);
   assert.doesNotMatch(client, />Sign out</);
   assert.match(client, /absolute inset-0 flex items-center justify-center/);
+  assert.match(client, /<svg[^>]*aria-label="Billy Kyle"/);
+  assert.doesNotMatch(client, /bk-logo/);
 
   const withBack = renderToStaticMarkup(
     createElement(ClientHeader, { backHref: "/scheduling", backLabel: "Address" }),
