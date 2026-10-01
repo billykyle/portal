@@ -77,10 +77,12 @@
  *    Commercial video has no fixed minutes (Billy, 2026-09-30). The client
  *    or admin chooses 1 through 8 whole hours, and that length is added to
  *    the sum. Without a chosen length, no times are offered.
- *    Social Media Video is Monthly Batch Video (60 minutes) and/or Long Form
- *    Content Creation (120 minutes). One or both may be selected; both sum
- *    to 180 minutes. The stored ids record which options were picked. That
- *    block, alone or combined, must end at or before 6:00pm.
+ *    Social Media Video is Monthly Batch Video (60 minutes) or Long Form
+ *    Content Creation (120 minutes). Only one may be selected. The stored
+ *    id records which option was picked. That block, alone or combined,
+ *    must end at or before 6:00pm. Meeting is a 30 min appointment or a
+ *    1 hour appointment. Only one may be selected, and it follows the
+ *    same 6:00pm start rule as Photography.
  * 7. Offer window (Billy, 2026-09-20): America/New_York start times from
  *    {@link DEFAULT_OPEN_HOUR} through {@link DEFAULT_CLOSE_HOUR} inclusive,
  *    on {@link DEFAULT_STEP_MINUTES}-minute steps. A 6:00pm start is offered

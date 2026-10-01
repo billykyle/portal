@@ -4,7 +4,8 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
  * Client-bookable services, grouped by industry. One catalog for the
  * Scheduling picker, booking records, and admin. Clients may select more
  * than one option, including across industries, except exclusive groups
- * (Podcast: 1 episode or 2 episodes). Do not invent prices here.
+ * (Podcast episode count, Social Media Video option, and Meeting length).
+ * Do not invent prices here.
  * Slot length is the **sum** of selected option minutes (never longest-only).
  */
 export const SCHEDULING_INDUSTRIES = [
@@ -40,7 +41,7 @@ export const COMMERCIAL_VIDEO_MAX_HOURS = 8;
 
 export const COMMERCIAL_VIDEO_HOURS_ERROR = "Choose how long you need Commercial video.";
 
-/** Stored as industry · option so a booking records which of the two were picked. */
+/** Stored as group · option. The two options are exclusive. */
 export const SOCIAL_MEDIA_VIDEO_LABEL = "Social Media Video" as const;
 export const SOCIAL_MEDIA_MONTHLY_BATCH = "Social Media Video · Monthly Batch Video" as const;
 export const SOCIAL_MEDIA_LONG_FORM = "Social Media Video · Long Form Content Creation" as const;
@@ -50,6 +51,16 @@ export const SOCIAL_MEDIA_VIDEO_OPTIONS = [
   { id: SOCIAL_MEDIA_LONG_FORM, label: "Long Form Content Creation", minutes: 120 },
 ] as const;
 
+/** Stored as group · option. The two lengths are exclusive. */
+export const MEETING_LABEL = "Meeting" as const;
+export const MEETING_30 = "Meeting · 30 min appointment" as const;
+export const MEETING_60 = "Meeting · 1 hour appointment" as const;
+
+export const MEETING_OPTIONS = [
+  { id: MEETING_30, label: "30 min appointment", minutes: 30 },
+  { id: MEETING_60, label: "1 hour appointment", minutes: 60 },
+] as const;
+
 export const SCHEDULING_SERVICES = [
   ...SCHEDULING_INDUSTRIES.flatMap((group) =>
     group.options.map((option) => schedulingServiceId(group.industry, option)),
@@ -57,6 +68,8 @@ export const SCHEDULING_SERVICES = [
   COMMERCIAL_VIDEO_SERVICE,
   SOCIAL_MEDIA_MONTHLY_BATCH,
   SOCIAL_MEDIA_LONG_FORM,
+  MEETING_30,
+  MEETING_60,
 ];
 
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
@@ -76,6 +89,8 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Podcast · 2 episodes": 105,
   "Social Media Video · Monthly Batch Video": 60,
   "Social Media Video · Long Form Content Creation": 120,
+  "Meeting · 30 min appointment": 30,
+  "Meeting · 1 hour appointment": 60,
 } as const;
 
 export function commercialHourLabel(hours: number) {
@@ -140,18 +155,20 @@ export function bookingSlotMinutes(
 
 const SERVICE_SET = new Set<string>(SCHEDULING_SERVICES);
 
-const SERVICE_INDUSTRY = new Map<SchedulingService, SchedulingIndustry>(
-  SCHEDULING_INDUSTRIES.flatMap((group) =>
-    group.options.map(
-      (option) =>
-        [schedulingServiceId(group.industry, option), group.industry] as const,
-    ),
-  ),
-);
-
-const EXCLUSIVE_INDUSTRIES = new Set<SchedulingIndustry>(
-  SCHEDULING_INDUSTRIES.filter(isExclusiveIndustry).map((group) => group.industry),
-);
+/** Exclusive options replace each other. Keyed by service id → group name. */
+const EXCLUSIVE_GROUP_KEY = new Map<string, string>();
+for (const group of SCHEDULING_INDUSTRIES) {
+  if (!isExclusiveIndustry(group)) continue;
+  for (const option of group.options) {
+    EXCLUSIVE_GROUP_KEY.set(schedulingServiceId(group.industry, option), group.industry);
+  }
+}
+for (const option of SOCIAL_MEDIA_VIDEO_OPTIONS) {
+  EXCLUSIVE_GROUP_KEY.set(option.id, SOCIAL_MEDIA_VIDEO_LABEL);
+}
+for (const option of MEETING_OPTIONS) {
+  EXCLUSIVE_GROUP_KEY.set(option.id, MEETING_LABEL);
+}
 
 export function isExclusiveIndustry(
   group: (typeof SCHEDULING_INDUSTRIES)[number],
@@ -192,27 +209,23 @@ function flattenServiceInputs(raw: unknown): string[] {
 /** Allowlist-order unique services. Empty if none are valid. Exclusive groups keep the last pick. */
 export function parseSchedulingServices(raw: unknown): SchedulingService[] {
   const seen = new Set<SchedulingService>();
-  const lastExclusive = new Map<SchedulingIndustry, SchedulingService>();
+  const lastExclusive = new Map<string, SchedulingService>();
   for (const value of flattenServiceInputs(raw)) {
     const parsed = parseSchedulingService(value);
     if (!parsed) continue;
     seen.add(parsed);
-    const industry = SERVICE_INDUSTRY.get(parsed);
-    if (industry && EXCLUSIVE_INDUSTRIES.has(industry)) {
-      lastExclusive.set(industry, parsed);
-    }
+    const group = EXCLUSIVE_GROUP_KEY.get(parsed);
+    if (group) lastExclusive.set(group, parsed);
   }
   return SCHEDULING_SERVICES.filter((item) => {
     if (!seen.has(item)) return false;
-    const industry = SERVICE_INDUSTRY.get(item);
-    if (industry && EXCLUSIVE_INDUSTRIES.has(industry)) {
-      return lastExclusive.get(industry) === item;
-    }
+    const group = EXCLUSIVE_GROUP_KEY.get(item);
+    if (group) return lastExclusive.get(group) === item;
     return true;
   });
 }
 
-/** Add or remove a service; exclusive industry options replace each other. */
+/** Add or remove a service. Exclusive group options replace each other. */
 export function toggleSchedulingService(
   current: readonly string[],
   value: string,
@@ -223,10 +236,10 @@ export function toggleSchedulingService(
   if (selected.has(parsed)) {
     selected.delete(parsed);
   } else {
-    const industry = SERVICE_INDUSTRY.get(parsed);
-    if (industry && EXCLUSIVE_INDUSTRIES.has(industry)) {
+    const group = EXCLUSIVE_GROUP_KEY.get(parsed);
+    if (group) {
       for (const item of SCHEDULING_SERVICES) {
-        if (SERVICE_INDUSTRY.get(item) === industry) selected.delete(item);
+        if (EXCLUSIVE_GROUP_KEY.get(item) === group) selected.delete(item);
       }
     }
     selected.add(parsed);

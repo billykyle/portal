@@ -55,8 +55,10 @@ test("scheduling services are Billy's industry catalog", () => {
     "Commercial video",
     "Social Media Video · Monthly Batch Video",
     "Social Media Video · Long Form Content Creation",
+    "Meeting · 30 min appointment",
+    "Meeting · 1 hour appointment",
   ]);
-  assert.equal(SCHEDULING_SERVICES.length, 11);
+  assert.equal(SCHEDULING_SERVICES.length, 13);
   assert.equal(COMMERCIAL_VIDEO_SERVICE, "Commercial video");
   assert.equal(schedulingServiceId("Real Estate", "Photography"), "Real Estate · Photography");
   assert.equal(schedulingServiceId("Podcast", "1 episode"), "Podcast · 1 episode");
@@ -181,6 +183,8 @@ test("bookingSlotMinutes sums locked option times including Aerial Photos", () =
     "Podcast · 2 episodes": 105,
     "Social Media Video · Monthly Batch Video": 60,
     "Social Media Video · Long Form Content Creation": 120,
+    "Meeting · 30 min appointment": 30,
+    "Meeting · 1 hour appointment": 60,
   });
   assert.equal(bookingSlotMinutes([]), DEFAULT_SLOT_MINUTES);
   assert.equal(bookingSlotMinutes(["Wedding"]), DEFAULT_SLOT_MINUTES);
@@ -224,26 +228,42 @@ test("Commercial video uses whole hours from 1 through 8 and sums with other ser
   assert.equal(formatBookingServices(["Commercial video"]), "Commercial video");
 });
 
-test("Social Media Video stores each chosen option and sums their minutes", () => {
+test("Social Media Video keeps one option and still ends by close", () => {
   const monthly = "Social Media Video · Monthly Batch Video";
   const longForm = "Social Media Video · Long Form Content Creation";
   assert.equal(bookingSlotMinutes([monthly]), 60);
   assert.equal(bookingSlotMinutes([longForm]), 120);
-  assert.equal(bookingSlotMinutes([monthly, longForm]), 180);
-  assert.equal(bookingSlotMinutes(["Real Estate · Photography", monthly, longForm]), 45 + 180);
+  assert.equal(bookingSlotMinutes([monthly, longForm]), 120);
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography", monthly, longForm]), 45 + 120);
   assert.deepEqual(parseSchedulingServices([longForm, "Real Estate · Video", monthly]), [
     "Real Estate · Video",
     monthly,
-    longForm,
   ]);
-  assert.deepEqual(toggleSchedulingService([monthly], longForm), [monthly, longForm]);
-  assert.deepEqual(toggleSchedulingService([monthly, longForm], monthly), [longForm]);
-  assert.equal(
-    formatBookingServices([monthly, longForm]),
-    "Social Media Video · Monthly Batch Video, Social Media Video · Long Form Content Creation",
-  );
+  assert.deepEqual(toggleSchedulingService([monthly], longForm), [longForm]);
+  assert.deepEqual(toggleSchedulingService([longForm], monthly), [monthly]);
+  assert.deepEqual(toggleSchedulingService([monthly], monthly), []);
+  assert.equal(formatBookingServices([longForm]), longForm);
   assert.equal(bookingRequiresEndByClose([monthly]), true);
   assert.equal(bookingRequiresEndByClose([longForm, "Real Estate · Photography"]), true);
   assert.equal(bookingRequiresEndByClose(["Real Estate · Photography"]), false);
   assert.equal(bookingRequiresEndByClose(["Commercial video"]), true);
+});
+
+test("Meeting keeps one length and does not require an end by 6:00pm", () => {
+  const half = "Meeting · 30 min appointment";
+  const hour = "Meeting · 1 hour appointment";
+  assert.equal(bookingSlotMinutes([half]), 30);
+  assert.equal(bookingSlotMinutes([hour]), 60);
+  assert.equal(bookingSlotMinutes([half, hour]), 60);
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography", hour]), 45 + 60);
+  assert.deepEqual(parseSchedulingServices([hour, "Real Estate · Video", half]), [
+    "Real Estate · Video",
+    half,
+  ]);
+  assert.deepEqual(toggleSchedulingService([half], hour), [hour]);
+  assert.deepEqual(toggleSchedulingService([hour], half), [half]);
+  assert.deepEqual(toggleSchedulingService([half], half), []);
+  assert.equal(bookingRequiresEndByClose([half]), false);
+  assert.equal(bookingRequiresEndByClose([hour]), false);
+  assert.equal(formatBookingServices([half]), half);
 });

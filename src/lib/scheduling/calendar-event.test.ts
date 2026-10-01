@@ -233,6 +233,29 @@ test("calendar title uses service initials in catalog order and keeps notes", ()
   });
   assert.equal(titled, "Jane Doe - P V CV");
   assert.doesNotMatch(titled, /Real Estate|Construction/);
+  assert.equal(
+    calendarEventTitle({ ...jane, services: ["Meeting · 30 min appointment"] }),
+    "Jane Doe - M",
+  );
+  assert.equal(
+    calendarEventTitle({ ...jane, services: ["Meeting · 1 hour appointment"] }),
+    "Jane Doe - M",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Meeting · 30 min appointment", "Meeting · 1 hour appointment"],
+    }),
+    "Jane Doe - M",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Photography", "Meeting · 1 hour appointment"],
+      notes: "gate code 1234",
+    }),
+    "Jane Doe - P M (gate code 1234)",
+  );
   const copy = calendarEventCopy({
     ...jane,
     services: ["Real Estate · Photography", "Real Estate · Video"],

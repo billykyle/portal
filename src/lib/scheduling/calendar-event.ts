@@ -12,6 +12,7 @@ const CALENDAR_SERVICE_INITIALS: { token: string; services: readonly string[] }[
   { token: "360", services: ["Real Estate · Zillow 360"] },
   { token: "Podcast", services: ["Podcast · 1 episode", "Podcast · 2 episodes"] },
   { token: "CV", services: ["Commercial video"] },
+  { token: "M", services: ["Meeting · 30 min appointment", "Meeting · 1 hour appointment"] },
 ];
 
 export function calendarServiceInitials(services: readonly string[]) {

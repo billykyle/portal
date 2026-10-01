@@ -8,7 +8,10 @@ import {
   commercialHourLabel,
   includesCommercialVideo,
   isExclusiveIndustry,
+  MEETING_LABEL,
+  MEETING_OPTIONS,
   parseCommercialVideoHours,
+  parseSchedulingServices,
   SCHEDULING_INDUSTRIES,
   schedulingServiceId,
   SOCIAL_MEDIA_VIDEO_LABEL,
@@ -18,7 +21,8 @@ import {
 
 const COMMERCIAL_HOURS_MESSAGE = "Enter whole hours from 1 through 8.";
 const COMMERCIAL_VIDEO_LABEL = "Commercial Video";
-const SOCIAL_MEDIA_HINT = "Select all that apply";
+const EXCLUSIVE_HINT = "Select one that applies";
+const MULTI_HINT = "Select all that apply";
 
 export function ServiceFieldset({
   selected,
@@ -34,17 +38,19 @@ export function ServiceFieldset({
   onCommercialHoursChange?: (hours: number | null) => void;
 }) {
   const fieldsetRef = useRef<HTMLFieldSetElement>(null);
-  const [picked, setPicked] = useState(selected);
+  const initial = parseSchedulingServices(selected);
+  const [picked, setPicked] = useState(initial);
   const pickedRef = useRef(picked);
   const [hours, setHours] = useState<number | null>(commercialHours);
   const hoursRef = useRef(hours);
   const [hoursText, setHoursText] = useState(commercialHours != null ? String(commercialHours) : "");
-  const [commercialOpen, setCommercialOpen] = useState(() => selected.includes(COMMERCIAL_VIDEO_SERVICE));
-  const [socialOpen, setSocialOpen] = useState(() => selected.some(isSocialMediaOption));
+  const [commercialOpen, setCommercialOpen] = useState(() => initial.includes(COMMERCIAL_VIDEO_SERVICE));
+  const [socialOpen, setSocialOpen] = useState(() => initial.some(isSocialMediaOption));
+  const [meetingOpen, setMeetingOpen] = useState(() => initial.some(isMeetingOption));
   const hoursId = useId();
   const [error, setError] = useState("");
   const [openIndustries, setOpenIndustries] = useState<string[]>(() =>
-    industriesWithSelection(selected),
+    industriesWithSelection(initial),
   );
 
   useEffect(() => {
@@ -73,15 +79,13 @@ export function ServiceFieldset({
   }, []);
 
   function toggle(value: string) {
-    setPicked((current) => {
-      const next = toggleSchedulingService(current, value);
-      onSelectedChange?.(next);
-      if (!includesCommercialVideo(next)) {
-        setHours(null);
-        onCommercialHoursChange?.(null);
-      }
-      return next;
-    });
+    const next = toggleSchedulingService(picked, value);
+    setPicked(next);
+    onSelectedChange?.(next);
+    if (!includesCommercialVideo(next)) {
+      setHours(null);
+      onCommercialHoursChange?.(null);
+    }
     setError("");
   }
 
@@ -100,6 +104,16 @@ export function ServiceFieldset({
     setError("");
   }
 
+  function setIndustryOpen(industry: string, next: boolean) {
+    setOpenIndustries((current) =>
+      next
+        ? current.includes(industry)
+          ? current
+          : [...current, industry]
+        : current.filter((item) => item !== industry),
+    );
+  }
+
   const commercial = picked.includes(COMMERCIAL_VIDEO_SERVICE);
   const hoursInvalid = hoursText.trim() !== "" && hours == null;
   const hoursSummary = hours != null ? commercialHourLabel(hours) : null;
@@ -115,104 +129,35 @@ export function ServiceFieldset({
       ))}
       {commercial && hours != null ? <input type="hidden" name="commercialHours" value={hours} /> : null}
       <ul className="flex flex-col gap-2">
-        {SCHEDULING_INDUSTRIES.map((group) => {
-          const open = openIndustries.includes(group.industry);
-          const exclusive = isExclusiveIndustry(group);
-          const selectedOptions = group.options.filter((option) =>
-            picked.includes(schedulingServiceId(group.industry, option)),
-          );
-          return (
-            <li key={group.industry}>
-              <Collapsible
-                open={open}
-                onOpenChange={(next) => {
-                  setOpenIndustries((current) =>
-                    next
-                      ? current.includes(group.industry)
-                        ? current
-                        : [...current, group.industry]
-                      : current.filter((industry) => industry !== group.industry),
-                  );
-                }}
-              >
-                <div
-                  className={`rounded-xl border ${
-                    selectedOptions.length > 0 ? "border-white bg-white/5" : "border-white/10"
-                  }`}
-                >
-                  <CollapsibleTrigger
-                    type="button"
-                    aria-label={
-                      selectedOptions.length > 0
-                        ? `${group.industry}, ${selectedOptions.join(", ")} selected`
-                        : group.industry
-                    }
-                    className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-[15px]">{group.industry}</span>
-                      {selectedOptions.length > 0 ? (
-                        <span className="block text-sm text-[#8e8e93]">
-                          {selectedOptions.join(", ")}
-                        </span>
-                      ) : exclusive ? (
-                        <span className="block text-sm text-[#8e8e93]">Choose one</span>
-                      ) : (
-                        <span className="block text-sm text-[#8e8e93]">Select all that apply</span>
-                      )}
-                    </span>
-                    <ChevronDown
-                      aria-hidden
-                      className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
-                        open ? "rotate-180" : ""
-                      }`}
-                    />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
-                      {group.options.map((option) => {
-                        const value = schedulingServiceId(group.industry, option);
-                        const checked = picked.includes(value);
-                        return (
-                          <li key={value}>
-                            <button
-                              type="button"
-                              aria-pressed={checked}
-                              onClick={() => toggle(value)}
-                              className={`flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left ${
-                                checked ? "border-white bg-white/5" : "border-white/10"
-                              }`}
-                            >
-                              <span
-                                aria-hidden
-                                className={`grid size-4 shrink-0 place-items-center border ${
-                                  exclusive ? "rounded-full" : "rounded-[3px]"
-                                } ${
-                                  checked
-                                    ? "border-white bg-white"
-                                    : "border-white/50 bg-transparent"
-                                }`}
-                              >
-                                {checked ? (
-                                  exclusive ? (
-                                    <span className="size-1.5 rounded-full bg-black" />
-                                  ) : (
-                                    <Check className="size-3 text-black" strokeWidth={3} />
-                                  )
-                                ) : null}
-                              </span>
-                              <span className="text-[15px]">{option}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </CollapsibleContent>
-                </div>
-              </Collapsible>
-            </li>
-          );
-        })}
+        <IndustryGroup
+          group={industryNamed("Real Estate")}
+          open={openIndustries.includes("Real Estate")}
+          picked={picked}
+          onOpenChange={(next) => setIndustryOpen("Real Estate", next)}
+          onToggle={toggle}
+        />
+        <ExclusiveChoices
+          label={SOCIAL_MEDIA_VIDEO_LABEL}
+          options={SOCIAL_MEDIA_VIDEO_OPTIONS}
+          picked={picked}
+          open={socialOpen}
+          onOpenChange={setSocialOpen}
+          onToggle={toggle}
+        />
+        <IndustryGroup
+          group={industryNamed("Podcast")}
+          open={openIndustries.includes("Podcast")}
+          picked={picked}
+          onOpenChange={(next) => setIndustryOpen("Podcast", next)}
+          onToggle={toggle}
+        />
+        <IndustryGroup
+          group={industryNamed("Construction")}
+          open={openIndustries.includes("Construction")}
+          picked={picked}
+          onOpenChange={(next) => setIndustryOpen("Construction", next)}
+          onToggle={toggle}
+        />
         <li>
           <Collapsible open={commercialOpen} onOpenChange={setCommercialOpen}>
             <div
@@ -264,61 +209,14 @@ export function ServiceFieldset({
             </div>
           </Collapsible>
         </li>
-        <li>
-          <Collapsible open={socialOpen} onOpenChange={setSocialOpen}>
-            <div
-              className={`rounded-xl border ${
-                socialSelected(picked).length > 0 ? "border-white bg-white/5" : "border-white/10"
-              }`}
-            >
-              <CollapsibleTrigger
-                type="button"
-                aria-label={socialAriaLabel(picked)}
-                className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
-              >
-                <span className="min-w-0">
-                  <span className="block text-[15px]">{SOCIAL_MEDIA_VIDEO_LABEL}</span>
-                  <span className="block text-sm text-[#8e8e93]">{SOCIAL_MEDIA_HINT}</span>
-                </span>
-                <ChevronDown
-                  aria-hidden
-                  className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
-                    socialOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
-                  {SOCIAL_MEDIA_VIDEO_OPTIONS.map((option) => {
-                    const checked = picked.includes(option.id);
-                    return (
-                      <li key={option.id}>
-                        <button
-                          type="button"
-                          aria-pressed={checked}
-                          onClick={() => toggle(option.id)}
-                          className={`flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left ${
-                            checked ? "border-white bg-white/5" : "border-white/10"
-                          }`}
-                        >
-                          <span
-                            aria-hidden
-                            className={`grid size-4 shrink-0 place-items-center rounded-[3px] border ${
-                              checked ? "border-white bg-white" : "border-white/50 bg-transparent"
-                            }`}
-                          >
-                            {checked ? <Check className="size-3 text-black" strokeWidth={3} /> : null}
-                          </span>
-                          <span className="text-[15px]">{option.label}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-        </li>
+        <ExclusiveChoices
+          label={MEETING_LABEL}
+          options={MEETING_OPTIONS}
+          picked={picked}
+          open={meetingOpen}
+          onOpenChange={setMeetingOpen}
+          onToggle={toggle}
+        />
       </ul>
       {error && error !== COMMERCIAL_HOURS_MESSAGE ? (
         <p className="text-sm text-[#a1a1a1]">{error}</p>
@@ -327,21 +225,193 @@ export function ServiceFieldset({
   );
 }
 
+function IndustryGroup({
+  group,
+  open,
+  picked,
+  onOpenChange,
+  onToggle,
+}: {
+  group: (typeof SCHEDULING_INDUSTRIES)[number];
+  open: boolean;
+  picked: readonly string[];
+  onOpenChange: (open: boolean) => void;
+  onToggle: (value: string) => void;
+}) {
+  const exclusive = isExclusiveIndustry(group);
+  const selectedOptions = group.options.filter((option) =>
+    picked.includes(schedulingServiceId(group.industry, option)),
+  );
+  return (
+    <li>
+      <Collapsible open={open} onOpenChange={onOpenChange}>
+        <div
+          className={`rounded-xl border ${
+            selectedOptions.length > 0 ? "border-white bg-white/5" : "border-white/10"
+          }`}
+        >
+          <CollapsibleTrigger
+            type="button"
+            aria-label={
+              selectedOptions.length > 0
+                ? `${group.industry}, ${selectedOptions.join(", ")} selected`
+                : group.industry
+            }
+            className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-[15px]">{group.industry}</span>
+              {selectedOptions.length > 0 ? (
+                <span className="block text-sm text-[#8e8e93]">{selectedOptions.join(", ")}</span>
+              ) : exclusive ? (
+                <span className="block text-sm text-[#8e8e93]">{EXCLUSIVE_HINT}</span>
+              ) : (
+                <span className="block text-sm text-[#8e8e93]">{MULTI_HINT}</span>
+              )}
+            </span>
+            <ChevronDown
+              aria-hidden
+              className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
+                open ? "rotate-180" : ""
+              }`}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
+              {group.options.map((option) => {
+                const value = schedulingServiceId(group.industry, option);
+                const checked = picked.includes(value);
+                return (
+                  <li key={value}>
+                    <button
+                      type="button"
+                      aria-pressed={checked}
+                      onClick={() => onToggle(value)}
+                      className={`flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left ${
+                        checked ? "border-white bg-white/5" : "border-white/10"
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`grid size-4 shrink-0 place-items-center border ${
+                          exclusive ? "rounded-full" : "rounded-[3px]"
+                        } ${checked ? "border-white bg-white" : "border-white/50 bg-transparent"}`}
+                      >
+                        {checked ? (
+                          exclusive ? (
+                            <span className="size-1.5 rounded-full bg-black" />
+                          ) : (
+                            <Check className="size-3 text-black" strokeWidth={3} />
+                          )
+                        ) : null}
+                      </span>
+                      <span className="text-[15px]">{option}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+    </li>
+  );
+}
+
+function ExclusiveChoices({
+  label,
+  options,
+  picked,
+  open,
+  onOpenChange,
+  onToggle,
+}: {
+  label: string;
+  options: readonly { id: string; label: string }[];
+  picked: readonly string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onToggle: (value: string) => void;
+}) {
+  const selected = options.filter((option) => picked.includes(option.id));
+  return (
+    <li>
+      <Collapsible open={open} onOpenChange={onOpenChange}>
+        <div
+          className={`rounded-xl border ${
+            selected.length > 0 ? "border-white bg-white/5" : "border-white/10"
+          }`}
+        >
+          <CollapsibleTrigger
+            type="button"
+            aria-label={
+              selected.length > 0
+                ? `${label}, ${selected.map((option) => option.label).join(", ")} selected`
+                : label
+            }
+            className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-[15px]">{label}</span>
+              <span className="block text-sm text-[#8e8e93]">{EXCLUSIVE_HINT}</span>
+            </span>
+            <ChevronDown
+              aria-hidden
+              className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
+                open ? "rotate-180" : ""
+              }`}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
+              {options.map((option) => {
+                const checked = picked.includes(option.id);
+                return (
+                  <li key={option.id}>
+                    <button
+                      type="button"
+                      aria-pressed={checked}
+                      onClick={() => onToggle(option.id)}
+                      className={`flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left ${
+                        checked ? "border-white bg-white/5" : "border-white/10"
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`grid size-4 shrink-0 place-items-center rounded-full border ${
+                          checked ? "border-white bg-white" : "border-white/50 bg-transparent"
+                        }`}
+                      >
+                        {checked ? <span className="size-1.5 rounded-full bg-black" /> : null}
+                      </span>
+                      <span className="text-[15px]">{option.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+    </li>
+  );
+}
+
+function industryNamed(name: "Real Estate" | "Podcast" | "Construction") {
+  const group = SCHEDULING_INDUSTRIES.find((item) => item.industry === name);
+  if (!group) throw new Error(`Missing scheduling industry ${name}`);
+  return group;
+}
+
 function isSocialMediaOption(value: string) {
   return SOCIAL_MEDIA_VIDEO_OPTIONS.some((option) => option.id === value);
 }
 
-function socialSelected(picked: readonly string[]) {
-  return SOCIAL_MEDIA_VIDEO_OPTIONS.filter((option) => picked.includes(option.id));
+function isMeetingOption(value: string) {
+  return MEETING_OPTIONS.some((option) => option.id === value);
 }
 
-function socialAriaLabel(picked: readonly string[]) {
-  const selected = socialSelected(picked);
-  if (selected.length === 0) return SOCIAL_MEDIA_VIDEO_LABEL;
-  return `${SOCIAL_MEDIA_VIDEO_LABEL}, ${selected.map((option) => option.label).join(", ")} selected`;
-}
-
-function industriesWithSelection(selected: string[]) {
+function industriesWithSelection(selected: readonly string[]) {
   return SCHEDULING_INDUSTRIES.filter((group) =>
     group.options.some((option) => selected.includes(schedulingServiceId(group.industry, option))),
   ).map((group) => group.industry);
