@@ -1,4 +1,24 @@
-import { formatBookingServices } from "./services";
+import { formatBookingServices, parseSchedulingServices, SCHEDULING_SERVICES } from "./services";
+
+/** Catalog order. Industry words stay out of the title; duplicates collapse to one token. */
+const CALENDAR_SERVICE_INITIALS: { token: string; services: readonly string[] }[] = [
+  { token: "P", services: ["Real Estate · Photography", "Construction · Photography"] },
+  { token: "V", services: ["Real Estate · Video", "Construction · Video"] },
+  { token: "AP", services: ["Real Estate · Aerial Photos"] },
+  { token: "360", services: ["Real Estate · Zillow 360"] },
+  { token: "Podcast", services: ["Podcast · 1 episode", "Podcast · 2 episodes"] },
+  { token: "CV", services: ["Commercial video"] },
+];
+
+export function calendarServiceInitials(services: readonly string[]) {
+  const selected = new Set<string>(parseSchedulingServices(services));
+  for (const service of services) {
+    if ((SCHEDULING_SERVICES as readonly string[]).includes(service)) selected.add(service);
+  }
+  return CALENDAR_SERVICE_INITIALS.filter((item) => item.services.some((service) => selected.has(service)))
+    .map((item) => item.token)
+    .join(" ");
+}
 
 export const CALENDAR_EVENT_FOOTER = "Booked through your portal";
 
@@ -31,10 +51,10 @@ export function calendarTitleLockbox(notes?: string | null): string | null {
   return notes?.trim() || null;
 }
 
-/** `{Name} - {Services}` or `{Name} - {Services} ({notes})`. */
+/** `{Name} - {initials}` or `{Name} - {initials} ({notes})`. Description keeps full service names. */
 export function calendarEventTitle(input: CalendarEventCopyInput): string {
   const name = calendarClientName(input) || "Client";
-  const services = formatBookingServices(input.services) || "Shoot";
+  const services = calendarServiceInitials(input.services) || "Shoot";
   const lockbox = calendarTitleLockbox(input.notes);
   return lockbox ? `${name} - ${services} (${lockbox})` : `${name} - ${services}`;
 }

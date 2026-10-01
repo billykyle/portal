@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { DEFAULT_TIMEZONE } from "./rules";
 import { utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 import {
+  adminExactSlotFromForm,
+  adminPastExactStart,
   adminShootWindow,
   formatAdminShootPreview,
   parseAdminShootDate,
@@ -66,4 +68,47 @@ test("preview labels the eastern start, and overlap is only a real collision", (
     shootOverlapWarning(window, [{ start: et(2026, 9, 22, 19, 30), end: et(2026, 9, 22, 20, 0) }]),
     "Overlaps an existing booking.",
   );
+});
+
+test("admin past exact start is only filled for a start before now", () => {
+  const now = et(2026, 10, 1, 15, 0);
+  const past = `${et(2026, 10, 1, 10, 30).toISOString()}|${et(2026, 10, 1, 11, 15).toISOString()}`;
+  assert.deepEqual(adminPastExactStart(past, DEFAULT_TIMEZONE, now), { date: "2026-10-01", time: "10:30am" });
+  const earlierDate = `${et(2024, 3, 6, 19, 40).toISOString()}|${et(2024, 3, 6, 20, 25).toISOString()}`;
+  assert.deepEqual(adminPastExactStart(earlierDate, DEFAULT_TIMEZONE, now), {
+    date: "2024-03-06",
+    time: "7:40pm",
+  });
+  const future = `${et(2026, 10, 8, 10, 0).toISOString()}|${et(2026, 10, 8, 10, 45).toISOString()}`;
+  assert.equal(adminPastExactStart(future, DEFAULT_TIMEZONE, now), null);
+  assert.equal(adminPastExactStart(undefined, DEFAULT_TIMEZONE, now), null);
+});
+
+test("admin exact fields override a selected slot, including a past start", () => {
+  const services = ["Real Estate · Photography"];
+  const empty = adminExactSlotFromForm({ get: () => "" }, services);
+  assert.deepEqual(empty, { ok: true, used: false });
+  const half = adminExactSlotFromForm({ get: (name) => (name === "exactDate" ? "2024-03-06" : "") }, services);
+  assert.equal(half.ok, false);
+  const past = adminExactSlotFromForm(
+    {
+      get: (name) => (name === "exactDate" ? "2024-03-06" : name === "exactTime" ? "10:30am" : ""),
+    },
+    services,
+  );
+  assert.equal(past.ok && past.used, true);
+  if (past.ok && past.used) {
+    const parts = utcToZonedParts(past.start, DEFAULT_TIMEZONE);
+    assert.deepEqual(
+      { year: parts.year, month: parts.month, day: parts.day, hour: parts.hour, minute: parts.minute },
+      { year: 2024, month: 3, day: 6, hour: 10, minute: 30 },
+    );
+    assert.equal(past.end.getTime() - past.start.getTime(), 45 * 60 * 1000);
+    assert.ok(past.start.getTime() < Date.now());
+  }
+  const unreadable = adminExactSlotFromForm(
+    { get: (name) => (name === "exactDate" ? "2024-03-06" : "noonish") },
+    services,
+  );
+  assert.equal(unreadable.ok, false);
 });

@@ -43,12 +43,16 @@ test("canModifyBooking is only the owner of a confirmed shoot that has not start
   assert.equal(canModifyBooking({ ...upcoming, startsAt: now }, owner, now), false);
 });
 
-test("canAdminModifyBooking is any confirmed shoot that has not started", () => {
+test("canAdminModifyBooking is any confirmed shoot, including one that already started", () => {
   const now = new Date("2026-09-20T18:00:00.000Z");
   const upcoming = { status: "confirmed", startsAt: new Date("2026-09-25T18:00:00.000Z") };
   assert.equal(canAdminModifyBooking(upcoming, now), true);
   assert.equal(canAdminModifyBooking({ ...upcoming, status: "cancelled" }, now), false);
-  assert.equal(canAdminModifyBooking({ ...upcoming, startsAt: now }, now), false);
+  assert.equal(canAdminModifyBooking({ ...upcoming, startsAt: now }, now), true);
+  assert.equal(
+    canAdminModifyBooking({ ...upcoming, startsAt: new Date("2026-09-20T17:00:00.000Z") }, now),
+    true,
+  );
 });
 
 test("client upcoming cards show address, when, then services on one line", () => {
@@ -153,6 +157,59 @@ test("admin upcoming cards show Modify next to Cancel and link to the admin modi
   assert.equal(actionClass(html, "Cancel"), bookingSecondaryButtonClass);
   assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111"/);
   assert.doesNotMatch(html, /modify=11111111-1111-4111-8111-111111111111/);
+});
+
+test("admin past cards can modify and do not offer cancel", () => {
+  const startsAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const html = renderToStaticMarkup(
+    createElement(BookingList, {
+      bookings: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          address: "3900 City Ave, Philadelphia, PA",
+          services: ["Real Estate · Photography"],
+          startsAt,
+          endsAt,
+          status: "confirmed",
+          clientId: "client-1",
+        },
+      ],
+      emptyLabel: "No past bookings.",
+      timeZone: "America/New_York",
+      allowModify: true,
+      admin: true,
+    }),
+  );
+  assert.match(html, />Modify</);
+  assert.doesNotMatch(html, />Cancel</);
+  assert.match(html, /href="\/admin\/bookings\/11111111-1111-4111-8111-111111111111"/);
+});
+
+test("client past cards stay without modify or cancel", () => {
+  const startsAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const html = renderToStaticMarkup(
+    createElement(BookingList, {
+      bookings: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          address: "644 Plumrun Dr, West Chester, PA",
+          startsAt,
+          endsAt,
+          status: "confirmed",
+          clientId: "client-1",
+        },
+      ],
+      emptyLabel: "No upcoming shoots yet.",
+      timeZone: "America/New_York",
+      allowCancel: true,
+      allowModify: true,
+      clientId: "client-1",
+    }),
+  );
+  assert.doesNotMatch(html, />Modify</);
+  assert.doesNotMatch(html, />Cancel</);
 });
 
 test("desktop booking columns stay a single stack until the lg grid", () => {

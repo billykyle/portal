@@ -124,6 +124,25 @@ export function bookingStartAllowed(input: {
   return !isBlockedNewBookingDay(todayInZone(input.start, input.timeZone), todayInZone(input.now, input.timeZone));
 }
 
+/** True when the start is already before `now`, including earlier today. */
+export function bookingStartIsPast(start: Date, now: Date) {
+  return start.getTime() < now.getTime();
+}
+
+/**
+ * Clients cannot save a start that is already in the past, on top of
+ * {@link bookingStartAllowed}. Admin and agent saves do not use this.
+ */
+export function clientMaySaveBookingStart(input: {
+  start: Date;
+  now: Date;
+  timeZone: string;
+  retainStarts?: readonly Date[];
+}) {
+  if (bookingStartIsPast(input.start, input.now)) return false;
+  return bookingStartAllowed(input);
+}
+
 export function formatMonthTitle(year: number, month: number) {
   const utc = new Date(Date.UTC(year, month - 1, 1));
   return utc.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });

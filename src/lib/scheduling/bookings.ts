@@ -49,9 +49,9 @@ export function canModifyBooking(
   );
 }
 
-/** Admin may edit any confirmed shoot that has not started. Same time gate as the client. */
-export function canAdminModifyBooking(booking: { status: string; startsAt: Date }, now = new Date()) {
-  return booking.status === "confirmed" && booking.startsAt.getTime() > now.getTime();
+/** Admin may edit any confirmed shoot, including one that has already started. */
+export function canAdminModifyBooking(booking: { status: string; startsAt: Date }, _now = new Date()) {
+  return booking.status === "confirmed";
 }
 
 export async function loadConfirmedPortalBusy(): Promise<Interval[]> {

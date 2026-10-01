@@ -1,7 +1,14 @@
+import { bookingStartIsPast } from "./horizon";
 import { bookingSlotMinutes } from "./services";
 import { DEFAULT_TIMEZONE } from "./rules";
 import { overlaps, type Interval } from "./intervals";
-import { parseDateKey, utcToZonedParts, zonedDateTimeToUtc, type CalendarDate } from "./zoned-time";
+import {
+  calendarDateKey,
+  parseDateKey,
+  utcToZonedParts,
+  zonedDateTimeToUtc,
+  type CalendarDate,
+} from "./zoned-time";
 
 /**
  * Bare hour with no am/pm, always America/New_York: 1–7 is PM, 8–12 is AM
@@ -57,6 +64,26 @@ export function parseAdminShootDate(raw: string): CalendarDate | null {
   return parts;
 }
 
+/** Date and time inputs for a start that is already in the past. Future starts stay on the slot list. */
+export function adminPastExactStart(
+  currentSlot: string | undefined,
+  timeZone = DEFAULT_TIMEZONE,
+  now = new Date(),
+): { date: string; time: string } | null {
+  if (!currentSlot) return null;
+  const sep = currentSlot.indexOf("|");
+  if (sep <= 0) return null;
+  const start = new Date(currentSlot.slice(0, sep));
+  if (Number.isNaN(start.getTime()) || !bookingStartIsPast(start, now)) return null;
+  const parts = utcToZonedParts(start, timeZone);
+  const hour12 = parts.hour % 12 || 12;
+  const suffix = parts.hour >= 12 ? "pm" : "am";
+  return {
+    date: calendarDateKey(parts),
+    time: `${hour12}:${String(parts.minute).padStart(2, "0")}${suffix}`,
+  };
+}
+
 export function formatAdminShootPreview(start: Date, timeZone = DEFAULT_TIMEZONE) {
   const parts = utcToZonedParts(start, timeZone);
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(start);
@@ -67,6 +94,28 @@ export function formatAdminShootPreview(start: Date, timeZone = DEFAULT_TIMEZONE
     minute: "2-digit",
   }).format(start);
   return `${weekday}, ${month} ${parts.day} at ${time}`;
+}
+
+/**
+ * Admin modify posts optional exact date and time. When either field is filled,
+ * that start wins over a selected open slot. Empty fields leave the slot radios in charge.
+ */
+export function adminExactSlotFromForm(
+  formData: { get(name: string): unknown },
+  services: readonly string[],
+  commercialHours?: number | null,
+  timeZone = DEFAULT_TIMEZONE,
+):
+  | { ok: true; used: false }
+  | { ok: true; used: true; start: Date; end: Date }
+  | { ok: false; error: string } {
+  const date = String(formData.get("exactDate") ?? "").trim();
+  const time = String(formData.get("exactTime") ?? "").trim();
+  if (!date && !time) return { ok: true, used: false };
+  if (!date || !time) return { ok: false, error: "Enter a date and time." };
+  const window = adminShootWindow(date, time, services, timeZone, commercialHours);
+  if (!window) return { ok: false, error: "Could not read that time." };
+  return { ok: true, used: true, start: window.start, end: window.end };
 }
 
 export function adminShootWindow(

@@ -159,8 +159,48 @@ test("override booking ignores weekday, same-day, grid, hours, and drive time", 
     assert.ok(seen.recipients.includes("sam.login@example.com"));
     assert.ok(seen.recipients.includes("pat@example.com"));
     assert.equal(seen.recipients.includes("billy@billyhere.com"), false);
-    assert.match(seen.summary, /Sam Lepore/);
+    assert.equal(seen.summary, "Sam Lepore - P (Lockbox 2222. pat@example.com)");
+    assert.match(seen.description, /Services: Real Estate · Photography/);
+    assert.doesNotMatch(seen.summary, /Real Estate|Construction/);
     assert.match(seen.description, /Booked through your portal/);
+  }
+});
+
+test("admin and agent can book a start that is already in the past", async () => {
+  for (const source of ["admin-ui", "agent"] as const) {
+    const earlierDate = await book(source, {
+      jobs: [],
+      date: "2024-03-06",
+      time: "10:30am",
+      notes: "",
+    });
+    assert.equal(earlierDate.result.ok, true);
+    const parts = utcToZonedParts(earlierDate.inserted!.startsAt, DEFAULT_TIMEZONE);
+    assert.deepEqual(
+      { year: parts.year, month: parts.month, day: parts.day, hour: parts.hour, minute: parts.minute },
+      { year: 2024, month: 3, day: 6, hour: 10, minute: 30 },
+    );
+    assert.ok(earlierDate.inserted!.startsAt.getTime() < Date.now());
+    assert.equal(earlierDate.summary, "Sam Lepore - P");
+    assert.match(earlierDate.description, /Services: Real Estate · Photography/);
+    assert.doesNotMatch(earlierDate.summary, /Real Estate|Construction/);
+
+    const now = new Date();
+    const earlier = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const zoned = utcToZonedParts(earlier, DEFAULT_TIMEZONE);
+    const date = `${zoned.year}-${String(zoned.month).padStart(2, "0")}-${String(zoned.day).padStart(2, "0")}`;
+    const hour12 = zoned.hour % 12 || 12;
+    const time = `${hour12}:${String(zoned.minute).padStart(2, "0")}${zoned.hour >= 12 ? "pm" : "am"}`;
+    const earlierToday = await book(source, { jobs: [], date, time, notes: "gate code 1234" });
+    assert.equal(earlierToday.result.ok, true);
+    assert.ok(earlierToday.inserted!.startsAt.getTime() < Date.now());
+    const saved = utcToZonedParts(earlierToday.inserted!.startsAt, DEFAULT_TIMEZONE);
+    assert.equal(saved.year, zoned.year);
+    assert.equal(saved.month, zoned.month);
+    assert.equal(saved.day, zoned.day);
+    assert.equal(saved.hour, zoned.hour);
+    assert.equal(saved.minute, zoned.minute);
+    assert.equal(earlierToday.summary, "Sam Lepore - P (gate code 1234)");
   }
 });
 
@@ -183,7 +223,7 @@ function et(year: number, month: number, day: number, hour: number, minute: numb
 
 async function book(
   source: OverrideBookingSource,
-  options: { jobs: { start: Date; end: Date }[] },
+  options: { jobs: { start: Date; end: Date }[]; date?: string; time?: string; notes?: string },
 ) {
   const previousKey = process.env.RESEND_API_KEY;
   const previousNotify = process.env.BOOKING_NOTIFY_EMAIL;
@@ -239,9 +279,9 @@ async function book(
         client: "BK00004",
         address: "12 Wood View Drive, Princeton, NJ",
         services: ["Real Estate · Photography"],
-        date: "2026-09-22",
-        time: "7:40",
-        notes: "Lockbox 2222. pat@example.com",
+        date: options.date ?? "2026-09-22",
+        time: options.time ?? "7:40",
+        notes: options.notes === undefined ? "Lockbox 2222. pat@example.com" : options.notes,
       },
       deps,
     );
