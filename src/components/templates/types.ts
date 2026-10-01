@@ -19,6 +19,8 @@ export type TemplateShootCard = {
   thumbUrl: string | null;
   fileCount: number;
   publicToken: string;
+  /** NAS category folder, when this shoot is grouped under one. */
+  categoryFolder?: string | null;
 };
 
 export type TemplateMedia = {
@@ -37,10 +39,13 @@ export type TemplateMedia = {
 export type TemplateLibraryProps = {
   client: TemplateClient | null;
   shoots: TemplateShootCard[];
+  /** Category folder names this browser has closed. Omitted means every section starts open. */
+  closedCategoryFolders?: readonly string[];
 };
 
 export type TemplateAdminShootsProps = {
   shoots: TemplateShootCard[];
+  closedCategoryFolders?: readonly string[];
 };
 
 export type TemplateShootProps = {

@@ -201,6 +201,7 @@ export type ShootSummary = {
   shotDate: string;
   address: string;
   nasRelativePath: string | null;
+  categoryFolder: string | null;
   dropboxUrl: string | null;
   publicToken: string;
   publicUrl: string;
@@ -301,6 +302,7 @@ function shootSummary(row: ShootRecord, items: { id: string; type: string; filen
     shotDate: row.shotDate,
     address: row.address,
     nasRelativePath: row.nasRelativePath,
+    categoryFolder: row.categoryFolder,
     dropboxUrl: row.dropboxUrl,
     publicToken: share.publicToken,
     publicUrl: share.publicUrl,

@@ -1,5 +1,6 @@
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ClientHeader } from "@/components/client-header";
 import { PhoneShell } from "@/components/phone-shell";
@@ -10,6 +11,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots } from "@/lib/db/schema";
 import { coverUrlByShoot } from "@/lib/episode-covers";
 import { formatShootDate, shootFolderName } from "@/lib/media";
+import { parseClosedCategoryFolders, SHOOT_CATEGORY_FOLDERS_COOKIE } from "@/lib/shoot-categories";
 import { clientShootPath } from "@/lib/shoot-slug";
 
 export const metadata: Metadata = {
@@ -22,6 +24,9 @@ export default async function LibraryPage() {
     redirect("/");
   }
   await ensureDb();
+  const closedCategoryFolders = [
+    ...parseClosedCategoryFolders((await cookies()).get(SHOOT_CATEGORY_FOLDERS_COOKIE)?.value),
+  ];
   const [[client], rows] = await Promise.all([
     db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1),
     db
@@ -61,6 +66,7 @@ export default async function LibraryPage() {
               }
             : null
         }
+        closedCategoryFolders={closedCategoryFolders}
         shoots={rows.map((shoot) => ({
           id: shoot.id,
           href: clientShootPath(shoot.slug),
@@ -71,6 +77,7 @@ export default async function LibraryPage() {
           thumbUrl: covers.get(shoot.id) ?? null,
           fileCount: 0,
           publicToken: shoot.publicToken,
+          categoryFolder: shoot.categoryFolder,
         }))}
       />
     </PhoneShell>
