@@ -552,7 +552,7 @@ test("Commercial video occupies the chosen hours and blocks that long", async ()
   assert.equal(startMs(combinedLast.end), et(2026, 9, 21, 18).getTime());
 });
 
-test("Social Media Video ends by 6:00pm and sums both options", async () => {
+test("Social Media Video ends by 6:00pm and keeps one option", async () => {
   const now = et(2026, 9, 20, 9);
   const sources = {
     now,
@@ -584,18 +584,49 @@ test("Social Media Video ends by 6:00pm and sums both options", async () => {
   ]);
   const bothStart = both.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
   assert.ok(bothStart);
-  assert.equal(startMs(bothStart.end), et(2026, 9, 21, 12).getTime());
+  assert.equal(startMs(bothStart.end), et(2026, 9, 21, 11).getTime());
   const bothLast = both.slots.find(
-    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 15).getTime(),
+    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 16).getTime(),
   );
   assert.ok(bothLast);
   assert.equal(startMs(bothLast.end), et(2026, 9, 21, 18).getTime());
   assert.equal(
     both.slots.some(
-      (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 15, 15).getTime(),
+      (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 16, 15).getTime(),
     ),
     false,
   );
+});
+
+test("Meeting offers a 6:00pm start for either length", async () => {
+  const now = et(2026, 9, 20, 9);
+  const sources = {
+    now,
+    busy: [],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  };
+  const half = await offerSlotsForAddress(PHILLY, sources, ["Meeting · 30 min appointment"]);
+  const halfStart = half.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+  assert.ok(halfStart);
+  assert.equal(startMs(halfStart.end), et(2026, 9, 21, 9, 30).getTime());
+  const halfLast = half.slots.find(
+    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 18).getTime(),
+  );
+  assert.ok(halfLast);
+  assert.equal(startMs(halfLast.end), et(2026, 9, 21, 18, 30).getTime());
+
+  const hour = await offerSlotsForAddress(PHILLY, sources, ["Meeting · 1 hour appointment"]);
+  const hourStart = hour.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+  assert.ok(hourStart);
+  assert.equal(startMs(hourStart.end), et(2026, 9, 21, 10).getTime());
+  const hourLast = hour.slots.find(
+    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 18).getTime(),
+  );
+  assert.ok(hourLast);
+  assert.equal(startMs(hourLast.end), et(2026, 9, 21, 19).getTime());
 });
 
 test("modifying a booking does not let its own window block the same slot", async () => {
