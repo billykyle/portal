@@ -18,8 +18,10 @@ import {
   getClientBooking,
   loadConfirmedPortalJobs,
 } from "@/lib/scheduling/bookings";
-import { schedulingHours } from "@/lib/scheduling/config";
-import { bookingStartAllowed } from "@/lib/scheduling/horizon";
+import { parseShootAddress } from "@/lib/scheduling/address";
+import { calendarConfigured, schedulingHours } from "@/lib/scheduling/config";
+import { bookingStartAllowed, bookingStartIsPast, clientMaySaveBookingStart } from "@/lib/scheduling/horizon";
+import { isPastAdminBookingStart, pastAdminModifyWindow } from "@/lib/scheduling/modify-time";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import {
   bookingServiceList,
@@ -132,52 +134,98 @@ export async function prepareBookingModification(input: {
     return { ok: false, error: "Pick a time.", stage: "times", address: input.address };
   }
 
-  const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: booking.id });
-  const loaded = await loadLiveAvailabilitySources({
-    portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
-    portalJobs,
-  });
-  if ("error" in loaded) {
-    return { ok: false, error: loaded.error, stage: "times", address: input.address };
-  }
-  const sources = withoutOwnBooking(
-    loaded,
-    { start: booking.startsAt, end: booking.endsAt },
-    { calendarEventId: booking.calendarEventId },
-  );
-  const availability = await offerSlotsForAddress(input.address, sources, services, {
-    retainStarts: [booking.startsAt],
-    commercialHours,
-  });
-  if (availability.error) {
-    return { ok: false, error: availability.error, stage: "book" };
-  }
-  const offered = offeredSlotForSubmission(availability.slots, input.startIso, input.endIso);
-  if (!offered) {
-    return {
-      ok: false,
-      error: "That time is no longer available. Pick another.",
-      stage: "times",
-      address: availability.address,
-    };
-  }
+  const requestedStart = new Date(input.startIso);
+  const now = new Date();
+  let start: Date;
+  let end: Date;
+  let savedAddress: string;
+  let driveSecondsFromPrior: number | null;
+  let calendarOn: boolean;
 
-  const start = new Date(offered.start);
-  const end = new Date(offered.end);
-  if (
-    !bookingStartAllowed({
-      start,
-      now: sources.now ?? new Date(),
-      timeZone: availability.timeZone,
+  if (isPastAdminBookingStart({ fromAdmin: input.fromAdmin, start: requestedStart, now })) {
+    const parsed = parseShootAddress(input.address);
+    if (!parsed.ok) {
+      return { ok: false, error: parsed.error, stage: "book" };
+    }
+    const window = pastAdminModifyWindow({
+      start: requestedStart,
+      services,
+      commercialHours,
+    });
+    if (!window) {
+      return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR, stage: "book" };
+    }
+    start = window.start;
+    end = window.end;
+    savedAddress = parsed.address;
+    driveSecondsFromPrior = null;
+    calendarOn = calendarConfigured();
+  } else {
+    if (!input.fromAdmin && !Number.isNaN(requestedStart.getTime()) && bookingStartIsPast(requestedStart, now)) {
+      return {
+        ok: false,
+        error: "That time is no longer available. Pick another.",
+        stage: "times",
+        address: input.address,
+      };
+    }
+
+    const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: booking.id });
+    const loaded = await loadLiveAvailabilitySources({
+      portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
+      portalJobs,
+    });
+    if ("error" in loaded) {
+      return { ok: false, error: loaded.error, stage: "times", address: input.address };
+    }
+    const sources = withoutOwnBooking(
+      loaded,
+      { start: booking.startsAt, end: booking.endsAt },
+      { calendarEventId: booking.calendarEventId },
+    );
+    const availability = await offerSlotsForAddress(input.address, sources, services, {
       retainStarts: [booking.startsAt],
-    })
-  ) {
-    return {
-      ok: false,
-      error: "That time is no longer available. Pick another.",
-      stage: "times",
-      address: availability.address,
-    };
+      commercialHours,
+    });
+    if (availability.error) {
+      return { ok: false, error: availability.error, stage: "book" };
+    }
+    const offered = offeredSlotForSubmission(availability.slots, input.startIso, input.endIso);
+    if (!offered) {
+      return {
+        ok: false,
+        error: "That time is no longer available. Pick another.",
+        stage: "times",
+        address: availability.address,
+      };
+    }
+
+    start = new Date(offered.start);
+    end = new Date(offered.end);
+    const startAllowed = input.fromAdmin
+      ? bookingStartAllowed({
+          start,
+          now: sources.now ?? now,
+          timeZone: availability.timeZone,
+          retainStarts: [booking.startsAt],
+        })
+      : clientMaySaveBookingStart({
+          start,
+          now: sources.now ?? now,
+          timeZone: availability.timeZone,
+          retainStarts: [booking.startsAt],
+        });
+    if (!startAllowed) {
+      return {
+        ok: false,
+        error: "That time is no longer available. Pick another.",
+        stage: "times",
+        address: availability.address,
+      };
+    }
+    savedAddress = availability.address;
+    driveSecondsFromPrior = offered.driveSecondsFromPrior ?? null;
+    calendarOn = availability.calendarConfigured;
   }
 
   const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
@@ -206,7 +254,7 @@ export async function prepareBookingModification(input: {
     email: user?.email ?? clientEmail,
     phone: user?.phone,
     company: client?.company,
-    address: availability.address,
+    address: savedAddress,
     services,
     notes: input.notes,
     accessCodes: booking.accessCodes,
@@ -215,13 +263,13 @@ export async function prepareBookingModification(input: {
   const [saved] = await db
     .update(bookings)
     .set({
-      address: availability.address,
+      address: savedAddress,
       services,
       commercialVideoHours: commercialHours,
       startsAt: start,
       endsAt: end,
       notes: input.notes,
-      driveSecondsFromPrior: offered.driveSecondsFromPrior ?? null,
+      driveSecondsFromPrior,
       ...(reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
       updatedAt: new Date(),
     })
@@ -236,7 +284,7 @@ export async function prepareBookingModification(input: {
     )
     .returning({ id: bookings.id });
   if (!saved) {
-    return { ok: false, error: "Booking could not be updated.", stage: "times", address: availability.address };
+    return { ok: false, error: "Booking could not be updated.", stage: "times", address: savedAddress };
   }
 
   return {
@@ -245,10 +293,10 @@ export async function prepareBookingModification(input: {
     settlement: {
       action: "modify",
       bookingId: booking.id,
-      calendarConfigured: availability.calendarConfigured,
+      calendarConfigured: calendarOn,
       existingCalendarEventId: booking.calendarEventId,
       calendarWrite: {
-        address: availability.address,
+        address: savedAddress,
         start,
         end,
         timeZone: hours.timeZone,
@@ -260,7 +308,7 @@ export async function prepareBookingModification(input: {
         clientEmail,
         primaryEmail: client?.primaryEmail ?? null,
         clientName: client?.displayName ?? null,
-        address: availability.address,
+        address: savedAddress,
         services,
         start,
         end,

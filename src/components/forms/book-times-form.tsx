@@ -9,6 +9,7 @@ import { TimesStepHeader } from "@/components/times-step-summary";
 import { sectionLabelClass } from "@/components/phone-shell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createBooking, updateBooking } from "@/lib/actions/scheduling";
+import { adminPastExactStart, adminShootWindow } from "@/lib/scheduling/admin-time";
 import type { AvailabilityResult, OfferedSlot } from "@/lib/scheduling/availability";
 import { readBookingFormSlot, resolveSelectedSlot, toggleSelectedSlot } from "@/lib/scheduling/booking-form";
 import {
@@ -65,6 +66,9 @@ export function BookTimesForm({
   );
   const [slotError, setSlotError] = useState("");
   const selectedSlotRef = useRef(selectedSlot);
+  const exactEdited = useRef(false);
+  const exactSlotRef = useRef<HTMLInputElement>(null);
+  const pastExact = fromAdmin ? adminPastExactStart(currentSlot, availability.timeZone) : null;
   const slotSignature = availability.slots.map((slot) => `${slot.start}|${slot.end}`).join("\n");
 
   useEffect(() => {
@@ -92,7 +96,30 @@ export function BookTimesForm({
   }, [error]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
-    if (readBookingFormSlot(new FormData(event.currentTarget))) {
+    const form = event.currentTarget;
+    if (fromAdmin) {
+      const date = String(new FormData(form).get("exactDate") ?? "").trim();
+      const time = String(new FormData(form).get("exactTime") ?? "").trim();
+      const useExact = Boolean(date || time) && (exactEdited.current || !selectedSlot);
+      if (useExact) {
+        if (!date || !time) {
+          event.preventDefault();
+          setSlotError("Enter a date and time.");
+          return;
+        }
+        const window = adminShootWindow(date, time, services, availability.timeZone, commercialHours);
+        if (!window || exactSlotRef.current == null) {
+          event.preventDefault();
+          setSlotError("Could not read that time.");
+          return;
+        }
+        exactSlotRef.current.value = `${window.start.toISOString()}|${window.end.toISOString()}`;
+        setSlotError("");
+        return;
+      }
+      if (exactSlotRef.current) exactSlotRef.current.value = "";
+    }
+    if (readBookingFormSlot(new FormData(form))) {
       setSlotError("");
       return;
     }
@@ -131,6 +158,7 @@ export function BookTimesForm({
       <form action={modifyBookingId ? updateBooking : createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
         {modifyBookingId ? <input type="hidden" name="bookingId" value={modifyBookingId} /> : null}
         {fromAdmin ? <input type="hidden" name="fromAdmin" value="1" /> : null}
+        {fromAdmin ? <input ref={exactSlotRef} type="hidden" name="slot" defaultValue="" /> : null}
         <input type="hidden" name="address" value={availability.address} />
         <input type="hidden" name="placeId" value={placeId} />
         {services.map((service) => (
@@ -229,6 +257,47 @@ export function BookTimesForm({
             })}
           </ul>
         </fieldset>
+        {fromAdmin ? (
+          <div className="flex flex-col gap-4">
+            <h2 className={sectionLabelClass}>Exact start</h2>
+            <p className="text-sm text-[#8e8e93]">
+              A time that is already in the past can be typed here. Clear these to use one of the open slots.
+            </p>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="exact-date" className="text-[16px] font-normal text-white">
+                Date
+              </label>
+              <input
+                id="exact-date"
+                name="exactDate"
+                type="date"
+                defaultValue={pastExact?.date ?? ""}
+                onChange={() => {
+                  exactEdited.current = true;
+                }}
+                className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none [color-scheme:dark]"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="exact-time" className="text-[16px] font-normal text-white">
+                Time
+              </label>
+              <input
+                id="exact-time"
+                name="exactTime"
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                placeholder="10:30am"
+                defaultValue={pastExact?.time ?? ""}
+                onChange={() => {
+                  exactEdited.current = true;
+                }}
+                className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
+              />
+            </div>
+          </div>
+        ) : null}
         <div id="book-shoot-error" className="flex flex-col gap-3">
           <FormError message={submitError} />
           <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-3">

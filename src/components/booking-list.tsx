@@ -96,7 +96,7 @@ export function BookingList({
                 {notice}
               </p>
             ))}
-            {(allowCancel || allowModify) && upcoming ? (
+            {(upcoming && (allowCancel || allowModify)) || (admin && showModify) ? (
               <div className="mt-3">
                 <BookingModifyCancelActions
                   modifyHref={
@@ -110,7 +110,7 @@ export function BookingList({
                   clientId={booking.clientId}
                   fromAdmin={admin}
                   showModify={showModify}
-                  showCancel
+                  showCancel={upcoming && (allowCancel || allowModify)}
                 />
               </div>
             ) : null}

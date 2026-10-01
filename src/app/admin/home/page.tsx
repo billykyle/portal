@@ -347,6 +347,8 @@ export default async function AdminHomePage({
             emptyLabel="No past bookings."
             timeZone={hours.timeZone}
             showClient
+            allowModify
+            admin
             columns={2}
           />
         </AdminSection>

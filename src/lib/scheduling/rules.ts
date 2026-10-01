@@ -11,8 +11,10 @@
  *    not use US Holidays. Portal
  *    bookings are always busy too, and are written to the work calendar when
  *    that write hook is live. Event title is
- *    `{First Last} - {Services} (notes)` using user first+last (displayName
- *    only if those are missing — never company). Title parens are the notes
+ *    `{First Last} - {service initials} (notes)` using user first+last (displayName
+ *    only if those are missing — never company). Initials are P, V, AP, 360,
+ *    Podcast, and CV in catalog order, deduped, so industry names stay out of
+ *    the title. Title parens are the notes
  *    value as typed; omit them when notes are empty. Do not use accessCodes
  *    for the title. Description is a labeled client list ending with
  *    `Booked through your portal`. Location stays the shoot address. A

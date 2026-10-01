@@ -15,6 +15,7 @@ import {
   slotStillOffered,
 } from "@/lib/scheduling/availability";
 import { parseShootAddress } from "@/lib/scheduling/address";
+import { adminExactSlotFromForm } from "@/lib/scheduling/admin-time";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import {
   canAdminModifyBooking,
@@ -31,7 +32,7 @@ import {
   prepareBookingModification,
 } from "@/lib/scheduling/booking-commit";
 import { schedulingHours } from "@/lib/scheduling/config";
-import { bookingStartAllowed } from "@/lib/scheduling/horizon";
+import { bookingStartIsPast, clientMaySaveBookingStart } from "@/lib/scheduling/horizon";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import {
   COMMERCIAL_VIDEO_HOURS_ERROR,
@@ -187,6 +188,10 @@ export async function createBooking(formData: FormData) {
     }
 
     const { startIso, endIso } = parsedSlot;
+    if (bookingStartIsPast(new Date(startIso), new Date())) {
+      await failTimes("That time is no longer available. Pick another.");
+      return;
+    }
     const portalJobs = await loadConfirmedPortalJobs();
     const sources = await loadLiveAvailabilitySources({
       portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
@@ -211,7 +216,7 @@ export async function createBooking(formData: FormData) {
     const start = new Date(startIso);
     const end = new Date(endIso);
     if (
-      !bookingStartAllowed({
+      !clientMaySaveBookingStart({
         start,
         now: sources.now ?? new Date(),
         timeZone: availability.timeZone,
@@ -368,6 +373,14 @@ export async function updateBooking(formData: FormData) {
     redirect(schedulingTimesHref({ modify: bookingId || null, error }));
   }
 
+  const exactSlot = fromAdmin
+    ? adminExactSlotFromForm(formData, services, draftInput.commercialHours)
+    : { ok: true as const, used: false as const };
+  if (!exactSlot.ok) {
+    await failTimes(exactSlot.error);
+    return;
+  }
+
   let prepared;
   try {
     prepared = await prepareBookingModification({
@@ -378,8 +391,8 @@ export async function updateBooking(formData: FormData) {
       services,
       notes,
       commercialHours: draftInput.commercialHours,
-      startIso: parsedSlot?.startIso ?? null,
-      endIso: parsedSlot?.endIso ?? null,
+      startIso: exactSlot.used ? exactSlot.start.toISOString() : parsedSlot?.startIso ?? null,
+      endIso: exactSlot.used ? exactSlot.end.toISOString() : parsedSlot?.endIso ?? null,
     });
   } catch (error) {
     unstable_rethrow(error);

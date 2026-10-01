@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   bookingHorizonDays,
   bookingStartAllowed,
+  bookingStartIsPast,
+  clientMaySaveBookingStart,
   calendarWeekday,
   dateIsBookable,
   firstBookableDate,
@@ -173,6 +175,48 @@ test("new bookings skip today and Tuesday/Saturday/Sunday", () => {
       now: et(2026, 9, 21, 9),
       timeZone: DEFAULT_TIMEZONE,
       retainStarts: [et(2026, 9, 21, 15)],
+    }),
+    false,
+  );
+});
+
+test("clients cannot save a start that is already in the past", () => {
+  const now = et(2026, 9, 23, 15);
+  assert.equal(bookingStartIsPast(et(2026, 9, 23, 10), now), true);
+  assert.equal(bookingStartIsPast(et(2024, 3, 6, 10, 30), now), true);
+  assert.equal(bookingStartIsPast(et(2026, 9, 23, 16), now), false);
+  assert.equal(bookingStartIsPast(now, now), false);
+  assert.equal(
+    clientMaySaveBookingStart({ start: et(2026, 9, 23, 10), now, timeZone: DEFAULT_TIMEZONE }),
+    false,
+  );
+  assert.equal(
+    clientMaySaveBookingStart({ start: et(2024, 3, 6, 10, 30), now, timeZone: DEFAULT_TIMEZONE }),
+    false,
+  );
+  assert.equal(
+    clientMaySaveBookingStart({ start: et(2026, 9, 24, 11), now, timeZone: DEFAULT_TIMEZONE }),
+    true,
+  );
+  assert.equal(
+    clientMaySaveBookingStart({ start: et(2026, 9, 29, 11), now, timeZone: DEFAULT_TIMEZONE }),
+    false,
+  );
+  assert.equal(
+    clientMaySaveBookingStart({
+      start: et(2026, 9, 24, 11),
+      now,
+      timeZone: DEFAULT_TIMEZONE,
+      retainStarts: [et(2026, 9, 24, 11)],
+    }),
+    true,
+  );
+  assert.equal(
+    clientMaySaveBookingStart({
+      start: et(2026, 9, 23, 10),
+      now,
+      timeZone: DEFAULT_TIMEZONE,
+      retainStarts: [et(2026, 9, 23, 10)],
     }),
     false,
   );

@@ -32,7 +32,7 @@ test("calendar title keeps an email inside notes as typed", () => {
       services: ["Real Estate · Photography"],
       notes: "cc: pat@example.com",
     }),
-    "Billy Kyle - Real Estate · Photography (cc: pat@example.com)",
+    "Billy Kyle - P (cc: pat@example.com)",
   );
 });
 
@@ -56,7 +56,7 @@ test("calendar title uses notes in parens and ignores accessCodes", () => {
       notes: "1234",
       accessCodes: "9999",
     }),
-    "Billy Kyle - Real Estate · Photography (1234)",
+    "Billy Kyle - P (1234)",
   );
   assert.equal(
     calendarEventTitle({
@@ -66,7 +66,7 @@ test("calendar title uses notes in parens and ignores accessCodes", () => {
       services: [photo, aerial],
       accessCodes: "1234",
     }),
-    "Billy Kyle - Real Estate · Photography, Real Estate · Aerial Photos",
+    "Billy Kyle - P AP",
   );
   assert.equal(
     calendarEventTitle({
@@ -75,7 +75,7 @@ test("calendar title uses notes in parens and ignores accessCodes", () => {
       services: [photo],
       notes: "1234",
     }),
-    "Sam Lepore - Real Estate · Photography (1234)",
+    "Sam Lepore - P (1234)",
   );
   assert.equal(
     calendarEventTitle({
@@ -86,7 +86,7 @@ test("calendar title uses notes in parens and ignores accessCodes", () => {
       services: [photo],
       notes: "Park in the driveway.",
     }),
-    "Billy Kyle - Real Estate · Photography (Park in the driveway.)",
+    "Billy Kyle - P (Park in the driveway.)",
   );
   assert.doesNotMatch(
     calendarEventTitle({
@@ -143,7 +143,7 @@ test("calendar description omits empty fields and never puts company in the titl
     company: null,
     phone: null,
   });
-  assert.equal(copy.summary, "Sam Lepore - Real Estate · Photography");
+  assert.equal(copy.summary, "Sam Lepore - P");
   assert.equal(
     copy.description,
     [
@@ -156,4 +156,56 @@ test("calendar description omits empty fields and never puts company in the titl
     ].join("\n"),
   );
   assert.doesNotMatch(copy.description, /Phone:|Company:|Notes:|Access codes:/);
+  assert.doesNotMatch(copy.summary, /Real Estate|Construction/);
+});
+
+test("calendar title uses service initials in catalog order and keeps notes", () => {
+  const jane = { displayName: "Jane Doe", address: "1 Main St" };
+  assert.equal(calendarEventTitle({ ...jane, services: ["Real Estate · Photography"] }), "Jane Doe - P");
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Photography", "Real Estate · Video", "Real Estate · Aerial Photos"],
+    }),
+    "Jane Doe - P V AP",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Construction · Photography", "Real Estate · Video", "Real Estate · Aerial Photos"],
+    }),
+    "Jane Doe - P V AP",
+  );
+  assert.equal(calendarEventTitle({ ...jane, services: ["Podcast · 1 episode"] }), "Jane Doe - Podcast");
+  assert.equal(calendarEventTitle({ ...jane, services: ["Podcast · 2 episodes"] }), "Jane Doe - Podcast");
+  assert.equal(
+    calendarEventTitle({ ...jane, services: ["Podcast · 1 episode", "Podcast · 2 episodes"] }),
+    "Jane Doe - Podcast",
+  );
+  assert.equal(calendarEventTitle({ ...jane, services: ["Commercial video"] }), "Jane Doe - CV");
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Photography", "Real Estate · Video"],
+      notes: "gate code 1234",
+    }),
+    "Jane Doe - P V (gate code 1234)",
+  );
+  assert.equal(
+    calendarEventTitle({ ...jane, services: ["Real Estate · Zillow 360"] }),
+    "Jane Doe - 360",
+  );
+  const titled = calendarEventTitle({
+    ...jane,
+    services: ["Construction · Photography", "Construction · Video", "Commercial video"],
+  });
+  assert.equal(titled, "Jane Doe - P V CV");
+  assert.doesNotMatch(titled, /Real Estate|Construction/);
+  const copy = calendarEventCopy({
+    ...jane,
+    services: ["Real Estate · Photography", "Real Estate · Video"],
+    notes: "gate code 1234",
+  });
+  assert.equal(copy.summary, "Jane Doe - P V (gate code 1234)");
+  assert.match(copy.description, /Services: Real Estate · Photography, Real Estate · Video/);
 });
