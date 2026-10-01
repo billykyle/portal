@@ -215,6 +215,24 @@ export async function runAgentTool(
         revalidate: [CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES, "/admin/bookings", "/admin/clients", ADMIN_HOME],
       };
     }
+    case "queue_booking": {
+      const bookingId = text(args.bookingId).trim();
+      if (!bookingId) return { ok: false, error: "Booking id is required." };
+      const result = await ops.queueBooking({ bookingId });
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { booking: result.booking, issues: result.issues },
+        revalidate: [
+          CLIENT_SCHEDULING,
+          CLIENT_SCHEDULING_TIMES,
+          "/admin/bookings",
+          ADMIN_HOME,
+          `/admin/bookings/${bookingId}`,
+          `/admin/clients/${result.booking.clientId}`,
+        ],
+      };
+    }
     case "cancel_booking": {
       const bookingId = text(args.bookingId).trim();
       if (!bookingId) return { ok: false, error: "Booking id is required." };

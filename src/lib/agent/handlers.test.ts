@@ -21,6 +21,7 @@ function stubOps(overrides: Partial<AgentOps> = {}): AgentOps {
     listBookings: fail,
     getBooking: fail,
     modifyBooking: fail,
+    queueBooking: fail,
     cancelBooking: fail,
     createBooking: fail,
     listShoots: fail,
@@ -239,6 +240,45 @@ test("modify_booking forwards partial fields and revalidates booking pages", asy
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.ok(result.revalidate.includes("/admin/bookings/booking-1"));
+});
+
+test("queue_booking requires an id and revalidates the client queue", async () => {
+  const missing = await runAgentTool("queue_booking", {}, stubOps());
+  assert.equal(missing.ok, false);
+  const result = await runAgentTool(
+    "queue_booking",
+    { bookingId: "booking-1" },
+    stubOps({
+      async queueBooking(input) {
+        assert.equal(input.bookingId, "booking-1");
+        return {
+          ok: true,
+          issues: { calendar: false, email: false },
+          booking: {
+            id: "booking-1",
+            clientId: "c1",
+            inviteCode: "BK00004",
+            clientName: "Sam",
+            address: "12 Wood View Drive",
+            services: ["Real Estate · Photography"],
+            startsAt: null,
+            endsAt: null,
+            status: "queued",
+            notes: null,
+            accessCodes: null,
+            calendarEventId: null,
+            syncIssue: null,
+            canModify: true,
+          },
+        };
+      },
+    }),
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal((result.data as { booking: { status: string } }).booking.status, "queued");
+  assert.ok(result.revalidate.includes("/admin/clients/c1"));
+  assert.ok(result.revalidate.includes("/scheduling"));
 });
 
 test("create_booking forwards the shoot and revalidates booking pages", async () => {

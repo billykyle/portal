@@ -1,7 +1,7 @@
 import { loadLiveAvailabilitySources, offerSlotsForAddress, withoutOwnBooking, type AvailabilityResult } from "./availability";
 import {
-  canAdminModifyBooking,
-  canModifyBooking,
+  canAdminOpenBooking,
+  canClientOpenBooking,
   getBookingById,
   getClientBooking,
   loadConfirmedPortalJobs,
@@ -26,8 +26,8 @@ export type OfferedAvailabilityResult = OfferedAvailabilitySuccess | OfferedAvai
 
 export type ModifyAvailabilityContext = {
   id: string;
-  startsAt: Date;
-  endsAt: Date;
+  startsAt: Date | null;
+  endsAt: Date | null;
   calendarEventId: string | null;
 };
 
@@ -38,7 +38,7 @@ export async function loadModifyAvailabilityContext(
   const id = String(modifyId ?? "").trim();
   if (!id) return null;
   const booking = await getClientBooking(clientId, id);
-  if (!booking || !canModifyBooking(booking, clientId)) {
+  if (!booking || !canClientOpenBooking(booking, clientId)) {
     return { error: "That booking cannot be modified." };
   }
   return {
@@ -55,7 +55,7 @@ export async function loadAdminModifyAvailabilityContext(
   const id = String(modifyId ?? "").trim();
   if (!id) return null;
   const booking = await getBookingById(id);
-  if (!booking || !canAdminModifyBooking(booking)) {
+  if (!booking || !canAdminOpenBooking(booking)) {
     return { error: "That booking cannot be modified." };
   }
   return {
@@ -88,16 +88,16 @@ export async function loadOfferedAvailability(input: {
     return { ok: false, kind: "calendar", error: loaded.error };
   }
 
-  const sources = input.modifying
-    ? withoutOwnBooking(
-        loaded,
-        { start: input.modifying.startsAt, end: input.modifying.endsAt },
-        { calendarEventId: input.modifying.calendarEventId },
-      )
+  const ownWindow =
+    input.modifying?.startsAt && input.modifying.endsAt
+      ? { start: input.modifying.startsAt, end: input.modifying.endsAt }
+      : null;
+  const sources = ownWindow
+    ? withoutOwnBooking(loaded, ownWindow, { calendarEventId: input.modifying?.calendarEventId })
     : loaded;
 
   const availability = await offerSlotsForAddress(resolved.address, sources, services, {
-    retainStarts: input.modifying ? [input.modifying.startsAt] : undefined,
+    retainStarts: ownWindow ? [ownWindow.start] : undefined,
     commercialHours: input.commercialHours,
   });
   if (availability.error) {

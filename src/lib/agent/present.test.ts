@@ -79,6 +79,7 @@ test("booking filter splits upcoming and past and hides cancelled unless asked",
     { id: "next", startsAt: new Date("2026-09-30T15:00:00.000Z"), status: "confirmed", clientId: "c1" },
     { id: "other", startsAt: new Date("2026-10-01T15:00:00.000Z"), status: "confirmed", clientId: "c2" },
     { id: "gone", startsAt: new Date("2026-10-02T15:00:00.000Z"), status: "cancelled", clientId: "c1" },
+    { id: "queued", startsAt: null, status: "queued", clientId: "c1" },
   ];
   assert.deepEqual(
     selectBookings(rows, { now, when: "upcoming", limit: 50 }).map((row) => row.id),
@@ -91,6 +92,10 @@ test("booking filter splits upcoming and past and hides cancelled unless asked",
   assert.deepEqual(
     selectBookings(rows, { now, when: "all", includeCancelled: true, clientId: "c1", limit: 1 }).map((row) => row.id),
     ["past"],
+  );
+  assert.deepEqual(
+    selectBookings(rows, { now, when: "all", clientId: "c1", limit: 50 }).map((row) => row.id),
+    ["past", "next", "queued"],
   );
 });
 

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
-import { BookingList } from "@/components/booking-list";
+import { BookingList, QueuedBookingList } from "@/components/booking-list";
 import { pageStackClass, PhoneShell } from "@/components/phone-shell";
 import {
   ADMIN_SECTIONS_COOKIE,
@@ -13,7 +13,8 @@ import {
 } from "@/lib/admin/sections";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { listAdminBookings } from "@/lib/scheduling/bookings";
+import { listAdminBookings, splitActiveBookings } from "@/lib/scheduling/bookings";
+import { adminBookingHref } from "@/lib/scheduling/urls";
 import { schedulingHours } from "@/lib/scheduling/config";
 
 export const metadata: Metadata = {
@@ -23,19 +24,17 @@ export const metadata: Metadata = {
 export default async function AdminBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; cancelled?: string; updated?: string }>;
+  searchParams: Promise<{ error?: string; cancelled?: string; updated?: string; queued?: string }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   await ensureDb();
-  const { error, cancelled, updated } = await searchParams;
+  const { error, cancelled, updated, queued: queuedNotice } = await searchParams;
   const openSections = parseOpenSections((await cookies()).get(ADMIN_SECTIONS_COOKIE)?.value);
-  const notice = Boolean(error || cancelled || updated);
+  const notice = Boolean(error || cancelled || updated || queuedNotice);
   const rows = await listAdminBookings();
-  const now = Date.now();
-  const upcoming = rows.filter((row) => row.startsAt.getTime() >= now);
-  const past = rows.filter((row) => row.startsAt.getTime() < now);
+  const { queued, upcoming, past } = splitActiveBookings(rows);
   const hours = schedulingHours();
 
   return (
@@ -45,7 +44,17 @@ export default async function AdminBookingsPage({
       {error ? <p className="mb-6 text-sm text-[#a1a1a1]">{error}</p> : null}
       {cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
       {updated ? <p className="mb-6 text-sm text-white">Shoot updated.</p> : null}
+      {queuedNotice ? <p className="mb-6 text-sm text-white">Shoot moved to the queue.</p> : null}
       <div className={pageStackClass}>
+        {queued.length > 0 ? (
+          <AdminSection id="bookings:queue" label="Queue" defaultOpen>
+            <QueuedBookingList
+              bookings={queued}
+              showClient
+              scheduleHref={(booking) => adminBookingHref(booking.id)}
+            />
+          </AdminSection>
+        ) : null}
         <AdminSection
           id="bookings:upcoming"
           label="Upcoming"

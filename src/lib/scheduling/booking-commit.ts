@@ -11,9 +11,13 @@ import {
 } from "@/lib/scheduling/availability";
 import { bookingUserError, offeredSlotForSubmission } from "@/lib/scheduling/booking-form";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
+import { sendQueueHoldEmail } from "@/lib/scheduling/booking-email";
+import { formatSyncIssue } from "@/lib/scheduling/booking-sync";
+import { tryDeleteCalendarBooking } from "@/lib/scheduling/calendar";
 import {
-  canAdminModifyBooking,
-  canModifyBooking,
+  canAdminOpenBooking,
+  canClientOpenBooking,
+  canQueueUpcomingBooking,
   getBookingById,
   getClientBooking,
   loadConfirmedPortalJobs,
@@ -45,7 +49,8 @@ export type PreparedBookingModification = {
   ok: true;
   bookingId: string;
   settlement: {
-    action: "modify";
+    action: "create" | "modify";
+    skipOwnerNotify?: boolean;
     bookingId: string;
     calendarConfigured: boolean;
     existingCalendarEventId: string | null;
@@ -69,14 +74,14 @@ export type PreparedBookingModification = {
       timeZone: string;
       notes: string | null;
       accessCodes: string | null;
-      previous: {
+      previous?: {
         address: string;
         services: string[];
         start: Date;
         end: Date;
         timeZone: string;
         notes: string | null;
-      };
+      } | null;
       thread: {
         inReplyTo: string | null;
         references: string | null;
@@ -115,8 +120,8 @@ export async function prepareBookingModification(input: {
   if (
     !booking ||
     (input.fromAdmin
-      ? !canAdminModifyBooking(booking)
-      : !input.session || !canModifyBooking(booking, input.session.clientId))
+      ? !canAdminOpenBooking(booking)
+      : !input.session || !canClientOpenBooking(booking, input.session.clientId))
   ) {
     return { ok: false, error: "That booking cannot be modified.", stage: "book" };
   }
@@ -178,13 +183,13 @@ export async function prepareBookingModification(input: {
     if ("error" in loaded) {
       return { ok: false, error: loaded.error, stage: "times", address: input.address };
     }
-    const sources = withoutOwnBooking(
-      loaded,
-      { start: booking.startsAt, end: booking.endsAt },
-      { calendarEventId: booking.calendarEventId },
-    );
+    const ownWindow =
+      booking.startsAt && booking.endsAt ? { start: booking.startsAt, end: booking.endsAt } : null;
+    const sources = ownWindow
+      ? withoutOwnBooking(loaded, ownWindow, { calendarEventId: booking.calendarEventId })
+      : loaded;
     const availability = await offerSlotsForAddress(input.address, sources, services, {
-      retainStarts: [booking.startsAt],
+      retainStarts: ownWindow ? [ownWindow.start] : undefined,
       commercialHours,
     });
     if (availability.error) {
@@ -207,13 +212,13 @@ export async function prepareBookingModification(input: {
           start,
           now: sources.now ?? now,
           timeZone: availability.timeZone,
-          retainStarts: [booking.startsAt],
+          retainStarts: booking.startsAt ? [booking.startsAt] : undefined,
         })
       : clientMaySaveBookingStart({
           start,
           now: sources.now ?? now,
           timeZone: availability.timeZone,
-          retainStarts: [booking.startsAt],
+          retainStarts: booking.startsAt ? [booking.startsAt] : undefined,
         });
     if (!startAllowed) {
       return {
@@ -270,16 +275,17 @@ export async function prepareBookingModification(input: {
       endsAt: end,
       notes: input.notes,
       driveSecondsFromPrior,
-      ...(reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
+      status: "confirmed",
+      ...(!booking.startsAt || reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
       updatedAt: new Date(),
     })
     .where(
       input.fromAdmin
-        ? and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed"))
+        ? and(eq(bookings.id, booking.id), eq(bookings.status, booking.status === "queued" ? "queued" : "confirmed"))
         : and(
             eq(bookings.id, booking.id),
             eq(bookings.clientId, input.session?.clientId ?? booking.clientId),
-            eq(bookings.status, "confirmed"),
+            eq(bookings.status, booking.status === "queued" ? "queued" : "confirmed"),
           ),
     )
     .returning({ id: bookings.id });
@@ -291,7 +297,8 @@ export async function prepareBookingModification(input: {
     ok: true,
     bookingId: booking.id,
     settlement: {
-      action: "modify",
+      action: booking.status === "queued" ? "create" : "modify",
+      skipOwnerNotify: booking.status === "queued" && input.fromAdmin,
       bookingId: booking.id,
       calendarConfigured: calendarOn,
       existingCalendarEventId: booking.calendarEventId,
@@ -315,14 +322,17 @@ export async function prepareBookingModification(input: {
         timeZone: hours.timeZone,
         notes: input.notes,
         accessCodes: booking.accessCodes,
-        previous: {
-          address: booking.address,
-          services: bookingServiceList(booking),
-          start: booking.startsAt,
-          end: booking.endsAt,
-          timeZone: hours.timeZone,
-          notes: booking.notes,
-        },
+        previous:
+          booking.startsAt && booking.endsAt
+            ? {
+                address: booking.address,
+                services: bookingServiceList(booking),
+                start: booking.startsAt,
+                end: booking.endsAt,
+                timeZone: hours.timeZone,
+                notes: booking.notes,
+              }
+            : null,
         thread: {
           inReplyTo: booking.clientEmailMessageId,
           references: booking.clientEmailReferences,
@@ -411,6 +421,9 @@ export async function commitBookingCancellation(input: {
     primaryEmail: client?.primaryEmail,
   });
   const hours = schedulingHours();
+  if (!booking.startsAt || !booking.endsAt) {
+    return { updated: true, issues: { email: "failed" } };
+  }
   try {
     const settled = await settleBookingIntegrations({
       action: "cancel",
@@ -450,4 +463,95 @@ export async function commitBookingCancellation(input: {
     issues = { email: "failed" };
   }
   return { updated: true, issues };
+}
+
+/** Drop the start time, delete the calendar event, and email the client. Billy is not copied. */
+export async function commitMoveToQueue(booking: Booking): Promise<
+  | { ok: true; bookingId: string; issues: { calendar: boolean; email: boolean } }
+  | { ok: false; error: string }
+> {
+  if (!canQueueUpcomingBooking(booking) || !booking.startsAt || !booking.endsAt) {
+    return { ok: false, error: "Only an upcoming booking can be moved to the queue." };
+  }
+  const originalStart = booking.startsAt;
+  const originalEnd = booking.endsAt;
+
+  const [queued] = await db
+    .update(bookings)
+    .set({
+      status: "queued",
+      startsAt: null,
+      endsAt: null,
+      reminderSentAt: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")))
+    .returning({ id: bookings.id });
+  if (!queued) {
+    return { ok: false, error: "That booking cannot be queued." };
+  }
+
+  let calendarFailed = false;
+  const eventId = booking.calendarEventId?.trim();
+  if (eventId) {
+    try {
+      const deleted = await tryDeleteCalendarBooking(eventId);
+      if (!deleted) calendarFailed = true;
+    } catch (error) {
+      console.error("queue calendar delete failed", error);
+      calendarFailed = true;
+    }
+  }
+
+  const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
+  const members = await db
+    .select({ id: users.id, email: users.email, firstName: users.firstName })
+    .from(users)
+    .where(eq(users.clientId, booking.clientId))
+    .orderBy(asc(users.createdAt));
+  const creator = members.find((member) => member.id === booking.createdByUserId);
+  const named = creator?.firstName?.trim() ? creator : members.find((member) => member.firstName?.trim());
+  const clientEmail = await resolveBookingContactEmail({
+    clientId: booking.clientId,
+    createdByUserId: booking.createdByUserId,
+    primaryEmail: client?.primaryEmail,
+  });
+  const hours = schedulingHours();
+  let emailFailed = false;
+  try {
+    const sent = await sendQueueHoldEmail({
+      bookingId: booking.id,
+      clientEmail,
+      primaryEmail: client?.primaryEmail ?? null,
+      loginEmails: members.map((member) => member.email),
+      firstName: named?.firstName ?? null,
+      clientName: client?.displayName ?? null,
+      address: booking.address,
+      services: bookingServiceList(booking),
+      start: originalStart,
+      end: originalEnd,
+      timeZone: hours.timeZone,
+      notes: booking.notes,
+      accessCodes: booking.accessCodes,
+    });
+    emailFailed = !sent.client.sent;
+  } catch (error) {
+    console.error("queue hold email failed", error);
+    emailFailed = true;
+  }
+
+  await db
+    .update(bookings)
+    .set({
+      calendarEventId: calendarFailed ? booking.calendarEventId : null,
+      syncIssue: formatSyncIssue({ calendar: calendarFailed, email: emailFailed, alertFailed: false }),
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, booking.id));
+
+  return {
+    ok: true,
+    bookingId: booking.id,
+    issues: { calendar: calendarFailed, email: emailFailed },
+  };
 }

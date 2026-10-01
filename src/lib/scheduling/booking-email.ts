@@ -27,7 +27,7 @@ import {
   type BookingSyncFailure,
 } from "./booking-sync";
 import { formatBookingServices } from "./services";
-import { formatBookingWhen } from "./slots";
+import { formatBookingTimeZone, formatBookingWhen } from "./slots";
 import { schedulingConfirmedHref } from "./urls";
 
 export type BookingSnapshot = {
@@ -52,6 +52,7 @@ export type BookingConfirmationInput = {
   loginEmails?: readonly (string | null | undefined)[] | null;
   primaryEmail?: string | null;
   clientName?: string | null;
+  firstName?: string | null;
   bookingId?: string | null;
   address: string;
   services: readonly string[];
@@ -277,6 +278,74 @@ function sharedDetailRows(input: BookingConfirmationInput, extras: DetailRow[] =
 
 function clientGreeting(input: BookingConfirmationInput) {
   return input.clientName?.trim() ? `Hi ${input.clientName.trim()},` : "Hi,";
+}
+
+export const QUEUE_HOLD_SUBJECT = "Your shoot is on hold.";
+
+export const QUEUE_HOLD_FOLLOWUP =
+  "Nothing is on the calendar right now. When you have a time, open your portal and pick it up from the queue.";
+
+export function queueHoldSentence(address: string) {
+  return `Your shoot at ${address} has been moved to your queue, off of your previously scheduled time.`;
+}
+
+function queueGreeting(input: BookingConfirmationInput) {
+  const first = input.firstName?.trim();
+  if (first) return `Hi ${first},`;
+  const fromName = input.clientName?.trim().split(/\s+/)[0];
+  return fromName ? `Hi ${fromName},` : "Hi,";
+}
+
+function previousTimeLabel(input: BookingConfirmationInput) {
+  return `${formatBookingWhen(input.start, input.end, input.timeZone)} · ${formatBookingTimeZone(input.timeZone)}`;
+}
+
+function previousTimeHtml(when: string) {
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#9b1c1c" style="border:1px solid #9b1c1c;border-collapse:collapse;background:#9b1c1c;">
+  <tr>
+    <td bgcolor="#9b1c1c" style="padding:16px 18px;background:#9b1c1c;font-family:${EMAIL_FONT_STACK};color:#ffffff;">
+      <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:#ffffff;">Previously scheduled</div>
+      <div style="margin-top:6px;font-size:16px;line-height:1.45;font-weight:700;color:#ffffff;">${escapeHtml(when)}</div>
+    </td>
+  </tr>
+</table>`;
+}
+
+export function buildQueueHoldEmail(input: BookingConfirmationInput) {
+  const greeting = queueGreeting(input);
+  const sentence = queueHoldSentence(input.address);
+  const when = previousTimeLabel(input);
+  const cta = { label: "Schedule a time", href: bookingSchedulingUrl() };
+  const text = [greeting, "", sentence, "", "Previously scheduled", when, "", QUEUE_HOLD_FOLLOWUP, "", cta.label, cta.href, "", emailSignatureText()].join(
+    "\n",
+  );
+  const html = wrapBookingEmailHtml({
+    title: QUEUE_HOLD_SUBJECT,
+    preheader: sentence,
+    body: [
+      headingHtml(QUEUE_HOLD_SUBJECT),
+      paragraphHtml(greeting),
+      paragraphHtml(sentence),
+      previousTimeHtml(when),
+      `<div style="height:20px;line-height:20px;font-size:0;">&nbsp;</div>`,
+      paragraphHtml(QUEUE_HOLD_FOLLOWUP),
+      `<div style="padding:8px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
+    ].join("\n"),
+  });
+  return { subject: QUEUE_HOLD_SUBJECT, text, html };
+}
+
+/** Hold mail to the client and Notes copies. Billy is not copied. */
+export async function sendQueueHoldEmail(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
+  const mailing = withDeliverableClient(input);
+  const message = buildQueueHoldEmail(mailing);
+  return sendBookingPair(
+    mailing,
+    { subject: message.subject, text: message.text, html: message.html },
+    { subject: message.subject, text: message.text, html: message.html },
+    { skipNotify: true },
+  );
 }
 
 function clientLabel(input: BookingConfirmationInput) {

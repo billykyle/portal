@@ -7,7 +7,7 @@ import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { parseShootAddress } from "@/lib/scheduling/address";
-import { canModifyBooking, getClientBooking } from "@/lib/scheduling/bookings";
+import { canClientOpenBooking, getClientBooking } from "@/lib/scheduling/bookings";
 import {
   firstQueryValue,
   isLegacySchedulingQuery,
@@ -59,7 +59,7 @@ export default async function SchedulingTimesPage({
     readSchedulingDraft("client", session.clientId),
     modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
   ]);
-  if (modifyId && (!modifying || !canModifyBooking(modifying, session.clientId))) {
+  if (modifyId && (!modifying || !canClientOpenBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
   }
 
@@ -100,7 +100,9 @@ export default async function SchedulingTimesPage({
         error={params.error}
         modifyBookingId={modifying?.id}
         currentSlot={
-          modifying ? `${modifying.startsAt.toISOString()}|${modifying.endsAt.toISOString()}` : undefined
+          modifying?.startsAt && modifying.endsAt
+            ? `${modifying.startsAt.toISOString()}|${modifying.endsAt.toISOString()}`
+            : undefined
         }
       />
     </TimesShell>

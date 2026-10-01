@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { canAdminModifyBooking, getBookingById } from "@/lib/scheduling/bookings";
+import { canAdminOpenBooking, getBookingById } from "@/lib/scheduling/bookings";
 import { placesConfigured } from "@/lib/scheduling/config";
 import {
   firstQueryValue,
@@ -57,7 +57,7 @@ export default async function AdminModifyBookingPage({
   if (!booking) {
     notFound();
   }
-  if (!canAdminModifyBooking(booking)) {
+  if (!canAdminOpenBooking(booking)) {
     redirect("/admin/bookings?error=That%20booking%20cannot%20be%20modified.");
   }
   const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);

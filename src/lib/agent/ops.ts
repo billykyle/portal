@@ -36,10 +36,11 @@ import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, type Booking } from "@/lib/db/schema";
 import {
   commitBookingCancellation,
+  commitMoveToQueue,
   finishBookingModification,
   prepareBookingModification,
 } from "@/lib/scheduling/booking-commit";
-import { canAdminModifyBooking, getBookingById } from "@/lib/scheduling/bookings";
+import { canAdminOpenBooking, getBookingById } from "@/lib/scheduling/bookings";
 import { createOverrideBooking, type OverrideBookingSuccess } from "@/lib/scheduling/admin-book";
 import { bookingServiceList } from "@/lib/scheduling/services";
 
@@ -65,8 +66,8 @@ export type BookingDto = {
   clientName: string;
   address: string;
   services: string[];
-  startsAt: string;
-  endsAt: string;
+  startsAt: string | null;
+  endsAt: string | null;
   status: string;
   notes: string | null;
   accessCodes: string | null;
@@ -145,6 +146,10 @@ export type AgentOps = {
     endsAt?: string | null;
     notes?: string | null;
   }): Promise<{ ok: true; booking: BookingDto; issues: { calendar: boolean; email: boolean } } | { ok: false; error: string }>;
+  queueBooking(input: { bookingId: string }): Promise<
+    | { ok: true; booking: BookingDto; issues: { calendar: boolean; email: boolean } }
+    | { ok: false; error: string }
+  >;
   cancelBooking(input: { bookingId: string }): Promise<
     | {
         ok: true;
@@ -256,14 +261,14 @@ function bookingDto(row: Booking, clientName: string, inviteCode: string): Booki
     clientName,
     address: row.address,
     services: bookingServiceList(row),
-    startsAt: row.startsAt.toISOString(),
-    endsAt: row.endsAt.toISOString(),
+    startsAt: row.startsAt?.toISOString() ?? null,
+    endsAt: row.endsAt?.toISOString() ?? null,
     status: row.status,
     notes: row.notes,
     accessCodes: row.accessCodes,
     calendarEventId: row.calendarEventId,
     syncIssue: row.syncIssue,
-    canModify: canAdminModifyBooking(row),
+    canModify: canAdminOpenBooking(row),
   };
 }
 
@@ -473,7 +478,7 @@ export const portalAgentOps: AgentOps = {
       services: input.services === undefined ? bookingServiceList(booking) : input.services,
       commercialHours: input.commercialHours,
       notes,
-      startIso: input.startsAt?.trim() || booking.startsAt.toISOString(),
+      startIso: input.startsAt?.trim() || booking.startsAt?.toISOString() || null,
       endIso: input.endsAt?.trim() ? input.endsAt.trim() : null,
     });
     if (!prepared.ok) return { ok: false, error: prepared.error };
@@ -487,6 +492,21 @@ export const portalAgentOps: AgentOps = {
     const row = await bookingWithClient(finished.bookingId);
     if (!row) return { ok: false, error: "Booking was not found." };
     return { ok: true, booking: bookingDto(row.booking, row.clientName, row.inviteCode), issues: finished.issues };
+  },
+
+  async queueBooking({ bookingId }) {
+    if (!isUuid(bookingId)) return { ok: false, error: "Booking was not found." };
+    const booking = await getBookingById(bookingId);
+    if (!booking) return { ok: false, error: "Booking was not found." };
+    const outcome = await commitMoveToQueue(booking);
+    if (!outcome.ok) return outcome;
+    const row = await bookingWithClient(outcome.bookingId);
+    if (!row) return { ok: false, error: "Booking was not found." };
+    return {
+      ok: true,
+      booking: bookingDto(row.booking, row.clientName, row.inviteCode),
+      issues: outcome.issues,
+    };
   },
 
   async cancelBooking({ bookingId }) {

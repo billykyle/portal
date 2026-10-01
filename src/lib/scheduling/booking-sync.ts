@@ -150,7 +150,9 @@ export function adminBookingNotices(booking: {
   } else if (booking.status === "confirmed" && !booking.calendarEventId) {
     notices.push("Not on Google Calendar yet.");
   }
-  if (issue.email) notices.push("Confirmation email failed.");
+  if (issue.email) {
+    notices.push(booking.status === "queued" ? "Hold email failed." : "Confirmation email failed.");
+  }
   if (issue.alertFailed) notices.push("Billy was not emailed about this sync issue.");
   return notices;
 }

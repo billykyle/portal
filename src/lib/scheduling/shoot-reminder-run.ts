@@ -161,7 +161,9 @@ async function loadReminderCandidates(now: Date): Promise<ReminderCandidate[]> {
     loginsByClient.set(login.clientId, list);
   }
 
-  return rows.map((row) => ({
+  return rows.flatMap((row) => {
+    if (!row.booking.startsAt || !row.booking.endsAt) return [];
+    return [{
     id: row.booking.id,
     status: row.booking.status,
     startsAt: row.booking.startsAt,
@@ -181,7 +183,8 @@ async function loadReminderCandidates(now: Date): Promise<ReminderCandidate[]> {
           originalSubject: row.booking.clientEmailSubject,
         }
       : null,
-  }));
+    }];
+  });
 }
 
 async function claimReminder(id: string, now: Date) {

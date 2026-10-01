@@ -167,6 +167,9 @@ async function createTables() {
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_email_subject text`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent_at timestamptz`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commercial_video_hours integer`;
+  await sql`ALTER TYPE booking_status ADD VALUE IF NOT EXISTS 'queued'`;
+  await sql`ALTER TABLE bookings ALTER COLUMN starts_at DROP NOT NULL`;
+  await sql`ALTER TABLE bookings ALTER COLUMN ends_at DROP NOT NULL`;
   await sql`
     CREATE TABLE IF NOT EXISTS maintenance_notices (
       id text PRIMARY KEY,

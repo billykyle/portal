@@ -325,7 +325,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
         .select({ start: bookings.startsAt, end: bookings.endsAt })
         .from(bookings)
         .where(eq(bookings.status, "confirmed"));
-      return rows;
+      return rows.flatMap((row) => (row.start && row.end ? [{ start: row.start, end: row.end }] : []));
     },
     async insertBooking(row) {
       const [created] = await db

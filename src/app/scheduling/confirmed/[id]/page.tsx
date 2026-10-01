@@ -43,7 +43,12 @@ export default async function SchedulingConfirmedPage({
   await ensureDb();
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const booking = await getClientBooking(session.clientId, id);
-  if (!booking) {
+  const startsAt = booking?.startsAt;
+  const endsAt = booking?.endsAt;
+  if (!booking || !startsAt || !endsAt) {
+    if (booking?.status === "queued") {
+      redirect(schedulingBookHref({ modify: booking.id }));
+    }
     redirect(schedulingBookHref({ error: "Booking was not found." }));
   }
   const hours = schedulingHours();
@@ -54,7 +59,7 @@ export default async function SchedulingConfirmedPage({
       <ClientHeader />
       <div className="flex flex-col items-center pb-16 pt-2">
         <BookingConfirmation
-          booking={booking}
+          booking={{ ...booking, startsAt, endsAt }}
           timeZone={hours.timeZone}
           updated={Boolean(query.updated) && booking.status !== "cancelled"}
           clientId={session.clientId}
