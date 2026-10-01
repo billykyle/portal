@@ -12,6 +12,7 @@ import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
+import { signedUpMemberCount } from "@/lib/admin/member-count";
 import { sortClients } from "@/lib/admin/client-sort";
 import {
   ADMIN_SECTIONS_COOKIE,
@@ -195,6 +196,7 @@ export default async function AdminHomePage({
     matched.map((client) => ({
       ...client,
       shootCount: counts.shoots.get(client.id) ?? 0,
+      memberCount: signedUpMemberCount(loginsByClient.get(client.id)),
     })),
     "name-asc",
   );
