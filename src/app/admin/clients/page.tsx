@@ -6,6 +6,7 @@ import { AdminClientDirectory } from "@/components/admin-client-directory";
 import { AdminHeader } from "@/components/admin-header";
 import { pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
+import { signedUpMemberCount } from "@/lib/admin/member-count";
 import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/client-sort";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
@@ -77,6 +78,7 @@ export default async function AdminClientsPage({
     matched.map((client) => ({
       ...client,
       shootCount: counts.shoots.get(client.id) ?? 0,
+      memberCount: signedUpMemberCount(loginsByClient.get(client.id)),
     })),
     sort,
   );
