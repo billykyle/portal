@@ -79,15 +79,13 @@ export function ServiceFieldset({
   }, []);
 
   function toggle(value: string) {
-    setPicked((current) => {
-      const next = toggleSchedulingService(current, value);
-      onSelectedChange?.(next);
-      if (!includesCommercialVideo(next)) {
-        setHours(null);
-        onCommercialHoursChange?.(null);
-      }
-      return next;
-    });
+    const next = toggleSchedulingService(picked, value);
+    setPicked(next);
+    onSelectedChange?.(next);
+    if (!includesCommercialVideo(next)) {
+      setHours(null);
+      onCommercialHoursChange?.(null);
+    }
     setError("");
   }
 
