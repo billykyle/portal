@@ -67,19 +67,8 @@ export function CategoryFolderSection({
           />
         </button>
       </h2>
-      <div
-        id={panelId}
-        role="region"
-        aria-labelledby={headingId}
-        aria-hidden={open ? undefined : true}
-        className={cn(
-          "grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
-          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-        )}
-      >
-        <div className={open ? "overflow-visible" : "overflow-hidden"} inert={open ? undefined : true}>
-          <div className="pb-4">{children}</div>
-        </div>
+      <div id={panelId} role="region" aria-labelledby={headingId} hidden={open ? undefined : true}>
+        {open ? <div className="pb-4">{children}</div> : null}
       </div>
     </section>
   );
