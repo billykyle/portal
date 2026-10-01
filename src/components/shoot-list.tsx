@@ -3,8 +3,10 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
+import { CategoryFolderSection } from "@/components/category-folder-section";
 import { CopyPublicLink } from "@/components/copy-public-link";
 import { listSearchClass, shootCardGridClass } from "@/components/phone-shell";
+import { categoryFolderStartsOpen, groupShootsByCategoryFolder } from "@/lib/shoot-categories";
 import { filterShoots } from "@/lib/shoot-search";
 
 export type ShootListItem = {
@@ -13,6 +15,7 @@ export type ShootListItem = {
   address: string;
   shotDate: string;
   dateLabel: string;
+  categoryFolder?: string | null;
 };
 
 export type AdminShootListItem = ShootListItem & {
@@ -24,12 +27,14 @@ type LibraryProps = {
   variant?: "library";
   shoots: ShootListItem[];
   emptyLabel: string;
+  closedCategoryFolders?: readonly string[];
 };
 
 type AdminProps = {
   variant: "admin";
   shoots: AdminShootListItem[];
   emptyLabel: string;
+  closedCategoryFolders?: readonly string[];
 };
 
 function filesLabel(count: number) {
@@ -102,6 +107,34 @@ function AdminRow({ shoot }: { shoot: AdminShootListItem }) {
   );
 }
 
+function GroupedShootRows<T extends ShootListItem>({
+  shoots,
+  closedCategoryFolders,
+  renderList,
+}: {
+  shoots: T[];
+  closedCategoryFolders?: readonly string[];
+  renderList: (items: T[]) => ReactNode;
+}) {
+  const groups = groupShootsByCategoryFolder(shoots);
+  if (!groups.grouped) return renderList(shoots);
+  const closed = new Set(closedCategoryFolders ?? []);
+  return (
+    <div className="flex flex-col">
+      {groups.ungrouped.length > 0 ? renderList(groups.ungrouped) : null}
+      {groups.categories.map((category) => (
+        <CategoryFolderSection
+          key={category.name}
+          name={category.name}
+          defaultOpen={categoryFolderStartsOpen(closed, category.name)}
+        >
+          {renderList(category.shoots)}
+        </CategoryFolderSection>
+      ))}
+    </div>
+  );
+}
+
 function FilteredShoots({
   query,
   onQueryChange,
@@ -132,11 +165,17 @@ export function ShootList(props: LibraryProps | AdminProps) {
     const matches = filterShoots(props.shoots, query);
     return (
       <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
-        <ul className={shootCardGridClass}>
-          {matches.map((shoot) => (
-            <AdminRow key={shoot.id} shoot={shoot} />
-          ))}
-        </ul>
+        <GroupedShootRows
+          shoots={matches}
+          closedCategoryFolders={props.closedCategoryFolders}
+          renderList={(items) => (
+            <ul className={shootCardGridClass}>
+              {items.map((shoot) => (
+                <AdminRow key={shoot.id} shoot={shoot} />
+              ))}
+            </ul>
+          )}
+        />
       </FilteredShoots>
     );
   }
@@ -144,11 +183,17 @@ export function ShootList(props: LibraryProps | AdminProps) {
   const matches = filterShoots(props.shoots, query);
   return (
     <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
-      <ul className={shootCardGridClass}>
-        {matches.map((shoot) => (
-          <LibraryRow key={shoot.id} shoot={shoot} />
-        ))}
-      </ul>
+      <GroupedShootRows
+        shoots={matches}
+        closedCategoryFolders={props.closedCategoryFolders}
+        renderList={(items) => (
+          <ul className={shootCardGridClass}>
+            {items.map((shoot) => (
+              <LibraryRow key={shoot.id} shoot={shoot} />
+            ))}
+          </ul>
+        )}
+      />
     </FilteredShoots>
   );
 }

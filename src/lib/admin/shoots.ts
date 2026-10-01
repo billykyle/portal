@@ -14,6 +14,7 @@ const shootColumns = {
   address: shoots.address,
   slug: shoots.slug,
   nasRelativePath: shoots.nasRelativePath,
+  categoryFolder: shoots.categoryFolder,
   dropboxUrl: shoots.dropboxUrl,
   createdAt: shoots.createdAt,
 };
@@ -26,6 +27,7 @@ export type ShootRecord = {
   address: string;
   slug: string;
   nasRelativePath: string | null;
+  categoryFolder: string | null;
   dropboxUrl: string | null;
   createdAt: Date;
   inviteCode: string;
@@ -40,6 +42,7 @@ async function withClient(row: {
   address: string;
   slug: string;
   nasRelativePath: string | null;
+  categoryFolder: string | null;
   dropboxUrl: string | null;
   createdAt: Date;
 }): Promise<ShootRecord | null> {

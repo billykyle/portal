@@ -26,7 +26,13 @@ import {
 } from "./nas";
 import { nasEnabled } from "./nas-flags";
 import { buildDeliveryPayload, notifyDeliveryWebhook } from "./delivery";
-import { clientFolderRelPath, parseShootFolderName, pendingClientEmail } from "./nas-folder";
+import {
+  classifyClientChildren,
+  parseShootFolderName,
+  pendingClientEmail,
+  isClientLevelDeliverableFolder,
+  type ClientFolderChild,
+} from "./nas-folder";
 import { createPublicToken } from "./public-link";
 import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
 
@@ -170,7 +176,9 @@ async function upsertShoot(input: {
   shotDate: string;
   address: string;
   nasRelativePath: string;
+  categoryFolder: string | null;
 }) {
+  const categoryFolder = input.categoryFolder?.trim() ? input.categoryFolder : null;
   const [existing] = await db
     .select()
     .from(shoots)
@@ -192,10 +200,21 @@ async function upsertShoot(input: {
           shotDate: input.shotDate,
           slug: null,
         });
-    if (existing.nasRelativePath !== input.nasRelativePath) {
-      await db.update(shoots).set({ nasRelativePath: input.nasRelativePath }).where(eq(shoots.id, existing.id));
+    const pathChanged = existing.nasRelativePath !== input.nasRelativePath;
+    const categoryChanged = (existing.categoryFolder ?? null) !== categoryFolder;
+    if (pathChanged || categoryChanged) {
+      await db
+        .update(shoots)
+        .set({
+          ...(pathChanged ? { nasRelativePath: input.nasRelativePath } : {}),
+          ...(categoryChanged ? { categoryFolder } : {}),
+        })
+        .where(eq(shoots.id, existing.id));
     }
-    return { shoot: { ...existing, slug, nasRelativePath: input.nasRelativePath }, created: false };
+    return {
+      shoot: { ...existing, slug, nasRelativePath: input.nasRelativePath, categoryFolder },
+      created: false,
+    };
   }
   const [shoot] = await db
     .insert(shoots)
@@ -210,16 +229,18 @@ async function upsertShoot(input: {
         shotDate: input.shotDate,
       }),
       nasRelativePath: input.nasRelativePath,
+      categoryFolder,
     })
     .returning();
   return { shoot, created: true };
 }
 
 /**
- * Walk `Client Deliverables / {client} / {date} - {address}` for Final|Photos
- * stills, Floor Plan folders, finished video, and Raw Video clips. NAS is the source of truth:
- * new drops appear, files gone from the share are removed from the portal,
- * and shoots with no matching folder are pruned.
+ * Walk `Client Deliverables / {client} / {date} - {address}` and one optional
+ * category folder under the client. NAS is the source of truth: new drops appear,
+ * files gone from the share are removed from the portal, and shoots with no
+ * matching folder are pruned. Moving a folder into or out of a category updates
+ * that shoot's path and category.
  */
 export async function syncNasShare(): Promise<NasSyncResult> {
   if (!nasEnabled() || !getNasConfig()) {
@@ -230,9 +251,8 @@ export async function syncNasShare(): Promise<NasSyncResult> {
   armNasDiskWake();
   const root = await nasShareRoot();
   const clientFolders = await listNasDirectories(root);
-  const skipNames = new Set(
-    (getNasConfig()?.stillsFolders ?? []).map((name) => name.toLowerCase()),
-  );
+  const stillsFolders = getNasConfig()?.stillsFolders ?? [];
+  const skipNames = new Set(stillsFolders.map((name) => name.toLowerCase()));
   const seenShootIds = new Set<string>();
 
   for (const clientFolder of clientFolders) {
@@ -245,18 +265,39 @@ export async function syncNasShare(): Promise<NasSyncResult> {
     if (clientCreated) result.clientsCreated += 1;
     else result.clientsReused += 1;
 
-    const shootFolders = await listNasDirectories(clientFolder.path);
-    for (const shootFolder of shootFolders) {
-      const parsed = parseShootFolderName(shootFolder.name);
-      if (!parsed) {
-        result.warnings.push(
-          `Skipped ${clientFolder.name}/${shootFolder.name} — expected "{date} - {address}".`,
-        );
+    const directories = await listNasDirectories(clientFolder.path);
+    const children: ClientFolderChild[] = [];
+    const rootPaths = new Map<string, string>();
+    const categoryPaths = new Map<string, Map<string, string>>();
+    for (const directory of directories) {
+      if (
+        parseShootFolderName(directory.name) ||
+        isClientLevelDeliverableFolder(directory.name, stillsFolders)
+      ) {
+        children.push({ name: directory.name });
+        rootPaths.set(directory.name, directory.path);
         continue;
       }
+      const inner = await listNasDirectories(directory.path);
+      children.push({ name: directory.name, inner: inner.map((entry) => ({ name: entry.name })) });
+      categoryPaths.set(directory.name, new Map(inner.map((entry) => [entry.name, entry.path])));
+    }
+    const plan = classifyClientChildren({
+      clientName: clientFolder.name,
+      stillsFolders,
+      children,
+    });
+    result.warnings.push(...plan.warnings);
 
-      const nasRelativePath = clientFolderRelPath(clientFolder.name, shootFolder.name);
-      const deliverables = await listNasMedia(shootFolder.path);
+    for (const planned of plan.shoots) {
+      const parsed = planned;
+      const shootFolderPath = planned.categoryFolder
+        ? categoryPaths.get(planned.categoryFolder)?.get(planned.folderName)
+        : rootPaths.get(planned.folderName);
+      if (!shootFolderPath) continue;
+
+      const nasRelativePath = planned.nasRelativePath;
+      const deliverables = await listNasMedia(shootFolderPath);
       if (!shouldCreatePortalShoot(deliverables.length)) {
         const [empty] = await db
           .select()
@@ -286,6 +327,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
         shotDate: parsed.shotDate,
         address: parsed.address,
         nasRelativePath,
+        categoryFolder: planned.categoryFolder,
       });
       if (shootCreated) result.shootsCreated += 1;
       else result.shootsReused += 1;
@@ -294,7 +336,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       const existingCount = (
         await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))
       ).length;
-      const mediaResult = await importNasStills(shoot.id, shootFolder.path, { files: deliverables });
+      const mediaResult = await importNasStills(shoot.id, shootFolderPath, { files: deliverables });
       result.mediaImported += mediaResult.imported;
       result.mediaUpdated += mediaResult.updated;
       result.mediaRemoved += mediaResult.removed;

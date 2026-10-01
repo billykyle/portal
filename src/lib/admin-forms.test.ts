@@ -114,6 +114,66 @@ test("admin profile form edits Account fields and explains the sign-in email", (
   assert.doesNotMatch(html, /readOnly|readonly/i);
 });
 
+test("a client with no category folders has no section headings", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootList, {
+      emptyLabel: "No shoots yet.",
+      shoots: [
+        {
+          id: "shoot-1",
+          href: "/my-content/michigan",
+          address: "7 Michigan Avenue",
+          shotDate: "2026-09-29",
+          dateLabel: "Sep 29, 2026",
+          categoryFolder: null,
+        },
+      ],
+    }),
+  );
+  assert.match(html, /7 Michigan Avenue/);
+  assert.doesNotMatch(html, /aria-expanded/);
+});
+
+test("category folders group shoots under the folder name", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootList, {
+      emptyLabel: "No shoots yet.",
+      shoots: [
+        {
+          id: "root",
+          href: "/my-content/michigan",
+          address: "7 Michigan Avenue",
+          shotDate: "2026-09-29",
+          dateLabel: "Sep 29, 2026",
+          categoryFolder: null,
+        },
+        {
+          id: "listing",
+          href: "/my-content/other",
+          address: "Other Job",
+          shotDate: "2026-09-29",
+          dateLabel: "Sep 29, 2026",
+          categoryFolder: "Listing Photography",
+        },
+        {
+          id: "construction",
+          href: "/my-content/some",
+          address: "Some Job",
+          shotDate: "2026-09-28",
+          dateLabel: "Sep 28, 2026",
+          categoryFolder: "Construction",
+        },
+      ],
+    }),
+  );
+  assert.match(html, /7 Michigan Avenue/);
+  const construction = html.indexOf(">Construction<");
+  const listing = html.indexOf(">Listing Photography<");
+  assert.ok(construction > html.indexOf("7 Michigan Avenue"));
+  assert.ok(listing > construction);
+  assert.match(html, /aria-expanded="true"/);
+});
+
 test("admin shoot list has no delete control", () => {
   const html = renderToStaticMarkup(
     createElement(ShootList, {

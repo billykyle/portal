@@ -54,6 +54,8 @@ export const shoots = pgTable("shoots", {
   address: text("address").notNull(),
   slug: text("slug").notNull(),
   nasRelativePath: text("nas_relative_path"),
+  /** NAS category folder under the client, when the shoot is not at the client root. */
+  categoryFolder: text("category_folder"),
   dropboxUrl: text("dropbox_url"),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

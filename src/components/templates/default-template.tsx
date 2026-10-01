@@ -14,7 +14,7 @@ import { photoViewerHref } from "@/lib/photo-viewer";
 import { shootSectionLayout } from "@/lib/shoot-layout";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
-function DefaultLibrary({ client, shoots }: Parameters<ContentTemplate["Library"]>[0]) {
+function DefaultLibrary({ client, shoots, closedCategoryFolders }: Parameters<ContentTemplate["Library"]>[0]) {
   return (
     <>
       <div className={pageHeadingWrapClass}>
@@ -25,12 +25,14 @@ function DefaultLibrary({ client, shoots }: Parameters<ContentTemplate["Library"
       <div className={pageStackClass}>
         <ShootList
           emptyLabel="No shoots yet. Billy will post them here."
+          closedCategoryFolders={closedCategoryFolders}
           shoots={shoots.map((shoot) => ({
             id: shoot.id,
             href: shoot.href,
             address: shoot.address,
             shotDate: shoot.shotDate,
             dateLabel: shoot.dateLabel,
+            categoryFolder: shoot.categoryFolder,
           }))}
         />
       </div>
@@ -38,11 +40,12 @@ function DefaultLibrary({ client, shoots }: Parameters<ContentTemplate["Library"
   );
 }
 
-function DefaultAdminShoots({ shoots }: Parameters<ContentTemplate["AdminShoots"]>[0]) {
+function DefaultAdminShoots({ shoots, closedCategoryFolders }: Parameters<ContentTemplate["AdminShoots"]>[0]) {
   return (
     <ShootList
       variant="admin"
       emptyLabel="No shoots attached yet."
+      closedCategoryFolders={closedCategoryFolders}
       shoots={shoots.map((shoot) => ({
         id: shoot.id,
         href: shoot.href,
@@ -51,6 +54,7 @@ function DefaultAdminShoots({ shoots }: Parameters<ContentTemplate["AdminShoots"
         dateLabel: shoot.dateLabel,
         fileCount: shoot.fileCount,
         publicToken: shoot.publicToken,
+        categoryFolder: shoot.categoryFolder,
       }))}
     />
   );

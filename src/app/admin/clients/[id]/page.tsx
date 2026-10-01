@@ -22,6 +22,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots, users } from "@/lib/db/schema";
 import { coverUrlByShoot } from "@/lib/episode-covers";
 import { formatShootDate, shootFolderName } from "@/lib/media";
+import { parseClosedCategoryFolders, SHOOT_CATEGORY_FOLDERS_COOKIE } from "@/lib/shoot-categories";
 import { adminShootPath } from "@/lib/shoot-slug";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { schedulingHours } from "@/lib/scheduling/config";
@@ -44,7 +45,9 @@ export default async function AdminClientPage({
   }
   const { id } = await params;
   const { error, saved, userRemoved, bookingCancelled } = await searchParams;
-  const openSections = parseOpenSections((await cookies()).get(ADMIN_SECTIONS_COOKIE)?.value);
+  const jar = await cookies();
+  const openSections = parseOpenSections(jar.get(ADMIN_SECTIONS_COOKIE)?.value);
+  const closedCategoryFolders = [...parseClosedCategoryFolders(jar.get(SHOOT_CATEGORY_FOLDERS_COOKIE)?.value)];
   const detailSignals = {
     saved: Boolean(saved),
     userRemoved: Boolean(userRemoved),
@@ -150,6 +153,7 @@ export default async function AdminClientPage({
         </AdminSection>
         <AdminSection id="client:shoots" label="Shoots" defaultOpen={detailOpen("client:shoots")}>
           <AdminShoots
+            closedCategoryFolders={closedCategoryFolders}
             shoots={shootRows.map((shoot) => {
               const files = mediaRows.filter((item) => item.shootId === shoot.id);
               return {
@@ -162,6 +166,7 @@ export default async function AdminClientPage({
                 thumbUrl: covers.get(shoot.id) ?? null,
                 fileCount: files.length,
                 publicToken: shoot.publicToken,
+                categoryFolder: shoot.categoryFolder,
               };
             })}
           />
