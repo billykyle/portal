@@ -11,11 +11,14 @@ import {
   parseCommercialVideoHours,
   SCHEDULING_INDUSTRIES,
   schedulingServiceId,
+  SOCIAL_MEDIA_VIDEO_LABEL,
+  SOCIAL_MEDIA_VIDEO_OPTIONS,
   toggleSchedulingService,
 } from "@/lib/scheduling/services";
 
 const COMMERCIAL_HOURS_MESSAGE = "Enter whole hours from 1 through 8.";
 const COMMERCIAL_VIDEO_LABEL = "Commercial Video";
+const SOCIAL_MEDIA_HINT = "Select all that apply";
 
 export function ServiceFieldset({
   selected,
@@ -37,6 +40,7 @@ export function ServiceFieldset({
   const hoursRef = useRef(hours);
   const [hoursText, setHoursText] = useState(commercialHours != null ? String(commercialHours) : "");
   const [commercialOpen, setCommercialOpen] = useState(() => selected.includes(COMMERCIAL_VIDEO_SERVICE));
+  const [socialOpen, setSocialOpen] = useState(() => selected.some(isSocialMediaOption));
   const hoursId = useId();
   const [error, setError] = useState("");
   const [openIndustries, setOpenIndustries] = useState<string[]>(() =>
@@ -260,12 +264,81 @@ export function ServiceFieldset({
             </div>
           </Collapsible>
         </li>
+        <li>
+          <Collapsible open={socialOpen} onOpenChange={setSocialOpen}>
+            <div
+              className={`rounded-xl border ${
+                socialSelected(picked).length > 0 ? "border-white bg-white/5" : "border-white/10"
+              }`}
+            >
+              <CollapsibleTrigger
+                type="button"
+                aria-label={socialAriaLabel(picked)}
+                className="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[15px]">{SOCIAL_MEDIA_VIDEO_LABEL}</span>
+                  <span className="block text-sm text-[#8e8e93]">{SOCIAL_MEDIA_HINT}</span>
+                </span>
+                <ChevronDown
+                  aria-hidden
+                  className={`size-5 shrink-0 text-[#8e8e93] transition-transform ${
+                    socialOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
+                  {SOCIAL_MEDIA_VIDEO_OPTIONS.map((option) => {
+                    const checked = picked.includes(option.id);
+                    return (
+                      <li key={option.id}>
+                        <button
+                          type="button"
+                          aria-pressed={checked}
+                          onClick={() => toggle(option.id)}
+                          className={`flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left ${
+                            checked ? "border-white bg-white/5" : "border-white/10"
+                          }`}
+                        >
+                          <span
+                            aria-hidden
+                            className={`grid size-4 shrink-0 place-items-center rounded-[3px] border ${
+                              checked ? "border-white bg-white" : "border-white/50 bg-transparent"
+                            }`}
+                          >
+                            {checked ? <Check className="size-3 text-black" strokeWidth={3} /> : null}
+                          </span>
+                          <span className="text-[15px]">{option.label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        </li>
       </ul>
       {error && error !== COMMERCIAL_HOURS_MESSAGE ? (
         <p className="text-sm text-[#a1a1a1]">{error}</p>
       ) : null}
     </fieldset>
   );
+}
+
+function isSocialMediaOption(value: string) {
+  return SOCIAL_MEDIA_VIDEO_OPTIONS.some((option) => option.id === value);
+}
+
+function socialSelected(picked: readonly string[]) {
+  return SOCIAL_MEDIA_VIDEO_OPTIONS.filter((option) => picked.includes(option.id));
+}
+
+function socialAriaLabel(picked: readonly string[]) {
+  const selected = socialSelected(picked);
+  if (selected.length === 0) return SOCIAL_MEDIA_VIDEO_LABEL;
+  return `${SOCIAL_MEDIA_VIDEO_LABEL}, ${selected.map((option) => option.label).join(", ")} selected`;
 }
 
 function industriesWithSelection(selected: string[]) {

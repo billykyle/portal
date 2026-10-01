@@ -11,8 +11,8 @@ import {
 import { mergeIntervals, overlaps, sameInterval, subtractInterval, type Interval } from "./intervals";
 import {
   bookingSlotMinutes,
+  bookingRequiresEndByClose,
   COMMERCIAL_VIDEO_HOURS_ERROR,
-  includesCommercialVideo,
   parseSchedulingServices,
 } from "./services";
 import { formatSlotRange, generateCandidateSlots, slotEndsByClose } from "./slots";
@@ -117,7 +117,7 @@ export async function offerSlotsForAddress(
     };
   }
 
-  const requireEndByClose = includesCommercialVideo(selected);
+  const requireEndByClose = bookingRequiresEndByClose(selected);
   const candidates = generateCandidateSlots({
     ...hours,
     now,

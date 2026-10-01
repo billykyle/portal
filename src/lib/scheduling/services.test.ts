@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { DEFAULT_SLOT_MINUTES } from "./rules";
 import {
   bookingServiceList,
+  bookingRequiresEndByClose,
   bookingSlotMinutes,
   COMMERCIAL_VIDEO_SERVICE,
   formatBookingServices,
@@ -52,8 +53,10 @@ test("scheduling services are Billy's industry catalog", () => {
     "Podcast · 1 episode",
     "Podcast · 2 episodes",
     "Commercial video",
+    "Social Media Video · Monthly Batch Video",
+    "Social Media Video · Long Form Content Creation",
   ]);
-  assert.equal(SCHEDULING_SERVICES.length, 9);
+  assert.equal(SCHEDULING_SERVICES.length, 11);
   assert.equal(COMMERCIAL_VIDEO_SERVICE, "Commercial video");
   assert.equal(schedulingServiceId("Real Estate", "Photography"), "Real Estate · Photography");
   assert.equal(schedulingServiceId("Podcast", "1 episode"), "Podcast · 1 episode");
@@ -176,6 +179,8 @@ test("bookingSlotMinutes sums locked option times including Aerial Photos", () =
     "Construction · Video": 45,
     "Podcast · 1 episode": 60,
     "Podcast · 2 episodes": 105,
+    "Social Media Video · Monthly Batch Video": 60,
+    "Social Media Video · Long Form Content Creation": 120,
   });
   assert.equal(bookingSlotMinutes([]), DEFAULT_SLOT_MINUTES);
   assert.equal(bookingSlotMinutes(["Wedding"]), DEFAULT_SLOT_MINUTES);
@@ -217,4 +222,28 @@ test("Commercial video uses whole hours from 1 through 8 and sums with other ser
     "Commercial video",
   ]);
   assert.equal(formatBookingServices(["Commercial video"]), "Commercial video");
+});
+
+test("Social Media Video stores each chosen option and sums their minutes", () => {
+  const monthly = "Social Media Video · Monthly Batch Video";
+  const longForm = "Social Media Video · Long Form Content Creation";
+  assert.equal(bookingSlotMinutes([monthly]), 60);
+  assert.equal(bookingSlotMinutes([longForm]), 120);
+  assert.equal(bookingSlotMinutes([monthly, longForm]), 180);
+  assert.equal(bookingSlotMinutes(["Real Estate · Photography", monthly, longForm]), 45 + 180);
+  assert.deepEqual(parseSchedulingServices([longForm, "Real Estate · Video", monthly]), [
+    "Real Estate · Video",
+    monthly,
+    longForm,
+  ]);
+  assert.deepEqual(toggleSchedulingService([monthly], longForm), [monthly, longForm]);
+  assert.deepEqual(toggleSchedulingService([monthly, longForm], monthly), [longForm]);
+  assert.equal(
+    formatBookingServices([monthly, longForm]),
+    "Social Media Video · Monthly Batch Video, Social Media Video · Long Form Content Creation",
+  );
+  assert.equal(bookingRequiresEndByClose([monthly]), true);
+  assert.equal(bookingRequiresEndByClose([longForm, "Real Estate · Photography"]), true);
+  assert.equal(bookingRequiresEndByClose(["Real Estate · Photography"]), false);
+  assert.equal(bookingRequiresEndByClose(["Commercial video"]), true);
 });

@@ -77,12 +77,17 @@
  *    Commercial video has no fixed minutes (Billy, 2026-09-30). The client
  *    or admin chooses 1 through 8 whole hours, and that length is added to
  *    the sum. Without a chosen length, no times are offered.
+ *    Social Media Video is Monthly Batch Video (60 minutes) and/or Long Form
+ *    Content Creation (120 minutes). One or both may be selected; both sum
+ *    to 180 minutes. The stored ids record which options were picked. That
+ *    block, alone or combined, must end at or before 6:00pm.
  * 7. Offer window (Billy, 2026-09-20): America/New_York start times from
  *    {@link DEFAULT_OPEN_HOUR} through {@link DEFAULT_CLOSE_HOUR} inclusive,
  *    on {@link DEFAULT_STEP_MINUTES}-minute steps. A 6:00pm start is offered
- *    even if the computed end runs past 6:00pm. Commercial video, alone or
- *    combined with other services, must end at or before 6:00pm, so a longer
- *    block has fewer start times. Other services still offer a 6:00pm start.
+ *    even if the computed end runs past 6:00pm. Commercial video and Social
+ *    Media Video, alone or combined with other services, must end at or
+ *    before 6:00pm, so a longer block has fewer start times. Other services
+ *    still offer a 6:00pm start.
  * 8. Bookable days (Billy, 2026-09-21): no same-day bookings in
  *    America/New_York, and never Tuesday, Saturday, or Sunday. Allowed new
  *    starts are Monday, Wednesday, Thursday, Friday — and never today.

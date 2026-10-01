@@ -17,3 +17,22 @@ test("Commercial video label capitalizes Video and the subtext is Select your ho
   assert.match(html, /Construction/);
   assert.match(html, /Podcast/);
 });
+
+test("Social Media Video is a dropdown labeled Select all that apply and keeps both choices", () => {
+  const monthly = "Social Media Video · Monthly Batch Video";
+  const longForm = "Social Media Video · Long Form Content Creation";
+  const html = renderToStaticMarkup(
+    createElement(ServiceFieldset, { selected: [monthly, longForm] }),
+  );
+  assert.match(
+    html,
+    /Social Media Video<\/span><span class="block text-sm text-\[#8e8e93\]">Select all that apply<\/span>/,
+  );
+  assert.match(html, /aria-label="Social Media Video, Monthly Batch Video, Long Form Content Creation selected"/);
+  assert.match(html, /Monthly Batch Video/);
+  assert.match(html, /Long Form Content Creation/);
+  assert.match(html, new RegExp(`value="${monthly}"`));
+  assert.match(html, new RegExp(`value="${longForm}"`));
+  const pressed = html.match(/aria-pressed="true"/g) ?? [];
+  assert.equal(pressed.length, 2);
+});
