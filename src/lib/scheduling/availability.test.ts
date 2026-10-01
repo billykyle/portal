@@ -552,6 +552,52 @@ test("Commercial video occupies the chosen hours and blocks that long", async ()
   assert.equal(startMs(combinedLast.end), et(2026, 9, 21, 18).getTime());
 });
 
+test("Social Media Video ends by 6:00pm and sums both options", async () => {
+  const now = et(2026, 9, 20, 9);
+  const sources = {
+    now,
+    busy: [],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  };
+  const monthly = await offerSlotsForAddress(PHILLY, sources, ["Social Media Video · Monthly Batch Video"]);
+  const monthlyStart = monthly.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+  assert.ok(monthlyStart);
+  assert.equal(startMs(monthlyStart.end), et(2026, 9, 21, 10).getTime());
+  const monthlyLast = monthly.slots.find(
+    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 17).getTime(),
+  );
+  assert.ok(monthlyLast);
+  assert.equal(startMs(monthlyLast.end), et(2026, 9, 21, 18).getTime());
+  assert.equal(
+    monthly.slots.some(
+      (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 17, 15).getTime(),
+    ),
+    false,
+  );
+
+  const both = await offerSlotsForAddress(PHILLY, sources, [
+    "Social Media Video · Monthly Batch Video",
+    "Social Media Video · Long Form Content Creation",
+  ]);
+  const bothStart = both.slots.find((slot) => startMs(slot.start) === et(2026, 9, 21, 9).getTime());
+  assert.ok(bothStart);
+  assert.equal(startMs(bothStart.end), et(2026, 9, 21, 12).getTime());
+  const bothLast = both.slots.find(
+    (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 15).getTime(),
+  );
+  assert.ok(bothLast);
+  assert.equal(startMs(bothLast.end), et(2026, 9, 21, 18).getTime());
+  assert.equal(
+    both.slots.some(
+      (slot) => slot.dateKey === "2026-09-21" && startMs(slot.start) === et(2026, 9, 21, 15, 15).getTime(),
+    ),
+    false,
+  );
+});
+
 test("modifying a booking does not let its own window block the same slot", async () => {
   const now = et(2026, 9, 20, 9);
   const own = { start: et(2026, 9, 25, 14), end: et(2026, 9, 25, 15) };

@@ -40,11 +40,23 @@ export const COMMERCIAL_VIDEO_MAX_HOURS = 8;
 
 export const COMMERCIAL_VIDEO_HOURS_ERROR = "Choose how long you need Commercial video.";
 
+/** Stored as industry · option so a booking records which of the two were picked. */
+export const SOCIAL_MEDIA_VIDEO_LABEL = "Social Media Video" as const;
+export const SOCIAL_MEDIA_MONTHLY_BATCH = "Social Media Video · Monthly Batch Video" as const;
+export const SOCIAL_MEDIA_LONG_FORM = "Social Media Video · Long Form Content Creation" as const;
+
+export const SOCIAL_MEDIA_VIDEO_OPTIONS = [
+  { id: SOCIAL_MEDIA_MONTHLY_BATCH, label: "Monthly Batch Video", minutes: 60 },
+  { id: SOCIAL_MEDIA_LONG_FORM, label: "Long Form Content Creation", minutes: 120 },
+] as const;
+
 export const SCHEDULING_SERVICES = [
   ...SCHEDULING_INDUSTRIES.flatMap((group) =>
     group.options.map((option) => schedulingServiceId(group.industry, option)),
   ),
   COMMERCIAL_VIDEO_SERVICE,
+  SOCIAL_MEDIA_MONTHLY_BATCH,
+  SOCIAL_MEDIA_LONG_FORM,
 ];
 
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
@@ -62,6 +74,8 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Construction · Video": 45,
   "Podcast · 1 episode": 60,
   "Podcast · 2 episodes": 105,
+  "Social Media Video · Monthly Batch Video": 60,
+  "Social Media Video · Long Form Content Creation": 120,
 } as const;
 
 export function commercialHourLabel(hours: number) {
@@ -85,6 +99,18 @@ function commercialHour(value: number): number | null {
 
 export function includesCommercialVideo(services: readonly string[]) {
   return parseSchedulingServices(services).includes(COMMERCIAL_VIDEO_SERVICE);
+}
+
+export function includesSocialMediaVideo(services: readonly string[]) {
+  const parsed = parseSchedulingServices(services);
+  return (
+    parsed.includes(SOCIAL_MEDIA_MONTHLY_BATCH) || parsed.includes(SOCIAL_MEDIA_LONG_FORM)
+  );
+}
+
+/** Commercial video and Social Media Video must finish at or before 6:00pm ET. */
+export function bookingRequiresEndByClose(services: readonly string[]) {
+  return includesCommercialVideo(services) || includesSocialMediaVideo(services);
 }
 
 /** Hours to store. Cleared when Commercial video is not one of the services. */

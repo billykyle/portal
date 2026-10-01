@@ -186,6 +186,38 @@ test("calendar title uses service initials in catalog order and keeps notes", ()
   assert.equal(
     calendarEventTitle({
       ...jane,
+      services: ["Real Estate · Video", "Social Media Video · Monthly Batch Video"],
+    }),
+    "Jane Doe - V V.",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: [
+        "Social Media Video · Monthly Batch Video",
+        "Social Media Video · Long Form Content Creation",
+      ],
+    }),
+    "Jane Doe - V.",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Photography", "Social Media Video · Long Form Content Creation"],
+      notes: "gate code 1234",
+    }),
+    "Jane Doe - P V. (gate code 1234)",
+  );
+  assert.doesNotMatch(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Video", "Social Media Video · Long Form Content Creation"],
+    }),
+    /Social Media|Real Estate/,
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
       services: ["Real Estate · Photography", "Real Estate · Video"],
       notes: "gate code 1234",
     }),
