@@ -204,39 +204,8 @@ async function createTables() {
   `;
   await sql`ALTER TABLE booking_drafts ADD COLUMN IF NOT EXISTS commercial_video_hours integer`;
   await sql`CREATE INDEX IF NOT EXISTS booking_drafts_expires_idx ON booking_drafts (expires_at)`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS upload_submissions (
-      id uuid PRIMARY KEY,
-      name text NOT NULL,
-      label text NOT NULL,
-      email text NOT NULL,
-      folder_name text NOT NULL,
-      status text NOT NULL,
-      nas_path text,
-      error text,
-      received_notified_at timestamptz,
-      failure_notified_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS upload_files (
-      id uuid PRIMARY KEY,
-      submission_id uuid NOT NULL REFERENCES upload_submissions(id) ON DELETE CASCADE,
-      original_name text NOT NULL,
-      safe_name text NOT NULL,
-      size_bytes bigint NOT NULL,
-      blob_pathname text NOT NULL,
-      blob_url text,
-      copied_bytes bigint NOT NULL DEFAULT 0,
-      status text NOT NULL
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS upload_files_submission_idx ON upload_files (submission_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS upload_submissions_status_idx ON upload_submissions (status)`;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS upload_submissions_folder_uidx ON upload_submissions (folder_name)`;
-  await sql`ALTER TABLE upload_submissions ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT ''`;
+  await sql`DROP TABLE IF EXISTS upload_files`;
+  await sql`DROP TABLE IF EXISTS upload_submissions`;
   await ensurePreviewSchema();
 }
 

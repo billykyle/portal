@@ -11,14 +11,12 @@ import {
   isClientPortalPath,
   isLocalHostname,
   isPortalHostname,
-  isUploadHostname,
   portalOrigin,
   publicPortalOrigin,
   resolveHostRedirect,
-  uploadOrigin,
 } from "./hosts";
 
-const HOST_ENV = ["PORTAL_PUBLIC_URL", "ADMIN_PUBLIC_URL", "UPLOAD_PUBLIC_URL"] as const;
+const HOST_ENV = ["PORTAL_PUBLIC_URL", "ADMIN_PUBLIC_URL"] as const;
 
 function snapshot() {
   return Object.fromEntries(HOST_ENV.map((key) => [key, process.env[key]]));
@@ -162,42 +160,6 @@ test("publicPortalOrigin never uses loopback for cross-host redirects", () => {
   assert.equal(publicPortalOrigin(), DEFAULT_PORTAL_ORIGIN);
   process.env.PORTAL_PUBLIC_URL = "http://127.0.0.1:43173";
   assert.equal(publicPortalOrigin(), DEFAULT_PORTAL_ORIGIN);
-});
-
-test("upload host serves / and its APIs, and sends every other path home", () => {
-  delete process.env.UPLOAD_PUBLIC_URL;
-  delete process.env.ADMIN_PUBLIC_URL;
-  delete process.env.PORTAL_PUBLIC_URL;
-  assert.equal(uploadOrigin(), "https://upload.billy-kyle.com");
-  assert.equal(isUploadHostname("upload.billy-kyle.com"), true);
-  assert.equal(isUploadHostname("127.0.0.1"), false);
-  assert.equal(isPortalHostname("upload.billy-kyle.com"), false);
-  assert.equal(isAdminHostname("upload.billy-kyle.com"), false);
-  assert.equal(resolveHostRedirect({ hostname: "upload.billy-kyle.com", pathname: "/" }), null);
-  assert.equal(
-    resolveHostRedirect({ hostname: "upload.billy-kyle.com", pathname: "/api/upload/session" }),
-    null,
-  );
-  assert.equal(
-    resolveHostRedirect({ hostname: "upload.billy-kyle.com", pathname: "/api/cron/upload-move" }),
-    null,
-  );
-  assert.deepEqual(resolveHostRedirect({ hostname: "upload.billy-kyle.com", pathname: "/admin" }), {
-    location: "https://upload.billy-kyle.com/",
-    status: 308,
-  });
-  assert.deepEqual(
-    resolveHostRedirect({ hostname: "upload.billy-kyle.com", pathname: "/hub", search: "?x=1" }),
-    {
-      location: "https://upload.billy-kyle.com/?x=1",
-      status: 308,
-    },
-  );
-  assert.equal(resolveHostRedirect({ hostname: "portal.billy-kyle.com", pathname: "/" }), null);
-  assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/" }), {
-    location: "https://admin.billy-kyle.com/admin/home",
-    status: 308,
-  });
 });
 
 test("agent connector stays on whichever host received it", () => {
