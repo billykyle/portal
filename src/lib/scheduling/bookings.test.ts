@@ -7,8 +7,15 @@ import {
   bookingPrimaryButtonClass,
   bookingSecondaryButtonClass,
 } from "../../components/booking-actions";
-import { BookingList } from "../../components/booking-list";
-import { adminCalendarGapNotice, canAdminModifyBooking, canModifyBooking } from "./bookings";
+import { BookingList, ClientQueueSection } from "../../components/booking-list";
+import {
+  adminCalendarGapNotice,
+  canAdminModifyBooking,
+  canAdminOpenBooking,
+  canModifyBooking,
+  canQueueUpcomingBooking,
+  splitActiveBookings,
+} from "./bookings";
 import { formatBookingServices } from "./services";
 import { formatBookingWhen } from "./slots";
 
@@ -41,6 +48,56 @@ test("canModifyBooking is only the owner of a confirmed shoot that has not start
     false,
   );
   assert.equal(canModifyBooking({ ...upcoming, startsAt: now }, owner, now), false);
+});
+
+test("canQueueUpcomingBooking is only a confirmed shoot that has not started", () => {
+  const now = new Date("2026-09-20T18:00:00.000Z");
+  const upcoming = { status: "confirmed", startsAt: new Date("2026-09-25T18:00:00.000Z") };
+  assert.equal(canQueueUpcomingBooking(upcoming, now), true);
+  assert.equal(canQueueUpcomingBooking({ ...upcoming, status: "cancelled" }, now), false);
+  assert.equal(canQueueUpcomingBooking({ ...upcoming, status: "queued", startsAt: null }, now), false);
+  assert.equal(canQueueUpcomingBooking({ ...upcoming, startsAt: now }, now), false);
+  assert.equal(canAdminOpenBooking({ status: "queued" }), true);
+  assert.equal(canAdminOpenBooking({ status: "cancelled" }), false);
+});
+
+test("queue section is absent when empty and lists a shoot above a schedule link", () => {
+  assert.equal(renderToStaticMarkup(createElement(ClientQueueSection, { bookings: [] })), "");
+  const html = renderToStaticMarkup(
+    createElement(ClientQueueSection, {
+      bookings: [
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          address: "12 Wood View Drive",
+          services: ["Real Estate · Photography"],
+          startsAt: null,
+          endsAt: null,
+          status: "queued",
+          notes: "Lockbox 1234",
+          clientId: "client-1",
+        },
+      ],
+    }),
+  );
+  assert.match(html, />Queue</);
+  assert.match(html, /12 Wood View Drive/);
+  assert.match(html, /Lockbox 1234/);
+  assert.match(html, />Schedule a time</);
+  assert.match(html, /href="\/scheduling\?modify=22222222-2222-4222-8222-222222222222"/);
+  assert.doesNotMatch(html, /No queued/);
+});
+
+test("splitActiveBookings keeps queued shoots out of upcoming and past", () => {
+  const now = new Date("2026-09-24T15:00:00.000Z").getTime();
+  const rows = [
+    { id: "q", status: "queued", startsAt: null },
+    { id: "next", status: "confirmed", startsAt: new Date("2026-09-30T15:00:00.000Z") },
+    { id: "past", status: "confirmed", startsAt: new Date("2026-09-01T15:00:00.000Z") },
+  ];
+  const split = splitActiveBookings(rows, now);
+  assert.deepEqual(split.queued.map((row) => row.id), ["q"]);
+  assert.deepEqual(split.upcoming.map((row) => row.id), ["next"]);
+  assert.deepEqual(split.past.map((row) => row.id), ["past"]);
 });
 
 test("canAdminModifyBooking is any confirmed shoot, including one that already started", () => {

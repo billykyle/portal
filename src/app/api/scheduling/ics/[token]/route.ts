@@ -18,7 +18,7 @@ export async function GET(
 
   await ensureDb();
   const booking = await getBookingById(payload.bookingId);
-  if (!booking || booking.status === "cancelled") {
+  if (!booking || booking.status === "cancelled" || booking.status === "queued" || !booking.startsAt || !booking.endsAt) {
     return NextResponse.json({ error: "Booking was not found." }, { status: 404 });
   }
 

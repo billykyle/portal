@@ -91,7 +91,7 @@ export const media = pgTable("media", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const bookingStatusEnum = pgEnum("booking_status", ["requested", "confirmed", "cancelled"]);
+export const bookingStatusEnum = pgEnum("booking_status", ["requested", "confirmed", "cancelled", "queued"]);
 
 export const bookings = pgTable("bookings", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -103,8 +103,8 @@ export const bookings = pgTable("bookings", {
   service: text("service"),
   services: text("services").array(),
   commercialVideoHours: integer("commercial_video_hours"),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
   status: bookingStatusEnum("status").notNull().default("confirmed"),
   notes: text("notes"),
   accessCodes: text("access_codes"),

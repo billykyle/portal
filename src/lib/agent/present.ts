@@ -98,7 +98,7 @@ export function clampLimit(value: unknown, fallback = 50, max = 200) {
   return Math.min(Math.floor(n), max);
 }
 
-export function selectBookings<T extends { startsAt: Date; status: string; clientId: string }>(
+export function selectBookings<T extends { startsAt: Date | null; status: string; clientId: string }>(
   rows: T[],
   input: {
     now: Date;
@@ -112,11 +112,12 @@ export function selectBookings<T extends { startsAt: Date; status: string; clien
   const filtered = rows.filter((row) => {
     if (!includeCancelled && row.status === "cancelled") return false;
     if (input.clientId && row.clientId !== input.clientId) return false;
+    if (row.status === "queued" || row.startsAt == null) return input.when === "all";
     if (input.when === "upcoming") return row.startsAt.getTime() >= input.now.getTime();
     if (input.when === "past") return row.startsAt.getTime() < input.now.getTime();
     return true;
   });
-  filtered.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  filtered.sort((a, b) => (a.startsAt?.getTime() ?? Number.POSITIVE_INFINITY) - (b.startsAt?.getTime() ?? Number.POSITIVE_INFINITY));
   return filtered.slice(0, input.limit);
 }
 

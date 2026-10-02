@@ -34,7 +34,7 @@ export function createPortalMcpServer(ops: AgentOps) {
     { name: "atmos-portal", version: "1.0.0" },
     {
       instructions:
-        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. Sync from NAS mirrors the share and can remove portal files that are no longer on the NAS. There is no mark-delivered action and no manual attach-shoot action.",
+        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. Sync from NAS mirrors the share and can remove portal files that are no longer on the NAS. There is no mark-delivered action and no manual attach-shoot action.",
     },
   );
 
@@ -160,7 +160,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "list_bookings",
-    "List bookings. Filters: when=upcoming|past|all (default all, cancelled hidden unless includeCancelled), client id or invite code, and limit (default 50, max 200).",
+    "List bookings. Filters: when=upcoming|past|all (default all, cancelled hidden unless includeCancelled), client id or invite code, and limit (default 50, max 200). Queued shoots have no start time. They appear in all, not in upcoming or past.",
     {
       when: z.enum(["upcoming", "past", "all"]).optional(),
       clientId: z.string().optional(),
@@ -198,6 +198,12 @@ export function createPortalMcpServer(ops: AgentOps) {
         .describe("ISO end time. A future start must match the offered slot when set. A past start uses the service length."),
       notes: z.string().nullable().optional(),
     },
+    write,
+  );
+  register(
+    "queue_booking",
+    "Move an existing upcoming booking into that client's queue. Drops the start and end time, deletes the Google Calendar event, and keeps the address, services, notes, and access codes so the client can pick a new time later. Sends the client “Your shoot is on hold.” and copies addresses found in Notes. Does not email Billy. Only an upcoming confirmed booking can be queued.",
+    { bookingId: z.string().describe("Booking UUID to queue.") },
     write,
   );
   register(

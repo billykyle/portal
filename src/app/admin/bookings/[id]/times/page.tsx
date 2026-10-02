@@ -6,7 +6,7 @@ import { FormColumn, PhoneShell } from "@/components/phone-shell";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { parseShootAddress } from "@/lib/scheduling/address";
-import { canAdminModifyBooking, getBookingById } from "@/lib/scheduling/bookings";
+import { canAdminOpenBooking, getBookingById } from "@/lib/scheduling/bookings";
 import {
   firstQueryValue,
   isLegacySchedulingQuery,
@@ -59,7 +59,7 @@ export default async function AdminModifyBookingTimesPage({
   if (!booking) {
     notFound();
   }
-  if (!canAdminModifyBooking(booking)) {
+  if (!canAdminOpenBooking(booking)) {
     redirect("/admin/bookings?error=That%20booking%20cannot%20be%20modified.");
   }
 
@@ -103,7 +103,11 @@ export default async function AdminModifyBookingTimesPage({
           notes={fields.notes}
           error={query.error}
           modifyBookingId={booking.id}
-          currentSlot={`${booking.startsAt.toISOString()}|${booking.endsAt.toISOString()}`}
+          currentSlot={
+            booking.startsAt && booking.endsAt
+              ? `${booking.startsAt.toISOString()}|${booking.endsAt.toISOString()}`
+              : undefined
+          }
           fromAdmin
         />
       </FormColumn>

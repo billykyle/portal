@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AdminClientDirectory } from "@/components/admin-client-directory";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
-import { BookingList } from "@/components/booking-list";
+import { BookingList, QueuedBookingList } from "@/components/booking-list";
 import { AdminBookShootForm } from "@/components/forms/admin-book-shoot-form";
 import { MaintenanceNoticeForm } from "@/components/forms/maintenance-notice-form";
 import { MintClientForm } from "@/components/forms/mint-client-form";
@@ -30,7 +30,8 @@ import { isNasUnreachableError, readableNasError } from "@/lib/nas-connect";
 import { ADMIN_HOME } from "@/lib/routes";
 import { formatEtDateTimeLocal } from "@/lib/maintenance";
 import { getMaintenanceNotice } from "@/lib/maintenance-store";
-import { listAdminBookings } from "@/lib/scheduling/bookings";
+import { listAdminBookings, splitActiveBookings } from "@/lib/scheduling/bookings";
+import { adminBookingHref } from "@/lib/scheduling/urls";
 import { placesConfigured, schedulingHours } from "@/lib/scheduling/config";
 
 export const metadata: Metadata = {
@@ -200,9 +201,7 @@ export default async function AdminHomePage({
     })),
     "name-asc",
   );
-  const now = Date.now();
-  const upcoming = bookingRows.filter((row) => row.startsAt.getTime() >= now);
-  const past = bookingRows.filter((row) => row.startsAt.getTime() < now);
+  const { queued, upcoming, past } = splitActiveBookings(bookingRows);
   const hours = schedulingHours();
   const emailedCount = emailed == null ? null : Number(emailed);
   const failedCount = Number(emailFailed ?? "0");
@@ -237,10 +236,11 @@ export default async function AdminHomePage({
               company: client.company,
               inviteCode: client.inviteCode,
             }))}
-            jobs={confirmedJobs.map((job) => ({
-              start: job.startsAt.toISOString(),
-              end: job.endsAt.toISOString(),
-            }))}
+            jobs={confirmedJobs.flatMap((job) =>
+              job.startsAt && job.endsAt
+                ? [{ start: job.startsAt.toISOString(), end: job.endsAt.toISOString() }]
+                : [],
+            )}
           />
         </AdminSection>
         <AdminSection
@@ -319,6 +319,15 @@ export default async function AdminHomePage({
             showSort={false}
           />
         </AdminSection>
+        {queued.length > 0 ? (
+          <AdminSection id="bookings:queue" label="Queue" defaultOpen>
+            <QueuedBookingList
+              bookings={queued}
+              showClient
+              scheduleHref={(booking) => adminBookingHref(booking.id)}
+            />
+          </AdminSection>
+        ) : null}
         <AdminSection
           id="bookings:upcoming"
           label="Upcoming"

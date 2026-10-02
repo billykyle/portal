@@ -18,8 +18,9 @@ import { parseShootAddress } from "@/lib/scheduling/address";
 import { adminExactSlotFromForm } from "@/lib/scheduling/admin-time";
 import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
 import {
-  canAdminModifyBooking,
-  canModifyBooking,
+  canAdminOpenBooking,
+  canClientOpenBooking,
+  canQueueUpcomingBooking,
   getBookingById,
   getClientBooking,
   loadConfirmedPortalJobs,
@@ -28,6 +29,7 @@ import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations
 import {
   bookingModifyThrownMessage,
   commitBookingCancellation,
+  commitMoveToQueue,
   finishBookingModification,
   prepareBookingModification,
 } from "@/lib/scheduling/booking-commit";
@@ -103,12 +105,12 @@ export async function continueToTimes(formData: FormData) {
       redirect("/admin/bookings?error=Booking%20is%20required.");
     }
     const booking = await getBookingById(modifyId);
-    if (!booking || !canAdminModifyBooking(booking)) {
+    if (!booking || !canAdminOpenBooking(booking)) {
       redirect("/admin/bookings?error=That%20booking%20cannot%20be%20modified.");
     }
   } else if (modifyId) {
     const booking = session ? await getClientBooking(session.clientId, modifyId) : null;
-    if (!booking || !session || !canModifyBooking(booking, session.clientId)) {
+    if (!booking || !session || !canClientOpenBooking(booking, session.clientId)) {
       redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
     }
   }
@@ -482,4 +484,27 @@ export async function cancelBooking(formData: FormData) {
     redirect("/admin/bookings?cancelled=1");
   }
   redirect(schedulingCancelConfirmHref(booking.id, cancelledIssues));
+}
+
+export async function queueBooking(formData: FormData) {
+  const admin = await getAdminSession();
+  if (!admin) {
+    redirect("/admin");
+  }
+  await ensureDb();
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const booking = bookingId ? await getBookingById(bookingId) : null;
+  if (!booking || !canQueueUpcomingBooking(booking)) {
+    redirect("/admin/bookings?error=That%20booking%20cannot%20be%20queued.");
+  }
+  const outcome = await commitMoveToQueue(booking);
+  if (!outcome.ok) {
+    redirect(`/admin/bookings?error=${encodeURIComponent(outcome.error)}`);
+  }
+  revalidatePath(CLIENT_SCHEDULING);
+  revalidatePath(CLIENT_SCHEDULING_TIMES);
+  revalidatePath("/admin/bookings");
+  revalidatePath(ADMIN_HOME);
+  revalidatePath(`/admin/clients/${booking.clientId}`);
+  redirect("/admin/bookings?queued=1");
 }

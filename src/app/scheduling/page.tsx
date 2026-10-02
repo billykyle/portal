@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { BookingList } from "@/components/booking-list";
+import { BookingList, ClientQueueSection } from "@/components/booking-list";
 import { ClientHeader } from "@/components/client-header";
 import { BookShootForm } from "@/components/forms/book-shoot-form";
 import { desktopSplitClass, FormColumn, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { canModifyBooking, getClientBooking, listClientUpcomingBookings } from "@/lib/scheduling/bookings";
+import {
+  canClientOpenBooking,
+  getClientBooking,
+  listClientQueuedBookings,
+  listClientUpcomingBookings,
+} from "@/lib/scheduling/bookings";
 import { schedulingHours, placesConfigured } from "@/lib/scheduling/config";
 import {
   firstQueryValue,
@@ -58,12 +63,13 @@ export default async function SchedulingPage({
   }
 
   const modifyId = (params.modify ?? "").trim();
-  const [draft, modifying, upcoming] = await Promise.all([
+  const [draft, modifying, upcoming, queued] = await Promise.all([
     readSchedulingDraft("client", session.clientId),
     modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
     listClientUpcomingBookings(session.clientId),
+    listClientQueuedBookings(session.clientId),
   ]);
-  if (modifyId && (!modifying || !canModifyBooking(modifying, session.clientId))) {
+  if (modifyId && (!modifying || !canClientOpenBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
   }
   const fields = schedulingFlowFields(
@@ -94,7 +100,7 @@ export default async function SchedulingPage({
       <div className={desktopSplitClass}>
         <section className="min-w-0">
           <h2 className={sectionLabelClass}>
-            {modifying ? "Modify shoot" : "Book a shoot"}
+            {modifying?.status === "queued" ? "Schedule shoot" : modifying ? "Modify shoot" : "Book a shoot"}
           </h2>
           <FormColumn className="md:max-w-none lg:max-w-none">
             <BookShootForm
@@ -110,6 +116,7 @@ export default async function SchedulingPage({
           </FormColumn>
         </section>
         <section className="min-w-0">
+          <ClientQueueSection bookings={queued} />
           <h2 className={sectionLabelClass}>Upcoming</h2>
           <BookingList
             bookings={upcoming}

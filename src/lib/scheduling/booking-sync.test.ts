@@ -80,6 +80,7 @@ test("admin notices distinguish calendar gap from a failed sync alert", () => {
     adminBookingNotices({ status: "confirmed", calendarEventId: null, syncIssue: "calendar+email+alert" }),
     ["Calendar sync failed.", "Confirmation email failed.", "Billy was not emailed about this sync issue."],
   );
+  assert.deepEqual(adminBookingNotices({ status: "queued", syncIssue: "email" }), ["Hold email failed."]);
 });
 
 test("sync-issue email subject names the failure and includes client when/where", () => {

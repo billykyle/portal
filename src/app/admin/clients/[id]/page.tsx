@@ -8,7 +8,7 @@ import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { formMeasureClass, pageHeadingWrapClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
-import { BookingList } from "@/components/booking-list";
+import { BookingList, QueuedBookingList } from "@/components/booking-list";
 import { contentTemplate } from "@/components/templates/registry";
 import {
   ADMIN_SECTIONS_COOKIE,
@@ -25,6 +25,7 @@ import { formatShootDate, shootFolderName } from "@/lib/media";
 import { parseClosedCategoryFolders, SHOOT_CATEGORY_FOLDERS_COOKIE } from "@/lib/shoot-categories";
 import { adminShootPath } from "@/lib/shoot-slug";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
+import { adminBookingHref } from "@/lib/scheduling/urls";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { teammateDisplayName } from "@/lib/signup-fields";
 
@@ -140,9 +141,21 @@ export default async function AdminClientPage({
               </ul>
             )}
         </AdminSection>
+        {bookingRows.some((booking) => booking.status === "queued") ? (
+          <AdminSection id="client:queue" label="Queue" defaultOpen>
+            <QueuedBookingList
+              bookings={bookingRows
+                .filter((booking) => booking.status === "queued")
+                .map((booking) => ({ ...booking, clientId: client.id, clientName: client.displayName }))}
+              scheduleHref={(booking) => adminBookingHref(booking.id)}
+            />
+          </AdminSection>
+        ) : null}
         <AdminSection id="client:bookings" label="Bookings" defaultOpen={detailOpen("client:bookings")}>
           <BookingList
-            bookings={bookingRows.map((booking) => ({ ...booking, clientId: client.id }))}
+            bookings={bookingRows
+              .filter((booking) => booking.status !== "queued")
+              .map((booking) => ({ ...booking, clientId: client.id }))}
             emptyLabel="No bookings yet."
             timeZone={hours.timeZone}
             allowCancel

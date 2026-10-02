@@ -71,6 +71,13 @@
  *    When `calendarEventId` is present, also DELETE the Work calendar event
  *    (same `writeCalendarId` as create). 403/404/auth is logged and does
  *    not roll back the cancel or emails. Missing event id skips quietly.
+ *    Queue (`queueBooking` and the agent `queue_booking` tool) moves an
+ *    upcoming confirmed shoot to status `queued` with no start or end.
+ *    The Google Calendar event is deleted and that time is released.
+ *    Address, services, notes, and access codes stay. The client gets
+ *    “Your shoot is on hold.” Notes addresses are copied. Billy is not.
+ *    Scheduling lists Queue above Upcoming only when that client has
+ *    queued shoots. Picking a time later books it the normal way.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.

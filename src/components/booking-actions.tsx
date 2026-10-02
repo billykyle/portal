@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CancelBookingForm } from "@/components/forms/cancel-booking-form";
+import { QueueBookingForm } from "@/components/forms/queue-booking-form";
 
 export const bookingPrimaryButtonClass =
   "flex h-12 w-full items-center justify-center rounded-xl bg-white text-base font-medium text-black";
@@ -15,6 +16,7 @@ export function BookingModifyCancelActions({
   fromAdmin = false,
   showModify = false,
   showCancel = false,
+  showQueue = false,
 }: {
   modifyHref?: string;
   bookingId: string;
@@ -22,8 +24,9 @@ export function BookingModifyCancelActions({
   fromAdmin?: boolean;
   showModify?: boolean;
   showCancel?: boolean;
+  showQueue?: boolean;
 }) {
-  if (!showModify && !showCancel) return null;
+  if (!showModify && !showCancel && !showQueue) return null;
 
   return (
     <div className={bookingActionRowClass}>
@@ -42,6 +45,11 @@ export function BookingModifyCancelActions({
             clientId={clientId}
             className={bookingSecondaryButtonClass}
           />
+        </div>
+      ) : null}
+      {showQueue ? (
+        <div className={bookingActionSlotClass}>
+          <QueueBookingForm bookingId={bookingId} className={bookingSecondaryButtonClass} />
         </div>
       ) : null}
     </div>
