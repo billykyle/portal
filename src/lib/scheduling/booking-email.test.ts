@@ -951,7 +951,14 @@ test("queue hold email names the address, shows the old time in red, and links t
   assert.match(message.html, /background:#9b1c1c/);
   assert.match(message.html, /color:#ffffff/);
   assert.match(message.html, new RegExp(escapeRegExp(when)));
+  assert.equal(
+    QUEUE_HOLD_FOLLOWUP,
+    "This shoot is not on the calendar. When you have time, open your portal and choose a time that works for you.",
+  );
   assert.match(message.text, new RegExp(escapeRegExp(QUEUE_HOLD_FOLLOWUP)));
+  assert.match(message.html, new RegExp(escapeRegExp(QUEUE_HOLD_FOLLOWUP)));
+  assert.doesNotMatch(message.text, /Nothing is on the calendar/);
+  assert.doesNotMatch(message.html, /Nothing is on the calendar/);
   assert.match(message.html, />Schedule a time</);
   assert.match(message.html, new RegExp(escapeRegExp(bookingSchedulingUrl())));
   assert.doesNotMatch(message.text, /Pepper/);

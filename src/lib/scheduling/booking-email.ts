@@ -283,7 +283,7 @@ function clientGreeting(input: BookingConfirmationInput) {
 export const QUEUE_HOLD_SUBJECT = "Your shoot is on hold.";
 
 export const QUEUE_HOLD_FOLLOWUP =
-  "Nothing is on the calendar right now. When you have a time, open your portal and pick it up from the queue.";
+  "This shoot is not on the calendar. When you have time, open your portal and choose a time that works for you.";
 
 export function queueHoldSentence(address: string) {
   return `Your shoot at ${address} has been moved to your queue, off of your previously scheduled time.`;
