@@ -4,7 +4,7 @@ import { ADMIN_COOKIE } from "@/lib/admin-auth";
 import { isUuid } from "@/lib/admin/ids";
 import { readSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { hostnameOf, isUploadHostname, resolveHostRedirect } from "@/lib/hosts";
+import { resolveHostRedirect } from "@/lib/hosts";
 import { CLIENT_HOME } from "@/lib/routes";
 import {
   adminShootPath,
@@ -38,13 +38,6 @@ export async function middleware(request: NextRequest) {
   });
   if (hostRedirect) {
     return NextResponse.redirect(hostRedirect.location, hostRedirect.status);
-  }
-
-  const hostname = hostnameOf(request.headers.get("host") ?? request.nextUrl.host);
-  if (isUploadHostname(hostname) && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/receive";
-    return NextResponse.rewrite(url);
   }
 
   const session = await valid(request.cookies.get(SESSION_COOKIE)?.value);

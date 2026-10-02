@@ -1,12 +1,10 @@
-/** Locked production hosts. Flynn adds the admin and upload DNS CNAMEs separately. */
+/** Locked production hosts. Flynn adds the admin DNS CNAME separately. */
 export const PRODUCTION_PORTAL_HOST = "portal.billy-kyle.com";
 export const PRODUCTION_ADMIN_HOST = "admin.billy-kyle.com";
-export const PRODUCTION_UPLOAD_HOST = "upload.billy-kyle.com";
 
 export const DEFAULT_LOCAL_ORIGIN = "http://127.0.0.1:43173";
 export const DEFAULT_PORTAL_ORIGIN = `https://${PRODUCTION_PORTAL_HOST}`;
 export const DEFAULT_ADMIN_ORIGIN = `https://${PRODUCTION_ADMIN_HOST}`;
-export const DEFAULT_UPLOAD_ORIGIN = `https://${PRODUCTION_UPLOAD_HOST}`;
 
 function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
@@ -20,11 +18,6 @@ export function portalOrigin() {
 /** Billy-only admin origin. Production default so emails never point at portal `/admin`. */
 export function adminOrigin() {
   return stripTrailingSlash(process.env.ADMIN_PUBLIC_URL ?? DEFAULT_ADMIN_ORIGIN);
-}
-
-/** Public drop origin. Production default is the upload host. */
-export function uploadOrigin() {
-  return stripTrailingSlash(process.env.UPLOAD_PUBLIC_URL ?? DEFAULT_UPLOAD_ORIGIN);
 }
 
 export function adminUrl(path = "/admin") {
@@ -54,13 +47,6 @@ export function isAdminHostname(hostname: string) {
   return Boolean(configured) && !isLocalHostname(configured) && hostname === configured;
 }
 
-export function isUploadHostname(hostname: string) {
-  if (!hostname || isLocalHostname(hostname)) return false;
-  if (hostname === PRODUCTION_UPLOAD_HOST) return true;
-  const configured = hostnameOf(uploadOrigin());
-  return Boolean(configured) && !isLocalHostname(configured) && hostname === configured;
-}
-
 export function isVercelAppHostname(hostname: string) {
   return hostname.endsWith(".vercel.app");
 }
@@ -70,7 +56,7 @@ export function isVercelAppHostname(hostname: string) {
  * and Vercel preview / production aliases for this same project.
  */
 export function isPortalHostname(hostname: string) {
-  if (!hostname || isAdminHostname(hostname) || isUploadHostname(hostname) || isLocalHostname(hostname)) return false;
+  if (!hostname || isAdminHostname(hostname) || isLocalHostname(hostname)) return false;
   if (hostname === PRODUCTION_PORTAL_HOST || hostname === `www.${PRODUCTION_PORTAL_HOST}`) return true;
   const configured = hostnameOf(portalOrigin());
   if (configured && !isLocalHostname(configured) && hostname === configured) return true;
@@ -111,16 +97,6 @@ export type HostRedirect = {
   status: 308;
 };
 
-/** Paths the upload host is allowed to serve. Everything else goes back to `/`. */
-export function isUploadPublicPath(pathname: string) {
-  return (
-    pathname === "/" ||
-    pathname.startsWith("/api/upload") ||
-    pathname === "/api/cron/upload-move" ||
-    pathname.startsWith("/api/cron/upload-move/")
-  );
-}
-
 export function resolveHostRedirect(input: {
   hostname: string;
   pathname: string;
@@ -129,11 +105,6 @@ export function resolveHostRedirect(input: {
   const hostname = hostnameOf(input.hostname);
   const pathname = input.pathname || "/";
   const search = input.search ?? "";
-
-  if (isUploadHostname(hostname)) {
-    if (isUploadPublicPath(pathname)) return null;
-    return { location: `${uploadOrigin()}/${search}`, status: 308 };
-  }
 
   if (isPortalHostname(hostname) && isAdminPath(pathname)) {
     return { location: `${adminOrigin()}${pathname}${search}`, status: 308 };

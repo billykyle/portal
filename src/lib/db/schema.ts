@@ -160,36 +160,6 @@ export const zipJobs = pgTable("zip_jobs", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/** One visitor submission on upload.billy-kyle.com. Bytes live in Blob until the NAS copy verifies. */
-export const uploadSubmissions = pgTable("upload_submissions", {
-  id: uuid("id").primaryKey(),
-  name: text("name").notNull(),
-  label: text("label").notNull(),
-  email: text("email").notNull(),
-  folderName: text("folder_name").notNull(),
-  status: text("status").notNull(),
-  nasPath: text("nas_path"),
-  error: text("error"),
-  receivedNotifiedAt: timestamp("received_notified_at", { withTimezone: true }),
-  failureNotifiedAt: timestamp("failure_notified_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const uploadFiles = pgTable("upload_files", {
-  id: uuid("id").primaryKey(),
-  submissionId: uuid("submission_id")
-    .notNull()
-    .references(() => uploadSubmissions.id, { onDelete: "cascade" }),
-  originalName: text("original_name").notNull(),
-  safeName: text("safe_name").notNull(),
-  sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
-  blobPathname: text("blob_pathname").notNull(),
-  blobUrl: text("blob_url"),
-  copiedBytes: bigint("copied_bytes", { mode: "number" }).notNull().default(0),
-  status: text("status").notNull(),
-});
-
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Shoot = typeof shoots.$inferSelect;
