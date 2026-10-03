@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { count, eq, isNull } from "drizzle-orm";
 import { backfillPlaceholderPrimaryEmails } from "../client-contact";
 import { ensurePreviewSchema } from "../nas-preview";
@@ -8,6 +9,9 @@ import { clients, shoots } from "./schema";
 import { seedDemo } from "./seed";
 
 let ready: Promise<void> | null = null;
+
+/** Set only on the call that is already inside ensureDb, so a nested call does not wait on itself. */
+const migration = new AsyncLocalStorage<true>();
 
 async function createTables() {
   await sql`
@@ -218,25 +222,28 @@ async function createTables() {
 }
 
 export async function ensureDb() {
+  if (migration.getStore()) return;
   if (!ready) {
-    ready = (async () => {
-      await createTables();
-      await backfillShootSlugs();
-      await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_client_slug_uidx ON shoots (client_id, slug)`;
-      await sql`ALTER TABLE shoots ALTER COLUMN slug SET NOT NULL`;
-      const missing = await db.select({ id: shoots.id }).from(shoots).where(isNull(shoots.publicToken));
-      for (const row of missing) {
-        await db.update(shoots).set({ publicToken: createPublicToken() }).where(eq(shoots.id, row.id));
+    ready = migration.run(true, async () => {
+      try {
+        await createTables();
+        await backfillShootSlugs();
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_client_slug_uidx ON shoots (client_id, slug)`;
+        await sql`ALTER TABLE shoots ALTER COLUMN slug SET NOT NULL`;
+        const missing = await db.select({ id: shoots.id }).from(shoots).where(isNull(shoots.publicToken));
+        for (const row of missing) {
+          await db.update(shoots).set({ publicToken: createPublicToken() }).where(eq(shoots.id, row.id));
+        }
+        await sql`ALTER TABLE shoots ALTER COLUMN public_token SET NOT NULL`;
+        const [{ value }] = await db.select({ value: count() }).from(clients);
+        if (value === 0) {
+          await seedDemo();
+        }
+        await backfillPlaceholderPrimaryEmails();
+      } catch (error) {
+        ready = null;
+        throw error;
       }
-      await sql`ALTER TABLE shoots ALTER COLUMN public_token SET NOT NULL`;
-      const [{ value }] = await db.select({ value: count() }).from(clients);
-      if (value === 0) {
-        await seedDemo();
-      }
-      await backfillPlaceholderPrimaryEmails();
-    })().catch((error) => {
-      ready = null;
-      throw error;
     });
   }
   return ready;

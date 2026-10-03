@@ -1,7 +1,7 @@
-import { and, eq, ilike } from "drizzle-orm";
+import { and, eq, ilike, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, clients } from "@/lib/db/schema";
-import { listMemberUsers, memberEmailsForClients } from "@/lib/user-portals";
+import { bookings, clients, userClients, users } from "@/lib/db/schema";
+import { memberEmailsForClients } from "@/lib/user-portals";
 import {
   CLIENT_EMAIL_SKIPPED_PLACEHOLDER,
   bookingNotifyEmail,
@@ -128,15 +128,52 @@ export async function recordInviteRedeemedContact(
     .where(eq(clients.id, client.id));
 }
 
+/**
+ * Historical repair for NAS clients who already signed up.
+ * Runs from ensureDb, so it must not call listMemberUsers (that waits on ensureDb
+ * and never returns). Pending clients with no real login stay placeholders.
+ */
 export async function backfillPlaceholderPrimaryEmails() {
   const pending = await db
-    .select()
+    .select({
+      id: clients.id,
+      primaryEmail: clients.primaryEmail,
+      notes: clients.notes,
+    })
     .from(clients)
     .where(ilike(clients.primaryEmail, "%@pending.local"));
+  if (pending.length === 0) return { updated: 0 };
+
+  const ids = pending.map((client) => client.id);
+  const [home, extras] = await Promise.all([
+    db
+      .select({
+        clientId: users.clientId,
+        email: users.email,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(inArray(users.clientId, ids)),
+    db
+      .select({
+        clientId: userClients.clientId,
+        email: users.email,
+        createdAt: users.createdAt,
+      })
+      .from(userClients)
+      .innerJoin(users, eq(users.id, userClients.userId))
+      .where(inArray(userClients.clientId, ids)),
+  ]);
+  const loginsByClient = new Map<string, Array<{ email: string; createdAt: Date }>>();
+  for (const row of [...home, ...extras]) {
+    const list = loginsByClient.get(row.clientId) ?? [];
+    list.push({ email: row.email, createdAt: row.createdAt });
+    loginsByClient.set(row.clientId, list);
+  }
+
   let updated = 0;
   for (const client of pending) {
-    const logins = await listMemberUsers(client.id);
-    const patch = backfillPlaceholderClient(client, logins);
+    const patch = backfillPlaceholderClient(client, loginsByClient.get(client.id) ?? []);
     if (!patch) continue;
     const saved = await db
       .update(clients)

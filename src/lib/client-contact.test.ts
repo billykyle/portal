@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   NAS_IMPORT_INVITE_NOTE,
@@ -133,6 +134,22 @@ test("booking send list falls back to logins and the alert keeps the refused pla
   assert.deepEqual(skipped.recipients, []);
   assert.deepEqual(skipped.send.clientRecipients, []);
   assert.equal(skipped.alert.clientEmail, placeholder);
+});
+
+test("placeholder backfill loads logins once and does not re-enter ensureDb", () => {
+  const source = readFileSync("src/lib/client-contact.ts", "utf8");
+  const fn = source.slice(source.indexOf("export async function backfillPlaceholderPrimaryEmails"));
+  const body = fn.slice(0, fn.indexOf("export async function lookupClientLoginEmails"));
+  assert.match(body, /inArray\(users\.clientId, ids\)/);
+  assert.match(body, /inArray\(userClients\.clientId, ids\)/);
+  assert.match(body, /backfillPlaceholderClient\(/);
+  assert.doesNotMatch(body, /listMemberUsers\(/);
+  assert.doesNotMatch(body, /ensureDb\(/);
+
+  const ensure = readFileSync("src/lib/db/ensure.ts", "utf8");
+  const ensureFn = ensure.slice(ensure.indexOf("export async function ensureDb"));
+  assert.match(ensureFn, /if \(migration\.getStore\(\)\) return/);
+  assert.match(ensureFn, /migration\.run\(true/);
 });
 
 test("delivery skip warning names the placeholder and is distinct from a folder skip", () => {
