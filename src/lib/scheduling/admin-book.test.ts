@@ -82,8 +82,7 @@ test("client resolution is exact and lists close matches instead of guessing", (
 });
 
 test("admin and agent can book Construction overnight", async () => {
-  let start: Date | null = null;
-  let end: Date | null = null;
+  const bookedWindow: { start: Date | null; end: Date | null } = { start: null, end: null };
   const booked = await createOverrideBooking(
     {
       source: "agent",
@@ -97,8 +96,8 @@ test("admin and agent can book Construction overnight", async () => {
       listClients: async () => [client()],
       listConfirmedIntervals: async () => [],
       insertBooking: async (row) => {
-        start = row.startsAt;
-        end = row.endsAt;
+        bookedWindow.start = row.startsAt;
+        bookedWindow.end = row.endsAt;
         return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
       },
       settle: async () => ({
@@ -111,6 +110,7 @@ test("admin and agent can book Construction overnight", async () => {
     },
   );
   assert.equal(booked.ok, true);
+  const { start, end } = bookedWindow;
   assert.equal(start?.toISOString(), zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year: 2026, month: 9, day: 23, hour: 2, minute: 15 }).toISOString());
   assert.equal(end && start ? end.getTime() - start.getTime() : 0, (45 + 45) * 60 * 1000);
 });
