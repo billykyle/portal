@@ -145,6 +145,125 @@ test("a photo with no separate thumb does not stack a preview in the viewer", ()
   assert.match(images[0], /z-10/);
 });
 
+test("tapping a photo opens it in the page above the grid", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      viewId: "photo-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media,
+    }),
+  );
+  assert.doesNotMatch(html, /fixed inset-0|role="dialog"|aria-modal/);
+  const photos = html.slice(html.indexOf('id="photos"'), html.indexOf('id="floor-plans"'));
+  const viewerAt = photos.indexOf("data-photo-viewer");
+  const gridAt = photos.indexOf("grid-cols-3");
+  assert.ok(viewerAt >= 0 && gridAt > viewerAt);
+  const viewer = photos.slice(viewerAt, gridAt);
+  assert.match(viewer, /src="\/photos\/front\.jpg"/);
+  assert.match(viewer, /alt="front\.jpg"/);
+  assert.match(viewer, /z-10/);
+  assert.match(viewer, /aria-label="Other photos"/);
+  assert.match(viewer, /aria-label="yard\.jpg"/);
+  assert.match(viewer, /src="\/thumbs\/yard\.jpg"/);
+  assert.doesNotMatch(viewer, /aria-label="front\.jpg"/);
+  assert.match(viewer, /href="\/photos\/front\.jpg"[^>]*download="front\.jpg"|download="front\.jpg"[^>]*href="\/photos\/front\.jpg"/);
+  assert.doesNotMatch(viewer, /href="\/thumbs\//);
+  assert.match(photos, /grid-cols-3/);
+  assert.match(photos, /src="\/thumbs\/front\.jpg"/);
+  assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-2"/);
+
+  const nas = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/s/token",
+      viewId: "photo-a",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media: [
+        {
+          id: "photo-a",
+          url: "/api/media/photo-a",
+          thumbUrl: "/api/media/photo-a/thumb?v=abc",
+          filename: "Full-01.jpg",
+          type: "photo",
+          width: 3000,
+          height: 2000,
+        },
+        {
+          id: "photo-b",
+          url: "/api/media/photo-b",
+          thumbUrl: "/api/media/photo-b/thumb?v=def",
+          filename: "Full-02.jpg",
+          type: "photo",
+        },
+      ],
+    }),
+  );
+  const nasViewer = nas.slice(nas.indexOf("data-photo-viewer"), nas.indexOf("grid-cols-3"));
+  assert.match(nasViewer, /aspect-ratio:\s*3000\s*\/\s*2000/);
+  assert.match(nasViewer, /href="\/api\/media\/photo-a\?download=1"/);
+  assert.match(nasViewer, /download="Full-01\.jpg"/);
+  assert.doesNotMatch(nasViewer, /href="[^"]*\/thumb/);
+  assert.match(nasViewer, /aria-label="Full-02\.jpg"/);
+
+  const construction = renderToStaticMarkup(
+    createElement(defaultTemplate.Shoot, {
+      basePath: "/admin/clients/1/shoots/harbor",
+      viewId: "photo-1",
+      address: "14 Harbor Lane",
+      dateLabel: "Sep 12, 2026",
+      folderName: "2026-09-12 - 14 Harbor Lane",
+      media: media.map((item, index) => ({ ...item, sortOrder: index })),
+    }),
+  );
+  const constructionPhotos = construction.slice(
+    construction.indexOf('id="photos"'),
+    construction.indexOf('id="floor-plans"'),
+  );
+  assert.match(constructionPhotos, /data-photo-viewer/);
+  assert.match(constructionPhotos, /src="\/photos\/front\.jpg"/);
+  assert.match(constructionPhotos, /grid-cols-3/);
+  assert.doesNotMatch(construction, /fixed inset-0/);
+
+  const episode = renderToStaticMarkup(
+    createElement(podcastTemplate.Shoot, {
+      basePath: "/my-content/harbor",
+      viewId: "still-1",
+      address: "Episode 4 with Jonah Hale",
+      dateLabel: "Sep 12, 2026",
+      folderName: "2026-09-12 - Episode 4",
+      media: [
+        {
+          id: "still-1",
+          url: "/photos/cover.jpg",
+          thumbUrl: "/thumbs/cover.jpg",
+          filename: "cover.jpg",
+          type: "photo",
+          sortOrder: 0,
+        },
+        {
+          id: "still-2",
+          url: "/photos/guest.jpg",
+          thumbUrl: "/thumbs/guest.jpg",
+          filename: "guest.jpg",
+          type: "photo",
+          sortOrder: 1,
+        },
+      ],
+    }),
+  );
+  const stills = episode.slice(episode.indexOf('id="thumbnails"'));
+  const episodeViewer = stills.slice(stills.indexOf("data-photo-viewer"), stills.indexOf("grid-cols-3"));
+  assert.match(episodeViewer, /src="\/photos\/cover\.jpg"/);
+  assert.match(episodeViewer, /aria-label="guest\.jpg"/);
+  assert.match(episodeViewer, /href="\/photos\/cover\.jpg"/);
+  assert.match(stills, /grid-cols-3/);
+  assert.doesNotMatch(episode, /fixed inset-0|role="dialog"/);
+});
+
 test("opening a floor plan shows the original file", () => {
   const plans: ShootMedia[] = [
     {

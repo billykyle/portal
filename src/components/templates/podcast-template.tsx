@@ -203,6 +203,9 @@ function PodcastShoot({
           defaultOpen={shootSectionStartsOpen(closed, SECTIONS.stills)}
           layout={shootSectionLayout(listed, SECTIONS.stills)}
         >
+          {activeStill && viewId ? (
+            <PhotoViewer photos={stills} initialId={viewId} basePath={basePath} />
+          ) : null}
           <StillLayout items={stills} basePath={basePath} contain={false} ratio="3/2" />
         </DeliverableSection>
       ) : null}
@@ -211,18 +214,6 @@ function PodcastShoot({
 
       {media.length === 0 ? <p className="text-sm text-[#8e8e93]">No files on this episode yet.</p> : null}
 
-      {activeStill && viewId ? (
-        <PhotoViewer
-          photos={stills.map((item) => ({
-            id: item.id,
-            url: item.url,
-            filename: item.filename,
-            thumbUrl: item.thumbUrl,
-          }))}
-          initialId={viewId}
-          basePath={basePath}
-        />
-      ) : null}
     </div>
   );
 }

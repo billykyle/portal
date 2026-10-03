@@ -98,6 +98,9 @@ export function ShootDetail({
           defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("photo"))}
           layout={shootSectionLayout(listed, mediaSectionId("photo"))}
         >
+          {activePhoto && viewId ? (
+            <PhotoViewer photos={photos} initialId={viewId} basePath={basePath} />
+          ) : null}
           <StillLayout items={photos} basePath={basePath} contain={false} ratio="3/2" />
         </DeliverableSection>
       ) : null}
@@ -128,10 +131,6 @@ export function ShootDetail({
 
       {media.length === 0 ? (
         <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p>
-      ) : null}
-
-      {activePhoto && viewId ? (
-        <PhotoViewer photos={photos} initialId={viewId} basePath={basePath} />
       ) : null}
 
       {activePlan ? (
