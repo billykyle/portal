@@ -83,11 +83,9 @@ export default async function AdminModifyBookingTimesPage({
     redirect(schedulingEditorHref({ fromAdmin: true, bookingId: booking.id, error: parsed.error }));
   }
 
-  const changeHref = schedulingEditorHref({ fromAdmin: true, bookingId: booking.id });
-
   return (
     <PhoneShell>
-      <AdminHeader backHref={changeHref} backLabel="Address" />
+      <AdminHeader />
       <h1 className="sr-only">Modify shoot</h1>
       {query.error ? (
         <p role="alert" className="mb-6 text-sm text-[#a1a1a1]">

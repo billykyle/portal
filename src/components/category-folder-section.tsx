@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * One NAS category on a client's shoot list.
- * Open unless this browser closed that folder name.
+ * Starts closed on every visit.
  */
 export function CategoryFolderSection({
   name,

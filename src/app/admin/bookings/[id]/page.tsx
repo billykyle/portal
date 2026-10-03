@@ -71,7 +71,7 @@ export default async function AdminModifyBookingPage({
 
   return (
     <PhoneShell>
-      <AdminHeader backHref="/admin/bookings" backLabel="Bookings" />
+      <AdminHeader />
       <FormColumn center className="pb-16">
         <h1 className="sr-only">Modify shoot</h1>
         {client ? (

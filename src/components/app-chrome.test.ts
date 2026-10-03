@@ -28,12 +28,11 @@ test("signed-in headers use the hamburger menu and keep the centered logo clear"
   assert.match(withBack, />Address</);
   assert.match(withBack, /aria-label="Open menu"/);
 
-  const admin = renderToStaticMarkup(createElement(AdminHeader, { backHref: "/admin/clients/abc", backLabel: "Client" }));
+  const admin = renderToStaticMarkup(createElement(AdminHeader));
   assert.match(admin, /aria-label="Open menu"/);
   assert.equal(admin.match(HAMBURGER_BAR)?.length, 3);
   assert.doesNotMatch(admin, /size-\[5px\] rounded-full/);
-  assert.match(admin, /href="\/admin\/clients\/abc"/);
-  assert.match(admin, />Client</);
   assert.match(admin, />Sign out</);
   assert.doesNotMatch(admin, /href="\/account"/);
+  assert.doesNotMatch(admin, />Clients<|>Bookings<|>Client<|>Address<|>Back</);
 });
