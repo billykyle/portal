@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -15,6 +16,7 @@ import { defaultTemplate } from "./templates/default-template";
 import { podcastTemplate } from "./templates/podcast-template";
 import { realEstateTemplate } from "./templates/real-estate-template";
 import { ViewerStill } from "./photo-viewer";
+import { ShootActions } from "./shoot-actions";
 import { ShootDetail, type ShootMedia } from "./shoot-detail";
 
 const media: ShootMedia[] = [
@@ -681,6 +683,35 @@ test("a list row uses a low-res thumb and leaves files without one blank", () =>
   assert.equal(listPreviewSrc({ url: "/api/media/vid-1", thumbUrl: "/api/media/vid-1" }), null);
   assert.equal(listPreviewSrc({ url: "/plans/level-1.pdf" }), null);
   assert.equal(listPreviewSrc({ url: "/api/media/audio-1", filename: "episode.mp3" } as { url: string }), null);
+});
+
+test("shoot pages copy the public link and do not offer Share", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootActions, {
+      files: [{ url: "/api/media/1", filename: "front.jpg", type: "photo" }],
+      folderName: "2026-09-04-12-wood-view",
+      shareToken: "public-token",
+    }),
+  );
+  assert.match(html, />Copy link</);
+  assert.doesNotMatch(html, />Share</);
+
+  const actions = readFileSync("src/components/shoot-actions.tsx", "utf8");
+  assert.match(actions, /publicShootPath\(shareToken/);
+  assert.doesNotMatch(actions, /navigator\.share/);
+
+  const client = readFileSync("src/app/my-content/[slug]/page.tsx", "utf8");
+  const admin = readFileSync("src/app/admin/clients/[id]/shoots/[slug]/page.tsx", "utf8");
+  assert.match(client, /ShootScreen/);
+  assert.match(admin, /ShootScreen/);
+  const screen = readFileSync("src/components/shoot-screen.tsx", "utf8");
+  assert.match(screen, /shareToken=\{shoot\.publicToken\}/);
+
+  const publicPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
+  assert.match(publicPage, /getPublicShoot/);
+  assert.doesNotMatch(publicPage, /getSession|getAdminSession|redirect\(/);
+  const middleware = readFileSync("src/middleware.ts", "utf8");
+  assert.doesNotMatch(middleware, /pathname\.startsWith\("\/s"\)/);
 });
 
 test("floor plan tiles stay square", () => {

@@ -117,21 +117,6 @@ export function ShootActions({
     window.setTimeout(() => setStatus(""), 2000);
   }
 
-  async function share() {
-    const url = publicHref();
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: "Shoot", url, text: "Open this shoot" });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-      }
-    }
-    await copyLink();
-  }
-
   const buttonLabel =
     pending && progress?.state === "preparing"
       ? "Preparing…"
@@ -161,18 +146,13 @@ export function ShootActions({
           ) : null}
         </button>
         {shareToken ? (
-          <>
-            <button
-              type="button"
-              onClick={copyLink}
-              className={`${chip} border border-white/20 text-white`}
-            >
-              Copy link
-            </button>
-            <button type="button" onClick={share} className={`${chip} border border-white/20 text-white`}>
-              Share
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={copyLink}
+            className={`${chip} border border-white/20 text-white`}
+          >
+            Copy link
+          </button>
         ) : null}
       </div>
       {needsPicker && menuOpen ? (
