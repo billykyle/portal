@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "bk_session";
 export const INVITE_COOKIE = "bk_invite";
+export const PORTAL_CHOICE_COOKIE = "bk_portal_choice";
 
 export type Session = {
   userId: string;
@@ -66,6 +67,44 @@ export async function createSession(session: Session) {
 export async function clearSession() {
   const store = await cookies();
   store.delete(SESSION_COOKIE);
+}
+
+export async function createPortalChoice(choice: { userId: string; email: string }) {
+  const token = await new SignJWT({ ...choice, purpose: "choose" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(secret());
+  const store = await cookies();
+  store.set(PORTAL_CHOICE_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60,
+  });
+}
+
+export async function readPortalChoiceToken(token: string): Promise<{ userId: string; email: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    if (payload.purpose !== "choose" || !payload.userId || !payload.email) return null;
+    return { userId: String(payload.userId), email: String(payload.email) };
+  } catch {
+    return null;
+  }
+}
+
+export async function getPortalChoice() {
+  const store = await cookies();
+  const token = store.get(PORTAL_CHOICE_COOKIE)?.value;
+  if (!token) return null;
+  return readPortalChoiceToken(token);
+}
+
+export async function clearPortalChoice() {
+  const store = await cookies();
+  store.delete(PORTAL_CHOICE_COOKIE);
 }
 
 export async function setInviteCookie(code: string) {

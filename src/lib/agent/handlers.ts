@@ -118,6 +118,7 @@ export async function runAgentTool(
         phone: optionalText(args.phone),
         email: optionalText(args.email),
         company: optionalText(args.company),
+        addInviteCode: optionalText(args.addInviteCode),
       });
       if (!result.ok) return result;
       return {

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { and, eq, ilike } from "drizzle-orm";
 import {
   alertUndeliverableClientEmail,
   deliverableClientEmails,
@@ -7,7 +7,8 @@ import {
   skippedPlaceholderDeliveryWarning,
 } from "./client-contact";
 import { db } from "./db";
-import { clients, media, shoots, users } from "./db/schema";
+import { clients, media, shoots } from "./db/schema";
+import { listMemberUsers } from "./user-portals";
 import { isPendingClientEmail } from "./signup-fields";
 import { formatInviteCode, parseInviteSequence } from "./invite";
 import {
@@ -352,11 +353,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       const becameReady = shootCreated || (existingCount === 0 && mediaResult.imported > 0);
       if (!becameReady) continue;
       result.ready += 1;
-      const members = await db
-        .select({ email: users.email })
-        .from(users)
-        .where(eq(users.clientId, client.id))
-        .orderBy(asc(users.createdAt));
+      const members = await listMemberUsers(client.id);
       const recipients = deliverableClientEmails({
         preferred: client.primaryEmail,
         primaryEmail: client.primaryEmail,

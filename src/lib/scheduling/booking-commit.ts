@@ -1,9 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { deliverableClientEmails } from "@/lib/client-contact";
 import { unstable_rethrow } from "next/navigation";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users, type Booking } from "@/lib/db/schema";
+import { listMemberUsers } from "@/lib/user-portals";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
@@ -242,7 +243,7 @@ export async function prepareBookingModification(input: {
     [user] = await db.select().from(users).where(eq(users.id, booking.createdByUserId)).limit(1);
   }
   if (!user) {
-    [user] = await db.select().from(users).where(eq(users.clientId, booking.clientId)).limit(1);
+    [user] = await listMemberUsers(booking.clientId);
   }
   const clientEmail = input.fromAdmin
     ? await resolveBookingContactEmail({
@@ -375,11 +376,7 @@ export async function resolveBookingContactEmail(input: {
       .limit(1);
     creatorEmail = creator?.email ?? null;
   }
-  const members = await db
-    .select({ email: users.email })
-    .from(users)
-    .where(eq(users.clientId, input.clientId))
-    .orderBy(asc(users.createdAt));
+  const members = await listMemberUsers(input.clientId);
   const [email] = deliverableClientEmails({
     preferred: input.ownerEmail || creatorEmail || "",
     primaryEmail: input.primaryEmail,
@@ -504,11 +501,7 @@ export async function commitMoveToQueue(booking: Booking): Promise<
   }
 
   const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
-  const members = await db
-    .select({ id: users.id, email: users.email, firstName: users.firstName })
-    .from(users)
-    .where(eq(users.clientId, booking.clientId))
-    .orderBy(asc(users.createdAt));
+  const members = await listMemberUsers(booking.clientId);
   const creator = members.find((member) => member.id === booking.createdByUserId);
   const named = creator?.firstName?.trim() ? creator : members.find((member) => member.firstName?.trim());
   const clientEmail = await resolveBookingContactEmail({

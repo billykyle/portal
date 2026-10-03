@@ -11,7 +11,8 @@ import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/cl
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, users } from "@/lib/db/schema";
+import { clients } from "@/lib/db/schema";
+import { directoryLogins } from "@/lib/user-portals";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -35,15 +36,7 @@ export default async function AdminClientsPage({
   const needle = query.toLowerCase();
   const [rows, logins, counts, cookieStore] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
-    db
-      .select({
-        clientId: users.clientId,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        phone: users.phone,
-      })
-      .from(users),
+    directoryLogins(),
     clientCounts(),
     cookies(),
   ]);

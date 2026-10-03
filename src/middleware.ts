@@ -2,10 +2,10 @@ import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_COOKIE } from "@/lib/admin-auth";
 import { isUuid } from "@/lib/admin/ids";
-import { readSessionToken, SESSION_COOKIE } from "@/lib/auth";
+import { PORTAL_CHOICE_COOKIE, readSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { resolveHostRedirect } from "@/lib/hosts";
-import { CLIENT_HOME } from "@/lib/routes";
+import { CLIENT_HOME, PORTAL_CHOOSER } from "@/lib/routes";
 import {
   adminShootPath,
   canonicalShootForId,
@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = await valid(request.cookies.get(SESSION_COOKIE)?.value);
+  const choosing = await choosingPortal(request.cookies.get(PORTAL_CHOICE_COOKIE)?.value);
   const admin = await valid(request.cookies.get(ADMIN_COOKIE)?.value);
 
   if (
@@ -81,10 +82,26 @@ export async function middleware(request: NextRequest) {
     const moved = await redirectSlugAlias(request, adminSlug[2], search, adminSlug[1]);
     if (moved) return moved;
   }
-  if (session && (pathname === "/" || pathname === "/signup" || pathname === "/signin")) {
+  if (session && (pathname === "/" || pathname === "/signup" || pathname === "/signin" || pathname === PORTAL_CHOOSER)) {
     return NextResponse.redirect(new URL(CLIENT_HOME, request.url));
   }
+  if (!session && choosing && (pathname === "/" || pathname === "/signup" || pathname === "/signin")) {
+    return NextResponse.redirect(new URL(PORTAL_CHOOSER, request.url));
+  }
+  if (!session && !choosing && pathname === PORTAL_CHOOSER) {
+    return NextResponse.redirect(new URL("/signin", request.url));
+  }
   return NextResponse.next();
+}
+
+async function choosingPortal(token: string | undefined) {
+  if (!token || !process.env.JWT_SECRET) return false;
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    return payload.purpose === "choose" && Boolean(payload.userId);
+  } catch {
+    return false;
+  }
 }
 
 function redirectTo(request: NextRequest, path: string, search: string) {
@@ -132,6 +149,7 @@ export const config = {
     "/",
     "/signup",
     "/signin",
+    "/choose",
     "/forgot-password",
     "/reset-password",
     "/hub",

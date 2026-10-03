@@ -1,5 +1,6 @@
 /** Post-login landing. Invite/signin success used to go straight to My Content. */
 export const CLIENT_HOME = "/hub";
+export const PORTAL_CHOOSER = "/choose";
 export const CLIENT_LIBRARY = "/my-content";
 export const CLIENT_ACCOUNT = "/account";
 export const CLIENT_SCHEDULING = "/scheduling";

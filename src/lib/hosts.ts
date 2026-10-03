@@ -74,6 +74,7 @@ const CLIENT_PORTAL_PREFIXES = [
   "/scheduling",
   "/signup",
   "/signin",
+  "/choose",
   "/forgot-password",
   "/reset-password",
   "/s",

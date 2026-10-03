@@ -1,8 +1,9 @@
-import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, gt, isNull, lte } from "drizzle-orm";
 import { emailConfigured, sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
+import { memberEmailsForClients } from "@/lib/user-portals";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingServiceList } from "@/lib/scheduling/services";
 import {
@@ -147,13 +148,7 @@ async function loadReminderCandidates(now: Date): Promise<ReminderCandidate[]> {
     );
 
   const clientIds = [...new Set(rows.map((row) => row.booking.clientId))];
-  const logins =
-    clientIds.length === 0
-      ? []
-      : await db
-          .select({ clientId: users.clientId, email: users.email })
-          .from(users)
-          .where(inArray(users.clientId, clientIds));
+  const logins = await memberEmailsForClients(clientIds);
   const loginsByClient = new Map<string, string[]>();
   for (const login of logins) {
     const list = loginsByClient.get(login.clientId) ?? [];
