@@ -4,7 +4,8 @@ import { ShootScreen } from "@/components/shoot-screen";
 import { getSession } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { formatShootDate } from "@/lib/media";
-import { clientShootPath, clientShootUrl, resolveClientShoot, withSearch } from "@/lib/shoot-slug";
+import { resolveShootForPage } from "@/lib/resolve-shoot-page";
+import { clientShootPath, clientShootUrl, withSearch } from "@/lib/shoot-slug";
 import { shootPageMetadata } from "@/lib/site-metadata";
 
 export async function generateMetadata({
@@ -17,7 +18,7 @@ export async function generateMetadata({
   const { slug } = await params;
   try {
     await ensureDb();
-    const resolved = await resolveClientShoot(session.clientId, slug);
+    const resolved = await resolveShootForPage(session.clientId, slug);
     if (!resolved) return {};
     return shootPageMetadata({
       address: resolved.shoot.address,
@@ -43,7 +44,7 @@ export default async function ClientShootPage({
   const { slug } = await params;
   const { view } = await searchParams;
   await ensureDb();
-  const resolved = await resolveClientShoot(session.clientId, slug);
+  const resolved = await resolveShootForPage(session.clientId, slug);
   if (!resolved) {
     notFound();
   }

@@ -8,7 +8,15 @@ import type { TravelJob } from "./travel";
 export async function loadConfirmedPortalJobs(options?: {
   excludeBookingId?: string | null;
 }): Promise<TravelJob[]> {
-  const rows = await db.select().from(bookings).where(eq(bookings.status, "confirmed"));
+  const rows = await db
+    .select({
+      id: bookings.id,
+      startsAt: bookings.startsAt,
+      endsAt: bookings.endsAt,
+      address: bookings.address,
+    })
+    .from(bookings)
+    .where(eq(bookings.status, "confirmed"));
   return rows.flatMap((row) => {
     if (!row.startsAt || !row.endsAt) return [];
     if (options?.excludeBookingId && row.id === options.excludeBookingId) return [];

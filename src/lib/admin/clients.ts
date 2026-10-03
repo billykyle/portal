@@ -12,9 +12,19 @@ export async function listClientRows() {
   return db.select().from(clients).orderBy(desc(clients.createdAt));
 }
 
+/** Shoot totals only. Directory pages do not use the login counts. */
+export async function shootCountsByClient() {
+  await ensureDb();
+  const shootRows = await db
+    .select({ clientId: shoots.clientId, value: count() })
+    .from(shoots)
+    .groupBy(shoots.clientId);
+  return new Map(shootRows.map((row) => [row.clientId, Number(row.value)]));
+}
+
 export async function clientCounts() {
   await ensureDb();
-  const [userRows, extraRows, shootRows] = await Promise.all([
+  const [userRows, extraRows, shootsByClient] = await Promise.all([
     db
       .select({ clientId: users.clientId, value: count() })
       .from(users)
@@ -23,10 +33,7 @@ export async function clientCounts() {
       .select({ clientId: userClients.clientId, value: count() })
       .from(userClients)
       .groupBy(userClients.clientId),
-    db
-      .select({ clientId: shoots.clientId, value: count() })
-      .from(shoots)
-      .groupBy(shoots.clientId),
+    shootCountsByClient(),
   ]);
   const usersByClient = new Map(userRows.map((row) => [row.clientId, Number(row.value)]));
   for (const row of extraRows) {
@@ -34,7 +41,7 @@ export async function clientCounts() {
   }
   return {
     users: usersByClient,
-    shoots: new Map(shootRows.map((row) => [row.clientId, Number(row.value)])),
+    shoots: shootsByClient,
   };
 }
 
