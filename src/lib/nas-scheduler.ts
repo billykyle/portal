@@ -1,21 +1,16 @@
-import { nasEnabled } from "./nas-flags";
 import { syncNasShare, type NasSyncResult } from "./nas-import";
-import { nasSyncIntervalMinutes } from "./nas-sync-config";
-import { useInProcessNasScheduler } from "./runtime";
 
-export { nasSyncIntervalMinutes };
-
-type SyncSource = "boot" | "interval" | "admin" | "cli" | "cron";
+type SyncSource = "admin" | "cli";
 
 type GlobalNas = typeof globalThis & {
   __nasSyncInFlight?: Promise<NasSyncResult> | null;
-  __nasSyncTimer?: ReturnType<typeof setInterval> | null;
 };
 
 function state() {
   return globalThis as GlobalNas;
 }
 
+/** One share walk at a time. Admin Sync from NAS and `sync_from_nas` both use this. */
 export async function runLockedNasSync(source: SyncSource): Promise<NasSyncResult> {
   const g = state();
   if (g.__nasSyncInFlight) {
@@ -59,27 +54,4 @@ export async function runLockedNasSync(source: SyncSource): Promise<NasSyncResul
     });
 
   return g.__nasSyncInFlight;
-}
-
-export function startNasSyncScheduler() {
-  const g = state();
-  if (g.__nasSyncTimer) return;
-
-  if (!useInProcessNasScheduler()) {
-    console.log("NAS auto-sync: Vercel cron /api/cron/nas-sync (in-process timer off)");
-    return;
-  }
-
-  const minutes = nasSyncIntervalMinutes();
-  if (!nasEnabled() || minutes <= 0) {
-    console.log("NAS auto-sync off");
-    return;
-  }
-
-  const ms = minutes * 60 * 1000;
-  console.log(`NAS auto-sync every ${minutes} min`);
-  g.__nasSyncTimer = setInterval(() => {
-    void runLockedNasSync("interval");
-  }, ms);
-  g.__nasSyncTimer.unref?.();
 }

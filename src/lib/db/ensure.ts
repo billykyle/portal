@@ -3,7 +3,6 @@ import { backfillPlaceholderPrimaryEmails } from "../client-contact";
 import { ensurePreviewSchema } from "../nas-preview";
 import { createPublicToken } from "../public-link";
 import { backfillShootSlugs } from "../shoot-slug";
-import { useInProcessNasScheduler } from "../runtime";
 import { db, sql } from "./index";
 import { clients, shoots } from "./schema";
 import { seedDemo } from "./seed";
@@ -235,17 +234,6 @@ export async function ensureDb() {
         await seedDemo();
       }
       await backfillPlaceholderPrimaryEmails();
-      if (!useInProcessNasScheduler()) {
-        console.log("NAS boot sync skipped on Vercel (use cron or admin)");
-      } else {
-        const { runLockedNasSync, startNasSyncScheduler } = await import("../nas-scheduler");
-        try {
-          await runLockedNasSync("boot");
-        } catch (error) {
-          console.error("NAS share sync skipped:", error);
-        }
-        startNasSyncScheduler();
-      }
     })().catch((error) => {
       ready = null;
       throw error;

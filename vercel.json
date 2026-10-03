@@ -3,10 +3,6 @@
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron/nas-sync",
-      "schedule": "*/10 * * * *"
-    },
-    {
       "path": "/api/cron/shoot-reminders",
       "schedule": "0 * * * *"
     }

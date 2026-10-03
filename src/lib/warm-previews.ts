@@ -4,7 +4,7 @@ import { ensureStoredPreview, listPhotoPreviewBackfill } from "./nas-preview";
 
 /**
  * Store small photo previews that are not in Postgres yet.
- * Existing shoots fill in here (cron / `npm run nas:sync:warm`) and on first view.
+ * Existing shoots fill in here (`npm run nas:sync:warm`) and on first view.
  */
 export async function warmMissingPreviews(options?: { limit?: number; budgetMs?: number }) {
   const limit = options?.limit ?? 20;

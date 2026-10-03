@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   title: "Home",
 };
 
-/** Sync walks the share. Match the cron route so a live NAS is not cut off mid-run. */
+/** Manual Sync from NAS walks the share. Keep the function alive long enough to finish. */
 export const maxDuration = 300;
 
 function syncSummary(input: {
