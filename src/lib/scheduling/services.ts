@@ -123,6 +123,21 @@ export function includesSocialMediaVideo(services: readonly string[]) {
   );
 }
 
+const CONSTRUCTION_SERVICE_IDS = new Set<string>(
+  SCHEDULING_INDUSTRIES.filter((group) => group.industry === "Construction").flatMap((group) =>
+    group.options.map((option) => schedulingServiceId(group.industry, option)),
+  ),
+);
+
+/**
+ * Construction Photography, Construction Video, or any other Construction
+ * option — alone or together. A mix with another industry keeps daytime hours.
+ */
+export function bookingUsesAllDayHours(services: readonly string[]) {
+  const parsed = parseSchedulingServices(services);
+  return parsed.length > 0 && parsed.every((service) => CONSTRUCTION_SERVICE_IDS.has(service));
+}
+
 /** Commercial video and Social Media Video must finish at or before 6:00pm ET. */
 export function bookingRequiresEndByClose(services: readonly string[]) {
   return includesCommercialVideo(services) || includesSocialMediaVideo(services);

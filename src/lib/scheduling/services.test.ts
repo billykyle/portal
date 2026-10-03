@@ -5,6 +5,7 @@ import {
   bookingServiceList,
   bookingRequiresEndByClose,
   bookingSlotMinutes,
+  bookingUsesAllDayHours,
   COMMERCIAL_VIDEO_SERVICE,
   formatBookingServices,
   formatSchedulingService,
@@ -247,6 +248,16 @@ test("Social Media Video keeps one option and still ends by close", () => {
   assert.equal(bookingRequiresEndByClose([longForm, "Real Estate · Photography"]), true);
   assert.equal(bookingRequiresEndByClose(["Real Estate · Photography"]), false);
   assert.equal(bookingRequiresEndByClose(["Commercial video"]), true);
+});
+
+test("only Construction services use all-day hours", () => {
+  assert.equal(bookingUsesAllDayHours(["Construction · Photography"]), true);
+  assert.equal(bookingUsesAllDayHours(["Construction · Video"]), true);
+  assert.equal(bookingUsesAllDayHours(["Construction Photography", "Construction · Video"]), true);
+  assert.equal(bookingUsesAllDayHours(["Real Estate · Photography"]), false);
+  assert.equal(bookingUsesAllDayHours(["Construction · Photography", "Real Estate · Video"]), false);
+  assert.equal(bookingUsesAllDayHours(["Commercial video"]), false);
+  assert.equal(bookingUsesAllDayHours([]), false);
 });
 
 test("Meeting keeps one length and does not require an end by 6:00pm", () => {

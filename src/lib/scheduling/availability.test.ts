@@ -245,6 +245,87 @@ test("Commercial video must end by 6:00pm, so longer blocks have fewer starts", 
   );
 });
 
+test("Construction starts any time of day and still skips blocked weekdays", async () => {
+  const now = et(2026, 9, 20, 8);
+  const quiet = {
+    now,
+    busy: [] as { start: Date; end: Date }[],
+    jobs: [],
+    calendarConfigured: true,
+    driveTimeConfigured: true,
+    driveSeconds: async () => null,
+  };
+  const construction = await offerSlotsForAddress(PHILLY, quiet, ["Construction · Photography"]);
+  const monday = construction.slots.filter((slot) => slot.dateKey === "2026-09-21");
+  assert.equal(monday[0]?.start, et(2026, 9, 21, 0).toISOString());
+  assert.match(monday[0]?.timeLabel ?? "", /12:00 AM/);
+  assert.match(
+    monday.find((slot) => slot.start === et(2026, 9, 21, 2, 15).toISOString())?.timeLabel ?? "",
+    /2:15 AM/,
+  );
+  assert.equal(monday[monday.length - 1]?.start, et(2026, 9, 21, 23, 45).toISOString());
+  assert.match(monday[monday.length - 1]?.timeLabel ?? "", /11:45 PM/);
+  assert.equal(monday[monday.length - 1]?.end, et(2026, 9, 22, 0, 30).toISOString());
+  assert.ok(monday.some((slot) => slot.start === et(2026, 9, 21, 2, 15).toISOString()));
+  assert.equal(
+    construction.slots.some((slot) => slot.dateKey === "2026-09-22"),
+    false,
+  );
+  assert.equal(
+    construction.slots.some((slot) => slot.dateKey === "2026-09-20"),
+    false,
+  );
+  const sameDay = await offerSlotsForAddress(
+    PHILLY,
+    { ...quiet, now: et(2026, 9, 21, 8) },
+    ["Construction · Photography"],
+  );
+  assert.equal(
+    sameDay.slots.some((slot) => slot.dateKey === "2026-09-21"),
+    false,
+  );
+  assert.ok(sameDay.slots.some((slot) => slot.start === et(2026, 9, 23, 2).toISOString()));
+
+  const both = await offerSlotsForAddress(PHILLY, quiet, [
+    "Construction · Photography",
+    "Construction · Video",
+  ]);
+  assert.ok(both.slots.some((slot) => slot.start === et(2026, 9, 21, 1).toISOString()));
+
+  const busyAtTwo = await offerSlotsForAddress(
+    PHILLY,
+    {
+      ...quiet,
+      busy: [{ start: et(2026, 9, 21, 2), end: et(2026, 9, 21, 3) }],
+    },
+    ["Construction · Video"],
+  );
+  assert.equal(
+    busyAtTwo.slots.some((slot) => slot.start === et(2026, 9, 21, 2).toISOString()),
+    false,
+  );
+  assert.ok(busyAtTwo.slots.some((slot) => slot.start === et(2026, 9, 21, 3).toISOString()));
+
+  const daytime = await offerSlotsForAddress(PHILLY, quiet, ["Real Estate · Photography"]);
+  const daytimeMonday = daytime.slots.filter((slot) => slot.dateKey === "2026-09-21");
+  assert.equal(daytimeMonday[0]?.start, et(2026, 9, 21, 9).toISOString());
+  assert.equal(daytimeMonday[daytimeMonday.length - 1]?.start, et(2026, 9, 21, 18).toISOString());
+  assert.equal(
+    daytime.slots.some((slot) => slot.start === et(2026, 9, 21, 2, 15).toISOString()),
+    false,
+  );
+
+  const mixed = await offerSlotsForAddress(PHILLY, quiet, [
+    "Construction · Photography",
+    "Real Estate · Photography",
+  ]);
+  assert.equal(
+    mixed.slots.some((slot) => slot.start === et(2026, 9, 21, 2, 15).toISOString()),
+    false,
+  );
+  assert.ok(mixed.slots.some((slot) => slot.start === et(2026, 9, 21, 9).toISOString()));
+});
+
 test("a 6:00pm start is offered even when the job end runs past close", () => {
   const slots = generateCandidateSlots({
     now: et(2026, 9, 20, 6),

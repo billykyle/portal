@@ -96,7 +96,13 @@
  *    even if the computed end runs past 6:00pm. Commercial video and Social
  *    Media Video, alone or combined with other services, must end at or
  *    before 6:00pm, so a longer block has fewer start times. Other services
- *    still offer a 6:00pm start.
+ *    still offer a 6:00pm start. Construction (Photography, Video, or any
+ *    Construction option, including both together) is the exception
+ *    (Billy, 2026-10-03): starts at any time of day, including overnight,
+ *    with no 9am–6pm window and no 6pm end. A mix with another industry
+ *    keeps the daytime window. Same-day and Tuesday/Saturday/Sunday still
+ *    apply. A Construction slot that overlaps a calendar event is not offered
+ *    to clients.
  * 8. Bookable days (Billy, 2026-09-21): no same-day bookings in
  *    America/New_York, and never Tuesday, Saturday, or Sunday. Allowed new
  *    starts are Monday, Wednesday, Thursday, Friday — and never today.

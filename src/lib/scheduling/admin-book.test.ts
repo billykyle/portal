@@ -81,6 +81,40 @@ test("client resolution is exact and lists close matches instead of guessing", (
   if (!missingCode.ok) assert.match(missingCode.error, /BK99999/);
 });
 
+test("admin and agent can book Construction overnight", async () => {
+  let start: Date | null = null;
+  let end: Date | null = null;
+  const booked = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Construction · Photography", "Construction · Video"],
+      date: "2026-09-23",
+      time: "2:15am",
+    },
+    {
+      listClients: async () => [client()],
+      listConfirmedIntervals: async () => [],
+      insertBooking: async (row) => {
+        start = row.startsAt;
+        end = row.endsAt;
+        return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+      },
+      settle: async () => ({
+        issues: { calendar: false, email: false, alertFailed: false },
+        calendarEventId: null,
+        billyNotified: false,
+        alertSent: false,
+      }),
+      calendarOn: () => false,
+    },
+  );
+  assert.equal(booked.ok, true);
+  assert.equal(start?.toISOString(), zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year: 2026, month: 9, day: 23, hour: 2, minute: 15 }).toISOString());
+  assert.equal(end && start ? end.getTime() - start.getTime() : 0, (45 + 45) * 60 * 1000);
+});
+
 test("commercial video override refuses a missing length and occupies the chosen hours", async () => {
   const missing = await createOverrideBooking(
     {
