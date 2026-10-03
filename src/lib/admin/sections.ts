@@ -52,6 +52,11 @@ export function adminSectionsCookie(value: string, secure = false) {
   return parts.join("; ");
 }
 
+/** A–Z by the label on the row. Case does not change the order. */
+export function sortByVisibleLabel<T extends { label: string }>(sections: readonly T[]): T[] {
+  return [...sections].sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
+}
+
 /** Collapsed unless Billy opened it before, or this visit has a result that must stay visible. */
 export function sectionStartsOpen(stored: ReadonlySet<string>, id: string, forceOpen: boolean) {
   return forceOpen || stored.has(id);

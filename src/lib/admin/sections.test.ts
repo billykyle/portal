@@ -17,7 +17,45 @@ import {
   readCookie,
   sectionStartsOpen,
   serializeOpenSections,
+  sortByVisibleLabel,
 } from "./sections";
+
+test("admin home labels sort A–Z and the page does not reopen a section", () => {
+  assert.deepEqual(
+    sortByVisibleLabel([
+      { label: "Queue" },
+      { label: "All clients" },
+      { label: "Upcoming" },
+      { label: "Book a shoot" },
+      { label: "Past" },
+      { label: "NAS sync" },
+      { label: "Create client" },
+      { label: "Maintenance notice" },
+    ]).map((section) => section.label),
+    [
+      "All clients",
+      "Book a shoot",
+      "Create client",
+      "Maintenance notice",
+      "NAS sync",
+      "Past",
+      "Queue",
+      "Upcoming",
+    ],
+  );
+
+  const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
+  assert.match(home, /sortByVisibleLabel\(homeSections\)/);
+  assert.match(home, /defaultOpen=\{false\}/);
+  assert.doesNotMatch(home, /sectionStartsOpen|parseOpenSections|clientsSectionForce|bookingsSectionForce/);
+  assert.doesNotMatch(home, /label="Queue"/);
+  assert.doesNotMatch(home, /defaultOpen(?:\s|>)/);
+
+  const bookings = readFileSync("src/app/admin/bookings/page.tsx", "utf8");
+  assert.match(bookings, /label="Queue" defaultOpen/);
+  const detail = readFileSync("src/app/admin/clients/[id]/page.tsx", "utf8");
+  assert.match(detail, /label="Queue" defaultOpen/);
+});
 
 test("admin sections start collapsed and remember an explicit open set", () => {
   assert.equal(parseOpenSections(null).size, 0);
@@ -161,18 +199,20 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   assert.match(home, /title: "Home"/);
   assert.match(home, /sr-only">Home</);
   assert.match(home, /Create client/);
-  assert.match(home, /id="clients:nas-sync"/);
-  assert.match(home, /id="clients:book-shoot"/);
-  assert.match(home, /id="clients:all"/);
-  assert.match(home, /remember=\{false\}/);
+  assert.match(home, /id: "clients:nas-sync"/);
+  assert.match(home, /id: "clients:book-shoot"/);
+  assert.match(home, /id: "clients:all"/);
+  assert.match(home, /remember: false/);
   assert.match(home, /"name-asc"/);
-  assert.doesNotMatch(home, /sectionStartsOpen\(\s*openSections,\s*"clients:all"/);
+  assert.match(home, /defaultOpen=\{false\}/);
+  assert.doesNotMatch(home, /sectionStartsOpen/);
   const clientsPage = readFileSync("src/app/admin/clients/page.tsx", "utf8");
   assert.match(clientsPage, /parseClientSort/);
   assert.doesNotMatch(clientsPage, /showSort=\{false\}/);
-  assert.match(home, /id="bookings:upcoming"/);
-  assert.match(home, /id="bookings:past"/);
-  assert.match(home, /id="home:maintenance"/);
+  assert.match(home, /id: "bookings:upcoming"/);
+  assert.match(home, /id: "bookings:past"/);
+  assert.match(home, /id: "home:maintenance"/);
+  assert.match(home, /id: "bookings:queue"/);
   assert.match(home, /Maintenance notice/);
   assert.doesNotMatch(home, /pageTitleClass|Mint client/);
 
