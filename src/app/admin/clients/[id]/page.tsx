@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
@@ -45,14 +45,23 @@ export default async function AdminClientPage({
   if (!client) {
     notFound();
   }
-  const teammateRows = await listClientMembers(client.id);
-  const shootRows = await db
-    .select()
-    .from(shoots)
-    .where(eq(shoots.clientId, client.id))
-    .orderBy(desc(shoots.shotDate));
-  const mediaRows = await db.select().from(media);
-  const bookingRows = await listClientBookingsAdmin(client.id);
+  const [teammateRows, shootRows, bookingRows] = await Promise.all([
+    listClientMembers(client.id),
+    db.select().from(shoots).where(eq(shoots.clientId, client.id)).orderBy(desc(shoots.shotDate)),
+    listClientBookingsAdmin(client.id),
+  ]);
+  const mediaRows =
+    shootRows.length === 0
+      ? []
+      : await db
+          .select()
+          .from(media)
+          .where(
+            inArray(
+              media.shootId,
+              shootRows.map((shoot) => shoot.id),
+            ),
+          );
   const hours = schedulingHours();
   const covers = client.category === "podcast" ? coverUrlByShoot(mediaRows) : new Map<string, string | null>();
   const AdminShoots = contentTemplate(client.category).AdminShoots;

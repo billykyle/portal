@@ -5,7 +5,8 @@ import { getAdminSession } from "@/lib/admin-auth";
 import { isUuid } from "@/lib/admin/ids";
 import { ensureDb } from "@/lib/db/ensure";
 import { formatShootDate } from "@/lib/media";
-import { adminShootPath, resolveClientShoot, withSearch } from "@/lib/shoot-slug";
+import { resolveShootForPage } from "@/lib/resolve-shoot-page";
+import { adminShootPath, withSearch } from "@/lib/shoot-slug";
 import { shootPageMetadata } from "@/lib/site-metadata";
 
 export async function generateMetadata({
@@ -18,7 +19,7 @@ export async function generateMetadata({
   if (!isUuid(id)) return {};
   try {
     await ensureDb();
-    const resolved = await resolveClientShoot(id, slug);
+    const resolved = await resolveShootForPage(id, slug);
     if (!resolved) return {};
     return shootPageMetadata({
       address: resolved.shoot.address,
@@ -45,7 +46,7 @@ export default async function AdminShootPage({
     notFound();
   }
   await ensureDb();
-  const resolved = await resolveClientShoot(id, slug);
+  const resolved = await resolveShootForPage(id, slug);
   if (!resolved || resolved.shoot.clientId !== id) {
     notFound();
   }

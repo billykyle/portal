@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AdminClientDirectory } from "@/components/admin-client-directory";
 import { AdminHeader } from "@/components/admin-header";
 import { pageStackClass, PhoneShell } from "@/components/phone-shell";
-import { clientCounts } from "@/lib/admin/clients";
+import { shootCountsByClient } from "@/lib/admin/clients";
 import { signedUpMemberCount } from "@/lib/admin/member-count";
 import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/client-sort";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -34,10 +34,10 @@ export default async function AdminClientsPage({
   const { error, removed, q } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const [rows, logins, counts, cookieStore] = await Promise.all([
+  const [rows, logins, shootCounts, cookieStore] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
     directoryLogins(),
-    clientCounts(),
+    shootCountsByClient(),
     cookies(),
   ]);
   const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
@@ -70,7 +70,7 @@ export default async function AdminClientsPage({
   const visible = sortClients(
     matched.map((client) => ({
       ...client,
-      shootCount: counts.shoots.get(client.id) ?? 0,
+      shootCount: shootCounts.get(client.id) ?? 0,
       memberCount: signedUpMemberCount(loginsByClient.get(client.id)),
     })),
     sort,

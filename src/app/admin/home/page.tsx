@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
@@ -12,7 +12,7 @@ import { MaintenanceNoticeForm } from "@/components/forms/maintenance-notice-for
 import { MintClientForm } from "@/components/forms/mint-client-form";
 import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
-import { clientCounts } from "@/lib/admin/clients";
+import { shootCountsByClient } from "@/lib/admin/clients";
 import { signedUpMemberCount } from "@/lib/admin/member-count";
 import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/client-sort";
 import { sortByVisibleLabel } from "@/lib/admin/sections";
@@ -20,7 +20,7 @@ import { nasSyncPageNotice } from "@/lib/admin/sync-notice";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { bookings, clients } from "@/lib/db/schema";
+import { clients } from "@/lib/db/schema";
 import { directoryLogins } from "@/lib/user-portals";
 import { isNasUnreachableError, readableNasError } from "@/lib/nas-connect";
 import { ADMIN_HOME } from "@/lib/routes";
@@ -131,14 +131,10 @@ export default async function AdminHomePage({
   } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const [rows, logins, counts, confirmedJobs, bookingRows, notice, cookieStore] = await Promise.all([
+  const [rows, logins, shootCounts, bookingRows, notice, cookieStore] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
     directoryLogins(),
-    clientCounts(),
-    db
-      .select({ startsAt: bookings.startsAt, endsAt: bookings.endsAt })
-      .from(bookings)
-      .where(eq(bookings.status, "confirmed")),
+    shootCountsByClient(),
     listAdminBookings(),
     getMaintenanceNotice(),
     cookies(),
@@ -176,7 +172,7 @@ export default async function AdminHomePage({
   const visible = sortClients(
     matched.map((client) => ({
       ...client,
-      shootCount: counts.shoots.get(client.id) ?? 0,
+      shootCount: shootCounts.get(client.id) ?? 0,
       memberCount: signedUpMemberCount(loginsByClient.get(client.id)),
     })),
     sort,
@@ -206,8 +202,8 @@ export default async function AdminHomePage({
             company: client.company,
             inviteCode: client.inviteCode,
           }))}
-          jobs={confirmedJobs.flatMap((job) =>
-            job.startsAt && job.endsAt
+          jobs={bookingRows.flatMap((job) =>
+            job.status === "confirmed" && job.startsAt && job.endsAt
               ? [{ start: job.startsAt.toISOString(), end: job.endsAt.toISOString() }]
               : [],
           )}

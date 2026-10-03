@@ -29,6 +29,11 @@ async function valid(token: string | undefined) {
   }
 }
 
+async function sessionFromCookie(token: string | undefined) {
+  if (!token || !process.env.JWT_SECRET) return null;
+  return readSessionToken(token);
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hostRedirect = resolveHostRedirect({
@@ -40,7 +45,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(hostRedirect.location, hostRedirect.status);
   }
 
-  const session = await valid(request.cookies.get(SESSION_COOKIE)?.value);
+  const session = await sessionFromCookie(request.cookies.get(SESSION_COOKIE)?.value);
   const choosing = await choosingPortal(request.cookies.get(PORTAL_CHOICE_COOKIE)?.value);
   const admin = await valid(request.cookies.get(ADMIN_COOKIE)?.value);
 
@@ -74,7 +79,7 @@ export async function middleware(request: NextRequest) {
   }
   const contentSlug = pathname.match(/^\/my-content\/([^/]+)$/);
   if (contentSlug && session) {
-    const moved = await redirectSlugAlias(request, contentSlug[1], search, null);
+    const moved = await redirectSlugAlias(request, contentSlug[1], search, session.clientId);
     if (moved) return moved;
   }
   const adminSlug = pathname.match(/^\/admin\/clients\/([^/]+)\/shoots\/([^/]+)$/);

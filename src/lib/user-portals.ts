@@ -96,17 +96,15 @@ export async function userBelongsToClient(userId: string, clientId: string) {
 
 export async function listMemberUsers(clientId: string): Promise<User[]> {
   await ensureDb();
-  const home = await db
-    .select()
-    .from(users)
-    .where(eq(users.clientId, clientId))
-    .orderBy(desc(users.createdAt));
-  const extras = await db
-    .select({ user: users })
-    .from(userClients)
-    .innerJoin(users, eq(users.id, userClients.userId))
-    .where(eq(userClients.clientId, clientId))
-    .orderBy(desc(userClients.createdAt));
+  const [home, extras] = await Promise.all([
+    db.select().from(users).where(eq(users.clientId, clientId)).orderBy(desc(users.createdAt)),
+    db
+      .select({ user: users })
+      .from(userClients)
+      .innerJoin(users, eq(users.id, userClients.userId))
+      .where(eq(userClients.clientId, clientId))
+      .orderBy(desc(userClients.createdAt)),
+  ]);
   const seen = new Set(home.map((user) => user.id));
   const merged = [...home];
   for (const row of extras) {
@@ -138,47 +136,62 @@ export async function listClientMembers(clientId: string) {
 /** Home client plus every extra code, so admin lists and mail see the same people. */
 export async function directoryLogins(): Promise<DirectoryLogin[]> {
   await ensureDb();
-  const home = await db
-    .select({
-      userId: users.id,
-      clientId: users.clientId,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      phone: users.phone,
-      createdAt: users.createdAt,
-    })
-    .from(users)
-    .orderBy(asc(users.createdAt));
-  const extras = await db
-    .select({
-      userId: users.id,
-      clientId: userClients.clientId,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      phone: users.phone,
-      createdAt: users.createdAt,
-    })
-    .from(userClients)
-    .innerJoin(users, eq(users.id, userClients.userId))
-    .orderBy(asc(userClients.createdAt));
+  const [home, extras] = await Promise.all([
+    db
+      .select({
+        userId: users.id,
+        clientId: users.clientId,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        phone: users.phone,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(asc(users.createdAt)),
+    db
+      .select({
+        userId: users.id,
+        clientId: userClients.clientId,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        phone: users.phone,
+        createdAt: users.createdAt,
+      })
+      .from(userClients)
+      .innerJoin(users, eq(users.id, userClients.userId))
+      .orderBy(asc(userClients.createdAt)),
+  ]);
   const seen = new Set(home.map((row) => `${row.clientId}:${row.userId}`));
   return [...home, ...extras.filter((row) => !seen.has(`${row.clientId}:${row.userId}`))];
 }
 
+/** Login emails for these clients only. Home logins first, then extra BK codes, one row per address. */
 export async function memberEmailsForClients(clientIds: readonly string[]) {
-  if (clientIds.length === 0) return [] as { clientId: string; email: string }[];
-  const logins = await directoryLogins();
-  const wanted = new Set(clientIds);
+  const ids = [...new Set(clientIds)];
+  if (ids.length === 0) return [] as { clientId: string; email: string }[];
+  await ensureDb();
+  const [home, extras] = await Promise.all([
+    db
+      .select({ clientId: users.clientId, email: users.email })
+      .from(users)
+      .where(inArray(users.clientId, ids))
+      .orderBy(asc(users.createdAt)),
+    db
+      .select({ clientId: userClients.clientId, email: users.email })
+      .from(userClients)
+      .innerJoin(users, eq(users.id, userClients.userId))
+      .where(inArray(userClients.clientId, ids))
+      .orderBy(asc(userClients.createdAt)),
+  ]);
   const seen = new Set<string>();
   const rows: { clientId: string; email: string }[] = [];
-  for (const login of logins) {
-    if (!wanted.has(login.clientId)) continue;
+  for (const login of [...home, ...extras]) {
     const key = `${login.clientId}:${login.email}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ clientId: login.clientId, email: login.email });
+    rows.push(login);
   }
   return rows;
 }
