@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { AdminClientDirectory } from "@/components/admin-client-directory";
 import { AdminHeader } from "@/components/admin-header";
@@ -14,13 +14,7 @@ import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone
 import { clientCounts } from "@/lib/admin/clients";
 import { signedUpMemberCount } from "@/lib/admin/member-count";
 import { sortClients } from "@/lib/admin/client-sort";
-import {
-  ADMIN_SECTIONS_COOKIE,
-  bookingsSectionForce,
-  clientsSectionForce,
-  parseOpenSections,
-  sectionStartsOpen,
-} from "@/lib/admin/sections";
+import { sortByVisibleLabel } from "@/lib/admin/sections";
 import { nasSyncPageNotice } from "@/lib/admin/sync-notice";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
@@ -135,7 +129,7 @@ export default async function AdminHomePage({
   } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const [rows, logins, counts, cookieStore, confirmedJobs, bookingRows, notice] = await Promise.all([
+  const [rows, logins, counts, confirmedJobs, bookingRows, notice] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
     db
       .select({
@@ -147,7 +141,6 @@ export default async function AdminHomePage({
       })
       .from(users),
     clientCounts(),
-    cookies(),
     db
       .select({ startsAt: bookings.startsAt, endsAt: bookings.endsAt })
       .from(bookings)
@@ -155,18 +148,9 @@ export default async function AdminHomePage({
     listAdminBookings(),
     getMaintenanceNotice(),
   ]);
-  const openSections = parseOpenSections(cookieStore.get(ADMIN_SECTIONS_COOKIE)?.value);
   const syncNotice = nasSyncPageNotice({ error, syncError });
   const syncNote =
     emailSkipped && isNasUnreachableError(emailSkipped) ? readableNasError(emailSkipped) : emailSkipped;
-  const sectionSignals = {
-    query,
-    minted: Boolean(minted),
-    synced: Boolean(synced || emailSkipped),
-    error: Boolean(syncNotice.topError),
-    syncError: Boolean(syncNotice.syncError),
-  };
-  const bookingNotice = Boolean(cancelled || updated);
   const loginsByClient = new Map<string, typeof logins>();
   for (const login of logins) {
     const list = loginsByClient.get(login.clientId) ?? [];
@@ -213,7 +197,140 @@ export default async function AdminHomePage({
         : `Emailed ${emailedCount} client${emailedCount === 1 ? "" : "s"}.${
             failedCount > 0 ? ` ${failedCount} failed.` : ""
           }`;
-  const maintenanceOpen = Boolean(maintenance || maintenanceError || emailed);
+  const homeSections: { id: string; label: string; remember?: boolean; children: ReactNode }[] = [
+    {
+      id: "clients:book-shoot",
+      label: "Book a shoot",
+      children: (
+        <AdminBookShootForm
+          placesConfigured={placesConfigured()}
+          clients={rows.map((client) => ({
+            id: client.id,
+            displayName: client.displayName,
+            company: client.company,
+            inviteCode: client.inviteCode,
+          }))}
+          jobs={confirmedJobs.flatMap((job) =>
+            job.startsAt && job.endsAt
+              ? [{ start: job.startsAt.toISOString(), end: job.endsAt.toISOString() }]
+              : [],
+          )}
+        />
+      ),
+    },
+    {
+      id: "home:maintenance",
+      label: "Maintenance notice",
+      children: (
+        <div className={formMeasureClass}>
+          <MaintenanceNoticeForm
+            message={notice?.message ?? ""}
+            startsAt={notice ? formatEtDateTimeLocal(notice.startsAt) : ""}
+            endsAt={notice ? formatEtDateTimeLocal(notice.endsAt) : ""}
+            saved={maintenance === "saved" ? "Saved." : undefined}
+            cleared={maintenance === "cleared" ? "Cleared." : undefined}
+            emailed={emailedMessage}
+            error={maintenanceError}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "clients:nas-sync",
+      label: "NAS sync",
+      children: (
+        <div className={formMeasureClass}>
+          <SyncNasForm
+            error={syncNotice.syncError || undefined}
+            status={
+              synced
+                ? syncSummary({
+                    createdClients,
+                    shoots,
+                    photos,
+                    refreshed,
+                    reusedClients,
+                    reusedShoots,
+                    ready,
+                    removedPhotos,
+                    removedShoots,
+                    warnings,
+                  })
+                : undefined
+            }
+            note={syncNote || undefined}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "clients:create-client",
+      label: "Create client",
+      children: (
+        <div className={formMeasureClass}>
+          <MintClientForm minted={minted} />
+        </div>
+      ),
+    },
+    {
+      id: "clients:all",
+      label: "All clients",
+      remember: false,
+      children: (
+        <AdminClientDirectory
+          rowsEmpty={rows.length === 0}
+          visible={visible}
+          query={query}
+          searchAction={ADMIN_HOME}
+          showSort={false}
+        />
+      ),
+    },
+    {
+      id: "bookings:upcoming",
+      label: "Upcoming",
+      children: (
+        <BookingList
+          bookings={upcoming}
+          emptyLabel="No upcoming bookings."
+          timeZone={hours.timeZone}
+          showClient
+          allowCancel
+          allowModify
+          admin
+          columns={2}
+        />
+      ),
+    },
+    {
+      id: "bookings:past",
+      label: "Past",
+      children: (
+        <BookingList
+          bookings={past}
+          emptyLabel="No past bookings."
+          timeZone={hours.timeZone}
+          showClient
+          allowModify
+          admin
+          columns={2}
+        />
+      ),
+    },
+  ];
+  if (queued.length > 0) {
+    homeSections.push({
+      id: "bookings:queue",
+      label: "Queue",
+      children: (
+        <QueuedBookingList
+          bookings={queued}
+          showClient
+          scheduleHref={(booking) => adminBookingHref(booking.id)}
+        />
+      ),
+    });
+  }
 
   return (
     <PhoneShell wide>
@@ -223,146 +340,17 @@ export default async function AdminHomePage({
       {cancelled ? <p className="mb-6 text-sm text-white">Booking cancelled.</p> : null}
       {updated ? <p className="mb-6 text-sm text-white">Shoot updated.</p> : null}
       <div className={pageStackClass}>
-        <AdminSection
-          id="clients:book-shoot"
-          label="Book a shoot"
-          defaultOpen={sectionStartsOpen(openSections, "clients:book-shoot", false)}
-        >
-          <AdminBookShootForm
-            placesConfigured={placesConfigured()}
-            clients={rows.map((client) => ({
-              id: client.id,
-              displayName: client.displayName,
-              company: client.company,
-              inviteCode: client.inviteCode,
-            }))}
-            jobs={confirmedJobs.flatMap((job) =>
-              job.startsAt && job.endsAt
-                ? [{ start: job.startsAt.toISOString(), end: job.endsAt.toISOString() }]
-                : [],
-            )}
-          />
-        </AdminSection>
-        <AdminSection
-          id="home:maintenance"
-          label="Maintenance notice"
-          defaultOpen={sectionStartsOpen(openSections, "home:maintenance", maintenanceOpen)}
-        >
-          <div className={formMeasureClass}>
-            <MaintenanceNoticeForm
-              message={notice?.message ?? ""}
-              startsAt={notice ? formatEtDateTimeLocal(notice.startsAt) : ""}
-              endsAt={notice ? formatEtDateTimeLocal(notice.endsAt) : ""}
-              saved={maintenance === "saved" ? "Saved." : undefined}
-              cleared={maintenance === "cleared" ? "Cleared." : undefined}
-              emailed={emailedMessage}
-              error={maintenanceError}
-            />
-          </div>
-        </AdminSection>
-        <AdminSection
-          id="clients:nas-sync"
-          label="NAS sync"
-          defaultOpen={sectionStartsOpen(
-            openSections,
-            "clients:nas-sync",
-            clientsSectionForce("clients:nas-sync", sectionSignals),
-          )}
-        >
-          <div className={formMeasureClass}>
-            <SyncNasForm
-              error={syncNotice.syncError || undefined}
-              status={
-                synced
-                  ? syncSummary({
-                      createdClients,
-                      shoots,
-                      photos,
-                      refreshed,
-                      reusedClients,
-                      reusedShoots,
-                      ready,
-                      removedPhotos,
-                      removedShoots,
-                      warnings,
-                    })
-                  : undefined
-              }
-              note={syncNote || undefined}
-            />
-          </div>
-        </AdminSection>
-        <AdminSection
-          id="clients:create-client"
-          label="Create client"
-          defaultOpen={sectionStartsOpen(
-            openSections,
-            "clients:create-client",
-            clientsSectionForce("clients:create-client", sectionSignals),
-          )}
-        >
-          <div className={formMeasureClass}>
-            <MintClientForm minted={minted} />
-          </div>
-        </AdminSection>
-        <AdminSection
-          id="clients:all"
-          label="All clients"
-          remember={false}
-          defaultOpen={clientsSectionForce("clients:all", sectionSignals)}
-        >
-          <AdminClientDirectory
-            rowsEmpty={rows.length === 0}
-            visible={visible}
-            query={query}
-            searchAction={ADMIN_HOME}
-            showSort={false}
-          />
-        </AdminSection>
-        {queued.length > 0 ? (
-          <AdminSection id="bookings:queue" label="Queue" defaultOpen>
-            <QueuedBookingList
-              bookings={queued}
-              showClient
-              scheduleHref={(booking) => adminBookingHref(booking.id)}
-            />
+        {sortByVisibleLabel(homeSections).map((section) => (
+          <AdminSection
+            key={section.id}
+            id={section.id}
+            label={section.label}
+            defaultOpen={false}
+            remember={section.remember}
+          >
+            {section.children}
           </AdminSection>
-        ) : null}
-        <AdminSection
-          id="bookings:upcoming"
-          label="Upcoming"
-          defaultOpen={sectionStartsOpen(
-            openSections,
-            "bookings:upcoming",
-            bookingsSectionForce("bookings:upcoming", { notice: bookingNotice }),
-          )}
-        >
-          <BookingList
-            bookings={upcoming}
-            emptyLabel="No upcoming bookings."
-            timeZone={hours.timeZone}
-            showClient
-            allowCancel
-            allowModify
-            admin
-            columns={2}
-          />
-        </AdminSection>
-        <AdminSection
-          id="bookings:past"
-          label="Past"
-          defaultOpen={sectionStartsOpen(openSections, "bookings:past", false)}
-        >
-          <BookingList
-            bookings={past}
-            emptyLabel="No past bookings."
-            timeZone={hours.timeZone}
-            showClient
-            allowModify
-            admin
-            columns={2}
-          />
-        </AdminSection>
+        ))}
       </div>
     </PhoneShell>
   );
