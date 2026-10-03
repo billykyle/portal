@@ -30,8 +30,8 @@ export function AdminClientDirectory({
 }) {
   return (
     <>
-      <div className="mb-4 flex flex-col gap-3 lg:mb-6 lg:flex-row lg:items-center lg:gap-4">
-        <form action={searchAction} method="get" className="min-w-0 w-full lg:flex-1">
+      <div className="mb-4 flex items-center gap-3 lg:mb-6 lg:gap-4">
+        <form action={searchAction} method="get" className="min-w-0 flex-[1.6]">
           <label htmlFor="client-search" className="sr-only">
             Find a client or login
           </label>
