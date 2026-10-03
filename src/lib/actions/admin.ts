@@ -10,6 +10,7 @@ import {
   updateClientRecord,
 } from "@/lib/admin/clients";
 import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
+import { addExtraInviteCode, removeExtraInviteCode } from "@/lib/user-portals";
 import { syncNasForAdmin } from "@/lib/admin/sync";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ADMIN_HOME, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
@@ -203,5 +204,47 @@ export async function removeUser(formData: FormData) {
     redirect(clientAdminPath(clientId, { error: removed.error }));
   }
   revalidatePath(clientAdminPath(clientId));
-  redirect(clientAdminPath(clientId, { userRemoved: removed.email }));
+  redirect(
+    clientAdminPath(clientId, {
+      userRemoved: removed.email,
+      ...(removed.detached ? { detached: "1" } : {}),
+    }),
+  );
+}
+
+export async function addUserCode(formData: FormData) {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  const clientId = String(formData.get("clientId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const added = await addExtraInviteCode({ userId, code: String(formData.get("code") ?? "") });
+  if (!added.ok) {
+    redirect(userProfilePath(clientId, userId, { error: added.error }));
+  }
+  revalidatePath("/admin/clients");
+  revalidatePath(ADMIN_HOME);
+  revalidatePath(clientAdminPath(clientId));
+  revalidatePath(clientAdminPath(added.clientId));
+  revalidatePath(userProfilePath(clientId, userId));
+  redirect(userProfilePath(clientId, userId, { added: added.inviteCode }));
+}
+
+export async function removeUserCode(formData: FormData) {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  const clientId = String(formData.get("clientId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const removeClientId = String(formData.get("removeClientId") ?? "");
+  const removed = await removeExtraInviteCode({ userId, clientId: removeClientId });
+  if (!removed.ok) {
+    redirect(userProfilePath(clientId, userId, { error: removed.error }));
+  }
+  revalidatePath("/admin/clients");
+  revalidatePath(ADMIN_HOME);
+  revalidatePath(clientAdminPath(clientId));
+  revalidatePath(clientAdminPath(removeClientId));
+  revalidatePath(userProfilePath(clientId, userId));
+  redirect(userProfilePath(clientId, userId, { removedCode: "1" }));
 }

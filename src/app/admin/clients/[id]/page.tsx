@@ -19,7 +19,8 @@ import {
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, media, shoots, users } from "@/lib/db/schema";
+import { clients, media, shoots } from "@/lib/db/schema";
+import { listClientMembers } from "@/lib/user-portals";
 import { coverUrlByShoot } from "@/lib/episode-covers";
 import { formatShootDate, shootFolderName } from "@/lib/media";
 import { parseClosedCategoryFolders, SHOOT_CATEGORY_FOLDERS_COOKIE } from "@/lib/shoot-categories";
@@ -38,6 +39,7 @@ export default async function AdminClientPage({
     error?: string;
     saved?: string;
     userRemoved?: string;
+    detached?: string;
     bookingCancelled?: string;
   }>;
 }) {
@@ -45,7 +47,7 @@ export default async function AdminClientPage({
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, saved, userRemoved, bookingCancelled } = await searchParams;
+  const { error, saved, userRemoved, detached, bookingCancelled } = await searchParams;
   const jar = await cookies();
   const openSections = parseOpenSections(jar.get(ADMIN_SECTIONS_COOKIE)?.value);
   const closedCategoryFolders = [...parseClosedCategoryFolders(jar.get(SHOOT_CATEGORY_FOLDERS_COOKIE)?.value)];
@@ -63,18 +65,7 @@ export default async function AdminClientPage({
   if (!client) {
     notFound();
   }
-  const teammateRows = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      phone: users.phone,
-      createdAt: users.createdAt,
-    })
-    .from(users)
-    .where(eq(users.clientId, client.id))
-    .orderBy(desc(users.createdAt));
+  const teammateRows = await listClientMembers(client.id);
   const shootRows = await db
     .select()
     .from(shoots)
@@ -97,7 +88,11 @@ export default async function AdminClientPage({
         {error ? <p className="mt-3 text-sm text-[#a1a1a1]">{error}</p> : null}
         {saved ? <p className="mt-3 text-sm text-white">Client saved.</p> : null}
         {userRemoved ? (
-          <p className="mt-3 text-sm text-white">Removed {userRemoved}. The invite is unchanged.</p>
+          <p className="mt-3 text-sm text-white">
+            {detached
+              ? `Removed ${userRemoved} from this client. Their login still opens the client they signed up with.`
+              : `Removed ${userRemoved}. The invite is unchanged.`}
+          </p>
         ) : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
@@ -126,6 +121,9 @@ export default async function AdminClientPage({
                           year: "numeric",
                         })}
                       </p>
+                      {user.clientId !== client.id && user.signupInviteCode ? (
+                        <p className="text-xs text-[#8e8e93]">Signed up with {user.signupInviteCode}</p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <Link
@@ -134,7 +132,12 @@ export default async function AdminClientPage({
                       >
                         Edit profile
                       </Link>
-                      <RemoveUserForm clientId={client.id} userId={user.id} email={user.email} />
+                      <RemoveUserForm
+                        clientId={client.id}
+                        userId={user.id}
+                        email={user.email}
+                        detachOnly={user.clientId !== client.id}
+                      />
                     </div>
                   </li>
                 ))}

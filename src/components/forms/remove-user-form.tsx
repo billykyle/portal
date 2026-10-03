@@ -6,20 +6,22 @@ export function RemoveUserForm({
   clientId,
   userId,
   email,
+  detachOnly = false,
 }: {
   clientId: string;
   userId: string;
   email: string;
+  /** This login signed up on another client, so Remove drops only this code. */
+  detachOnly?: boolean;
 }) {
+  const message = detachOnly
+    ? `Remove ${email} from this client? Their login still opens the client they signed up with.`
+    : `Remove ${email}? They lose this login. The client invite stays, and they can sign up again with the same BK code.`;
   return (
     <form
       action={removeUser}
       onSubmit={(event) => {
-        if (
-          !window.confirm(
-            `Remove ${email}? They lose this login. The client invite stays, and they can sign up again with the same BK code.`,
-          )
-        ) {
+        if (!window.confirm(message)) {
           event.preventDefault();
         }
       }}

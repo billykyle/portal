@@ -6,10 +6,11 @@ import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { AccountProfileForm } from "@/components/forms/account-profile-form";
 import { desktopSplitClass, PhoneShell, sectionLabelClass } from "@/components/phone-shell";
 import { SignOutButton } from "@/components/sign-out-button";
-import { getSession } from "@/lib/auth";
+import { clearSession, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, users } from "@/lib/db/schema";
+import { userBelongsToClient } from "@/lib/user-portals";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -22,7 +23,8 @@ export default async function AccountPage() {
   }
   await ensureDb();
   const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
-  if (!user || user.clientId !== session.clientId) {
+  if (!user || !(await userBelongsToClient(user.id, session.clientId))) {
+    await clearSession();
     redirect("/");
   }
   const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);

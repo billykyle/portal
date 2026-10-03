@@ -87,6 +87,7 @@ test("admin and client path helpers", () => {
   assert.equal(isClientPortalPath("/hub"), true);
   assert.equal(isClientPortalPath("/my-content"), true);
   assert.equal(isClientPortalPath("/account"), true);
+  assert.equal(isClientPortalPath("/choose"), true);
   assert.equal(isClientPortalPath("/scheduling/times"), true);
   assert.equal(isClientPortalPath("/s/token"), true);
   assert.equal(isClientPortalPath("/shoots/abc"), false);

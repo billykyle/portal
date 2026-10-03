@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin/shoots";
 import { syncNasForAdmin } from "@/lib/admin/sync";
 import { listUsersForClient, removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
+import { addExtraInviteCode } from "@/lib/user-portals";
 import {
   clientMatchesQuery,
   confirmDeleteClient,
@@ -106,6 +107,7 @@ export type AgentOps = {
     phone?: string;
     email?: string;
     company?: string;
+    addInviteCode?: string;
   }): Promise<{ ok: true; user: ReturnType<typeof toPublicUser> } | { ok: false; error: string }>;
   removeUser(input: { clientId: string; userId: string }): Promise<
     { ok: true; user: { id: string; email: string } } | { ok: false; error: string }
@@ -372,7 +374,9 @@ export const portalAgentOps: AgentOps = {
     if (!listed.ok) return listed;
     return {
       ok: true,
-      users: listed.value.users.map((user) => toPublicUser(user, listed.value.client.company)),
+      users: listed.value.users.map((user) =>
+        toPublicUser({ ...user, clientId: listed.value.client.id }, listed.value.client.company),
+      ),
     };
   },
 
@@ -391,7 +395,11 @@ export const portalAgentOps: AgentOps = {
       companyName: input.company ?? listed.value.client.company,
     });
     if (!saved.ok) return { ok: false, error: saved.error };
-    return { ok: true, user: toPublicUser(saved.value, saved.company) };
+    if (input.addInviteCode) {
+      const added = await addExtraInviteCode({ userId: input.userId, code: input.addInviteCode });
+      if (!added.ok) return { ok: false, error: added.error };
+    }
+    return { ok: true, user: toPublicUser({ ...saved.value, clientId: input.clientId }, saved.company) };
   },
 
   async removeUser(input) {

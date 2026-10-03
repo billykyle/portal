@@ -38,6 +38,15 @@ async function createTables() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name text`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text`;
   await sql`
+    CREATE TABLE IF NOT EXISTS user_clients (
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, client_id)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS user_clients_client_idx ON user_clients (client_id)`;
+  await sql`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,

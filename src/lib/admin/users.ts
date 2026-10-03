@@ -1,9 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { isUuid } from "@/lib/admin/ids";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, users, type User } from "@/lib/db/schema";
 import { parseAccountProfile, parseLoginEmail } from "@/lib/signup-fields";
+import { listMemberUsers, removeExtraInviteCode, userBelongsToClient } from "@/lib/user-portals";
 
 export type UserWriteResult =
   | { ok: true; value: User; company: string }
@@ -14,11 +15,7 @@ export async function listUsersForClient(clientId: string) {
   if (!isUuid(clientId)) return { ok: false as const, error: "Client was not found." };
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
   if (!client) return { ok: false as const, error: "Client was not found." };
-  const rows = await db
-    .select()
-    .from(users)
-    .where(eq(users.clientId, clientId))
-    .orderBy(desc(users.createdAt));
+  const rows = await listMemberUsers(clientId);
   return { ok: true as const, value: { client, users: rows } };
 }
 
@@ -58,7 +55,7 @@ export async function updateClientUserRecord(input: {
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
   if (!client) return { ok: false, error: "Client was not found.", where: "clients" };
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user || user.clientId !== clientId) {
+  if (!user || !(await userBelongsToClient(user.id, clientId))) {
     return { ok: false, error: "User was not found on this client.", where: "client" };
   }
 
@@ -75,7 +72,7 @@ export async function updateClientUserRecord(input: {
       phone: profile.value.phone,
       email: email.value,
     })
-    .where(and(eq(users.id, user.id), eq(users.clientId, clientId)))
+    .where(eq(users.id, user.id))
     .returning();
   await db.update(clients).set({ company: profile.value.companyName }).where(eq(clients.id, clientId));
   return { ok: true, value: saved, company: profile.value.companyName };
@@ -84,7 +81,7 @@ export async function updateClientUserRecord(input: {
 export async function removeClientUserRecord(input: {
   clientId?: string | null;
   userId?: string | null;
-}): Promise<{ ok: true; email: string } | { ok: false; error: string; where: "client" }> {
+}): Promise<{ ok: true; email: string; detached: boolean } | { ok: false; error: string; where: "client" }> {
   await ensureDb();
   const clientId = String(input.clientId ?? "").trim();
   const userId = String(input.userId ?? "").trim();
@@ -92,9 +89,14 @@ export async function removeClientUserRecord(input: {
     return { ok: false, error: "User is required.", where: "client" };
   }
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user || user.clientId !== clientId) {
+  if (!user || !(await userBelongsToClient(user.id, clientId))) {
     return { ok: false, error: "User was not found on this client.", where: "client" };
   }
+  if (user.clientId !== clientId) {
+    const removed = await removeExtraInviteCode({ userId: user.id, clientId });
+    if (!removed.ok) return { ok: false, error: removed.error, where: "client" };
+    return { ok: true, email: user.email, detached: true };
+  }
   await db.delete(users).where(eq(users.id, userId));
-  return { ok: true, email: user.email };
+  return { ok: true, email: user.email, detached: false };
 }

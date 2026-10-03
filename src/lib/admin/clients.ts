@@ -3,7 +3,7 @@ import { adminFail, type AdminResult } from "@/lib/admin/result";
 import { isUuid } from "@/lib/admin/ids";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, shoots, users, type Client } from "@/lib/db/schema";
+import { clients, shoots, userClients, users, type Client } from "@/lib/db/schema";
 import { formatInviteCode, isInviteCode, normalizeInviteCode, parseInviteSequence } from "@/lib/invite";
 import { readClientCategory, type ClientCategory } from "@/lib/client-category";
 
@@ -14,18 +14,26 @@ export async function listClientRows() {
 
 export async function clientCounts() {
   await ensureDb();
-  const [userRows, shootRows] = await Promise.all([
+  const [userRows, extraRows, shootRows] = await Promise.all([
     db
       .select({ clientId: users.clientId, value: count() })
       .from(users)
       .groupBy(users.clientId),
     db
+      .select({ clientId: userClients.clientId, value: count() })
+      .from(userClients)
+      .groupBy(userClients.clientId),
+    db
       .select({ clientId: shoots.clientId, value: count() })
       .from(shoots)
       .groupBy(shoots.clientId),
   ]);
+  const usersByClient = new Map(userRows.map((row) => [row.clientId, Number(row.value)]));
+  for (const row of extraRows) {
+    usersByClient.set(row.clientId, (usersByClient.get(row.clientId) ?? 0) + Number(row.value));
+  }
   return {
-    users: new Map(userRows.map((row) => [row.clientId, Number(row.value)])),
+    users: usersByClient,
     shoots: new Map(shootRows.map((row) => [row.clientId, Number(row.value)])),
   };
 }

@@ -1,6 +1,7 @@
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { and, eq, ilike } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, clients, users } from "@/lib/db/schema";
+import { bookings, clients } from "@/lib/db/schema";
+import { listMemberUsers, memberEmailsForClients } from "@/lib/user-portals";
 import {
   CLIENT_EMAIL_SKIPPED_PLACEHOLDER,
   bookingNotifyEmail,
@@ -134,11 +135,7 @@ export async function backfillPlaceholderPrimaryEmails() {
     .where(ilike(clients.primaryEmail, "%@pending.local"));
   let updated = 0;
   for (const client of pending) {
-    const logins = await db
-      .select({ email: users.email, createdAt: users.createdAt })
-      .from(users)
-      .where(eq(users.clientId, client.id))
-      .orderBy(asc(users.createdAt));
+    const logins = await listMemberUsers(client.id);
     const patch = backfillPlaceholderClient(client, logins);
     if (!patch) continue;
     const saved = await db
@@ -166,11 +163,7 @@ export async function lookupClientLoginEmails(bookingId: string) {
     .from(clients)
     .where(eq(clients.id, booking.clientId))
     .limit(1);
-  const members = await db
-    .select({ email: users.email })
-    .from(users)
-    .where(eq(users.clientId, booking.clientId))
-    .orderBy(asc(users.createdAt));
+  const members = await memberEmailsForClients([booking.clientId]);
   return {
     primaryEmail: client?.primaryEmail ?? null,
     loginEmails: members.map((row) => row.email),

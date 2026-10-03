@@ -1,7 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { isUuid } from "@/lib/admin/ids";
 import { db } from "@/lib/db";
-import { bookings, clients, users } from "@/lib/db/schema";
+import { bookings, clients } from "@/lib/db/schema";
+import { directoryLogins } from "@/lib/user-portals";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 import { calendarConfigured } from "./config";
 import { parseShootAddress } from "./address";
@@ -287,17 +288,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
     async listClients() {
       const [clientRows, loginRows] = await Promise.all([
         db.select().from(clients),
-        db
-          .select({
-            clientId: users.clientId,
-            email: users.email,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            phone: users.phone,
-            createdAt: users.createdAt,
-          })
-          .from(users)
-          .orderBy(asc(users.createdAt)),
+        directoryLogins(),
       ]);
       const logins = new Map<string, BookingClientLogin[]>();
       for (const login of loginRows) {

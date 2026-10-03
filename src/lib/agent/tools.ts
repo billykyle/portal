@@ -128,13 +128,13 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "list_client_users",
-    "List teammate logins on a client. Does not return password hashes.",
+    "List teammate logins on a client, including people attached with an extra BK code. Does not return password hashes.",
     { clientId: z.string().describe("Client UUID.") },
     readOnly,
   );
   register(
     "update_client_user",
-    "Update a teammate login. Same fields as Account: first name, last name, phone, sign-in email, and the shared client company. Omitted fields stay as they are. Email is the credentials login.",
+    "Update a teammate login. Same fields as Account: first name, last name, phone, sign-in email, and the shared client company. Omitted fields stay as they are. Email is the credentials login. addInviteCode attaches another BK code to this same login so they can open that client too.",
     {
       clientId: z.string(),
       userId: z.string(),
@@ -143,12 +143,16 @@ export function createPortalMcpServer(ops: AgentOps) {
       phone: z.string().optional(),
       email: z.string().optional().describe("Sign-in email."),
       company: z.string().optional().describe("Shared client company."),
+      addInviteCode: z
+        .string()
+        .optional()
+        .describe("Another BK code to attach to this login. Does not create a second account."),
     },
     write,
   );
   register(
     "remove_client_user",
-    "Remove one teammate login. The client, invite code, and shoots stay. Requires both client id and user id.",
+    "Remove one teammate from a client. If they signed up on this client, the login is deleted. If they were only attached with an extra BK code, that code is dropped and the login stays. The client, invite code, and shoots stay. Requires both client id and user id.",
     { clientId: z.string(), userId: z.string() },
     destroy,
   );

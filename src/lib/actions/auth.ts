@@ -2,15 +2,18 @@
 
 import { randomBytes } from "node:crypto";
 import { compare, hash } from "bcryptjs";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   clearInviteCookie,
+  clearPortalChoice,
   clearSession,
+  createPortalChoice,
   createSession,
   getInviteCookie,
+  getPortalChoice,
   getSession,
   setInviteCookie,
 } from "@/lib/auth";
@@ -19,7 +22,8 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, passwordResetTokens, users } from "@/lib/db/schema";
 import { emailConfigured, sendEmail } from "@/lib/email";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
-import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
+import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, PORTAL_CHOOSER } from "@/lib/routes";
+import { listPortalsForUser, signInDestination, userBelongsToClient } from "@/lib/user-portals";
 import { recordInviteRedeemedContact } from "@/lib/client-contact";
 import { parseAccountProfile, parsePasswordChange, parseSignupProfile } from "@/lib/signup-fields";
 
@@ -115,21 +119,49 @@ export async function signIn(_prev: ActionState | undefined, formData: FormData)
   if (!user || !(await compare(password, user.passwordHash))) {
     return { error: "Email or password is incorrect." };
   }
-  const [client] = await db.select().from(clients).where(eq(clients.id, user.clientId)).limit(1);
-  if (!client) {
+  const portals = await listPortalsForUser(user.id);
+  const destination = signInDestination(portals);
+  if (destination.kind === "missing") {
     return { error: "This account is missing its client library." };
+  }
+  if (destination.kind === "choose") {
+    await clearSession();
+    await createPortalChoice({ userId: user.id, email: user.email });
+    redirect(PORTAL_CHOOSER);
+  }
+  await clearPortalChoice();
+  await createSession({
+    userId: user.id,
+    email: user.email,
+    clientId: destination.clientId,
+    inviteCode: destination.inviteCode,
+  });
+  redirect(CLIENT_HOME);
+}
+
+export async function enterPortal(formData: FormData) {
+  const choice = await getPortalChoice();
+  if (!choice) redirect("/signin");
+  const clientId = String(formData.get("clientId") ?? "");
+  const [user] = await db.select().from(users).where(eq(users.id, choice.userId)).limit(1);
+  const portals = user ? await listPortalsForUser(user.id) : [];
+  const portal = portals.find((item) => item.id === clientId);
+  if (!user || !portal) {
+    redirect(`${PORTAL_CHOOSER}?error=Choose one of your portals.`);
   }
   await createSession({
     userId: user.id,
     email: user.email,
-    clientId: client.id,
-    inviteCode: client.inviteCode,
+    clientId: portal.id,
+    inviteCode: portal.inviteCode,
   });
+  await clearPortalChoice();
   redirect(CLIENT_HOME);
 }
 
 export async function signOut() {
   await clearSession();
+  await clearPortalChoice();
   redirect("/");
 }
 
@@ -139,12 +171,8 @@ async function requireClientUser() {
     redirect("/");
   }
   await ensureDb();
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(and(eq(users.id, session.userId), eq(users.clientId, session.clientId)))
-    .limit(1);
-  if (!user) {
+  const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
+  if (!user || !(await userBelongsToClient(user.id, session.clientId))) {
     await clearSession();
     redirect("/");
   }

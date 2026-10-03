@@ -25,7 +25,8 @@ import { nasSyncPageNotice } from "@/lib/admin/sync-notice";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { bookings, clients, users } from "@/lib/db/schema";
+import { bookings, clients } from "@/lib/db/schema";
+import { directoryLogins } from "@/lib/user-portals";
 import { isNasUnreachableError, readableNasError } from "@/lib/nas-connect";
 import { ADMIN_HOME } from "@/lib/routes";
 import { formatEtDateTimeLocal } from "@/lib/maintenance";
@@ -137,15 +138,7 @@ export default async function AdminHomePage({
   const needle = query.toLowerCase();
   const [rows, logins, counts, cookieStore, confirmedJobs, bookingRows, notice] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
-    db
-      .select({
-        clientId: users.clientId,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        phone: users.phone,
-      })
-      .from(users),
+    directoryLogins(),
     clientCounts(),
     cookies(),
     db
