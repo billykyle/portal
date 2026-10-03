@@ -3,6 +3,8 @@ export type ViewerPhoto = {
   url: string;
   filename: string;
   thumbUrl?: string;
+  width?: number | null;
+  height?: number | null;
 };
 
 export function photoViewerHref(basePath: string, id?: string) {

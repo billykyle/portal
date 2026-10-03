@@ -117,6 +117,9 @@ function DefaultShoot({
           defaultOpen={shootSectionStartsOpen(closed, mediaSectionId("photo"))}
           layout={shootSectionLayout(listed, mediaSectionId("photo"))}
         >
+          {activePhoto && viewId ? (
+            <PhotoViewer photos={photos} initialId={viewId} basePath={basePath} />
+          ) : null}
           <StillLayout items={photos} basePath={basePath} contain={false} ratio="3/2" />
         </DeliverableSection>
       ) : null}
@@ -146,8 +149,6 @@ function DefaultShoot({
       <RawVideoSection videos={rawVideos} closed={closed} listed={listed} />
 
       {media.length === 0 ? <p className="text-sm text-[#8e8e93]">No files on this shoot yet.</p> : null}
-
-      {activePhoto && viewId ? <PhotoViewer photos={photos} initialId={viewId} basePath={basePath} /> : null}
 
       {activePlan ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
