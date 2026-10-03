@@ -20,8 +20,10 @@ test("nothing starts a NAS sync on its own", () => {
   assert.doesNotMatch(instrumentation, /nas-scheduler|startNasSyncScheduler|runLockedNasSync/);
 
   const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
-  assert.match(home, /SyncNasForm/);
-  assert.match(home, /Sync from NAS/);
+  assert.doesNotMatch(home, /SyncNasForm|runLockedNasSync/);
+  const nas = readFileSync("src/app/admin/home/nas-sync/page.tsx", "utf8");
+  assert.match(nas, /SyncNasForm/);
+  assert.match(nas, /Sync from NAS/);
   const agent = readFileSync("src/lib/agent/tools.ts", "utf8");
   assert.match(agent, /sync_from_nas/);
 });

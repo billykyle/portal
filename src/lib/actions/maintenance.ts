@@ -15,13 +15,13 @@ import {
   listClientPrimaryEmails,
   saveMaintenanceNotice,
 } from "@/lib/maintenance-store";
-import { ADMIN_HOME } from "@/lib/routes";
+import { ADMIN_HOME_MAINTENANCE } from "@/lib/routes";
 
 const EMAIL_GAP_MS = 200;
 
-function adminHomeUrl(params: Record<string, string>) {
+function maintenanceUrl(params: Record<string, string>) {
   const query = new URLSearchParams(params);
-  return `${ADMIN_HOME}?${query.toString()}`;
+  return `${ADMIN_HOME_MAINTENANCE}?${query.toString()}`;
 }
 
 function refreshNotice() {
@@ -33,28 +33,28 @@ export async function saveMaintenanceNoticeAction(formData: FormData) {
   const message = String(formData.get("message") ?? "").trim();
   const startsAt = parseEtDateTimeLocal(String(formData.get("startsAt") ?? ""));
   const endsAt = parseEtDateTimeLocal(String(formData.get("endsAt") ?? ""));
-  if (!message) redirect(adminHomeUrl({ maintenanceError: "Message is required." }));
-  if (!startsAt || !endsAt) redirect(adminHomeUrl({ maintenanceError: "Start and end are required." }));
+  if (!message) redirect(maintenanceUrl({ maintenanceError: "Message is required." }));
+  if (!startsAt || !endsAt) redirect(maintenanceUrl({ maintenanceError: "Start and end are required." }));
   if (startsAt.getTime() >= endsAt.getTime()) {
-    redirect(adminHomeUrl({ maintenanceError: "End must be after start." }));
+    redirect(maintenanceUrl({ maintenanceError: "End must be after start." }));
   }
   await saveMaintenanceNotice({ message, startsAt, endsAt });
   refreshNotice();
-  redirect(adminHomeUrl({ maintenance: "saved" }));
+  redirect(maintenanceUrl({ maintenance: "saved" }));
 }
 
 export async function clearMaintenanceNoticeAction() {
   if (!(await getAdminSession())) redirect("/admin");
   await clearMaintenanceNotice();
   refreshNotice();
-  redirect(adminHomeUrl({ maintenance: "cleared" }));
+  redirect(maintenanceUrl({ maintenance: "cleared" }));
 }
 
 export async function emailMaintenanceNoticeAction() {
   if (!(await getAdminSession())) redirect("/admin");
   const notice = await getMaintenanceNotice();
-  if (!notice) redirect(adminHomeUrl({ maintenanceError: "Save a notice first." }));
-  if (!emailConfigured()) redirect(adminHomeUrl({ maintenanceError: "Email is not configured." }));
+  if (!notice) redirect(maintenanceUrl({ maintenanceError: "Save a notice first." }));
+  if (!emailConfigured()) redirect(maintenanceUrl({ maintenanceError: "Email is not configured." }));
   const recipients = maintenanceRecipients(await listClientPrimaryEmails());
   const message = buildMaintenanceEmail(notice);
   let sent = 0;
@@ -70,5 +70,5 @@ export async function emailMaintenanceNoticeAction() {
     if (result.sent) sent += 1;
     else failed += 1;
   }
-  redirect(adminHomeUrl({ emailed: String(sent), emailFailed: String(failed) }));
+  redirect(maintenanceUrl({ emailed: String(sent), emailFailed: String(failed) }));
 }

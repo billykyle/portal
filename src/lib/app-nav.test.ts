@@ -27,6 +27,7 @@ test("admin menu lists home, then clients and bookings", () => {
     ],
   );
   assert.equal(activeNavId("admin", "/admin/home"), "home");
+  assert.equal(activeNavId("admin", "/admin/home/nas-sync"), "home");
   assert.equal(activeNavId("admin", "/admin/clients"), "clients");
   assert.equal(activeNavId("admin", "/admin/clients/abc/users/user-1"), "clients");
   assert.equal(activeNavId("admin", "/admin/clients/abc/shoots/269-pennock-bridge-road"), "clients");
