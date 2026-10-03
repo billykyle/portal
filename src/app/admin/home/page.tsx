@@ -193,7 +193,7 @@ export default async function AdminHomePage({
         : `Emailed ${emailedCount} client${emailedCount === 1 ? "" : "s"}.${
             failedCount > 0 ? ` ${failedCount} failed.` : ""
           }`;
-  const homeSections: { id: string; label: string; remember?: boolean; children: ReactNode }[] = [
+  const homeSections: { id: string; label: string; children: ReactNode }[] = [
     {
       id: "clients:book-shoot",
       label: "Book a shoot",
@@ -271,7 +271,6 @@ export default async function AdminHomePage({
     {
       id: "clients:all",
       label: "All clients",
-      remember: false,
       children: (
         <AdminClientDirectory
           rowsEmpty={rows.length === 0}
@@ -342,7 +341,7 @@ export default async function AdminHomePage({
             id={section.id}
             label={section.label}
             defaultOpen={false}
-            remember={section.remember}
+            remember={false}
           >
             {section.children}
           </AdminSection>

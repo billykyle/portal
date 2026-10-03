@@ -52,9 +52,16 @@ test("admin home labels sort A–Z and the page does not reopen a section", () =
   assert.doesNotMatch(home, /defaultOpen(?:\s|>)/);
 
   const bookings = readFileSync("src/app/admin/bookings/page.tsx", "utf8");
-  assert.match(bookings, /label="Queue" defaultOpen/);
+  assert.match(bookings, /defaultOpen=\{false\}/);
+  assert.match(bookings, /remember=\{false\}/);
+  assert.doesNotMatch(bookings, /sectionStartsOpen|label="Queue" defaultOpen(?:\s|>)/);
   const detail = readFileSync("src/app/admin/clients/[id]/page.tsx", "utf8");
-  assert.match(detail, /label="Queue" defaultOpen/);
+  assert.match(detail, /defaultOpen=\{false\}/);
+  assert.match(detail, /remember=\{false\}/);
+  assert.doesNotMatch(detail, /sectionStartsOpen|backLabel|label="Queue" defaultOpen(?:\s|>)/);
+  const header = readFileSync("src/components/admin-header.tsx", "utf8");
+  assert.match(header, /NavMenu/);
+  assert.doesNotMatch(header, /backLabel|backHref/);
 });
 
 test("admin sections start collapsed and remember an explicit open set", () => {
@@ -202,7 +209,7 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   assert.match(home, /id: "clients:nas-sync"/);
   assert.match(home, /id: "clients:book-shoot"/);
   assert.match(home, /id: "clients:all"/);
-  assert.match(home, /remember: false/);
+  assert.match(home, /remember=\{false\}/);
   assert.match(home, /parseClientSort/);
   assert.match(home, /CLIENT_SORT_COOKIE/);
   assert.doesNotMatch(home, /"name-asc"|showSort=\{false\}/);

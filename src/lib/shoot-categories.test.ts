@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   categoryFolderStartsOpen,
@@ -36,6 +37,15 @@ test("ungrouped shoots stay first and categories sort A to Z", () => {
     grouped.categories[1]?.shoots.map((shoot) => shoot.id),
     ["listing", "listing-2"],
   );
+});
+
+test("category lists start closed and do not restore a saved open folder", () => {
+  const list = readFileSync("src/components/shoot-list.tsx", "utf8");
+  const podcast = readFileSync("src/components/templates/podcast-template.tsx", "utf8");
+  assert.match(list, /defaultOpen=\{false\}/);
+  assert.match(podcast, /defaultOpen=\{false\}/);
+  assert.doesNotMatch(list, /categoryFolderStartsOpen/);
+  assert.doesNotMatch(podcast, /categoryFolderStartsOpen/);
 });
 
 test("closed category folders start closed and the rest start open", () => {

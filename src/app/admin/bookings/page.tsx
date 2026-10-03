@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
 import { BookingList, QueuedBookingList } from "@/components/booking-list";
 import { pageStackClass, PhoneShell } from "@/components/phone-shell";
-import {
-  ADMIN_SECTIONS_COOKIE,
-  bookingsSectionForce,
-  parseOpenSections,
-  sectionStartsOpen,
-} from "@/lib/admin/sections";
 import { getAdminSession } from "@/lib/admin-auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { listAdminBookings, splitActiveBookings } from "@/lib/scheduling/bookings";
@@ -31,8 +24,6 @@ export default async function AdminBookingsPage({
   }
   await ensureDb();
   const { error, cancelled, updated, queued: queuedNotice } = await searchParams;
-  const openSections = parseOpenSections((await cookies()).get(ADMIN_SECTIONS_COOKIE)?.value);
-  const notice = Boolean(error || cancelled || updated || queuedNotice);
   const rows = await listAdminBookings();
   const { queued, upcoming, past } = splitActiveBookings(rows);
   const hours = schedulingHours();
@@ -47,7 +38,7 @@ export default async function AdminBookingsPage({
       {queuedNotice ? <p className="mb-6 text-sm text-white">Shoot moved to the queue.</p> : null}
       <div className={pageStackClass}>
         {queued.length > 0 ? (
-          <AdminSection id="bookings:queue" label="Queue" defaultOpen>
+          <AdminSection id="bookings:queue" label="Queue" defaultOpen={false} remember={false}>
             <QueuedBookingList
               bookings={queued}
               showClient
@@ -55,15 +46,7 @@ export default async function AdminBookingsPage({
             />
           </AdminSection>
         ) : null}
-        <AdminSection
-          id="bookings:upcoming"
-          label="Upcoming"
-          defaultOpen={sectionStartsOpen(
-            openSections,
-            "bookings:upcoming",
-            bookingsSectionForce("bookings:upcoming", { notice }),
-          )}
-        >
+        <AdminSection id="bookings:upcoming" label="Upcoming" defaultOpen={false} remember={false}>
           <BookingList
             bookings={upcoming}
             emptyLabel="No upcoming bookings."
@@ -75,11 +58,7 @@ export default async function AdminBookingsPage({
             columns={2}
           />
         </AdminSection>
-        <AdminSection
-          id="bookings:past"
-          label="Past"
-          defaultOpen={sectionStartsOpen(openSections, "bookings:past", false)}
-        >
+        <AdminSection id="bookings:past" label="Past" defaultOpen={false} remember={false}>
           <BookingList
             bookings={past}
             emptyLabel="No past bookings."

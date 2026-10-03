@@ -48,7 +48,7 @@ export async function ShootScreen({
   return (
     <PhoneShell>
       {admin ? (
-        <AdminHeader backHref={`/admin/clients/${shoot.clientId}`} backLabel="Client" />
+        <AdminHeader />
       ) : (
         <ClientHeader />
       )}

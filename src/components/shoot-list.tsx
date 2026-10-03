@@ -6,7 +6,7 @@ import { useId, useState, type ReactNode } from "react";
 import { CategoryFolderSection } from "@/components/category-folder-section";
 import { CopyPublicLink } from "@/components/copy-public-link";
 import { listSearchClass, shootCardGridClass } from "@/components/phone-shell";
-import { categoryFolderStartsOpen, groupShootsByCategoryFolder } from "@/lib/shoot-categories";
+import { groupShootsByCategoryFolder } from "@/lib/shoot-categories";
 import { filterShoots } from "@/lib/shoot-search";
 
 export type ShootListItem = {
@@ -109,25 +109,18 @@ function AdminRow({ shoot }: { shoot: AdminShootListItem }) {
 
 function GroupedShootRows<T extends ShootListItem>({
   shoots,
-  closedCategoryFolders,
   renderList,
 }: {
   shoots: T[];
-  closedCategoryFolders?: readonly string[];
   renderList: (items: T[]) => ReactNode;
 }) {
   const groups = groupShootsByCategoryFolder(shoots);
   if (!groups.grouped) return renderList(shoots);
-  const closed = new Set(closedCategoryFolders ?? []);
   return (
     <div className="flex flex-col">
       {groups.ungrouped.length > 0 ? renderList(groups.ungrouped) : null}
       {groups.categories.map((category) => (
-        <CategoryFolderSection
-          key={category.name}
-          name={category.name}
-          defaultOpen={categoryFolderStartsOpen(closed, category.name)}
-        >
+        <CategoryFolderSection key={category.name} name={category.name} defaultOpen={false}>
           {renderList(category.shoots)}
         </CategoryFolderSection>
       ))}
@@ -167,7 +160,6 @@ export function ShootList(props: LibraryProps | AdminProps) {
       <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
         <GroupedShootRows
           shoots={matches}
-          closedCategoryFolders={props.closedCategoryFolders}
           renderList={(items) => (
             <ul className={shootCardGridClass}>
               {items.map((shoot) => (
@@ -185,7 +177,6 @@ export function ShootList(props: LibraryProps | AdminProps) {
     <FilteredShoots query={query} onQueryChange={setQuery} matchCount={matches.length}>
       <GroupedShootRows
         shoots={matches}
-        closedCategoryFolders={props.closedCategoryFolders}
         renderList={(items) => (
           <ul className={shootCardGridClass}>
             {items.map((shoot) => (

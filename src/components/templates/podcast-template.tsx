@@ -13,7 +13,7 @@ import type { ContentTemplate, TemplateShootCard } from "@/components/templates/
 import { VideoLayout } from "@/components/video-layout";
 import { CategoryFolderSection } from "@/components/category-folder-section";
 import { groupPodcastFiles, parseEpisodeIdentity } from "@/lib/podcast-episode";
-import { categoryFolderStartsOpen, groupShootsByCategoryFolder } from "@/lib/shoot-categories";
+import { groupShootsByCategoryFolder } from "@/lib/shoot-categories";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 import { shootSectionLayout } from "@/lib/shoot-layout";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
@@ -60,12 +60,10 @@ function EpisodeCards({
   shoots,
   emptyLabel,
   admin = false,
-  closedCategoryFolders,
 }: {
   shoots: TemplateShootCard[];
   emptyLabel: string;
   admin?: boolean;
-  closedCategoryFolders?: readonly string[];
 }) {
   if (shoots.length === 0) {
     return <p className="text-sm text-[#8e8e93]">{emptyLabel}</p>;
@@ -73,16 +71,11 @@ function EpisodeCards({
 
   const groups = groupShootsByCategoryFolder(shoots);
   if (!groups.grouped) return <EpisodeGrid shoots={shoots} admin={admin} />;
-  const closed = new Set(closedCategoryFolders ?? []);
   return (
     <div className="flex flex-col">
       {groups.ungrouped.length > 0 ? <EpisodeGrid shoots={groups.ungrouped} admin={admin} /> : null}
       {groups.categories.map((category) => (
-        <CategoryFolderSection
-          key={category.name}
-          name={category.name}
-          defaultOpen={categoryFolderStartsOpen(closed, category.name)}
-        >
+        <CategoryFolderSection key={category.name} name={category.name} defaultOpen={false}>
           <EpisodeGrid shoots={category.shoots} admin={admin} />
         </CategoryFolderSection>
       ))}
@@ -90,7 +83,7 @@ function EpisodeCards({
   );
 }
 
-function PodcastLibrary({ client, shoots, closedCategoryFolders }: Parameters<ContentTemplate["Library"]>[0]) {
+function PodcastLibrary({ client, shoots }: Parameters<ContentTemplate["Library"]>[0]) {
   return (
     <>
       <div className={pageHeadingWrapClass}>
@@ -99,21 +92,14 @@ function PodcastLibrary({ client, shoots, closedCategoryFolders }: Parameters<Co
         {client?.company ? <p className="text-sm text-[#8e8e93]">{client.company}</p> : null}
       </div>
       <div className={pageStackClass}>
-        <EpisodeCards shoots={shoots} emptyLabel="No episodes yet." closedCategoryFolders={closedCategoryFolders} />
+        <EpisodeCards shoots={shoots} emptyLabel="No episodes yet." />
       </div>
     </>
   );
 }
 
-function PodcastAdminShoots({ shoots, closedCategoryFolders }: Parameters<ContentTemplate["AdminShoots"]>[0]) {
-  return (
-    <EpisodeCards
-      shoots={shoots}
-      emptyLabel="No episodes yet."
-      admin
-      closedCategoryFolders={closedCategoryFolders}
-    />
-  );
+function PodcastAdminShoots({ shoots }: Parameters<ContentTemplate["AdminShoots"]>[0]) {
+  return <EpisodeCards shoots={shoots} emptyLabel="No episodes yet." admin />;
 }
 
 function PodcastShoot({

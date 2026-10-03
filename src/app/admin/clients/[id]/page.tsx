@@ -1,5 +1,4 @@
 import { desc, eq } from "drizzle-orm";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
@@ -10,12 +9,6 @@ import { RemoveUserForm } from "@/components/forms/remove-user-form";
 import { formMeasureClass, pageHeadingWrapClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { BookingList, QueuedBookingList } from "@/components/booking-list";
 import { contentTemplate } from "@/components/templates/registry";
-import {
-  ADMIN_SECTIONS_COOKIE,
-  clientDetailSectionForce,
-  parseOpenSections,
-  sectionStartsOpen,
-} from "@/lib/admin/sections";
 import { getAdminSession } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -23,7 +16,6 @@ import { clients, media, shoots } from "@/lib/db/schema";
 import { listClientMembers } from "@/lib/user-portals";
 import { coverUrlByShoot } from "@/lib/episode-covers";
 import { formatShootDate, shootFolderName } from "@/lib/media";
-import { parseClosedCategoryFolders, SHOOT_CATEGORY_FOLDERS_COOKIE } from "@/lib/shoot-categories";
 import { adminShootPath } from "@/lib/shoot-slug";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { adminBookingHref } from "@/lib/scheduling/urls";
@@ -48,18 +40,6 @@ export default async function AdminClientPage({
   }
   const { id } = await params;
   const { error, saved, userRemoved, detached, bookingCancelled } = await searchParams;
-  const jar = await cookies();
-  const openSections = parseOpenSections(jar.get(ADMIN_SECTIONS_COOKIE)?.value);
-  const closedCategoryFolders = [...parseClosedCategoryFolders(jar.get(SHOOT_CATEGORY_FOLDERS_COOKIE)?.value)];
-  const detailSignals = {
-    saved: Boolean(saved),
-    userRemoved: Boolean(userRemoved),
-    bookingCancelled: Boolean(bookingCancelled),
-    error: error ?? "",
-  };
-  function detailOpen(id: string) {
-    return sectionStartsOpen(openSections, id, clientDetailSectionForce(id, detailSignals));
-  }
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -79,7 +59,7 @@ export default async function AdminClientPage({
 
   return (
     <PhoneShell wide>
-      <AdminHeader backHref="/admin/clients" backLabel="Clients" />
+      <AdminHeader />
       <header className={pageHeadingWrapClass}>
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">{client.displayName}</h1>
@@ -97,12 +77,12 @@ export default async function AdminClientPage({
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
       </header>
       <div className={pageStackClass}>
-        <AdminSection id="client:info" label="Client info" defaultOpen={detailOpen("client:info")}>
+        <AdminSection id="client:info" label="Client info" defaultOpen={false} remember={false}>
           <div className={formMeasureClass}>
             <EditClientForm client={client} />
           </div>
         </AdminSection>
-        <AdminSection id="client:logins" label="Teammate logins" defaultOpen={detailOpen("client:logins")}>
+        <AdminSection id="client:logins" label="Teammate logins" defaultOpen={false} remember={false}>
             {teammateRows.length === 0 ? (
               <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
             ) : (
@@ -145,7 +125,7 @@ export default async function AdminClientPage({
             )}
         </AdminSection>
         {bookingRows.some((booking) => booking.status === "queued") ? (
-          <AdminSection id="client:queue" label="Queue" defaultOpen>
+          <AdminSection id="client:queue" label="Queue" defaultOpen={false} remember={false}>
             <QueuedBookingList
               bookings={bookingRows
                 .filter((booking) => booking.status === "queued")
@@ -154,7 +134,7 @@ export default async function AdminClientPage({
             />
           </AdminSection>
         ) : null}
-        <AdminSection id="client:bookings" label="Bookings" defaultOpen={detailOpen("client:bookings")}>
+        <AdminSection id="client:bookings" label="Bookings" defaultOpen={false} remember={false}>
           <BookingList
             bookings={bookingRows
               .filter((booking) => booking.status !== "queued")
@@ -167,9 +147,8 @@ export default async function AdminClientPage({
             columns={2}
           />
         </AdminSection>
-        <AdminSection id="client:shoots" label="Shoots" defaultOpen={detailOpen("client:shoots")}>
+        <AdminSection id="client:shoots" label="Shoots" defaultOpen={false} remember={false}>
           <AdminShoots
-            closedCategoryFolders={closedCategoryFolders}
             shoots={shootRows.map((shoot) => {
               const files = mediaRows.filter((item) => item.shootId === shoot.id);
               return {
@@ -187,7 +166,7 @@ export default async function AdminClientPage({
             })}
           />
         </AdminSection>
-        <AdminSection id="client:delete" label="Delete client" defaultOpen={detailOpen("client:delete")}>
+        <AdminSection id="client:delete" label="Delete client" defaultOpen={false} remember={false}>
           <div className={formMeasureClass}>
             <DeleteClientForm clientId={client.id} inviteCode={client.inviteCode} />
           </div>

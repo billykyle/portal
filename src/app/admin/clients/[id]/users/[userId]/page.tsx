@@ -43,7 +43,7 @@ export default async function AdminUserProfilePage({
 
   return (
     <PhoneShell>
-      <AdminHeader backHref={`/admin/clients/${client.id}`} backLabel={client.displayName} />
+      <AdminHeader />
       <header className={pageHeadingWrapClass}>
         <p className="text-sm text-[#8e8e93]">{client.inviteCode}</p>
         <h1 className="text-2xl font-medium">{teammateDisplayName(user)}</h1>
