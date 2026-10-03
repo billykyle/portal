@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -49,6 +50,16 @@ test("desktop clients table shows a Members count between email and the chevron"
   assert.ok(html.indexOf(">2<", twoRow) > twoRow);
   assert.match(html, /Members 0/);
   assert.match(html, /Members 2/);
+});
+
+test("search and sort share one row, and search is the wider control", () => {
+  const directory = readFileSync("src/components/admin-client-directory.tsx", "utf8");
+  const sort = readFileSync("src/components/client-sort-select.tsx", "utf8");
+  assert.match(directory, /flex items-center gap-3/);
+  assert.match(directory, /flex-\[1\.6\]/);
+  assert.doesNotMatch(directory, /flex-col/);
+  assert.match(sort, /min-w-0 flex-1/);
+  assert.match(sort, /lg:w-52/);
 });
 
 test("member count is not a sort option", () => {
