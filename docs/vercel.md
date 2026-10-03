@@ -83,9 +83,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `NAS_CACHE_DIR` | `/tmp/nas-cache` | Optional on Vercel — the app already defaults to `/tmp/nas-cache` when `VERCEL=1`. Ephemeral scratch only. Grid previews are stored in Postgres (`media_thumbs`) so the next isolate does not re-download them from the NAS. |
 | `NAS_FS_ROOT` | unset on Vercel | Only on the machine that runs `npm run nas:renditions`. Local folder of the mounted share. Vercel does not transcode video. |
 | `NAS_FS_PREFIX` | unset on Vercel | NAS path prefix that sits above `NAS_FS_ROOT`. See README, "Video shape and lighter playback". |
-| `NAS_SYNC_INTERVAL_MINUTES` | `10` | Kept for local `next start`. Ignored for in-process timers on Vercel. |
-| `NAS_SYNC_ENABLED` | `true` | Same. Production sync is the cron route. |
-| `CRON_SECRET` | long random string | Vercel sends `Authorization: Bearer $CRON_SECRET` to `/api/cron/nas-sync`. Required or cron gets 401. |
+| `CRON_SECRET` | long random string | Vercel sends `Authorization: Bearer $CRON_SECRET` to `/api/cron/shoot-reminders`. Required or that cron gets 401. |
 | `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` when a NAS shoot first has files. |
 | `RESEND_API_KEY` | empty or Resend key | Optional. Password-reset and booking-confirmation mail. |
 | `EMAIL_FROM` | `Billy Kyle <billy@billyhere.com>` | Used only when Resend is set. Default if unset. |
@@ -103,7 +101,7 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 
 Calendar production wiring (OIDC + WIF, no SA JSON key): [docs/google-calendar.md](google-calendar.md).
 
-After the first deploy, open `https://admin.billy-kyle.com` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** (or wait for cron) to import only what is on the share.
+After the first deploy, open `https://admin.billy-kyle.com` once so tables exist, or hit any page — `ensureDb()` runs on first use. An empty database seeds BK00001 with no fake shoots. Then **Sync from NAS** to import only what is on the share. The app does not walk the share on its own.
 
 To remove leftover Whitfield / `/samples/` test projects from production without deleting the client:
 
@@ -115,13 +113,7 @@ Or delete each test shoot from admin. The next successful NAS sync also prunes p
 
 ## How sync works in production
 
-Vercel serverless isolates freeze. The in-process 10-minute `setInterval` is **off** when `VERCEL=1`. Production uses:
-
-```
-GET /api/cron/nas-sync
-```
-
-`vercel.json` schedules that path every 10 minutes (`*/10 * * * *`). Pro allows this interval. Admin **Sync from NAS** still works anytime.
+The share is walked only from admin **Sync from NAS**, the `sync_from_nas` connector tool, or `npm run nas:sync`. There is no NAS cron and no in-process timer. `vercel.json` still schedules hourly shoot reminders at `GET /api/cron/shoot-reminders`.
 
 Shoot **Download** streams one zip from `GET /api/shoots/[id]/zip` (logged-in) or `GET /api/s/[token]/zip` (public). Those routes use `maxDuration = 300` and STORE compression so ~83 JPEGs can finish on Pro without buffering the whole archive in the function first. The browser downloads the attachment (one Safari confirm); the page polls `/api/zip-jobs/[id]` for files/bytes/speed/ETA so iPhone does not hold a ~470MB blob in memory.
 

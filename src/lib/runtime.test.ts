@@ -1,18 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultNasCacheDir } from "./nas";
-import { isVercelRuntime, useInProcessNasScheduler } from "./runtime";
+import { isVercelRuntime } from "./runtime";
 
-test("local runtime uses the in-process NAS timer", () => {
+test("local runtime is not Vercel", () => {
   delete process.env.VERCEL;
   assert.equal(isVercelRuntime(), false);
-  assert.equal(useInProcessNasScheduler(), true);
 });
 
-test("Vercel uses cron instead of setInterval", () => {
+test("VERCEL=1 is the Vercel runtime", () => {
   process.env.VERCEL = "1";
   assert.equal(isVercelRuntime(), true);
-  assert.equal(useInProcessNasScheduler(), false);
   delete process.env.VERCEL;
 });
 

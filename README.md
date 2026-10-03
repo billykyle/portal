@@ -14,7 +14,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 6. Shoot — in-app photo viewer, inline video, floor plans, raw video clips, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video / Raw video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
 7. Scheduling — two steps. **Step 1** (`/scheduling`): expand Real Estate, Construction, or Podcast. Real Estate and Construction stay multi-select; Podcast is one of **1 episode** or **2 episodes**. Type a single shoot address (Places Autocomplete fills the same field — not split street/city/state/ZIP). Availability prefetch starts once the address and at least one service are valid. **Step 2** (`/scheduling/times`): available times only after that address is set; last good slots stay on screen while times refresh. Slot length is the **sum** of selected service minutes, never longest-only. Upcoming bookings show every selected option as `Industry · Option` (for example `Real Estate · Photography` or `Podcast · 1 episode`). Travel hard-block is live drive time only (Google Maps when `GOOGLE_MAPS_API_KEY` is set); there is no extra pad. Google Calendar is source of truth when wired: work `billy@atmosimagery.com` **and** personal `bkyle015@gmail.com` — a time is busy if either calendar is busy. US Holidays is not used. Geography is never guessed. No prices in this flow. After **Book shoot**, if `RESEND_API_KEY` is set, the portal sends **two** Resend emails (no CC/BCC): a client confirmation to the session email, and a `New shoot: …` alert to `billy@billyhere.com` (or `BOOKING_NOTIFY_EMAIL`). A Calendar or email failure does not undo the saved shoot, but the confirmation page says so instead of looking fully successful. Billy also gets `Portal booking sync issue` (or a `PORTAL_BOOKING_SYNC_ALERT` log plus an admin `sync_issue` flag if that alert cannot send). Calendar writes use a deterministic event id so retries do not double-create. A Workspace Admin must allow external calendar edit sharing (or domain-wide delegation) for live Calendar create. Pepper is not required.
 8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
-9. Admin — Billy syncs the NAS share (also automatic every 10 minutes while the app is running), edits or deletes a client, removes a teammate login or a shoot, or creates a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
+9. Admin — Billy syncs the NAS share with **Sync from NAS** (nothing syncs on its own), edits or deletes a client, removes a teammate login or a shoot, or creates a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
 
@@ -102,9 +102,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `NAS_SHARE_URL` | Optional full share URL (`https://ug.link/10128873/filemgr/share-download/?id=…`). Used to parse the share id and the UGREENlink id. |
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). Floor plans and video are picked up separately (see folder layout). |
 | `NAS_CACHE_DIR` | Same-isolate scratch cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel (ephemeral). Durable grid previews live in Postgres (`media_thumbs`). |
-| `NAS_SYNC_INTERVAL_MINUTES` | How often a long-running Node process walks the share. Default `10`. `0` disables the timer. Ignored on Vercel. |
-| `NAS_SYNC_ENABLED` | `false` turns off the in-process timer. Manual sync is unchanged. |
-| `CRON_SECRET` | Bearer token for `GET /api/cron/nas-sync`. Required on Vercel. |
+| `CRON_SECRET` | Bearer token for `GET /api/cron/shoot-reminders`. Required on Vercel. |
 | `PORTAL_PUBLIC_URL` | Absolute origin for public shoot `/s/…` links in webhooks and admin copy links. Production: `https://portal.billy-kyle.com`. Not the admin entry. |
 | `ADMIN_PUBLIC_URL` | Absolute origin for the Billy-only admin app. Production: `https://admin.billy-kyle.com`. Unset locally so `/admin` stays on `next dev`. |
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` JSON for Pepper when a NAS shoot first has files. Empty = no POST. |
@@ -237,32 +235,15 @@ Client Deliverables / Sam Lepore / 2026.09.04 - 12 Wood View Drive / Final /
 
 ### Run sync
 
-The same walk runs from:
+The share is walked only when someone asks:
 
-- the running app, every **10 minutes** (`NAS_SYNC_INTERVAL_MINUTES`)
-- first boot, once, when `NAS_ENABLED=true`
+- **Sync from NAS** on the admin home page
+- the `sync_from_nas` connector tool (same locked walk)
 - `npm run nas:sync`
-- **Sync from NAS** in admin
 
-Drop a folder on the share and wait up to 10 minutes, or sync now with the script or the admin button. Overlapping runs are skipped (one lock). Logs look like `NAS sync start (interval)` and `NAS sync done (interval) … +clients / +shoots / +stills`.
+Nothing in the app starts that walk on a timer, a cron, or a page load. Overlapping runs are skipped (one lock). Logs look like `NAS sync start (admin)` and `NAS sync done (admin) … +clients / +shoots / +stills`.
 
-Turn the timer off:
-
-```
-NAS_SYNC_INTERVAL_MINUTES=0
-# or
-NAS_SYNC_ENABLED=false
-```
-
-`npm run nas:sync:warm` stores a small preview for every photo that does not have one yet. The cron backfill also stores up to 20 missing photo previews per run. Opening a shoot stores the rest as tiles come near the viewport.
-
-On Vercel the in-process timer is off (serverless isolates freeze). Production uses `vercel.json` → `GET /api/cron/nas-sync` every 10 minutes. Admin **Sync from NAS** still works.
-
-A system cron is only a backup for a long-running Node host:
-
-```
-*/10 * * * * cd /path/to/portal && npm run nas:sync
-```
+`npm run nas:sync:warm` stores a small preview for every photo that does not have one yet. Opening a shoot stores the rest as tiles come near the viewport.
 
 New clients created from the share get a placeholder email (`{name}@pending.local`) and no login. Give them the created BK code so they can sign up. Sam Lepore already has `sam@example.com` from the first import; later syncs reuse that record.
 
@@ -277,7 +258,7 @@ New clients created from the share get a placeholder email (`{name}@pending.loca
 
 ### Video shape and lighter playback
 
-The player sizes each video to its real frame (9:16 stays tall, 16:9 stays wide, other ratios stay themselves) and fits that frame to the viewport. Width and height are read from the file header — a short byte range, not the whole movie — and saved on the media row. The 10-minute sync probes a few videos that are missing a size, and the first open probes that one file if the size is still unknown. The browser's own metadata corrects the frame if the header and the picture disagree (a sideways phone video). Photo tiles stay 3:2, three across on a phone.
+The player sizes each video to its real frame (9:16 stays tall, 16:9 stays wide, other ratios stay themselves) and fits that frame to the viewport. Width and height are read from the file header — a short byte range, not the whole movie — and saved on the media row. The first open probes that one file if the size is still unknown. The browser's own metadata corrects the frame if the header and the picture disagree (a sideways phone video). Photo tiles stay 3:2, three across on a phone.
 
 Playback does not have to pull the original. The player uses a 720p file when one is on the share, otherwise 1080p, otherwise the original. There is no quality menu. **Download** and the shoot zip always send the original.
 
@@ -298,7 +279,7 @@ NAS_FS_PREFIX="/volume1/Client Deliverables"
 
 `NAS_FS_ROOT` and `NAS_FS_PREFIX` belong in that machine's `.env.local` only. Leave them unset on Vercel. Until the command has been run, the player still works: it streams the original, and the frame is still the right shape. A 1080p original only gets a 720p copy (no upscale). A 4K original gets both. macOS: `brew install ffmpeg`.
 
-**Existing shoots.** No manual migration. A preview is generated the first time that tile is requested. The grid only starts off-screen tiles when they are near the viewport, and only a few of those requests run at once. A failed tile retries, then shows **Preview unavailable / Retry** instead of leaving the browser's broken-image icon up. `GET /api/cron/nas-sync` backfills up to 20 missing photo previews every 10 minutes. `npm run nas:sync:warm` stores every missing photo preview in one pass. Image floor plans use the same preview route; a PDF the NAS cannot thumbnail gets the retry state.
+**Existing shoots.** No manual migration. A preview is generated the first time that tile is requested. The grid only starts off-screen tiles when they are near the viewport, and only a few of those requests run at once. A failed tile retries, then shows **Preview unavailable / Retry** instead of leaving the browser's broken-image icon up. `npm run nas:sync:warm` stores every missing photo preview in one pass. Image floor plans use the same preview route; a PDF the NAS cannot thumbnail gets the retry state.
 
 **Download** on a shoot page starts one streaming zip (`/api/shoots/[id]/zip` or `/api/s/[token]/zip`). The server reads files from the NAS cache (or the share) one at a time and pipes a STORE zip so Vercel does not have to hold all 83 JPEGs before the first byte. The browser saves that attachment directly (Safari/iPhone confirms once) instead of buffering a ~470MB archive in JavaScript. The page polls zip-job progress and shows preparing → downloading (files, bytes, speed, time remaining) → saved or failed. Named `{date} - {address}.zip` (or `{date} - {address} - Photos.zip` when a type is chosen). Per-tile **Download** still saves that one file.
 
