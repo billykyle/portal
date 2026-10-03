@@ -214,7 +214,7 @@ test("tapping a photo opens it in the page above the grid", () => {
       address: "14 Harbor Lane",
       dateLabel: "Sep 12, 2026",
       folderName: "2026-09-12 - 14 Harbor Lane",
-      media,
+      media: media.map((item, index) => ({ ...item, sortOrder: index })),
     }),
   );
   const constructionPhotos = construction.slice(
@@ -240,6 +240,7 @@ test("tapping a photo opens it in the page above the grid", () => {
           thumbUrl: "/thumbs/cover.jpg",
           filename: "cover.jpg",
           type: "photo",
+          sortOrder: 0,
         },
         {
           id: "still-2",
@@ -247,6 +248,7 @@ test("tapping a photo opens it in the page above the grid", () => {
           thumbUrl: "/thumbs/guest.jpg",
           filename: "guest.jpg",
           type: "photo",
+          sortOrder: 1,
         },
       ],
     }),
