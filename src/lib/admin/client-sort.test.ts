@@ -103,12 +103,18 @@ test("sort cookie stays off the query string", () => {
   assert.match(cookie, /Secure/);
   assert.doesNotMatch(clientSortCookie("newest"), /Secure/);
   const page = readFileSync("src/app/admin/clients/page.tsx", "utf8");
+  const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
   const directory = readFileSync("src/components/admin-client-directory.tsx", "utf8");
   assert.match(page, /sortClients\(/);
+  assert.match(home, /sortClients\(/);
+  assert.match(page, /parseClientSort\(cookieStore\.get\(CLIENT_SORT_COOKIE\)/);
+  assert.match(home, /parseClientSort\(cookieStore\.get\(CLIENT_SORT_COOKIE\)/);
   assert.match(directory, /ClientSortSelect/);
   assert.doesNotMatch(page, /name=["']sort["']/);
+  assert.doesNotMatch(home, /name=["']sort["']/);
   assert.doesNotMatch(directory, /name=["']sort["']/);
   assert.doesNotMatch(page, /searchParams\.sort|params\.set\(["']sort["']\)/);
+  assert.doesNotMatch(home, /searchParams\.sort|params\.set\(["']sort["']\)/);
 });
 
 test("sort control lists every option and stores the choice in a cookie", () => {
