@@ -182,7 +182,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "modify_booking",
-    "Admin modify of a confirmed booking, including one that has already started. Same path as the admin Bookings form: address, services, time, and notes, then the Shoot changes email and calendar update. Omit a field to keep the current value. Services use labels like \"Real Estate · Photography\" or \"Commercial video\". Commercial video needs commercialHours from 1 through 8; omit it to keep the saved length. startsAt and endsAt are ISO timestamps. A past startsAt is saved even when it is not an offered slot; the end follows the service length. A future startsAt still has to be an offered slot. Omit endsAt to use the offered slot for that start.",
+    "Admin modify of a confirmed booking, including one that has already started. Same path as the admin Bookings form: address, services, time, and notes, then the Shoot changes email and calendar update. Omit a field to keep the current value. Services use labels like \"Real Estate · Photography\" or \"Commercial video\". Commercial video needs commercialHours from 1 through 8; omit it to keep the saved length. startsAt and endsAt are ISO timestamps. A past startsAt is saved even when it is not an offered slot; the end follows the service length. A future startsAt still has to be an offered slot. Construction Photography and Construction Video, alone or together, are offered at any time of day, including overnight, when the calendar is free. Other services stay inside 9am–6pm ET. Omit endsAt to use the offered slot for that start.",
     {
       bookingId: z.string(),
       address: z.string().optional(),

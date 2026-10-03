@@ -12,6 +12,7 @@ import { mergeIntervals, overlaps, sameInterval, subtractInterval, type Interval
 import {
   bookingSlotMinutes,
   bookingRequiresEndByClose,
+  bookingUsesAllDayHours,
   COMMERCIAL_VIDEO_HOURS_ERROR,
   parseSchedulingServices,
 } from "./services";
@@ -117,12 +118,14 @@ export async function offerSlotsForAddress(
     };
   }
 
-  const requireEndByClose = bookingRequiresEndByClose(selected);
+  const allDay = bookingUsesAllDayHours(selected);
+  const requireEndByClose = allDay ? false : bookingRequiresEndByClose(selected);
   const candidates = generateCandidateSlots({
     ...hours,
     now,
     retainStarts: options?.retainStarts,
     requireEndByClose,
+    allDay,
   });
   const busy = mergeIntervals(sources.busy);
   const afterBusy = candidates.filter((slot) => !busy.some((block) => overlaps(slot, block)));

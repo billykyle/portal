@@ -18,24 +18,35 @@ export function slotEndsByClose(start: Date, end: Date, timeZone: string, closeH
 }
 
 export function generateCandidateSlots(
-  input: SchedulingHours & { now: Date; retainStarts?: readonly Date[]; requireEndByClose?: boolean },
+  input: SchedulingHours & {
+    now: Date;
+    retainStarts?: readonly Date[];
+    requireEndByClose?: boolean;
+    /** Construction: any start on the calendar day, including overnight. */
+    allDay?: boolean;
+  },
 ): Interval[] {
   const slots: Interval[] = [];
+  const seen = new Set<number>();
   const nowParts = utcToZonedParts(input.now, input.timeZone);
   const minStart = input.now.getTime() + input.minLeadMinutes * 60 * 1000;
   const retainStarts = new Set((input.retainStarts ?? []).map((value) => value.getTime()));
   const step = Math.max(5, input.stepMinutes);
   const duration = Math.max(5, input.slotMinutes);
+  const allDay = input.allDay === true;
+  const firstMinute = allDay ? 0 : input.openHour * 60;
+  const lastStartMinute = allDay ? 24 * 60 - step : input.closeHour * 60;
 
   for (let dayOffset = 0; dayOffset < input.daysAhead; dayOffset += 1) {
     const day = addCalendarDays(nowParts, dayOffset);
-    const lastStartMinute = input.closeHour * 60;
-    for (let minute = input.openHour * 60; minute <= lastStartMinute; minute += step) {
+    for (let minute = firstMinute; minute <= lastStartMinute; minute += step) {
       const hour = Math.floor(minute / 60);
       const min = minute % 60;
       const start = zonedDateTimeToUtc(input.timeZone, { ...day, hour, minute: min });
+      if (seen.has(start.getTime())) continue;
+      seen.add(start.getTime());
       const end = new Date(start.getTime() + duration * 60 * 1000);
-      if (input.requireEndByClose && !slotEndsByClose(start, end, input.timeZone, input.closeHour)) {
+      if (!allDay && input.requireEndByClose && !slotEndsByClose(start, end, input.timeZone, input.closeHour)) {
         continue;
       }
       const retained = retainStarts.has(start.getTime());
