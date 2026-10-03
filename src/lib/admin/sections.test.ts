@@ -7,6 +7,7 @@ import { AdminSection } from "../../components/admin-section";
 import { DeleteClientForm } from "../../components/forms/delete-client-form";
 import { EditClientForm } from "../../components/forms/edit-client-form";
 import { MintClientForm } from "../../components/forms/mint-client-form";
+import { ADMIN_HOME_LINKS, adminHomeDestination } from "./home-links";
 import {
   ADMIN_SECTIONS_COOKIE,
   adminSectionsCookie,
@@ -20,7 +21,7 @@ import {
   sortByVisibleLabel,
 } from "./sections";
 
-test("admin home labels sort A–Z and the page does not reopen a section", () => {
+test("admin home labels sort A–Z and each row is a link", () => {
   assert.deepEqual(
     sortByVisibleLabel([
       { label: "Queue" },
@@ -45,11 +46,9 @@ test("admin home labels sort A–Z and the page does not reopen a section", () =
   );
 
   const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
-  assert.match(home, /sortByVisibleLabel\(homeSections\)/);
-  assert.match(home, /defaultOpen=\{false\}/);
-  assert.doesNotMatch(home, /sectionStartsOpen|parseOpenSections|clientsSectionForce|bookingsSectionForce/);
-  assert.doesNotMatch(home, /label="Queue"/);
-  assert.doesNotMatch(home, /defaultOpen(?:\s|>)/);
+  assert.match(home, /ADMIN_HOME_LINKS/);
+  assert.match(home, /<Link/);
+  assert.doesNotMatch(home, /AdminSection|defaultOpen|aria-expanded|sectionStartsOpen/);
 
   const bookings = readFileSync("src/app/admin/bookings/page.tsx", "utf8");
   assert.match(bookings, /defaultOpen=\{false\}/);
@@ -62,6 +61,20 @@ test("admin home labels sort A–Z and the page does not reopen a section", () =
   const header = readFileSync("src/components/admin-header.tsx", "utf8");
   assert.match(header, /NavMenu/);
   assert.doesNotMatch(header, /backLabel|backHref/);
+});
+
+test("a home query string opens the page that used to hold that result", () => {
+  assert.equal(adminHomeDestination({}), null);
+  assert.equal(adminHomeDestination({ q: "Radano" }), "/admin/home/clients?q=Radano");
+  assert.equal(adminHomeDestination({ minted: "BK00019" }), "/admin/home/create-client?minted=BK00019");
+  assert.equal(
+    adminHomeDestination({ error: "Display name is required." }),
+    "/admin/home/create-client?error=Display+name+is+required.",
+  );
+  assert.match(adminHomeDestination({ synced: "1", clients: "2" }) ?? "", /^\/admin\/home\/nas-sync\?/);
+  assert.match(adminHomeDestination({ syncError: "connect to device timeout" }) ?? "", /^\/admin\/home\/nas-sync\?/);
+  assert.match(adminHomeDestination({ maintenance: "saved" }) ?? "", /^\/admin\/home\/maintenance\?/);
+  assert.equal(adminHomeDestination({ cancelled: "1" }), "/admin/home/upcoming?cancelled=1");
 });
 
 test("admin sections start collapsed and remember an explicit open set", () => {
@@ -205,25 +218,28 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
   assert.match(home, /title: "Home"/);
   assert.match(home, /sr-only">Home</);
-  assert.match(home, /Create client/);
-  assert.match(home, /id: "clients:nas-sync"/);
-  assert.match(home, /id: "clients:book-shoot"/);
-  assert.match(home, /id: "clients:all"/);
-  assert.match(home, /remember=\{false\}/);
-  assert.match(home, /parseClientSort/);
-  assert.match(home, /CLIENT_SORT_COOKIE/);
-  assert.doesNotMatch(home, /"name-asc"|showSort=\{false\}/);
-  assert.match(home, /defaultOpen=\{false\}/);
-  assert.doesNotMatch(home, /sectionStartsOpen/);
+  assert.deepEqual(
+    ADMIN_HOME_LINKS.map((item) => item.label),
+    [
+      "All clients",
+      "Book a shoot",
+      "Create client",
+      "Maintenance notice",
+      "NAS sync",
+      "Past",
+      "Queue",
+      "Upcoming",
+    ],
+  );
+  assert.doesNotMatch(home, /pageTitleClass|Mint client|AdminSection|defaultOpen/);
+  const directory = readFileSync("src/app/admin/home/clients/page.tsx", "utf8");
+  assert.match(directory, /parseClientSort/);
+  assert.match(directory, /CLIENT_SORT_COOKIE/);
+  assert.match(directory, /sr-only">All clients</);
+  assert.doesNotMatch(directory, /"name-asc"|showSort=\{false\}|pageTitleClass/);
   const clientsPage = readFileSync("src/app/admin/clients/page.tsx", "utf8");
   assert.match(clientsPage, /parseClientSort/);
   assert.doesNotMatch(clientsPage, /showSort=\{false\}/);
-  assert.match(home, /id: "bookings:upcoming"/);
-  assert.match(home, /id: "bookings:past"/);
-  assert.match(home, /id: "home:maintenance"/);
-  assert.match(home, /id: "bookings:queue"/);
-  assert.match(home, /Maintenance notice/);
-  assert.doesNotMatch(home, /pageTitleClass|Mint client/);
 
   const bookings = readFileSync("src/app/admin/bookings/page.tsx", "utf8");
   assert.match(bookings, /title: "Bookings"/);

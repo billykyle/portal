@@ -103,7 +103,7 @@ test("sort cookie stays off the query string", () => {
   assert.match(cookie, /Secure/);
   assert.doesNotMatch(clientSortCookie("newest"), /Secure/);
   const page = readFileSync("src/app/admin/clients/page.tsx", "utf8");
-  const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
+  const home = readFileSync("src/app/admin/home/clients/page.tsx", "utf8");
   const directory = readFileSync("src/components/admin-client-directory.tsx", "utf8");
   assert.match(page, /sortClients\(/);
   assert.match(home, /sortClients\(/);

@@ -44,7 +44,7 @@ test("a NAS sync failure stays on the sync section with a readable error", () =>
   assert.match(action, /readableNasError\(error\)/);
   const sync = readFileSync("src/lib/admin/sync.ts", "utf8");
   assert.match(sync, /readableNasError/);
-  const page = readFileSync("src/app/admin/home/page.tsx", "utf8");
+  const page = readFileSync("src/app/admin/home/nas-sync/page.tsx", "utf8");
   assert.match(page, /nasSyncPageNotice/);
   assert.match(page, /error=\{syncNotice\.syncError/);
   assert.match(page, /status=/);

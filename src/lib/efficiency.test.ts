@@ -9,7 +9,7 @@ test("admin client page loads media for that client's shoots only", () => {
 });
 
 test("directory pages count shoots and do not also count every login", () => {
-  for (const file of ["src/app/admin/home/page.tsx", "src/app/admin/clients/page.tsx"]) {
+  for (const file of ["src/app/admin/home/clients/page.tsx", "src/app/admin/clients/page.tsx"]) {
     const page = readFileSync(file, "utf8");
     assert.match(page, /shootCountsByClient\(/);
     assert.doesNotMatch(page, /clientCounts\(/);
@@ -17,7 +17,7 @@ test("directory pages count shoots and do not also count every login", () => {
 });
 
 test("admin home reuses the booking list for the book-a-shoot calendar", () => {
-  const page = readFileSync("src/app/admin/home/page.tsx", "utf8");
+  const page = readFileSync("src/app/admin/home/book/page.tsx", "utf8");
   assert.match(page, /listAdminBookings\(/);
   assert.doesNotMatch(page, /from\(bookings\)/);
   assert.match(page, /job\.status === "confirmed"/);

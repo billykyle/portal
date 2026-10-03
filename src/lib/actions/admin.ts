@@ -13,7 +13,14 @@ import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/user
 import { addExtraInviteCode, removeExtraInviteCode } from "@/lib/user-portals";
 import { syncNasForAdmin } from "@/lib/admin/sync";
 import { getAdminSession } from "@/lib/admin-auth";
-import { ADMIN_HOME, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY } from "@/lib/routes";
+import {
+  ADMIN_HOME,
+  ADMIN_HOME_CREATE_CLIENT,
+  ADMIN_HOME_NAS_SYNC,
+  CLIENT_ACCOUNT,
+  CLIENT_HOME,
+  CLIENT_LIBRARY,
+} from "@/lib/routes";
 
 export type AdminState = {
   error?: string;
@@ -25,9 +32,9 @@ function adminClientsUrl(params: Record<string, string>) {
   return `/admin/clients?${query.toString()}`;
 }
 
-function adminHomeUrl(params: Record<string, string>) {
+function adminPageUrl(path: string, params: Record<string, string>) {
   const query = new URLSearchParams(params);
-  return `${ADMIN_HOME}?${query.toString()}`;
+  return `${path}?${query.toString()}`;
 }
 
 function clientAdminPath(clientId: string, params: Record<string, string> = {}) {
@@ -55,11 +62,12 @@ export async function mintClient(formData: FormData) {
     category: String(formData.get("category") ?? ""),
   });
   if (!created.ok) {
-    redirect(adminHomeUrl({ error: created.error }));
+    redirect(adminPageUrl(ADMIN_HOME_CREATE_CLIENT, { error: created.error }));
   }
   revalidatePath("/admin/clients");
   revalidatePath(ADMIN_HOME);
-  redirect(adminHomeUrl({ minted: created.value.inviteCode }));
+  revalidatePath(ADMIN_HOME_CREATE_CLIENT);
+  redirect(adminPageUrl(ADMIN_HOME_CREATE_CLIENT, { minted: created.value.inviteCode }));
 }
 
 export async function syncNasFromAdmin() {
@@ -69,13 +77,14 @@ export async function syncNasFromAdmin() {
   try {
     const result = await syncNasForAdmin();
     if (!result.ok) {
-      redirect(adminHomeUrl({ syncError: readableNasError(result.error) }));
+      redirect(adminPageUrl(ADMIN_HOME_NAS_SYNC, { syncError: readableNasError(result.error) }));
     }
     const sync = result.value;
     revalidatePath("/admin/clients");
     revalidatePath(ADMIN_HOME);
+    revalidatePath(ADMIN_HOME_NAS_SYNC);
     redirect(
-      adminHomeUrl({
+      adminPageUrl(ADMIN_HOME_NAS_SYNC, {
         synced: "1",
         clients: String(sync.clientsCreated),
         shoots: String(sync.shootsCreated),
@@ -96,7 +105,7 @@ export async function syncNasFromAdmin() {
     );
   } catch (error) {
     unstable_rethrow(error);
-    redirect(adminHomeUrl({ syncError: readableNasError(error) }));
+    redirect(adminPageUrl(ADMIN_HOME_NAS_SYNC, { syncError: readableNasError(error) }));
   }
 }
 
