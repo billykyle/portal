@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminClientDirectory } from "@/components/admin-client-directory";
 import { AdminHeader } from "@/components/admin-header";
@@ -13,7 +14,7 @@ import { SyncNasForm } from "@/components/forms/sync-nas-form";
 import { formMeasureClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { clientCounts } from "@/lib/admin/clients";
 import { signedUpMemberCount } from "@/lib/admin/member-count";
-import { sortClients } from "@/lib/admin/client-sort";
+import { CLIENT_SORT_COOKIE, parseClientSort, sortClients } from "@/lib/admin/client-sort";
 import { sortByVisibleLabel } from "@/lib/admin/sections";
 import { nasSyncPageNotice } from "@/lib/admin/sync-notice";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -130,7 +131,7 @@ export default async function AdminHomePage({
   } = await searchParams;
   const query = (q ?? "").trim();
   const needle = query.toLowerCase();
-  const [rows, logins, counts, confirmedJobs, bookingRows, notice] = await Promise.all([
+  const [rows, logins, counts, confirmedJobs, bookingRows, notice, cookieStore] = await Promise.all([
     db.select().from(clients).orderBy(desc(clients.createdAt)),
     directoryLogins(),
     clientCounts(),
@@ -140,7 +141,9 @@ export default async function AdminHomePage({
       .where(eq(bookings.status, "confirmed")),
     listAdminBookings(),
     getMaintenanceNotice(),
+    cookies(),
   ]);
+  const sort = parseClientSort(cookieStore.get(CLIENT_SORT_COOKIE)?.value);
   const syncNotice = nasSyncPageNotice({ error, syncError });
   const syncNote =
     emailSkipped && isNasUnreachableError(emailSkipped) ? readableNasError(emailSkipped) : emailSkipped;
@@ -176,7 +179,7 @@ export default async function AdminHomePage({
       shootCount: counts.shoots.get(client.id) ?? 0,
       memberCount: signedUpMemberCount(loginsByClient.get(client.id)),
     })),
-    "name-asc",
+    sort,
   );
   const { queued, upcoming, past } = splitActiveBookings(bookingRows);
   const hours = schedulingHours();
@@ -274,8 +277,8 @@ export default async function AdminHomePage({
           rowsEmpty={rows.length === 0}
           visible={visible}
           query={query}
+          sort={sort}
           searchAction={ADMIN_HOME}
-          showSort={false}
         />
       ),
     },

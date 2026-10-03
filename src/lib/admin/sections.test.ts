@@ -203,7 +203,9 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   assert.match(home, /id: "clients:book-shoot"/);
   assert.match(home, /id: "clients:all"/);
   assert.match(home, /remember: false/);
-  assert.match(home, /"name-asc"/);
+  assert.match(home, /parseClientSort/);
+  assert.match(home, /CLIENT_SORT_COOKIE/);
+  assert.doesNotMatch(home, /"name-asc"|showSort=\{false\}/);
   assert.match(home, /defaultOpen=\{false\}/);
   assert.doesNotMatch(home, /sectionStartsOpen/);
   const clientsPage = readFileSync("src/app/admin/clients/page.tsx", "utf8");
