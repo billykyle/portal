@@ -193,7 +193,8 @@ test("override booking ignores weekday, same-day, grid, hours, and drive time", 
     assert.ok(seen.recipients.includes("sam.login@example.com"));
     assert.ok(seen.recipients.includes("pat@example.com"));
     assert.equal(seen.recipients.includes("billy@billyhere.com"), false);
-    assert.equal(seen.summary, "Sam Lepore - P (Lockbox 2222. pat@example.com)");
+    assert.equal(seen.summary, "Sam Lepore - P");
+    assert.match(seen.description, /Notes: Lockbox 2222\. pat@example\.com/);
     assert.match(seen.description, /Services: Real Estate · Photography/);
     assert.doesNotMatch(seen.summary, /Real Estate|Construction/);
     assert.match(seen.description, /Booked through your portal/);

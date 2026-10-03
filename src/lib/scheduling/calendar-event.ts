@@ -51,12 +51,32 @@ export function calendarClientName(input: {
   return input.displayName?.trim() || "";
 }
 
-/** Title `(…)` is the notes value as typed. Empty/missing notes → no parens. */
+/**
+ * Title `(…)` is only a lockbox: a short access code typed in notes.
+ * Sentences and other notes stay in the description. Empty notes → no parens.
+ */
 export function calendarTitleLockbox(notes?: string | null): string | null {
-  return notes?.trim() || null;
+  const text = notes?.trim() ?? "";
+  if (!text || !isLockboxCode(text)) return null;
+  return text;
 }
 
-/** `{Name} - {initials}` or `{Name} - {initials} ({notes})`. Description keeps full service names. */
+/** A short code, not a sentence. "1234" and "gate code 1234" count. "I will meet you there" does not. */
+function isLockboxCode(text: string): boolean {
+  if (text.includes("@")) return false;
+  const core = text.replace(/[.!?]+$/, "");
+  if (!core || /[.!?]/.test(core)) return false;
+  if (!/\d/.test(core)) return false;
+  if (core.length > 40) return false;
+  const words = core.split(/\s+/).filter(Boolean);
+  if (words.length > 4) return false;
+  if (words.length >= 4 && !/^(lock\s*box|lockbox|gate|code|access|lb|combo|combination)\b/i.test(core)) {
+    return false;
+  }
+  return true;
+}
+
+/** `{Name} - {initials}`, plus `({lockbox})` only for a short access code in notes. */
 export function calendarEventTitle(input: CalendarEventCopyInput): string {
   const name = calendarClientName(input) || "Client";
   const services = calendarServiceInitials(input.services) || "Shoot";

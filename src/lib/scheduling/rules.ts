@@ -11,11 +11,12 @@
  *    not use US Holidays. Portal
  *    bookings are always busy too, and are written to the work calendar when
  *    that write hook is live. Event title is
- *    `{First Last} - {service initials} (notes)` using user first+last (displayName
- *    only if those are missing — never company). Initials are P, V, AP, 360,
- *    Podcast, and CV in catalog order, deduped, so industry names stay out of
- *    the title. Title parens are the notes
- *    value as typed; omit them when notes are empty. Do not use accessCodes
+ *    `{First Last} - {service initials}` using user first+last (displayName
+ *    only if those are missing — never company). Initials are P, V, V., AP, 360,
+ *    Podcast, CV, and M in catalog order, deduped, so industry names stay out of
+ *    the title. Title parens are only a lockbox: a short access code typed in
+ *    notes. Sentences and other notes stay out of the title. Omit the parens
+ *    when notes are empty or are not a lockbox. Do not use accessCodes
  *    for the title. Description is a labeled client list ending with
  *    `Booked through your portal`. Location stays the shoot address. A
  *    Calendar write failure (including 403 writer access) is logged and
@@ -66,8 +67,8 @@
  *    omits that CTA. Billy’s notify emails never include it.
  *    Other addresses in the current Notes get a separate send of that same
  *    client email (deduped against the booker). Billy's notify and
- *    sync-issue mail are not copied to them. Notes stay on the calendar
- *    title exactly as typed.
+ *    sync-issue mail are not copied to them. A lockbox code in Notes is
+ *    the only notes text copied into the calendar title, exactly as typed.
  *    When `calendarEventId` is present, also DELETE the Work calendar event
  *    (same `writeCalendarId` as create). 403/404/auth is logged and does
  *    not roll back the cancel or emails. Missing event id skips quietly.

@@ -23,29 +23,44 @@ test("calendar name prefers first + last over displayName and never uses company
   assert.equal(calendarClientName({ firstName: null, lastName: null, displayName: null }), "");
 });
 
-test("calendar title keeps an email inside notes as typed", () => {
-  assert.equal(
-    calendarEventTitle({
-      firstName: "Billy",
-      lastName: "Kyle",
-      address: "1 Main St",
-      services: ["Real Estate · Photography"],
-      notes: "cc: pat@example.com",
-    }),
-    "Billy Kyle - P (cc: pat@example.com)",
-  );
+test("calendar title leaves an email and a sentence out of the title", () => {
+  const email = calendarEventCopy({
+    firstName: "Billy",
+    lastName: "Kyle",
+    address: "1 Main St",
+    services: ["Real Estate · Photography"],
+    notes: "cc: pat@example.com",
+  });
+  assert.equal(email.summary, "Billy Kyle - P");
+  assert.match(email.description, /Notes: cc: pat@example.com/);
+
+  const sentence = calendarEventCopy({
+    displayName: "Sharon Brice",
+    address: "2 Madison Ct, Beverly, NJ 08010, USA",
+    services: ["Real Estate · Photography"],
+    notes: "I will meet you there",
+  });
+  assert.equal(sentence.summary, "Sharon Brice - P");
+  assert.doesNotMatch(sentence.summary, /meet you there/);
+  assert.match(sentence.description, /Notes: I will meet you there/);
 });
 
-test("title lockbox is notes as typed; empty notes means no parens", () => {
+test("title lockbox is a short access code; a sentence means no parens", () => {
   assert.equal(calendarTitleLockbox("1234"), "1234");
   assert.equal(calendarTitleLockbox("  1234  "), "1234");
-  assert.equal(calendarTitleLockbox("Park in the driveway."), "Park in the driveway.");
+  assert.equal(calendarTitleLockbox("gate code 1234"), "gate code 1234");
+  assert.equal(calendarTitleLockbox("Lockbox 2222"), "Lockbox 2222");
+  assert.equal(calendarTitleLockbox("Park in the driveway."), null);
+  assert.equal(calendarTitleLockbox("I will meet you there"), null);
+  assert.equal(calendarTitleLockbox("cc: pat@example.com"), null);
+  assert.equal(calendarTitleLockbox("Lockbox 2222. pat@example.com"), null);
+  assert.equal(calendarTitleLockbox("Lockbox on the porch"), null);
   assert.equal(calendarTitleLockbox(""), null);
   assert.equal(calendarTitleLockbox("   "), null);
   assert.equal(calendarTitleLockbox(null), null);
 });
 
-test("calendar title uses notes in parens and ignores accessCodes", () => {
+test("calendar title puts a lockbox in parens and ignores accessCodes", () => {
   assert.equal(
     calendarEventTitle({
       firstName: "Billy",
@@ -86,7 +101,17 @@ test("calendar title uses notes in parens and ignores accessCodes", () => {
       services: [photo],
       notes: "Park in the driveway.",
     }),
-    "Billy Kyle - P (Park in the driveway.)",
+    "Billy Kyle - P",
+  );
+  assert.match(
+    calendarEventDescription({
+      firstName: "Billy",
+      lastName: "Kyle",
+      address: "644 Plumrun Dr",
+      services: [photo],
+      notes: "Park in the driveway.",
+    }),
+    /Notes: Park in the driveway\./,
   );
   assert.doesNotMatch(
     calendarEventTitle({
@@ -159,7 +184,7 @@ test("calendar description omits empty fields and never puts company in the titl
   assert.doesNotMatch(copy.summary, /Real Estate|Construction/);
 });
 
-test("calendar title uses service initials in catalog order and keeps notes", () => {
+test("calendar title uses service initials in catalog order and keeps a lockbox", () => {
   const jane = { displayName: "Jane Doe", address: "1 Main St" };
   assert.equal(calendarEventTitle({ ...jane, services: ["Real Estate · Photography"] }), "Jane Doe - P");
   assert.equal(
