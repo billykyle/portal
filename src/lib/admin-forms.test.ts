@@ -8,6 +8,7 @@ import { CancelBookingForm } from "../components/forms/cancel-booking-form";
 import { SyncNasForm } from "../components/forms/sync-nas-form";
 import { nasSyncPageNotice } from "./admin/sync-notice";
 import { NAS_UNREACHABLE_MESSAGE } from "./nas-connect";
+import type { NasSyncJobPublic } from "./nas-sync-job";
 import { ShootList } from "../components/shoot-list";
 
 test("admin UI does not offer mark delivered", () => {
@@ -39,16 +40,16 @@ test("admin UI does not offer a manual attach-shoot form", () => {
 });
 
 test("a NAS sync failure stays on the sync section with a readable error", () => {
-  const action = readFileSync("src/lib/actions/admin.ts", "utf8");
-  assert.match(action, /syncError: readableNasError\(result\.error\)/);
-  assert.match(action, /readableNasError\(error\)/);
   const sync = readFileSync("src/lib/admin/sync.ts", "utf8");
   assert.match(sync, /readableNasError/);
+  assert.match(sync, /startManualNasSync/);
+  const route = readFileSync("src/app/api/admin/nas-sync/route.ts", "utf8");
+  assert.match(route, /error: result\.error/);
   const page = readFileSync("src/app/admin/home/nas-sync/page.tsx", "utf8");
   assert.match(page, /nasSyncPageNotice/);
   assert.match(page, /error=\{syncNotice\.syncError/);
   assert.match(page, /status=/);
-  assert.match(page, /Sync finished/);
+  assert.match(readFileSync("src/lib/nas-sync-job.ts", "utf8"), /Sync finished/);
   assert.doesNotMatch(page, /\{syncError\}/);
   assert.doesNotMatch(page, /\{error \?/);
 });
@@ -81,6 +82,56 @@ test("raw relay text renders as the friendly sync message under the button", () 
   assert.match(html, /role="alert"/);
   assert.match(html, /role="status"/);
   assert.doesNotMatch(html, /connect to device timeout/);
+});
+
+function syncJob(status: NasSyncJobPublic["status"], extra: Partial<NasSyncJobPublic> = {}): NasSyncJobPublic {
+  return {
+    id: "11111111-1111-4111-8111-111111111111",
+    status,
+    source: "admin",
+    phase: status,
+    detail: status === "running" ? "Marilyn O'Donoghue" : "Finished",
+    clientsSeen: 1,
+    shootsSeen: 6,
+    startedAt: "2026-10-05T14:00:00.000Z",
+    updatedAt: "2026-10-05T14:05:00.000Z",
+    finishedAt: status === "running" ? null : "2026-10-05T14:05:00.000Z",
+    error: status === "failed" ? "Couldn't reach the NAS. Check that it's on and reachable." : null,
+    summary:
+      status === "done"
+        ? {
+            skipped: false,
+            clientsCreated: 1,
+            clientsReused: 0,
+            shootsCreated: 0,
+            shootsReused: 0,
+            mediaImported: 2,
+            mediaUpdated: 0,
+            mediaRemoved: 0,
+            shootsRemoved: 0,
+            ready: 0,
+            warnings: [],
+          }
+        : null,
+    ...extra,
+  };
+}
+
+test("admin NAS sync form shows running, done, and failed without leaving the page", () => {
+  const running = renderToStaticMarkup(createElement(SyncNasForm, { initialJob: syncJob("running") }));
+  assert.match(running, /Syncing…/);
+  assert.match(running, /Syncing Marilyn O(?:'|&#x27;)Donoghue — 1 client, 6 shoots\./);
+  assert.match(running, /disabled=""/);
+
+  const done = renderToStaticMarkup(createElement(SyncNasForm, { initialJob: syncJob("done") }));
+  assert.match(done, /Sync from NAS/);
+  assert.match(done, /Sync finished\. 1 new client, 0 new shoots, 2 new photos\./);
+  assert.doesNotMatch(done, /disabled=""/);
+
+  const failed = renderToStaticMarkup(createElement(SyncNasForm, { initialJob: syncJob("failed") }));
+  assert.match(failed, /role="alert"/);
+  assert.match(failed, /reach the NAS/);
+  assert.match(failed, /Sync from NAS/);
 });
 
 test("admin NAS sync form keeps the button and drops the instructional blurb", () => {
@@ -171,7 +222,7 @@ test("category folders group shoots under the folder name", () => {
   const listing = html.indexOf(">Listing Photography<");
   assert.ok(construction > html.indexOf("7 Michigan Avenue"));
   assert.ok(listing > construction);
-  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /aria-expanded="false"/);
 });
 
 test("admin shoot list has no delete control", () => {

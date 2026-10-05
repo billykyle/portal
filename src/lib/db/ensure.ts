@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { count, eq, isNull } from "drizzle-orm";
 import { backfillPlaceholderPrimaryEmails } from "../client-contact";
 import { ensurePreviewSchema } from "../nas-preview";
+import { ensureNasSyncJobsTable } from "../nas-sync-store";
 import { createPublicToken } from "../public-link";
 import { backfillShootSlugs } from "../shoot-slug";
 import { db, sql } from "./index";
@@ -219,6 +220,7 @@ async function createTables() {
   await sql`DROP TABLE IF EXISTS upload_files`;
   await sql`DROP TABLE IF EXISTS upload_submissions`;
   await ensurePreviewSchema();
+  await ensureNasSyncJobsTable();
 }
 
 export async function ensureDb() {

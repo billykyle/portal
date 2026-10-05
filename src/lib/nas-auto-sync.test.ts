@@ -23,7 +23,15 @@ test("nothing starts a NAS sync on its own", () => {
   assert.doesNotMatch(home, /SyncNasForm|runLockedNasSync/);
   const nas = readFileSync("src/app/admin/home/nas-sync/page.tsx", "utf8");
   assert.match(nas, /SyncNasForm/);
-  assert.match(nas, /Sync from NAS/);
+  const form = readFileSync("src/components/forms/sync-nas-form.tsx", "utf8");
+  assert.match(form, /Sync from NAS/);
   const agent = readFileSync("src/lib/agent/tools.ts", "utf8");
   assert.match(agent, /sync_from_nas/);
+  assert.match(agent, /get_nas_sync_status/);
+
+  for (const path of ["README.md", "docs/agent.md", "docs/vercel.md"]) {
+    const doc = readFileSync(path, "utf8");
+    assert.match(doc, /manual/i);
+    assert.doesNotMatch(doc, /every 10 minutes/);
+  }
 });

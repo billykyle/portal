@@ -1,57 +1,54 @@
-import { syncNasShare, type NasSyncResult } from "./nas-import";
+import { nasEnabled } from "./nas-flags";
+import { getNasConfig } from "./nas";
+import { skippedNasSync, type NasSyncResult } from "./nas-import";
+import type { NasSyncSource, NasSyncStart } from "./nas-sync-job";
+import { launchNasSyncJob } from "./nas-sync-run";
+import { claimNasSyncJob, getNasSyncJob, toPublicNasSyncJob } from "./nas-sync-store";
 
-type SyncSource = "admin" | "cli";
+export type NasSyncKickoff = NasSyncStart & { done: Promise<void> };
 
-type GlobalNas = typeof globalThis & {
-  __nasSyncInFlight?: Promise<NasSyncResult> | null;
-};
-
-function state() {
-  return globalThis as GlobalNas;
-}
-
-/** One share walk at a time. Admin Sync from NAS and `sync_from_nas` both use this. */
-export async function runLockedNasSync(source: SyncSource): Promise<NasSyncResult> {
-  const g = state();
-  if (g.__nasSyncInFlight) {
+/**
+ * One share walk at a time. Admin Sync from NAS, `sync_from_nas`, and
+ * `npm run nas:sync` all claim the same job row. Callers that must return
+ * before the walk finishes keep `done` alive with `after()`. The CLI awaits it.
+ * Nothing here starts a walk on a timer.
+ */
+export async function kickoffNasSync(
+  source: NasSyncSource,
+  options?: { revalidate?: boolean },
+): Promise<NasSyncKickoff> {
+  const claimed = await claimNasSyncJob(source);
+  if (claimed.kind === "already_running") {
     console.log(`NAS sync skipped (${source}): already running`);
     return {
-      skipped: true,
-      reason: "A NAS sync is already running.",
-      clientsCreated: 0,
-      clientsReused: 0,
-      shootsCreated: 0,
-      shootsReused: 0,
-      mediaImported: 0,
-      mediaUpdated: 0,
-      mediaRemoved: 0,
-      shootsRemoved: 0,
-      ready: 0,
-      warnings: [],
+      status: "already_running",
+      job: toPublicNasSyncJob(claimed.job),
+      recoveredStaleJobId: claimed.recoveredStaleJobId,
+      done: Promise.resolve(),
     };
   }
+  return {
+    status: "started",
+    job: toPublicNasSyncJob(claimed.job),
+    recoveredStaleJobId: claimed.recoveredStaleJobId,
+    done: launchNasSyncJob(claimed.job.id, options),
+  };
+}
 
-  const started = Date.now();
-  console.log(`NAS sync start (${source})`);
-  g.__nasSyncInFlight = syncNasShare()
-    .then((result) => {
-      const ms = Date.now() - started;
-      if (result.skipped) {
-        console.log(`NAS sync skipped (${source}): ${result.reason}`);
-      } else {
-        console.log(
-          `NAS sync done (${source}) ${ms}ms +${result.clientsCreated} clients / +${result.shootsCreated} shoots / +${result.mediaImported} stills (reused ${result.clientsReused}c ${result.shootsReused}s, refreshed ${result.mediaUpdated}, -${result.mediaRemoved} files, -${result.shootsRemoved} orphan shoots)`,
-        );
-      }
-      return result;
-    })
-    .catch((error) => {
-      console.error(`NAS sync failed (${source}):`, error);
-      throw error;
-    })
-    .finally(() => {
-      g.__nasSyncInFlight = null;
-    });
-
-  return g.__nasSyncInFlight;
+/** CLI / scripts. Waits until the walk finishes and returns the same summary as before. */
+export async function runLockedNasSync(source: NasSyncSource): Promise<NasSyncResult> {
+  if (!nasEnabled() || !getNasConfig()) {
+    return skippedNasSync("NAS is not enabled or not configured.");
+  }
+  const kicked = await kickoffNasSync(source, { revalidate: false });
+  if (kicked.status === "already_running") {
+    return skippedNasSync("A NAS sync is already running.");
+  }
+  await kicked.done;
+  const job = await getNasSyncJob(kicked.job.id);
+  if (job?.summary?.skipped) return job.summary;
+  if (!job || job.status !== "done" || !job.summary) {
+    throw new Error(job?.error || "NAS sync failed.");
+  }
+  return job.summary;
 }

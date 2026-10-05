@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect, unstable_rethrow } from "next/navigation";
-import { readableNasError } from "@/lib/nas-connect";
+import { redirect } from "next/navigation";
 import {
   createClientRecord,
   deleteClientRecord,
@@ -11,12 +10,10 @@ import {
 } from "@/lib/admin/clients";
 import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
 import { addExtraInviteCode, removeExtraInviteCode } from "@/lib/user-portals";
-import { syncNasForAdmin } from "@/lib/admin/sync";
 import { getAdminSession } from "@/lib/admin-auth";
 import {
   ADMIN_HOME,
   ADMIN_HOME_CREATE_CLIENT,
-  ADMIN_HOME_NAS_SYNC,
   CLIENT_ACCOUNT,
   CLIENT_HOME,
   CLIENT_LIBRARY,
@@ -68,45 +65,6 @@ export async function mintClient(formData: FormData) {
   revalidatePath(ADMIN_HOME);
   revalidatePath(ADMIN_HOME_CREATE_CLIENT);
   redirect(adminPageUrl(ADMIN_HOME_CREATE_CLIENT, { minted: created.value.inviteCode }));
-}
-
-export async function syncNasFromAdmin() {
-  if (!(await getAdminSession())) {
-    redirect("/admin");
-  }
-  try {
-    const result = await syncNasForAdmin();
-    if (!result.ok) {
-      redirect(adminPageUrl(ADMIN_HOME_NAS_SYNC, { syncError: readableNasError(result.error) }));
-    }
-    const sync = result.value;
-    revalidatePath("/admin/clients");
-    revalidatePath(ADMIN_HOME);
-    revalidatePath(ADMIN_HOME_NAS_SYNC);
-    redirect(
-      adminPageUrl(ADMIN_HOME_NAS_SYNC, {
-        synced: "1",
-        clients: String(sync.clientsCreated),
-        shoots: String(sync.shootsCreated),
-        photos: String(sync.mediaImported),
-        refreshed: String(sync.mediaUpdated),
-        reusedClients: String(sync.clientsReused),
-        reusedShoots: String(sync.shootsReused),
-        removedShoots: String(sync.shootsRemoved),
-        removedPhotos: String(sync.mediaRemoved),
-        warnings: String(sync.warnings.filter((warning) => !warning.includes("no real email")).length),
-        ...(sync.warnings.some((warning) => warning.includes("no real email"))
-          ? {
-              emailSkipped: sync.warnings.filter((warning) => warning.includes("no real email")).join(" "),
-            }
-          : {}),
-        ready: String(sync.ready),
-      }),
-    );
-  } catch (error) {
-    unstable_rethrow(error);
-    redirect(adminPageUrl(ADMIN_HOME_NAS_SYNC, { syncError: readableNasError(error) }));
-  }
 }
 
 export async function updateClient(formData: FormData) {

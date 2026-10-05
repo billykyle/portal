@@ -34,7 +34,7 @@ export function createPortalMcpServer(ops: AgentOps) {
     { name: "atmos-portal", version: "1.0.0" },
     {
       instructions:
-        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. Sync from NAS mirrors the share and can remove portal files that are no longer on the NAS. There is no mark-delivered action and no manual attach-shoot action.",
+        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action.",
     },
   );
 
@@ -158,9 +158,20 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "sync_from_nas",
-    "Run Sync from NAS (the same locked admin sync as the clients page). Returns the sync summary. This can add clients and shoots and remove portal files that are no longer on the share. There is no separate attach-shoot action.",
+    "Start a manual Sync from NAS and return immediately. Does not wait for the share walk. Same job as the admin Sync from NAS button. Response: { status: \"started\" | \"already_running\", job, recoveredStaleJobId }. status \"started\" means this call claimed the walk. status \"already_running\" means a walk is already in progress; job is that walk so you can poll it (this is not an error). recoveredStaleJobId is set when a crashed run's lock was cleared so this start could proceed. job is { id, status: \"running\" | \"done\" | \"failed\", source, phase, detail, clientsSeen, shootsSeen, startedAt, updatedAt, finishedAt, error, summary }. summary is null until the walk finishes. A finished summary has skipped, reason, clientsCreated, clientsReused, shootsCreated, shootsReused, mediaImported, mediaUpdated, mediaRemoved, shootsRemoved, ready, and warnings. Poll get_nas_sync_status with job.id until job.status is done or failed. finishedAt is set when the walk finishes. A running job with no heartbeat for 3 minutes is a stale lock and is marked failed so a new sync can start. Manual only: nothing syncs on a timer. This can add clients and shoots and remove portal files that are no longer on the share. There is no separate attach-shoot action.",
     {},
     { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  );
+  register(
+    "get_nas_sync_status",
+    "Read one NAS sync job, or the latest job when jobId is omitted. Response: { job, recoveredStale }. job is null when nothing has been started. Otherwise job matches sync_from_nas: { id, status: \"running\" | \"done\" | \"failed\", source, phase, detail, clientsSeen, shootsSeen, startedAt, updatedAt, finishedAt, error, summary }. Poll until status is done or failed. summary is present when the walk finished and includes clients/shoots added and removed, media counts, and warnings. error is set when status is failed. finishedAt is set when the walk finishes. recoveredStale is true when this read found a crashed lock (no heartbeat for 3 minutes) and marked that job failed so a new sync_from_nas can start. An unknown jobId is an error.",
+    {
+      jobId: z
+        .string()
+        .optional()
+        .describe("Job id returned by sync_from_nas. Omit to read the latest job."),
+    },
+    readOnly,
   );
   register(
     "list_bookings",
