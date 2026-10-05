@@ -2,13 +2,14 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { revalidateAdminHome } from "@/lib/revalidate-admin-home";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
-import { ADMIN_HOME, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
@@ -323,7 +324,7 @@ export async function createBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   await forgetSchedulingDraft("client");
   redirect(
     schedulingConfirmedHref(created.bookingId, {
@@ -418,7 +419,7 @@ export async function updateBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   revalidatePath(`/admin/bookings/${settled.bookingId}`);
   await forgetSchedulingDraft(fromAdmin ? "admin" : "client");
   if (fromAdmin) {
@@ -475,7 +476,7 @@ export async function cancelBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath(`${CLIENT_SCHEDULING_CONFIRMED}/${booking.id}`);
   revalidatePath("/admin/bookings");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   if (admin && formData.get("fromAdmin") === "1") {
     const clientId = String(formData.get("clientId") ?? booking.clientId);
     redirect(`/admin/clients/${clientId}?bookingCancelled=1`);
@@ -504,7 +505,7 @@ export async function queueBooking(formData: FormData) {
   revalidatePath(CLIENT_SCHEDULING);
   revalidatePath(CLIENT_SCHEDULING_TIMES);
   revalidatePath("/admin/bookings");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   revalidatePath(`/admin/clients/${booking.clientId}`);
   redirect("/admin/bookings?queued=1");
 }

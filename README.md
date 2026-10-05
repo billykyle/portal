@@ -82,7 +82,7 @@ The first server boot also creates tables and seeds an empty database.
 | ------ | ------------- |
 | Demo client | Invite `BK00001`, or sign in as `demo@example.com` / `portal1234`. Empty DBs seed this client with **no shoots**. |
 | Sam Lepore | Invite created on first NAS sync, or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
-| Admin  | Production: `https://admin.billy-kyle.com` (`ADMIN_PASSWORD`, example: `atmos-admin`). Local: `/admin` on the same `next dev` origin. `https://portal.billy-kyle.com/admin` redirects to the admin host. |
+| Admin  | Production: `https://admin.billy-kyle.com/home` (`ADMIN_PASSWORD`, example: `atmos-admin`). Old `/admin/home` redirects here. Local: `/admin` on the same `next dev` origin. `https://portal.billy-kyle.com/admin` redirects to the admin host. |
 
 Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View Drive stills are proxied from `Final/`. Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
 

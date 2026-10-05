@@ -4,8 +4,16 @@ import { ADMIN_COOKIE } from "@/lib/admin-auth";
 import { isUuid } from "@/lib/admin/ids";
 import { PORTAL_CHOICE_COOKIE, readSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
-import { resolveHostRedirect } from "@/lib/hosts";
-import { CLIENT_HOME, PORTAL_CHOOSER, isClientHomePath, legacyClientHomeDestination } from "@/lib/routes";
+import { adminHomeRewritePath, hostnameOf, isAdminHostname, isPortalHostname, resolveHostRedirect } from "@/lib/hosts";
+import {
+  ADMIN_HOME,
+  ADMIN_HOME_PAGE,
+  CLIENT_HOME,
+  PORTAL_CHOOSER,
+  isAdminHomePath,
+  isClientHomePath,
+  legacyClientHomeDestination,
+} from "@/lib/routes";
 import {
   adminShootPath,
   canonicalShootForId,
@@ -36,8 +44,9 @@ async function sessionFromCookie(token: string | undefined) {
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const hostname = hostnameOf(request.headers.get("host") ?? request.nextUrl.host);
   const hostRedirect = resolveHostRedirect({
-    hostname: request.headers.get("host") ?? request.nextUrl.host,
+    hostname,
     pathname,
     search,
   });
@@ -54,6 +63,16 @@ export async function middleware(request: NextRequest) {
   const choosing = await choosingPortal(request.cookies.get(PORTAL_CHOICE_COOKIE)?.value);
   const admin = await valid(request.cookies.get(ADMIN_COOKIE)?.value);
 
+  const rewritePath = adminHomeRewritePath(hostname, pathname);
+  const localAdminHome =
+    pathname === ADMIN_HOME && !isAdminHostname(hostname) && !isPortalHostname(hostname) && admin && !session;
+  if (rewritePath || localAdminHome) {
+    if (!admin) return NextResponse.redirect(new URL("/admin", request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = rewritePath ?? ADMIN_HOME_PAGE;
+    return NextResponse.rewrite(url);
+  }
+
   if (
     (pathname.startsWith("/admin/clients") ||
       pathname.startsWith("/admin/bookings") ||
@@ -63,11 +82,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
   if (pathname === "/admin" && admin) {
-    return NextResponse.redirect(new URL("/admin/home", request.url));
+    const landing = isAdminHostname(hostname) ? ADMIN_HOME : ADMIN_HOME_PAGE;
+    return NextResponse.redirect(new URL(landing, request.url));
   }
   if (
     (pathname.startsWith("/my-content") ||
-      isClientHomePath(pathname) ||
+      (isClientHomePath(pathname) && !(isAdminHostname(hostname) && isAdminHomePath(pathname))) ||
       pathname.startsWith("/account") ||
       pathname.startsWith("/scheduling")) &&
     !session

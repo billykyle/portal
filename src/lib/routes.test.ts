@@ -4,7 +4,15 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import nextConfig from "../../next.config";
-import { CLIENT_HOME, isClientHomePath, legacyClientHomeDestination } from "./routes";
+import {
+  ADMIN_HOME,
+  CLIENT_HOME,
+  adminHomeCachePaths,
+  isAdminHomePath,
+  isClientHomePath,
+  legacyAdminHomeDestination,
+  legacyClientHomeDestination,
+} from "./routes";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -16,6 +24,7 @@ const LEGACY_HUB_FILES = new Set([
   "src/lib/routes.ts",
   "src/lib/routes.test.ts",
   "src/lib/hosts.test.ts",
+  "src/middleware.test.ts",
   "src/lib/app-nav.test.ts",
 ]);
 
@@ -44,6 +53,24 @@ test("client home is /home and /hub only maps onto that path", () => {
   assert.equal(isClientHomePath("/hub"), false);
   assert.equal(isClientHomePath("/admin/home"), false);
   assert.equal(isClientHomePath("/admin/home/clients"), false);
+});
+
+test("admin home is /home and /admin/home only maps onto that path", () => {
+  assert.equal(ADMIN_HOME, "/home");
+  assert.equal(legacyAdminHomeDestination("/admin/home"), "/home");
+  assert.equal(legacyAdminHomeDestination("/admin/home/clients"), "/home/clients");
+  assert.equal(legacyAdminHomeDestination("/admin/home/nas-sync"), "/home/nas-sync");
+  assert.equal(legacyAdminHomeDestination("/admin/homework"), null);
+  assert.equal(legacyClientHomeDestination("/admin/home"), null);
+  assert.equal(isClientHomePath("/admin/home"), false);
+  assert.equal(isClientHomePath("/admin/home/clients"), false);
+  assert.equal(isAdminHomePath("/home"), true);
+  assert.equal(isAdminHomePath("/home/clients"), true);
+  assert.equal(isAdminHomePath("/homeward"), false);
+  assert.equal(isAdminHomePath("/admin/home"), false);
+  assert.deepEqual(adminHomeCachePaths(), ["/home", "/admin/home"]);
+  assert.deepEqual(adminHomeCachePaths("/home/queue"), ["/home/queue", "/admin/home/queue"]);
+  assert.deepEqual(adminHomeCachePaths("/admin/home/book"), ["/home/book", "/admin/home/book"]);
 });
 
 test("next config permanently redirects the old client home slug", async () => {

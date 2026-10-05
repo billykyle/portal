@@ -1,4 +1,4 @@
-import { ADMIN_HOME, ADMIN_HOME_NAS_SYNC } from "./routes";
+import { ADMIN_HOME_NAS_SYNC } from "./routes";
 import { readableNasError } from "./nas-connect";
 import { NasSyncStopped, syncNasShare } from "./nas-import";
 import { NAS_SYNC_HEARTBEAT_MS } from "./nas-sync-job";
@@ -15,9 +15,10 @@ const inflight = new Map<string, Promise<void>>();
 async function revalidateAfterSync() {
   try {
     const { revalidatePath } = await import("next/cache");
+    const { revalidateAdminHome } = await import("./revalidate-admin-home");
     revalidatePath("/admin/clients");
-    revalidatePath(ADMIN_HOME);
-    revalidatePath(ADMIN_HOME_NAS_SYNC);
+    revalidateAdminHome();
+    revalidateAdminHome(ADMIN_HOME_NAS_SYNC);
   } catch (error) {
     console.error("NAS sync revalidate failed", error);
   }

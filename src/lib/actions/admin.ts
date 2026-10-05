@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { revalidateAdminHome } from "@/lib/revalidate-admin-home";
 import {
   createClientRecord,
   deleteClientRecord,
@@ -12,7 +13,6 @@ import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/user
 import { addExtraInviteCode, removeExtraInviteCode } from "@/lib/user-portals";
 import { getAdminSession } from "@/lib/admin-auth";
 import {
-  ADMIN_HOME,
   ADMIN_HOME_CREATE_CLIENT,
   CLIENT_ACCOUNT,
   CLIENT_HOME,
@@ -62,8 +62,8 @@ export async function mintClient(formData: FormData) {
     redirect(adminPageUrl(ADMIN_HOME_CREATE_CLIENT, { error: created.error }));
   }
   revalidatePath("/admin/clients");
-  revalidatePath(ADMIN_HOME);
-  revalidatePath(ADMIN_HOME_CREATE_CLIENT);
+  revalidateAdminHome();
+  revalidateAdminHome(ADMIN_HOME_CREATE_CLIENT);
   redirect(adminPageUrl(ADMIN_HOME_CREATE_CLIENT, { minted: created.value.inviteCode }));
 }
 
@@ -85,7 +85,7 @@ export async function updateClient(formData: FormData) {
     redirect(clientAdminPath(clientId, { error: saved.error }));
   }
   revalidatePath("/admin/clients");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   revalidatePath(CLIENT_LIBRARY);
   revalidatePath(clientAdminPath(clientId));
   redirect(clientAdminPath(clientId, { saved: "1" }));
@@ -119,7 +119,7 @@ export async function deleteClient(formData: FormData) {
     redirect(adminClientsUrl({ error: removed.error }));
   }
   revalidatePath("/admin/clients");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   redirect(adminClientsUrl({ removed: removed.value.inviteCode }));
 }
 
@@ -151,7 +151,7 @@ export async function updateUserProfile(formData: FormData) {
   }
 
   revalidatePath("/admin/clients");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   revalidatePath(clientAdminPath(clientId));
   revalidatePath(userProfilePath(clientId, userId));
   revalidatePath(CLIENT_ACCOUNT);
@@ -190,7 +190,7 @@ export async function addUserCode(formData: FormData) {
     redirect(userProfilePath(clientId, userId, { error: added.error }));
   }
   revalidatePath("/admin/clients");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   revalidatePath(clientAdminPath(clientId));
   revalidatePath(clientAdminPath(added.clientId));
   revalidatePath(userProfilePath(clientId, userId));
@@ -209,7 +209,7 @@ export async function removeUserCode(formData: FormData) {
     redirect(userProfilePath(clientId, userId, { error: removed.error }));
   }
   revalidatePath("/admin/clients");
-  revalidatePath(ADMIN_HOME);
+  revalidateAdminHome();
   revalidatePath(clientAdminPath(clientId));
   revalidatePath(clientAdminPath(removeClientId));
   revalidatePath(userProfilePath(clientId, userId));

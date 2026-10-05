@@ -23,11 +23,13 @@ test("admin menu lists home, then clients and bookings", () => {
   assert.deepEqual(
     navItemsFor("admin").map((item) => [item.label, item.href]),
     [
-      ["Home", "/admin/home"],
+      ["Home", "/home"],
       ["Clients", "/admin/clients"],
       ["Bookings", "/admin/bookings"],
     ],
   );
+  assert.equal(activeNavId("admin", "/home"), "home");
+  assert.equal(activeNavId("admin", "/home/nas-sync"), "home");
   assert.equal(activeNavId("admin", "/admin/home"), "home");
   assert.equal(activeNavId("admin", "/admin/home/nas-sync"), "home");
   assert.equal(activeNavId("admin", "/admin/clients"), "clients");
