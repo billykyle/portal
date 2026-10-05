@@ -8,13 +8,14 @@ import { listMemberUsers } from "@/lib/user-portals";
 import {
   loadLiveAvailabilitySources,
   offerSlotsForAddress,
+  publicCalendarError,
   withoutOwnBooking,
 } from "@/lib/scheduling/availability";
 import { bookingUserError, offeredSlotForSubmission } from "@/lib/scheduling/booking-form";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
 import { sendQueueHoldEmail } from "@/lib/scheduling/booking-email";
 import { formatSyncIssue } from "@/lib/scheduling/booking-sync";
-import { tryDeleteCalendarBooking } from "@/lib/scheduling/calendar";
+import { fetchCalendarBusy, fetchCalendarJobs, tryDeleteCalendarBooking } from "@/lib/scheduling/calendar";
 import {
   canAdminOpenBooking,
   canClientOpenBooking,
@@ -27,6 +28,12 @@ import { parseShootAddress } from "@/lib/scheduling/address";
 import { calendarConfigured, schedulingHours } from "@/lib/scheduling/config";
 import { bookingStartAllowed, bookingStartIsPast, clientMaySaveBookingStart } from "@/lib/scheduling/horizon";
 import { isPastAdminBookingStart, pastAdminModifyWindow } from "@/lib/scheduling/modify-time";
+import {
+  adminQueuedScheduleWindow,
+  busyWithoutOwnCalendarEvent,
+  isAdminQueuedSchedule,
+  queuedScheduleConflictError,
+} from "@/lib/scheduling/queued-schedule";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
 import {
   bookingServiceList,
@@ -93,9 +100,41 @@ export type PreparedBookingModification = {
 };
 
 /**
+ * Busy time for scheduling a queued shoot: other confirmed portal bookings plus
+ * Google Calendar free/busy when credentials exist. This booking's own leftover
+ * event is removed. Drive time and the client slot grid are not consulted.
+ */
+async function loadQueuedScheduleBusy(input: {
+  bookingId: string;
+  window: { start: Date; end: Date };
+  calendarEventId: string | null;
+  timeZone: string;
+}): Promise<{ busy: { start: Date; end: Date }[]; calendarConfigured: boolean } | { error: string }> {
+  const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: input.bookingId });
+  const portalBusy = portalJobs.map((job) => ({ start: job.start, end: job.end }));
+  const calendarOn = calendarConfigured();
+  if (!calendarOn) return { busy: portalBusy, calendarConfigured: false };
+  try {
+    const [calendarBusy, calendarJobs] = await Promise.all([
+      fetchCalendarBusy(input.window, input.timeZone),
+      fetchCalendarJobs(input.window, input.timeZone),
+    ]);
+    return {
+      busy: busyWithoutOwnCalendarEvent([...portalBusy, ...calendarBusy], calendarJobs, input.calendarEventId),
+      calendarConfigured: true,
+    };
+  } catch (error) {
+    console.error("Google Calendar availability lookup failed", error);
+    return { error: publicCalendarError(error) };
+  }
+}
+
+/**
  * Admin and client Bookings modify share this write. Callers still own redirects,
  * drafts, and cache revalidation. `endIso` null matches the offered slot by start only
  * (agent partial updates). A stale end still saves the single offered slot for that start.
+ * Admin and agent scheduling of a queued shoot skips that grid and rejects only a
+ * real calendar or confirmed-booking overlap. The end is the service length.
  */
 export async function prepareBookingModification(input: {
   bookingId: string;
@@ -148,7 +187,39 @@ export async function prepareBookingModification(input: {
   let driveSecondsFromPrior: number | null;
   let calendarOn: boolean;
 
-  if (isPastAdminBookingStart({ fromAdmin: input.fromAdmin, start: requestedStart, now })) {
+  if (isAdminQueuedSchedule({ fromAdmin: input.fromAdmin, status: booking.status })) {
+    const parsed = parseShootAddress(input.address);
+    if (!parsed.ok) {
+      return { ok: false, error: parsed.error, stage: "book" };
+    }
+    const window = adminQueuedScheduleWindow({
+      startIso: input.startIso,
+      services,
+      commercialHours,
+    });
+    if (!window.ok) {
+      return { ok: false, error: window.error, stage: "times", address: parsed.address };
+    }
+    const hours = schedulingHours();
+    const busy = await loadQueuedScheduleBusy({
+      bookingId: booking.id,
+      window,
+      calendarEventId: booking.calendarEventId,
+      timeZone: hours.timeZone,
+    });
+    if ("error" in busy) {
+      return { ok: false, error: busy.error, stage: "times", address: parsed.address };
+    }
+    const conflict = queuedScheduleConflictError(window, busy.busy);
+    if (conflict) {
+      return { ok: false, error: conflict, stage: "times", address: parsed.address };
+    }
+    start = window.start;
+    end = window.end;
+    savedAddress = parsed.address;
+    driveSecondsFromPrior = null;
+    calendarOn = busy.calendarConfigured;
+  } else if (isPastAdminBookingStart({ fromAdmin: input.fromAdmin, start: requestedStart, now })) {
     const parsed = parseShootAddress(input.address);
     if (!parsed.ok) {
       return { ok: false, error: parsed.error, stage: "book" };

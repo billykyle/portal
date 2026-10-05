@@ -82,7 +82,13 @@
  *    The client still gets “Your shoot is on hold.” Notes addresses are
  *    copied. That message does not mention a previous time.
  *    Scheduling lists Queue above Upcoming only when that client has
- *    queued shoots. Picking a time later books it the normal way.
+ *    queued shoots. A client picking a time later still uses the open-slot
+ *    grid. Admin and agent `modify_booking` scheduling a queued shoot onto
+ *    a `startsAt` skips that grid (weekdays, hours, and drive time) and
+ *    rejects only a real calendar or confirmed-booking overlap. That save
+ *    creates the calendar event, sets status confirmed, and sends the
+ *    client the usual Shoot confirmed email. It does not send another
+ *    on-hold email, and it does not send Billy's New shoot email.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.
