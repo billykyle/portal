@@ -1,9 +1,7 @@
-import { overlaps, subtractInterval, type Interval } from "./intervals";
+import { shootOverlapWarning } from "./admin-time";
+import type { Interval } from "./intervals";
 import { pastAdminModifyWindow } from "./modify-time";
 import { COMMERCIAL_VIDEO_HOURS_ERROR } from "./services";
-
-/** Distinct from the client slot-grid message so an agent can tell a real conflict apart. */
-export const QUEUED_SCHEDULE_CONFLICT_ERROR = "That time overlaps another event.";
 
 /**
  * Admin and agent scheduling of a queued shoot. Clients still use the slot grid.
@@ -33,25 +31,14 @@ export function adminQueuedScheduleWindow(input: {
   return { ok: true, start: window.start, end: window.end };
 }
 
-/** True overlap only. A neighbor that ends when this shoot starts is free. */
-export function queuedScheduleConflictError(window: Interval, busy: readonly Interval[]): string | null {
-  return busy.some((block) => overlaps(window, block)) ? QUEUED_SCHEDULE_CONFLICT_ERROR : null;
-}
-
 /**
- * A leftover calendar event for this booking must not block its own new time.
- * Free/busy blocks have no event id, so the listed event is punched out of busy.
+ * Same warning as admin `create_booking`. Confirmed portal bookings only.
+ * Google Calendar free/busy (Work or Personal, including all-day office blocks)
+ * and drive buffers are not inputs and cannot reject the save.
  */
-export function busyWithoutOwnCalendarEvent(
-  busy: readonly Interval[],
-  jobs: readonly { start: Date; end: Date; eventId?: string | null }[],
-  calendarEventId: string | null | undefined,
-): Interval[] {
-  const eventId = calendarEventId?.trim() ?? "";
-  let next = busy.map((block) => ({ start: new Date(block.start), end: new Date(block.end) }));
-  if (!eventId) return next;
-  for (const job of jobs) {
-    if (job.eventId === eventId) next = subtractInterval(next, job);
-  }
-  return next;
+export function queuedScheduleOverlapWarning(
+  window: Interval,
+  confirmedBookings: readonly Interval[],
+): string | null {
+  return shootOverlapWarning(window, confirmedBookings);
 }

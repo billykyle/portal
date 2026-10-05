@@ -153,6 +153,8 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
   assert.match(modify?.description ?? "", /queued booking/);
   assert.match(modify?.description ?? "", /slot grid/);
   assert.match(modify?.description ?? "", /Shoot confirmed/);
+  assert.match(modify?.description ?? "", /overlapWarning/);
+  assert.doesNotMatch(modify?.description ?? "", /rejected only when/);
   const cancel = tools.find((tool) => tool.name === "cancel_booking");
   assert.equal(cancel?.annotations?.destructiveHint, true);
   const listClientsTool = tools.find((tool) => tool.name === "list_clients");
