@@ -34,7 +34,7 @@ export function createPortalMcpServer(ops: AgentOps) {
     { name: "atmos-portal", version: "1.0.0" },
     {
       instructions:
-        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action.",
+        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. create_queued_booking creates a new queued shoot for an existing client with no start time and no Google Calendar event. It emails the client “Your shoot is on hold.” and copies addresses in Notes. It does not email Billy. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action.",
     },
   );
 
@@ -219,6 +219,28 @@ export function createPortalMcpServer(ops: AgentOps) {
     "queue_booking",
     "Move an existing upcoming booking into that client's queue. Drops the start and end time, deletes the Google Calendar event, and keeps the address, services, notes, and access codes so the client can pick a new time later. Sends the client “Your shoot is on hold.” and copies addresses found in Notes. Does not email Billy. Only an upcoming confirmed booking can be queued.",
     { bookingId: z.string().describe("Booking UUID to queue.") },
+    write,
+  );
+  register(
+    "create_queued_booking",
+    "Create a queued shoot for an existing client with no start or end time. The client picks a time later. client is a client id, an exact display name, or a BK code such as BK00004. Unknown or ambiguous names are rejected and close matches are listed. address is the full street address. services use the same labels as create_booking: Real Estate · Photography, Real Estate · Video, Real Estate · Aerial Photos, Real Estate · Zillow 360, Construction · Photography, Construction · Video, Podcast · 1 episode, Podcast · 2 episodes, Commercial video, Social Media Video · Monthly Batch Video, Social Media Video · Long Form Content Creation, Meeting · 30 min appointment, Meeting · 1 hour appointment. Commercial video requires commercialHours, a whole number from 1 through 8. Podcast, Social Media Video, and Meeting options are exclusive within each group. notes is optional. Does not create a Google Calendar event and does not send Billy's New shoot email. Sends the client “Your shoot is on hold.” (this shoot is waiting in the queue; the message does not mention a previous time) and copies addresses found in Notes. The shoot shows in list_bookings when=all, and in the client queue, until someone schedules it. This is not queue_booking, which only moves an existing upcoming booking.",
+    {
+      client: z.string().describe("Client id, exact display name, or BK code."),
+      address: z.string().describe("Full street address."),
+      services: z
+        .array(z.string())
+        .describe(
+          "Service ids such as \"Real Estate · Photography\" or \"Commercial video\". Same labels as create_booking. Podcast, Social Media Video, and Meeting options are exclusive within each group.",
+        ),
+      commercialHours: z
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Required when services include Commercial video. Whole hours from 1 through 8."),
+      notes: z.string().optional().describe("Access info, lockbox, or other information. Optional. Addresses here are copied on the hold email."),
+    },
     write,
   );
   register(

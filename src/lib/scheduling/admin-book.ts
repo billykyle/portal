@@ -8,7 +8,8 @@ import { calendarConfigured } from "./config";
 import { parseShootAddress } from "./address";
 import { calendarEventCopy } from "./calendar-event";
 import { settleBookingIntegrations } from "./booking-integrations";
-import type { BookingSyncIssue } from "./booking-sync";
+import { sendQueuedShootEmail, type QueuedShootEmailInput } from "./booking-email";
+import { formatSyncIssue, type BookingSyncIssue } from "./booking-sync";
 import {
   adminShootWindow,
   formatAdminShootPreview,
@@ -273,6 +274,132 @@ export async function createOverrideBooking(
   };
 }
 
+export type QueuedBookingInput = {
+  source: OverrideBookingSource;
+  client: string;
+  address: string;
+  services: readonly string[];
+  commercialHours?: number | null;
+  notes?: string | null;
+};
+
+export type QueuedBookingSuccess = {
+  ok: true;
+  bookingId: string;
+  client: { id: string; inviteCode: string; displayName: string };
+  status: "queued";
+  startsAt: null;
+  endsAt: null;
+  address: string;
+  services: SchedulingService[];
+  commercialVideoHours: number | null;
+  notes: string | null;
+  calendar: "skipped";
+  email: "sent" | "failed";
+};
+
+export type QueuedBookingResult = QueuedBookingSuccess | { ok: false; error: string };
+
+type InsertedQueuedBooking = {
+  clientId: string;
+  address: string;
+  services: SchedulingService[];
+  commercialVideoHours: number | null;
+  notes: string | null;
+  status: "queued";
+  startsAt: null;
+  endsAt: null;
+  calendarEventId: null;
+};
+
+export type QueuedBookingDeps = {
+  listClients: () => Promise<BookingClientRecord[]>;
+  insertQueuedBooking: (row: InsertedQueuedBooking) => Promise<{ id: string } | null>;
+  sendHold: (input: QueuedShootEmailInput) => Promise<{ clientSent: boolean }>;
+  saveEmailIssue: (bookingId: string, emailFailed: boolean) => Promise<void>;
+};
+
+/**
+ * Create a queued shoot with no start or end. No calendar event and no Billy notify.
+ * The client gets the hold subject, without a previous-time line, and Notes addresses are copied.
+ */
+export async function createQueuedBooking(
+  input: QueuedBookingInput,
+  deps: QueuedBookingDeps = defaultQueuedBookingDeps(),
+): Promise<QueuedBookingResult> {
+  if (input.source !== "admin-ui" && input.source !== "agent") {
+    return { ok: false, error: "Unknown booking source." };
+  }
+  const listed = await deps.listClients();
+  const resolved = resolveBookingClient(input.client, listed);
+  if (!resolved.ok) return resolved;
+
+  const address = parseShootAddress(input.address);
+  if (!address.ok) return address;
+
+  const services = parseOverrideServices(input.services);
+  if (!services.ok) return services;
+
+  const commercialVideoHours = commercialVideoHoursForServices(services.services, input.commercialHours);
+  if (includesCommercialVideo(services.services) && commercialVideoHours == null) {
+    return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR };
+  }
+
+  const notes = input.notes?.trim() || null;
+  const client = resolved.client;
+  const login = earliestLogin(client);
+  const inserted = await deps.insertQueuedBooking({
+    clientId: client.id,
+    address: address.address,
+    services: services.services,
+    commercialVideoHours,
+    notes,
+    status: "queued",
+    startsAt: null,
+    endsAt: null,
+    calendarEventId: null,
+  });
+  if (!inserted) return { ok: false, error: "Booking could not be completed." };
+
+  let emailFailed = false;
+  try {
+    const sent = await deps.sendHold({
+      clientEmail: login?.email || client.primaryEmail,
+      primaryEmail: client.primaryEmail,
+      loginEmails: client.logins.map((row) => row.email),
+      firstName: login?.firstName ?? null,
+      clientName: client.displayName,
+      address: address.address,
+      notes,
+    });
+    emailFailed = !sent.clientSent;
+  } catch (error) {
+    console.error("queued shoot email failed", error);
+    emailFailed = true;
+  }
+
+  try {
+    await deps.saveEmailIssue(inserted.id, emailFailed);
+  } catch (error) {
+    console.error("queued booking sync issue save failed", error);
+  }
+
+  return {
+    ok: true,
+    bookingId: inserted.id,
+    client: { id: client.id, inviteCode: client.inviteCode, displayName: client.displayName },
+    status: "queued",
+    startsAt: null,
+    endsAt: null,
+    address: address.address,
+    services: services.services,
+    commercialVideoHours,
+    notes,
+    calendar: "skipped",
+    email: emailFailed ? "failed" : "sent",
+  };
+}
+
 function calendarStatus(
   configured: boolean,
   issues: BookingSyncIssue,
@@ -340,5 +467,44 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
     },
     settle: settleBookingIntegrations,
     calendarOn: calendarConfigured,
+  };
+}
+
+export function defaultQueuedBookingDeps(): QueuedBookingDeps {
+  return {
+    listClients: defaultOverrideBookingDeps().listClients,
+    async insertQueuedBooking(row) {
+      const [created] = await db
+        .insert(bookings)
+        .values({
+          clientId: row.clientId,
+          createdByUserId: null,
+          address: row.address,
+          services: row.services,
+          commercialVideoHours: row.commercialVideoHours,
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          status: row.status,
+          notes: row.notes,
+          accessCodes: null,
+          calendarEventId: row.calendarEventId,
+          driveSecondsFromPrior: null,
+        })
+        .returning({ id: bookings.id });
+      return created ?? null;
+    },
+    async sendHold(input) {
+      const sent = await sendQueuedShootEmail(input);
+      return { clientSent: sent.client.sent };
+    },
+    async saveEmailIssue(bookingId, emailFailed) {
+      await db
+        .update(bookings)
+        .set({
+          syncIssue: formatSyncIssue({ calendar: false, email: emailFailed, alertFailed: false }),
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, bookingId));
+    },
   };
 }

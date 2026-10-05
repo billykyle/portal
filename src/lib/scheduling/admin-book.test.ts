@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { defaultBookingIntegrationDeps, settleBookingIntegrations } from "./booking-integrations";
 import {
   createOverrideBooking,
+  createQueuedBooking,
   resolveBookingClient,
   type BookingClientRecord,
   type OverrideBookingDeps,
@@ -172,6 +173,113 @@ test("commercial video override refuses a missing length and occupies the chosen
   assert.equal(booked.ok, true);
   assert.equal(occupied, 5 * 60 * 60 * 1000);
   assert.equal(storedHours, 5);
+});
+
+test("create queued booking stores no start, skips calendar, and emails the client", async () => {
+  const inserted: {
+    row: {
+      services: readonly string[];
+      commercialVideoHours: number | null;
+      notes: string | null;
+      status: "queued";
+      startsAt: null;
+      endsAt: null;
+      calendarEventId: null;
+    } | null;
+  } = { row: null };
+  const hold: { address?: string; notes?: string | null; firstName?: string | null } = {};
+  const booked = await createQueuedBooking(
+    {
+      source: "agent",
+      client: "Sam Lepore",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Commercial video"],
+      commercialHours: 4,
+      notes: "Copy alex@agency.com",
+    },
+    {
+      listClients: async () => [client()],
+      insertQueuedBooking: async (row) => {
+        inserted.row = row;
+        return { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+      },
+      sendHold: async (input) => {
+        hold.address = input.address;
+        hold.notes = input.notes;
+        hold.firstName = input.firstName;
+        assert.equal(input.clientEmail, "sam.login@example.com");
+        return { clientSent: true };
+      },
+      saveEmailIssue: async (_id, emailFailed) => {
+        assert.equal(emailFailed, false);
+      },
+    },
+  );
+  assert.equal(booked.ok, true);
+  if (!booked.ok) return;
+  assert.equal(booked.status, "queued");
+  assert.equal(booked.startsAt, null);
+  assert.equal(booked.endsAt, null);
+  assert.equal(booked.calendar, "skipped");
+  assert.equal(booked.email, "sent");
+  assert.equal(booked.commercialVideoHours, 4);
+  assert.equal(inserted.row?.commercialVideoHours, 4);
+  assert.deepEqual(inserted.row?.services, ["Commercial video"]);
+  assert.equal(inserted.row?.notes, "Copy alex@agency.com");
+  assert.equal(inserted.row?.status, "queued");
+  assert.equal(inserted.row?.startsAt, null);
+  assert.equal(inserted.row?.endsAt, null);
+  assert.equal(inserted.row?.calendarEventId, null);
+  assert.equal(hold.address, "12 Wood View Drive, Princeton, NJ");
+  assert.equal(hold.firstName, "Sam");
+});
+
+test("create queued booking refuses a missing commercial length and an unknown client", async () => {
+  const missing = await createQueuedBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Commercial video"],
+    },
+    {
+      listClients: async () => [client()],
+      insertQueuedBooking: async () => {
+        throw new Error("should not insert");
+      },
+      sendHold: async () => {
+        throw new Error("should not email");
+      },
+      saveEmailIssue: async () => {
+        throw new Error("should not save");
+      },
+    },
+  );
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.equal(missing.error, COMMERCIAL_VIDEO_HOURS_ERROR);
+
+  const unknown = await createQueuedBooking(
+    {
+      source: "agent",
+      client: "Nobody",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Photography"],
+    },
+    {
+      listClients: async () => [client()],
+      insertQueuedBooking: async () => {
+        throw new Error("should not insert");
+      },
+      sendHold: async () => {
+        throw new Error("should not email");
+      },
+      saveEmailIssue: async () => {
+        throw new Error("should not save");
+      },
+    },
+  );
+  assert.equal(unknown.ok, false);
+  if (!unknown.ok) assert.match(unknown.error, /No client matched/);
 });
 
 test("override booking ignores weekday, same-day, grid, hours, and drive time", async () => {

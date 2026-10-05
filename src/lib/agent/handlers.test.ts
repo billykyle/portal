@@ -25,6 +25,7 @@ function stubOps(overrides: Partial<AgentOps> = {}): AgentOps {
     queueBooking: fail,
     cancelBooking: fail,
     createBooking: fail,
+    createQueuedBooking: fail,
     listShoots: fail,
     getShoot: fail,
     getShootShareLink: fail,
@@ -280,6 +281,55 @@ test("queue_booking requires an id and revalidates the client queue", async () =
   assert.equal((result.data as { booking: { status: string } }).booking.status, "queued");
   assert.ok(result.revalidate.includes("/admin/clients/c1"));
   assert.ok(result.revalidate.includes("/scheduling"));
+});
+
+test("create_queued_booking forwards the shoot with no time and revalidates the queue", async () => {
+  const missing = await runAgentTool("create_queued_booking", {}, stubOps());
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.equal(missing.error, "Choose a client.");
+  const result = await runAgentTool(
+    "create_queued_booking",
+    {
+      client: "BK00004",
+      address: "12 Wood View Drive",
+      services: ["Commercial video"],
+      commercialHours: 3,
+      notes: "Lockbox",
+    },
+    stubOps({
+      async createQueuedBooking(input) {
+        assert.equal(input.client, "BK00004");
+        assert.equal(input.commercialHours, 3);
+        assert.deepEqual(input.services, ["Commercial video"]);
+        assert.equal(input.notes, "Lockbox");
+        return {
+          ok: true,
+          booking: {
+            bookingId: "booking-queued",
+            client: { id: "c1", inviteCode: "BK00004", displayName: "Sam Lepore" },
+            status: "queued",
+            startsAt: null,
+            endsAt: null,
+            address: "12 Wood View Drive",
+            services: ["Commercial video"],
+            commercialVideoHours: 3,
+            notes: "Lockbox",
+            calendar: "skipped",
+            email: "sent",
+          },
+        };
+      },
+    }),
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const booking = (result.data as { booking: { status: string; startsAt: null; bookingId: string } }).booking;
+  assert.equal(booking.status, "queued");
+  assert.equal(booking.startsAt, null);
+  assert.equal(booking.bookingId, "booking-queued");
+  assert.ok(result.revalidate.includes("/scheduling"));
+  assert.ok(result.revalidate.includes("/admin/home/queue"));
+  assert.ok(result.revalidate.includes("/admin/clients/c1"));
 });
 
 test("create_booking forwards the shoot and revalidates booking pages", async () => {
