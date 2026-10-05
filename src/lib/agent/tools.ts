@@ -34,7 +34,7 @@ export function createPortalMcpServer(ops: AgentOps) {
     { name: "atmos-portal", version: "1.0.0" },
     {
       instructions:
-        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. create_queued_booking creates a new queued shoot for an existing client with no start time and no Google Calendar event. It emails the client “Your shoot is on hold.” and copies addresses in Notes. It does not email Billy. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action.",
+        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails the client. It does not email Billy. create_queued_booking creates a new queued shoot for an existing client with no start time and no Google Calendar event. It emails the client “Your shoot is on hold.” and copies addresses in Notes. It does not email Billy. To put that queued shoot on the calendar, call modify_booking with its bookingId and startsAt. That does not use the client slot grid. It rejects only a real calendar overlap, creates the calendar event, confirms the booking, and sends one Shoot confirmed email. It does not send another on-hold email. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action.",
     },
   );
 
@@ -193,7 +193,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "modify_booking",
-    "Admin modify of a confirmed booking, including one that has already started. Same path as the admin Bookings form: address, services, time, and notes, then the Shoot changes email and calendar update. Omit a field to keep the current value. Services use labels like \"Real Estate · Photography\" or \"Commercial video\". Commercial video needs commercialHours from 1 through 8; omit it to keep the saved length. startsAt and endsAt are ISO timestamps. A past startsAt is saved even when it is not an offered slot; the end follows the service length. A future startsAt still has to be an offered slot. Construction Photography and Construction Video, alone or together, are offered at any time of day, including overnight, when the calendar is free. Other services stay inside 9am–6pm ET. Omit endsAt to use the offered slot for that start.",
+    "Admin modify of a booking, including one that has already started. Omit a field to keep the current value. Services use labels like \"Real Estate · Photography\" or \"Commercial video\". Commercial video needs commercialHours from 1 through 8; omit it to keep the saved length. startsAt and endsAt are ISO timestamps. For a confirmed booking this is the same path as the admin Bookings form: the Shoot changes email and a calendar update. A past startsAt on a confirmed booking is saved even when it is not an offered slot; the end follows the service length. A future startsAt on a confirmed booking still has to be an offered slot. Construction Photography and Construction Video, alone or together, are offered at any time of day, including overnight, when the calendar is free. Other services stay inside 9am–6pm ET. Omit endsAt to use the offered slot for that start. To schedule a queued booking, pass its bookingId and startsAt. No extra argument. That transition ignores the client slot grid, blocked weekdays, business hours, and drive time. The end is the service length and endsAt is ignored. It is rejected only when the window overlaps a Google Calendar event or another confirmed booking. Success sets status confirmed, creates the Google Calendar event, and sends the client one Shoot confirmed email. It does not send another on-hold email and it does not email Billy.",
     {
       bookingId: z.string(),
       address: z.string().optional(),
@@ -210,7 +210,7 @@ export function createPortalMcpServer(ops: AgentOps) {
         .string()
         .nullable()
         .optional()
-        .describe("ISO end time. A future start must match the offered slot when set. A past start uses the service length."),
+        .describe("ISO end time. On a confirmed booking, a future start must match the offered slot when set, and a past start uses the service length. Scheduling a queued booking ignores endsAt and uses the service length."),
       notes: z.string().nullable().optional(),
     },
     write,

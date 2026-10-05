@@ -149,6 +149,10 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
     annotations?: { destructiveHint?: boolean };
     inputSchema?: { properties?: Record<string, { enum?: string[] }> };
   }[];
+  const modify = tools.find((tool) => tool.name === "modify_booking") as { description?: string } | undefined;
+  assert.match(modify?.description ?? "", /queued booking/);
+  assert.match(modify?.description ?? "", /slot grid/);
+  assert.match(modify?.description ?? "", /Shoot confirmed/);
   const cancel = tools.find((tool) => tool.name === "cancel_booking");
   assert.equal(cancel?.annotations?.destructiveHint, true);
   const listClientsTool = tools.find((tool) => tool.name === "list_clients");
