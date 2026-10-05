@@ -1,3 +1,5 @@
+import { CLIENT_HOME, isClientHomePath } from "@/lib/routes";
+
 export type AppNavSide = "client" | "admin";
 
 export type AppNavItem = {
@@ -6,9 +8,9 @@ export type AppNavItem = {
   label: string;
 };
 
-/** Primary client destinations. Labels match the hub cards. */
+/** Primary client destinations. Labels match the home page cards. */
 export const CLIENT_NAV: AppNavItem[] = [
-  { id: "home", href: "/hub", label: "Home" },
+  { id: "home", href: CLIENT_HOME, label: "Home" },
   { id: "library", href: "/my-content", label: "My Content" },
   { id: "scheduling", href: "/scheduling", label: "Scheduling" },
 ];
@@ -34,7 +36,7 @@ export function activeNavId(side: AppNavSide, pathname: string) {
     }
     return null;
   }
-  if (pathname === "/hub" || pathname.startsWith("/hub/")) return "home";
+  if (isClientHomePath(pathname)) return "home";
   if (pathname === "/my-content" || pathname.startsWith("/my-content/") || pathname.startsWith("/shoots/")) {
     return "library";
   }

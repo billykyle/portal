@@ -256,9 +256,9 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   assert.match(account, /sr-only">Account</);
   assert.doesNotMatch(account, /pageTitleClass/);
 
-  const hub = readFileSync("src/app/hub/page.tsx", "utf8");
-  assert.match(hub, /displayName/);
-  assert.doesNotMatch(hub, />Home</);
+  const clientHome = readFileSync("src/app/home/page.tsx", "utf8");
+  assert.match(clientHome, /displayName/);
+  assert.doesNotMatch(clientHome, />Home</);
 
   const detail = readFileSync("src/app/admin/clients/[id]/page.tsx", "utf8");
   assert.match(detail, /client\.displayName/);

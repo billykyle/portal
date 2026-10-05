@@ -1,5 +1,22 @@
 /** Post-login landing. Invite/signin success used to go straight to My Content. */
-export const CLIENT_HOME = "/hub";
+export const CLIENT_HOME = "/home";
+
+/** Previous client home slug. Redirects are the only callers. */
+const LEGACY_CLIENT_HOME = "/hub";
+
+/** Map a bookmarked `/hub` path onto `/home`. Other paths return null. */
+export function legacyClientHomeDestination(pathname: string) {
+  if (pathname === LEGACY_CLIENT_HOME) return CLIENT_HOME;
+  if (pathname.startsWith(`${LEGACY_CLIENT_HOME}/`)) {
+    return `${CLIENT_HOME}${pathname.slice(LEGACY_CLIENT_HOME.length)}`;
+  }
+  return null;
+}
+
+export function isClientHomePath(pathname: string) {
+  return pathname === CLIENT_HOME || pathname.startsWith(`${CLIENT_HOME}/`);
+}
+
 export const PORTAL_CHOOSER = "/choose";
 export const CLIENT_LIBRARY = "/my-content";
 export const CLIENT_ACCOUNT = "/account";
