@@ -77,6 +77,10 @@
  *    The Google Calendar event is deleted and that time is released.
  *    Address, services, notes, and access codes stay. The client gets
  *    “Your shoot is on hold.” Notes addresses are copied. Billy is not.
+ *    `create_queued_booking` creates that same queued row from scratch
+ *    (no start, no end, no calendar event, no Billy New shoot mail).
+ *    The client still gets “Your shoot is on hold.” Notes addresses are
+ *    copied. That message does not mention a previous time.
  *    Scheduling lists Queue above Upcoming only when that client has
  *    queued shoots. Picking a time later books it the normal way.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).

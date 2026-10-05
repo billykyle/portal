@@ -43,7 +43,12 @@ import {
   prepareBookingModification,
 } from "@/lib/scheduling/booking-commit";
 import { canAdminOpenBooking, getBookingById } from "@/lib/scheduling/bookings";
-import { createOverrideBooking, type OverrideBookingSuccess } from "@/lib/scheduling/admin-book";
+import {
+  createOverrideBooking,
+  createQueuedBooking,
+  type OverrideBookingSuccess,
+  type QueuedBookingSuccess,
+} from "@/lib/scheduling/admin-book";
 import { bookingServiceList } from "@/lib/scheduling/services";
 
 export type ClientSummary = {
@@ -157,6 +162,13 @@ export type AgentOps = {
     time: string;
     notes?: string | null;
   }): Promise<{ ok: true; booking: OverrideBookingSuccess } | { ok: false; error: string }>;
+  createQueuedBooking(input: {
+    client: string;
+    address: string;
+    services: string[];
+    commercialHours?: number | null;
+    notes?: string | null;
+  }): Promise<{ ok: true; booking: Omit<QueuedBookingSuccess, "ok"> } | { ok: false; error: string }>;
   listShoots(input: { clientId?: string; inviteCode?: string }): Promise<
     { ok: true; shoots: ShootSummary[] } | { ok: false; error: string }
   >;
@@ -537,6 +549,35 @@ export const portalAgentOps: AgentOps = {
     });
     if (!result.ok) return result;
     return { ok: true, booking: result };
+  },
+
+  async createQueuedBooking(input) {
+    await ensureDb();
+    const result = await createQueuedBooking({
+      source: "agent",
+      client: input.client,
+      address: input.address,
+      services: input.services,
+      commercialHours: input.commercialHours,
+      notes: input.notes,
+    });
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      booking: {
+        bookingId: result.bookingId,
+        client: result.client,
+        status: result.status,
+        startsAt: result.startsAt,
+        endsAt: result.endsAt,
+        address: result.address,
+        services: result.services,
+        commercialVideoHours: result.commercialVideoHours,
+        notes: result.notes,
+        calendar: result.calendar,
+        email: result.email,
+      },
+    };
   },
 
   async listShoots(input) {

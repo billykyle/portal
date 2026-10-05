@@ -2,7 +2,7 @@ import { readClientSortArgument } from "@/lib/admin/client-sort";
 import type { AgentOps } from "@/lib/agent/ops";
 import { clampLimit, normalizeBookingWhen } from "@/lib/agent/present";
 import { isClientCategory } from "@/lib/client-category";
-import { ADMIN_HOME, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import { ADMIN_HOME, ADMIN_HOME_QUEUE, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
 
 export type ToolOutcome =
   | { ok: true; data: unknown; revalidate: string[] }
@@ -232,6 +232,37 @@ export async function runAgentTool(
         ok: true,
         data: { booking: result.booking },
         revalidate: [CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES, "/admin/bookings", "/admin/clients", ADMIN_HOME],
+      };
+    }
+    case "create_queued_booking": {
+      const client = text(args.client).trim();
+      const address = text(args.address);
+      const services = Array.isArray(args.services)
+        ? args.services.filter((item): item is string => typeof item === "string")
+        : [];
+      if (!client) return { ok: false, error: "Choose a client." };
+      if (!address.trim()) return { ok: false, error: "Enter the shoot address first." };
+      if (services.length === 0) return { ok: false, error: "Pick at least one service." };
+      const result = await ops.createQueuedBooking({
+        client,
+        address,
+        services,
+        commercialHours: typeof args.commercialHours === "number" ? args.commercialHours : undefined,
+        notes: optionalNullableText(args.notes) ?? null,
+      });
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { booking: result.booking },
+        revalidate: [
+          CLIENT_SCHEDULING,
+          CLIENT_SCHEDULING_TIMES,
+          "/admin/bookings",
+          "/admin/clients",
+          ADMIN_HOME,
+          ADMIN_HOME_QUEUE,
+          `/admin/clients/${result.booking.client.id}`,
+        ],
       };
     }
     case "queue_booking": {

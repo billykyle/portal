@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { createOverrideBooking, type OverrideBookingDeps } from "@/lib/scheduling/admin-book";
+import { createOverrideBooking, createQueuedBooking, type OverrideBookingDeps, type QueuedBookingDeps } from "@/lib/scheduling/admin-book";
 import { AGENT_API_KEY_ENV } from "./auth";
 import { handleAgentMcp } from "./http";
 import type { AgentOps } from "./ops";
@@ -43,6 +43,7 @@ function stubOps(): AgentOps {
     queueBooking: fail,
     cancelBooking: fail,
     createBooking: fail,
+    createQueuedBooking: fail,
     listShoots: fail,
     getShoot: fail,
     getShootShareLink: fail,
@@ -132,6 +133,7 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
     "get_booking",
     "modify_booking",
     "queue_booking",
+    "create_queued_booking",
     "create_booking",
     "cancel_booking",
     "list_client_shoots",
@@ -292,6 +294,144 @@ test("tools/list includes create_booking and a token call creates the booking", 
   assert.match(text, /Sam Lepore/);
   assert.match(text, /Tue, Sep 22 at 7:40 PM/);
   assert.equal(created.length, 1);
+});
+
+test("tools/list includes create_queued_booking and a call creates a shoot with no start time", async () => {
+  process.env[AGENT_API_KEY_ENV] = KEY;
+  const inserted: Array<{ startsAt: null; endsAt: null; status: "queued"; calendarEventId: null }> = [];
+  const ops = stubOps();
+  ops.createQueuedBooking = async (input) => {
+    const deps: QueuedBookingDeps = {
+      async listClients() {
+        return [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            inviteCode: "BK00004",
+            displayName: "Sam Lepore",
+            company: "Lepore Realty",
+            primaryEmail: "sam@example.com",
+            logins: [
+              {
+                email: "sam.login@example.com",
+                firstName: "Sam",
+                lastName: "Lepore",
+                phone: null,
+                createdAt: new Date("2026-01-01T00:00:00.000Z"),
+              },
+            ],
+          },
+        ];
+      },
+      async insertQueuedBooking(row) {
+        inserted.push({
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          status: row.status,
+          calendarEventId: row.calendarEventId,
+        });
+        assert.equal(row.clientId, "11111111-1111-4111-8111-111111111111");
+        assert.equal(row.address, "12 Wood View Drive, Princeton NJ");
+        assert.equal(row.commercialVideoHours, null);
+        assert.deepEqual(row.services, ["Real Estate · Photography"]);
+        return { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+      },
+      async sendHold(email) {
+        assert.equal(email.clientEmail, "sam.login@example.com");
+        assert.equal(email.notes, "Copy alex@agency.com");
+        assert.equal(email.address, "12 Wood View Drive, Princeton NJ");
+        return { clientSent: true };
+      },
+      async saveEmailIssue(_bookingId, emailFailed) {
+        assert.equal(emailFailed, false);
+      },
+    };
+    const result = await createQueuedBooking(
+      {
+        source: "agent",
+        client: input.client,
+        address: input.address,
+        services: input.services,
+        commercialHours: input.commercialHours,
+        notes: input.notes,
+      },
+      deps,
+    );
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      booking: {
+        bookingId: result.bookingId,
+        client: result.client,
+        status: result.status,
+        startsAt: result.startsAt,
+        endsAt: result.endsAt,
+        address: result.address,
+        services: result.services,
+        commercialVideoHours: result.commercialVideoHours,
+        notes: result.notes,
+        calendar: result.calendar,
+        email: result.email,
+      },
+    };
+  };
+
+  const listed = await handleAgentMcp(
+    mcpRequest("tools/list", { jsonrpc: "2.0", id: 2, method: "tools/list" }),
+    ops,
+  );
+  const listedBody = await listed.json();
+  const tools = listedBody.result.tools as {
+    name: string;
+    description?: string;
+    inputSchema?: { properties?: Record<string, unknown>; required?: string[] };
+  }[];
+  const tool = tools.find((item) => item.name === "create_queued_booking");
+  assert.ok(tool);
+  assert.match(tool.description ?? "", /no start or end time/);
+  assert.match(tool.description ?? "", /Your shoot is on hold/);
+  assert.match(tool.description ?? "", /does not send Billy's New shoot email/i);
+  assert.match(tool.description ?? "", /Google Calendar/);
+  for (const field of ["client", "address", "services", "notes", "commercialHours"]) {
+    assert.ok(tool.inputSchema?.properties?.[field], field);
+  }
+  for (const field of ["client", "address", "services"]) {
+    assert.ok(tool.inputSchema?.required?.includes(field), field);
+  }
+  assert.equal(tool.inputSchema?.properties?.date, undefined);
+  assert.equal(tool.inputSchema?.properties?.time, undefined);
+
+  const called = await handleAgentMcp(
+    mcpRequest("tools/call", {
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: {
+        name: "create_queued_booking",
+        arguments: {
+          client: "BK00004",
+          address: "12 Wood View Drive, Princeton NJ",
+          services: ["Real Estate · Photography"],
+          notes: "Copy alex@agency.com",
+        },
+      },
+    }),
+    ops,
+  );
+  assert.equal(called.status, 200);
+  const calledBody = await called.json();
+  const text = calledBody.result.content[0].text as string;
+  assert.equal(calledBody.result.isError, false);
+  assert.match(text, /bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/);
+  assert.match(text, /"status": "queued"/);
+  assert.match(text, /"startsAt": null/);
+  assert.match(text, /"endsAt": null/);
+  assert.match(text, /"calendar": "skipped"/);
+  assert.match(text, /"email": "sent"/);
+  assert.equal(inserted.length, 1);
+  assert.equal(inserted[0]?.startsAt, null);
+  assert.equal(inserted[0]?.endsAt, null);
+  assert.equal(inserted[0]?.status, "queued");
+  assert.equal(inserted[0]?.calendarEventId, null);
 });
 
 test("authorized GET does not open an SSE stream", async () => {

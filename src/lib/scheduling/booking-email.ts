@@ -103,7 +103,15 @@ export function bookingConfirmationRecipients(clientEmail: string) {
   };
 }
 
-function bookingClientRecipients(input: BookingConfirmationInput) {
+type BookingMailDelivery = {
+  clientEmail: string;
+  clientRecipients?: string[];
+  loginEmails?: readonly (string | null | undefined)[] | null;
+  primaryEmail?: string | null;
+  notes?: string | null;
+};
+
+function bookingClientRecipients(input: BookingMailDelivery) {
   if (input.clientRecipients != null) {
     return uniqueEmails(input.clientRecipients).filter((email) => !isPendingClientEmail(email));
   }
@@ -115,7 +123,7 @@ function bookingClientRecipients(input: BookingConfirmationInput) {
 }
 
 /** Point the message body at a real address. An explicit empty recipient list never falls back to a placeholder. */
-function withDeliverableClient(input: BookingConfirmationInput): BookingConfirmationInput {
+function withDeliverableClient<T extends BookingMailDelivery>(input: T): T {
   const clientTo = bookingClientRecipients(input);
   if (clientTo.length === 0) return { ...input, clientRecipients: [] };
   return { ...input, clientEmail: clientTo[0] ?? input.clientEmail, clientRecipients: clientTo };
@@ -289,7 +297,12 @@ export function queueHoldSentence(address: string) {
   return `Your shoot at ${address} has been moved to your queue, off of your previously scheduled time.`;
 }
 
-function queueGreeting(input: BookingConfirmationInput) {
+/** New queued shoot: there is no previous time to show. */
+export function queuedShootSentence(address: string) {
+  return `Your shoot at ${address} is in your queue.`;
+}
+
+function queueGreeting(input: { firstName?: string | null; clientName?: string | null }) {
   const first = input.firstName?.trim();
   if (first) return `Hi ${first},`;
   const fromName = input.clientName?.trim().split(/\s+/)[0];
@@ -340,6 +353,45 @@ export function buildQueueHoldEmail(input: BookingConfirmationInput) {
 export async function sendQueueHoldEmail(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
   const mailing = withDeliverableClient(input);
   const message = buildQueueHoldEmail(mailing);
+  return sendBookingPair(
+    mailing,
+    { subject: message.subject, text: message.text, html: message.html },
+    { subject: message.subject, text: message.text, html: message.html },
+    { skipNotify: true },
+  );
+}
+
+export type QueuedShootEmailInput = BookingMailDelivery & {
+  clientName?: string | null;
+  firstName?: string | null;
+  address: string;
+};
+
+/** Same subject and delivery as a queue hold, without a previous time. */
+export function buildQueuedShootEmail(input: QueuedShootEmailInput) {
+  const greeting = queueGreeting(input);
+  const sentence = queuedShootSentence(input.address);
+  const cta = { label: "Schedule a time", href: bookingSchedulingUrl() };
+  const text = [greeting, "", sentence, "", QUEUE_HOLD_FOLLOWUP, "", cta.label, cta.href, "", emailSignatureText()].join("\n");
+  const html = wrapBookingEmailHtml({
+    title: QUEUE_HOLD_SUBJECT,
+    preheader: sentence,
+    body: [
+      headingHtml(QUEUE_HOLD_SUBJECT),
+      paragraphHtml(greeting),
+      paragraphHtml(sentence),
+      paragraphHtml(QUEUE_HOLD_FOLLOWUP),
+      `<div style="padding:8px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
+    ].join("\n"),
+  });
+  return { subject: QUEUE_HOLD_SUBJECT, text, html };
+}
+
+/** Client and Notes copies for a shoot created straight into the queue. Billy is not copied. */
+export async function sendQueuedShootEmail(input: QueuedShootEmailInput): Promise<BookingEmailSendResult> {
+  const mailing = withDeliverableClient(input);
+  const message = buildQueuedShootEmail(mailing);
   return sendBookingPair(
     mailing,
     { subject: message.subject, text: message.text, html: message.html },
@@ -725,7 +777,7 @@ async function sendOwnerNotify(message: { subject: string; text: string; html: s
 }
 
 async function sendBookingPair(
-  input: BookingConfirmationInput,
+  input: BookingMailDelivery,
   clientMessage: { subject: string; text: string; html: string; attachments?: EmailAttachment[] },
   notifyMessage: { subject: string; text: string; html: string },
   options?: BookingEmailSendOptions,

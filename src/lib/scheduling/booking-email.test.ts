@@ -23,10 +23,13 @@ import {
   sendBookingSyncIssue,
   buildBookingSyncIssue,
   buildQueueHoldEmail,
+  buildQueuedShootEmail,
   QUEUE_HOLD_FOLLOWUP,
   QUEUE_HOLD_SUBJECT,
   queueHoldSentence,
+  queuedShootSentence,
   sendQueueHoldEmail,
+  sendQueuedShootEmail,
 } from "./booking-email";
 import { BOOKING_SYNC_ISSUE_SUBJECT } from "./booking-sync";
 import { formatBookingWhen } from "./slots";
@@ -963,6 +966,60 @@ test("queue hold email names the address, shows the old time in red, and links t
   assert.match(message.html, new RegExp(escapeRegExp(bookingSchedulingUrl())));
   assert.doesNotMatch(message.text, /Pepper/);
   assert.doesNotMatch(message.html, /billy@billyhere.com/);
+});
+
+test("queued shoot email uses the hold subject without a previous time", () => {
+  const address = "12 Wood View Drive, Princeton, NJ";
+  const message = buildQueuedShootEmail({
+    clientEmail: "sam@example.com",
+    clientName: "Sam Lepore",
+    firstName: "Sam",
+    address,
+    notes: "Park in the driveway.",
+  });
+  assert.equal(message.subject, QUEUE_HOLD_SUBJECT);
+  assert.equal(queuedShootSentence(address), "Your shoot at 12 Wood View Drive, Princeton, NJ is in your queue.");
+  assert.match(message.text, /^Hi Sam,/);
+  assert.match(message.text, new RegExp(escapeRegExp(queuedShootSentence(address))));
+  assert.match(message.html, new RegExp(escapeRegExp(queuedShootSentence(address))));
+  assert.match(message.text, new RegExp(escapeRegExp(QUEUE_HOLD_FOLLOWUP)));
+  assert.match(message.html, />Schedule a time</);
+  assert.match(message.html, new RegExp(escapeRegExp(bookingSchedulingUrl())));
+  assert.doesNotMatch(message.text, /Previously scheduled/);
+  assert.doesNotMatch(message.html, /Previously scheduled/);
+  assert.doesNotMatch(message.html, /background:#9b1c1c/);
+  assert.doesNotMatch(message.text, /Pepper/);
+  assert.doesNotMatch(message.html, /billy@billyhere.com/);
+});
+
+test("queued shoot email goes to the client and Notes copies, not Billy", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.EMAIL_FROM;
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  const calls: Array<{ to: string[]; subject?: string }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)) as { to: string[]; subject?: string });
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendQueuedShootEmail({
+      clientEmail: "sam@example.com",
+      firstName: "Sam",
+      address: "12 Wood View Drive, Princeton, NJ",
+      notes: "Copy alex@agency.com",
+    });
+    assert.equal(result.sent, true);
+    assert.equal(result.notify.sent, false);
+    assert.deepEqual(
+      calls.map((call) => call.to),
+      [["sam@example.com"], ["alex@agency.com"]],
+    );
+    assert.equal(calls[0]?.subject, "Your shoot is on hold.");
+    assert.ok(calls.every((call) => !call.to.includes("billy@billyhere.com")));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("queue hold email goes to the client and Notes copies, not Billy", async () => {
