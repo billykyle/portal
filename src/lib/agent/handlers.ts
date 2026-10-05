@@ -2,11 +2,32 @@ import { readClientSortArgument } from "@/lib/admin/client-sort";
 import type { AgentOps } from "@/lib/agent/ops";
 import { clampLimit, normalizeBookingWhen } from "@/lib/agent/present";
 import { isClientCategory } from "@/lib/client-category";
-import { ADMIN_HOME, ADMIN_HOME_QUEUE, CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, CLIENT_SCHEDULING, CLIENT_SCHEDULING_CONFIRMED, CLIENT_SCHEDULING_TIMES } from "@/lib/routes";
+import {
+  ADMIN_HOME,
+  ADMIN_HOME_QUEUE,
+  CLIENT_ACCOUNT,
+  CLIENT_HOME,
+  CLIENT_LIBRARY,
+  CLIENT_SCHEDULING,
+  CLIENT_SCHEDULING_CONFIRMED,
+  CLIENT_SCHEDULING_TIMES,
+  adminHomeCachePaths,
+} from "@/lib/routes";
 
 export type ToolOutcome =
   | { ok: true; data: unknown; revalidate: string[] }
   | { ok: false; error: string };
+
+function refresh(...paths: string[]) {
+  const out: string[] = [];
+  for (const path of paths) {
+    const home = adminHomeCachePaths(path);
+    for (const entry of home.length > 0 ? home : [path]) {
+      if (!out.includes(entry)) out.push(entry);
+    }
+  }
+  return out;
+}
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -70,7 +91,7 @@ export async function runAgentTool(
         category: categoryArgument(args),
       });
       if (!result.ok) return result;
-      return { ok: true, data: { client: result.client }, revalidate: ["/admin/clients", ADMIN_HOME] };
+      return { ok: true, data: { client: result.client }, revalidate: refresh("/admin/clients", ADMIN_HOME) };
     }
     case "update_client": {
       const clientId = text(args.clientId).trim();
@@ -87,7 +108,7 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { client: result.client },
-        revalidate: ["/admin/clients", ADMIN_HOME, `/admin/clients/${clientId}`],
+        revalidate: refresh("/admin/clients", ADMIN_HOME, `/admin/clients/${clientId}`),
       };
     }
     case "delete_client": {
@@ -97,7 +118,7 @@ export async function runAgentTool(
       if (!confirmInviteCode.trim()) return { ok: false, error: "confirmInviteCode is required." };
       const result = await ops.deleteClient({ clientId, confirmInviteCode });
       if (!result.ok) return result;
-      return { ok: true, data: { deleted: result.client }, revalidate: ["/admin/clients", ADMIN_HOME] };
+      return { ok: true, data: { deleted: result.client }, revalidate: refresh("/admin/clients", ADMIN_HOME) };
     }
     case "list_client_users": {
       const clientId = text(args.clientId).trim();
@@ -124,7 +145,7 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { user: result.user },
-        revalidate: [
+        revalidate: refresh(
           "/admin/clients",
           ADMIN_HOME,
           `/admin/clients/${clientId}`,
@@ -132,7 +153,7 @@ export async function runAgentTool(
           CLIENT_ACCOUNT,
           CLIENT_HOME,
           CLIENT_LIBRARY,
-        ],
+        ),
       };
     }
     case "remove_client_user": {
@@ -144,7 +165,7 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { removed: result.user },
-        revalidate: ["/admin/clients", ADMIN_HOME, `/admin/clients/${clientId}`],
+        revalidate: refresh("/admin/clients", ADMIN_HOME, `/admin/clients/${clientId}`),
       };
     }
     case "sync_from_nas": {
@@ -205,13 +226,13 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { booking: result.booking, issues: result.issues },
-        revalidate: [
+        revalidate: refresh(
           CLIENT_SCHEDULING,
           CLIENT_SCHEDULING_TIMES,
           "/admin/bookings",
           ADMIN_HOME,
           `/admin/bookings/${bookingId}`,
-        ],
+        ),
       };
     }
     case "create_booking": {
@@ -231,7 +252,13 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { booking: result.booking },
-        revalidate: [CLIENT_SCHEDULING, CLIENT_SCHEDULING_TIMES, "/admin/bookings", "/admin/clients", ADMIN_HOME],
+        revalidate: refresh(
+          CLIENT_SCHEDULING,
+          CLIENT_SCHEDULING_TIMES,
+          "/admin/bookings",
+          "/admin/clients",
+          ADMIN_HOME,
+        ),
       };
     }
     case "create_queued_booking": {
@@ -254,7 +281,7 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { booking: result.booking },
-        revalidate: [
+        revalidate: refresh(
           CLIENT_SCHEDULING,
           CLIENT_SCHEDULING_TIMES,
           "/admin/bookings",
@@ -262,7 +289,7 @@ export async function runAgentTool(
           ADMIN_HOME,
           ADMIN_HOME_QUEUE,
           `/admin/clients/${result.booking.client.id}`,
-        ],
+        ),
       };
     }
     case "queue_booking": {
@@ -273,14 +300,14 @@ export async function runAgentTool(
       return {
         ok: true,
         data: { booking: result.booking, issues: result.issues },
-        revalidate: [
+        revalidate: refresh(
           CLIENT_SCHEDULING,
           CLIENT_SCHEDULING_TIMES,
           "/admin/bookings",
           ADMIN_HOME,
           `/admin/bookings/${bookingId}`,
           `/admin/clients/${result.booking.clientId}`,
-        ],
+        ),
       };
     }
     case "cancel_booking": {
@@ -295,14 +322,14 @@ export async function runAgentTool(
           alreadyCancelled: result.alreadyCancelled,
           issues: result.issues,
         },
-        revalidate: [
+        revalidate: refresh(
           CLIENT_SCHEDULING,
           CLIENT_SCHEDULING_TIMES,
           `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`,
           "/admin/bookings",
           ADMIN_HOME,
           `/admin/bookings/${bookingId}`,
-        ],
+        ),
       };
     }
     case "list_client_shoots": {

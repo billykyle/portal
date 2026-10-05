@@ -3,6 +3,7 @@ import { afterEach, test } from "node:test";
 import {
   DEFAULT_ADMIN_ORIGIN,
   DEFAULT_PORTAL_ORIGIN,
+  adminHomeRewritePath,
   adminOrigin,
   adminUrl,
   hostnameOf,
@@ -127,19 +128,47 @@ test("portal /admin redirects to the admin host and keeps path + query", () => {
   );
 });
 
-test("admin host root goes to /admin/home; client paths go to the portal host", () => {
+test("admin host root and old /admin/home go to /home; client paths go to the portal host", () => {
   delete process.env.ADMIN_PUBLIC_URL;
   process.env.PORTAL_PUBLIC_URL = "https://portal.billy-kyle.com";
   assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/" }), {
-    location: "https://admin.billy-kyle.com/admin/home",
+    location: "https://admin.billy-kyle.com/home",
     status: 308,
   });
+  assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/home" }), null);
+  assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/home/clients" }), null);
+  assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin/home" }), {
+    location: "https://admin.billy-kyle.com/home",
+    status: 308,
+  });
+  assert.deepEqual(
+    resolveHostRedirect({
+      hostname: "admin.billy-kyle.com",
+      pathname: "/admin/home/nas-sync",
+      search: "?synced=1",
+    }),
+    {
+      location: "https://admin.billy-kyle.com/home/nas-sync?synced=1",
+      status: 308,
+    },
+  );
+  assert.deepEqual(resolveHostRedirect({ hostname: "portal.billy-kyle.com", pathname: "/admin/home" }), {
+    location: "https://admin.billy-kyle.com/home",
+    status: 308,
+  });
+  assert.deepEqual(
+    resolveHostRedirect({
+      hostname: "portal.billy-kyle.com",
+      pathname: "/admin/home/clients",
+      search: "?q=Radano",
+    }),
+    {
+      location: "https://admin.billy-kyle.com/home/clients?q=Radano",
+      status: 308,
+    },
+  );
   assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/my-content" }), {
     location: "https://portal.billy-kyle.com/my-content",
-    status: 308,
-  });
-  assert.deepEqual(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/home" }), {
-    location: "https://portal.billy-kyle.com/home",
     status: 308,
   });
   assert.deepEqual(
@@ -157,8 +186,13 @@ test("admin host root goes to /admin/home; client paths go to the portal host", 
   });
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin" }), null);
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin/clients" }), null);
-  assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/admin/home" }), null);
   assert.equal(resolveHostRedirect({ hostname: "admin.billy-kyle.com", pathname: "/shoots/abc" }), null);
+  assert.equal(adminHomeRewritePath("admin.billy-kyle.com", "/home"), "/admin/home");
+  assert.equal(adminHomeRewritePath("admin.billy-kyle.com", "/home/clients"), "/admin/home/clients");
+  assert.equal(adminHomeRewritePath("portal.billy-kyle.com", "/home"), null);
+  assert.equal(adminHomeRewritePath("portal.billy-kyle.com", "/home/clients"), null);
+  assert.equal(adminHomeRewritePath("127.0.0.1", "/home"), null);
+  assert.equal(adminHomeRewritePath("127.0.0.1", "/home/clients"), "/admin/home/clients");
 });
 
 test("localhost /admin is left alone so next dev still works", () => {

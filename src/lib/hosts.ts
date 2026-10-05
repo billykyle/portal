@@ -1,4 +1,11 @@
-import { CLIENT_HOME, legacyClientHomeDestination } from "@/lib/routes";
+import {
+  ADMIN_HOME,
+  CLIENT_HOME,
+  adminHomePagePath,
+  isAdminHomePath,
+  legacyAdminHomeDestination,
+  legacyClientHomeDestination,
+} from "@/lib/routes";
 
 /** Locked production hosts. Flynn adds the admin DNS CNAME separately. */
 export const PRODUCTION_PORTAL_HOST = "portal.billy-kyle.com";
@@ -100,25 +107,46 @@ export type HostRedirect = {
   status: 308;
 };
 
+/**
+ * Where a public `/home` URL should render the admin dashboard.
+ * Portal `/home` stays the client page. Local `next dev` keeps exact `/home`
+ * for the client and only rewrites admin sections (`/home/clients`, …).
+ */
+export function adminHomeRewritePath(hostname: string, pathname: string) {
+  if (!isAdminHomePath(pathname)) return null;
+  const normalized = hostnameOf(hostname);
+  if (isPortalHostname(normalized)) return null;
+  if (!isAdminHostname(normalized) && pathname === ADMIN_HOME) return null;
+  return adminHomePagePath(pathname);
+}
+
 export function resolveHostRedirect(input: {
   hostname: string;
   pathname: string;
   search?: string;
 }): HostRedirect | null {
   const hostname = hostnameOf(input.hostname);
-  const requested = input.pathname || "/";
-  const pathname = legacyClientHomeDestination(requested) ?? requested;
+  const pathname = input.pathname || "/";
   const search = input.search ?? "";
 
   if (isPortalHostname(hostname) && isAdminPath(pathname)) {
-    return { location: `${adminOrigin()}${pathname}${search}`, status: 308 };
+    const destination = legacyAdminHomeDestination(pathname) ?? pathname;
+    return { location: `${adminOrigin()}${destination}${search}`, status: 308 };
   }
 
   if (isAdminHostname(hostname)) {
     if (pathname === "/") {
-      return { location: `${adminOrigin()}/admin/home${search}`, status: 308 };
+      return { location: `${adminOrigin()}${ADMIN_HOME}${search}`, status: 308 };
     }
-    if (isClientPortalPath(pathname)) {
+    const legacyClient = legacyClientHomeDestination(pathname);
+    if (legacyClient) {
+      return { location: `${publicPortalOrigin()}${legacyClient}${search}`, status: 308 };
+    }
+    const legacyAdmin = legacyAdminHomeDestination(pathname);
+    if (legacyAdmin) {
+      return { location: `${adminOrigin()}${legacyAdmin}${search}`, status: 308 };
+    }
+    if (isClientPortalPath(pathname) && !isAdminHomePath(pathname)) {
       return { location: `${publicPortalOrigin()}${pathname}${search}`, status: 308 };
     }
   }

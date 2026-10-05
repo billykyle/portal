@@ -65,16 +65,16 @@ test("admin home labels sort A–Z and each row is a link", () => {
 
 test("a home query string opens the page that used to hold that result", () => {
   assert.equal(adminHomeDestination({}), null);
-  assert.equal(adminHomeDestination({ q: "Radano" }), "/admin/home/clients?q=Radano");
-  assert.equal(adminHomeDestination({ minted: "BK00019" }), "/admin/home/create-client?minted=BK00019");
+  assert.equal(adminHomeDestination({ q: "Radano" }), "/home/clients?q=Radano");
+  assert.equal(adminHomeDestination({ minted: "BK00019" }), "/home/create-client?minted=BK00019");
   assert.equal(
     adminHomeDestination({ error: "Display name is required." }),
-    "/admin/home/create-client?error=Display+name+is+required.",
+    "/home/create-client?error=Display+name+is+required.",
   );
-  assert.match(adminHomeDestination({ synced: "1", clients: "2" }) ?? "", /^\/admin\/home\/nas-sync\?/);
-  assert.match(adminHomeDestination({ syncError: "connect to device timeout" }) ?? "", /^\/admin\/home\/nas-sync\?/);
-  assert.match(adminHomeDestination({ maintenance: "saved" }) ?? "", /^\/admin\/home\/maintenance\?/);
-  assert.equal(adminHomeDestination({ cancelled: "1" }), "/admin/home/upcoming?cancelled=1");
+  assert.match(adminHomeDestination({ synced: "1", clients: "2" }) ?? "", /^\/home\/nas-sync\?/);
+  assert.match(adminHomeDestination({ syncError: "connect to device timeout" }) ?? "", /^\/home\/nas-sync\?/);
+  assert.match(adminHomeDestination({ maintenance: "saved" }) ?? "", /^\/home\/maintenance\?/);
+  assert.equal(adminHomeDestination({ cancelled: "1" }), "/home/upcoming?cancelled=1");
 });
 
 test("admin sections start collapsed and remember an explicit open set", () => {
@@ -218,6 +218,19 @@ test("signed-in pages drop the big page-name heading and keep a document title",
   const home = readFileSync("src/app/admin/home/page.tsx", "utf8");
   assert.match(home, /title: "Home"/);
   assert.match(home, /sr-only">Home</);
+  assert.deepEqual(
+    ADMIN_HOME_LINKS.map((item) => item.href),
+    [
+      "/home/clients",
+      "/home/book",
+      "/home/create-client",
+      "/home/maintenance",
+      "/home/nas-sync",
+      "/home/past",
+      "/home/queue",
+      "/home/upcoming",
+    ],
+  );
   assert.deepEqual(
     ADMIN_HOME_LINKS.map((item) => item.label),
     [

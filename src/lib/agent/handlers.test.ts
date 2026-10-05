@@ -178,7 +178,7 @@ test("delete_client requires an id and a confirmation code before calling the op
   );
   assert.equal(removed.ok, true);
   assert.equal(calls, 1);
-  if (removed.ok) assert.deepEqual(removed.revalidate, ["/admin/clients", "/admin/home"]);
+  if (removed.ok) assert.deepEqual(removed.revalidate, ["/admin/clients", "/home", "/admin/home"]);
 });
 
 test("cancel_booking and remove_client_user require explicit ids", async () => {

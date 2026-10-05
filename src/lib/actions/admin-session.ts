@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { adminLandingPath } from "@/lib/admin-landing";
 import {
   adminPasswordMatches,
   clearAdminSession,
@@ -16,7 +17,7 @@ export async function adminLogin(_prev: AdminSessionState | undefined, formData:
     return { error: "Password is incorrect." };
   }
   await createAdminSession();
-  redirect("/admin/home");
+  redirect(await adminLandingPath());
 }
 
 export async function adminLogout() {
