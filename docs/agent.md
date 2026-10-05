@@ -66,7 +66,8 @@ No local clone and no stdio process. The portal deployment is the server.
 | `list_client_users` | Teammate logins. No password hashes. |
 | `update_client_user` | Name, phone, sign-in email, and the shared client company. Omitted fields stay. |
 | `remove_client_user` | **Destructive.** Removes one login. Requires `clientId` and `userId`. The invite stays. |
-| `sync_from_nas` | **Sync from NAS.** Same `runLockedNasSync("admin")` path as the admin button. Returns the sync summary. No attach-shoot form. |
+| `sync_from_nas` | **Start Sync from NAS.** Manual only. Returns immediately with `{ status: "started" \| "already_running", job, recoveredStaleJobId }`. Does not wait for the share walk. `already_running` is the current job, not an error. Same job row as the admin button. No attach-shoot form. |
+| `get_nas_sync_status` | Poll one job (`jobId`) or the latest job. `{ job, recoveredStale }`. `job.status` is `running`, `done`, or `failed`. `job.summary` and `job.finishedAt` are set when the walk finishes. `summary` includes clients and shoots added or removed, media counts, and warnings. A running job with no heartbeat for 3 minutes is marked failed (`recoveredStale: true`) so a new sync can start. |
 | `list_bookings` | `when` = `upcoming` \| `past` \| `all` (default `all`, cancelled hidden unless `includeCancelled`), optional client id or invite code, `limit` (default 50, max 200). |
 | `get_booking` | One booking: address, services, times, notes, access codes, calendar id, whether admin can still modify it. |
 | `modify_booking` | Admin modify. Same availability check, save, calendar update, and Shoot-changes email as the admin Bookings form. Omit a field to keep it. |
@@ -77,6 +78,17 @@ No local clone and no stdio process. The portal deployment is the server.
 | `get_shoot_share_link` | Stable public URL on `https://portal.billy-kyle.com/s/[token]`. Does not rotate an existing token. |
 
 `ready` is derived from imported media counts. NAS sync only keeps shoots that have files, and the portal does not store a separate delivery flag for agents to toggle.
+
+NAS sync is manual only. Nothing in the portal walks the share on a timer.
+
+### Sync from NAS
+
+1. Call `sync_from_nas` with no arguments. It returns immediately:
+   `{ "status": "started" | "already_running", "job": { "id", "status": "running", ... }, "recoveredStaleJobId": null }`
+2. Call `get_nas_sync_status` with `{ "jobId": "<job.id>" }` until `job.status` is `done` or `failed`.
+3. On `done`, read `job.finishedAt` and `job.summary` (clients and shoots added or removed, media counts, warnings). On `failed`, read `job.error`.
+
+`already_running` means a walk is in progress. Poll that `job.id`. A crashed run with no heartbeat for 3 minutes is marked failed on the next start or status read (`recoveredStale` / `recoveredStaleJobId`) so a new sync can start.
 
 ## Not in this connector
 

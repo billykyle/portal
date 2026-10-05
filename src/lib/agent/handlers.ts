@@ -150,7 +150,25 @@ export async function runAgentTool(
     case "sync_from_nas": {
       const result = await ops.syncFromNas();
       if (!result.ok) return result;
-      return { ok: true, data: { sync: result.sync }, revalidate: ["/admin/clients", ADMIN_HOME] };
+      return {
+        ok: true,
+        data: {
+          status: result.start.status,
+          job: result.start.job,
+          recoveredStaleJobId: result.start.recoveredStaleJobId,
+        },
+        revalidate: [],
+      };
+    }
+    case "get_nas_sync_status": {
+      const jobId = optionalText(args.jobId)?.trim();
+      const result = await ops.getNasSyncStatus({ jobId: jobId || undefined });
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { job: result.job, recoveredStale: result.recoveredStale },
+        revalidate: [],
+      };
     }
     case "list_bookings": {
       const result = await ops.listBookings({

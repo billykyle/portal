@@ -10,7 +10,8 @@ import {
   listShootRecordsForClient,
   type ShootRecord,
 } from "@/lib/admin/shoots";
-import { syncNasForAdmin } from "@/lib/admin/sync";
+import { readManualNasSync, startManualNasSync } from "@/lib/admin/sync";
+import type { NasSyncJobPublic, NasSyncStart } from "@/lib/nas-sync-job";
 import { listUsersForClient, removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
 import { addExtraInviteCode } from "@/lib/user-portals";
 import {
@@ -112,23 +113,9 @@ export type AgentOps = {
   removeUser(input: { clientId: string; userId: string }): Promise<
     { ok: true; user: { id: string; email: string } } | { ok: false; error: string }
   >;
-  syncFromNas(): Promise<
-    | {
-        ok: true;
-        sync: {
-          clientsCreated: number;
-          clientsReused: number;
-          shootsCreated: number;
-          shootsReused: number;
-          mediaImported: number;
-          mediaUpdated: number;
-          mediaRemoved: number;
-          shootsRemoved: number;
-          ready: number;
-          warnings: string[];
-        };
-      }
-    | { ok: false; error: string }
+  syncFromNas(): Promise<{ ok: true; start: NasSyncStart } | { ok: false; error: string }>;
+  getNasSyncStatus(input: { jobId?: string }): Promise<
+    { ok: true; job: NasSyncJobPublic | null; recoveredStale: boolean } | { ok: false; error: string }
   >;
   listBookings(input: {
     when: BookingWhen;
@@ -409,24 +396,15 @@ export const portalAgentOps: AgentOps = {
   },
 
   async syncFromNas() {
-    const result = await syncNasForAdmin();
+    const result = await startManualNasSync("mcp");
     if (!result.ok) return result;
-    const sync = result.value;
-    return {
-      ok: true,
-      sync: {
-        clientsCreated: sync.clientsCreated,
-        clientsReused: sync.clientsReused,
-        shootsCreated: sync.shootsCreated,
-        shootsReused: sync.shootsReused,
-        mediaImported: sync.mediaImported,
-        mediaUpdated: sync.mediaUpdated,
-        mediaRemoved: sync.mediaRemoved,
-        shootsRemoved: sync.shootsRemoved,
-        ready: sync.ready,
-        warnings: sync.warnings,
-      },
-    };
+    return { ok: true, start: result.value };
+  },
+
+  async getNasSyncStatus(input) {
+    const result = await readManualNasSync(input.jobId);
+    if (!result.ok) return result;
+    return { ok: true, job: result.value.job, recoveredStale: result.value.recoveredStale };
   },
 
   async listBookings(input) {

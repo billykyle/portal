@@ -235,13 +235,13 @@ Client Deliverables / Sam Lepore / 2026.09.04 - 12 Wood View Drive / Final /
 
 ### Run sync
 
-The share is walked only when someone asks:
+NAS sync is manual only. The share is walked only when someone asks:
 
 - **Sync from NAS** on the admin home page
-- the `sync_from_nas` connector tool (same locked walk)
+- the `sync_from_nas` connector tool (same job as the admin button)
 - `npm run nas:sync`
 
-Nothing in the app starts that walk on a timer, a cron, or a page load. Overlapping runs are skipped (one lock). Logs look like `NAS sync start (admin)` and `NAS sync done (admin) … +clients / +shoots / +stills`.
+Nothing in the app starts that walk on a timer, a cron, or a page load. There is no automatic sync. Admin and the connector share one job: the button and `sync_from_nas` return as soon as the walk is claimed (`started` or `already_running`) and do not wait for the UGREENlink scan. Poll `get_nas_sync_status` (or leave the admin page open) until the job is `done` or `failed`. The finished job includes `finishedAt` and a summary of clients, shoots, and files added or removed. A second start while a walk is alive returns that same job instead of an error. A crashed run that stops heartbeating is cleared after 3 minutes so a new sync can start. Logs look like `NAS sync start (admin)` and `NAS sync done (admin) … +clients / +shoots / +stills`.
 
 `npm run nas:sync:warm` stores a small preview for every photo that does not have one yet. Opening a shoot stores the rest as tiles come near the viewport.
 

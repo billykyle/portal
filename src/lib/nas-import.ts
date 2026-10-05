@@ -52,6 +52,25 @@ export type NasSyncResult = {
   warnings: string[];
 };
 
+export type NasSyncProgress = {
+  phase: "listing" | "walking" | "pruning";
+  detail: string;
+  clientsSeen: number;
+  shootsSeen: number;
+};
+
+/** The job lock was cleared. The walk should stop without writing a second result. */
+export class NasSyncStopped extends Error {
+  constructor() {
+    super("NAS sync stopped.");
+    this.name = "NasSyncStopped";
+  }
+}
+
+export function skippedNasSync(reason: string): NasSyncResult {
+  return { ...EMPTY_SYNC, skipped: true, reason, warnings: [] };
+}
+
 const EMPTY_SYNC: NasSyncResult = {
   skipped: false,
   clientsCreated: 0,
@@ -243,12 +262,28 @@ async function upsertShoot(input: {
  * matching folder are pruned. Moving a folder into or out of a category updates
  * that shoot's path and category.
  */
-export async function syncNasShare(): Promise<NasSyncResult> {
+export async function syncNasShare(options?: {
+  onProgress?: (progress: NasSyncProgress) => Promise<void> | void;
+  shouldContinue?: () => Promise<boolean> | boolean;
+}): Promise<NasSyncResult> {
   if (!nasEnabled() || !getNasConfig()) {
-    return { ...EMPTY_SYNC, skipped: true, reason: "NAS is not enabled or not configured." };
+    return skippedNasSync("NAS is not enabled or not configured.");
   }
 
   const result: NasSyncResult = { ...EMPTY_SYNC, warnings: [] };
+  let clientsSeen = 0;
+  let shootsSeen = 0;
+  const report = async (progress: NasSyncProgress) => {
+    if (!options?.onProgress) return;
+    await options.onProgress(progress);
+  };
+  const gate = async () => {
+    if (!options?.shouldContinue) return;
+    if (!(await options.shouldContinue())) throw new NasSyncStopped();
+  };
+
+  await gate();
+  await report({ phase: "listing", detail: "Listing client folders", clientsSeen, shootsSeen });
   armNasDiskWake();
   const root = await nasShareRoot();
   const clientFolders = await listNasDirectories(root);
@@ -257,6 +292,7 @@ export async function syncNasShare(): Promise<NasSyncResult> {
   const seenShootIds = new Set<string>();
 
   for (const clientFolder of clientFolders) {
+    await gate();
     if (skipNames.has(clientFolder.name.toLowerCase())) {
       result.warnings.push(`Skipped ${clientFolder.name} at share root (stills folder name).`);
       continue;
@@ -265,6 +301,8 @@ export async function syncNasShare(): Promise<NasSyncResult> {
     const { client, created: clientCreated } = await upsertClientByName(clientFolder.name);
     if (clientCreated) result.clientsCreated += 1;
     else result.clientsReused += 1;
+    clientsSeen += 1;
+    await report({ phase: "walking", detail: clientFolder.name, clientsSeen, shootsSeen });
 
     const directories = await listNasDirectories(clientFolder.path);
     const children: ClientFolderChild[] = [];
@@ -299,6 +337,8 @@ export async function syncNasShare(): Promise<NasSyncResult> {
 
       const nasRelativePath = planned.nasRelativePath;
       const deliverables = await listNasMedia(shootFolderPath);
+      shootsSeen += 1;
+      await report({ phase: "walking", detail: clientFolder.name, clientsSeen, shootsSeen });
       if (!shouldCreatePortalShoot(deliverables.length)) {
         const [empty] = await db
           .select()
@@ -385,6 +425,14 @@ export async function syncNasShare(): Promise<NasSyncResult> {
       }
     }
   }
+
+  await gate();
+  await report({
+    phase: "pruning",
+    detail: "Removing portal shoots that are gone from the share",
+    clientsSeen,
+    shootsSeen,
+  });
 
   if (!shouldPruneShootsMissingFromNas(clientFolders.length)) {
     result.warnings.push("Share listed 0 client folders; skipped orphan shoot prune.");

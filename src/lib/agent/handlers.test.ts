@@ -18,6 +18,7 @@ function stubOps(overrides: Partial<AgentOps> = {}): AgentOps {
     updateUser: fail,
     removeUser: fail,
     syncFromNas: fail,
+    getNasSyncStatus: fail,
     listBookings: fail,
     getBooking: fail,
     modifyBooking: fail,
@@ -336,25 +337,85 @@ test("sync_from_nas returns the same readable error the admin button shows", asy
   assert.equal(result.error, message);
 });
 
-test("sync_from_nas returns the summary from the shared admin sync", async () => {
-  const result = await runAgentTool(
+test("sync_from_nas returns the job immediately, including one already running", async () => {
+  const job = {
+    id: "11111111-1111-4111-8111-111111111111",
+    status: "running" as const,
+    source: "mcp" as const,
+    phase: "walking",
+    detail: "Marilyn O'Donoghue",
+    clientsSeen: 2,
+    shootsSeen: 4,
+    startedAt: "2026-10-05T14:00:00.000Z",
+    updatedAt: "2026-10-05T14:01:00.000Z",
+    finishedAt: null,
+    error: null,
+    summary: null,
+  };
+  const started = await runAgentTool(
     "sync_from_nas",
     {},
     stubOps({
       async syncFromNas() {
+        return { ok: true, start: { status: "started", job, recoveredStaleJobId: null } };
+      },
+    }),
+  );
+  assert.equal(started.ok, true);
+  if (!started.ok) return;
+  assert.equal((started.data as { status: string }).status, "started");
+  assert.equal((started.data as { job: { id: string } }).job.id, job.id);
+  assert.deepEqual(started.revalidate, []);
+
+  const running = await runAgentTool(
+    "sync_from_nas",
+    {},
+    stubOps({
+      async syncFromNas() {
+        return { ok: true, start: { status: "already_running", job, recoveredStaleJobId: null } };
+      },
+    }),
+  );
+  assert.equal(running.ok, true);
+  if (!running.ok) return;
+  assert.equal((running.data as { status: string }).status, "already_running");
+});
+
+test("get_nas_sync_status returns the job and a finished summary", async () => {
+  const result = await runAgentTool(
+    "get_nas_sync_status",
+    { jobId: "11111111-1111-4111-8111-111111111111" },
+    stubOps({
+      async getNasSyncStatus(input) {
+        assert.equal(input.jobId, "11111111-1111-4111-8111-111111111111");
         return {
           ok: true,
-          sync: {
-            clientsCreated: 1,
-            clientsReused: 2,
-            shootsCreated: 3,
-            shootsReused: 4,
-            mediaImported: 5,
-            mediaUpdated: 0,
-            mediaRemoved: 1,
-            shootsRemoved: 0,
-            ready: 1,
-            warnings: [],
+          recoveredStale: false,
+          job: {
+            id: input.jobId ?? "",
+            status: "done",
+            source: "mcp",
+            phase: "done",
+            detail: "Finished",
+            clientsSeen: 1,
+            shootsSeen: 1,
+            startedAt: "2026-10-05T14:00:00.000Z",
+            updatedAt: "2026-10-05T14:05:00.000Z",
+            finishedAt: "2026-10-05T14:05:00.000Z",
+            error: null,
+            summary: {
+              skipped: false,
+              clientsCreated: 1,
+              clientsReused: 2,
+              shootsCreated: 3,
+              shootsReused: 4,
+              mediaImported: 5,
+              mediaUpdated: 0,
+              mediaRemoved: 1,
+              shootsRemoved: 0,
+              ready: 1,
+              warnings: [],
+            },
           },
         };
       },
@@ -362,8 +423,11 @@ test("sync_from_nas returns the summary from the shared admin sync", async () =>
   );
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal((result.data as { sync: { ready: number } }).sync.ready, 1);
-  assert.deepEqual(result.revalidate, ["/admin/clients", "/admin/home"]);
+  const data = result.data as { job: { summary: { ready: number }; finishedAt: string }; recoveredStale: boolean };
+  assert.equal(data.job.summary.ready, 1);
+  assert.equal(data.job.finishedAt, "2026-10-05T14:05:00.000Z");
+  assert.equal(data.recoveredStale, false);
+  assert.deepEqual(result.revalidate, []);
 });
 
 test("maintenance notice tools save or clear and never email", async () => {

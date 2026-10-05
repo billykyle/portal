@@ -113,7 +113,9 @@ Or delete each test shoot from admin. The next successful NAS sync also prunes p
 
 ## How sync works in production
 
-The share is walked only from admin **Sync from NAS**, the `sync_from_nas` connector tool, or `npm run nas:sync`. There is no NAS cron and no in-process timer. `vercel.json` still schedules hourly shoot reminders at `GET /api/cron/shoot-reminders`.
+NAS sync is manual only. The share is walked only from admin **Sync from NAS**, the `sync_from_nas` connector tool, or `npm run nas:sync`. There is no NAS cron and no in-process timer. `vercel.json` still schedules hourly shoot reminders at `GET /api/cron/shoot-reminders`.
+
+`sync_from_nas` and the admin button claim one shared job and return immediately (`started` or `already_running`). The walk keeps running on that request via `after()` up to `maxDuration` (300s) on `POST /api/admin/nas-sync` and `POST /api/agent/mcp`. Poll `get_nas_sync_status` or the admin page until `done` or `failed`. A lock with no heartbeat for 3 minutes is treated as crashed and cleared.
 
 Shoot **Download** streams one zip from `GET /api/shoots/[id]/zip` (logged-in) or `GET /api/s/[token]/zip` (public). Those routes use `maxDuration = 300` and STORE compression so ~83 JPEGs can finish on Pro without buffering the whole archive in the function first. The browser downloads the attachment (one Safari confirm); the page polls `/api/zip-jobs/[id]` for files/bytes/speed/ETA so iPhone does not hold a ~470MB blob in memory.
 

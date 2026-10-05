@@ -160,6 +160,22 @@ export const bookingDrafts = pgTable("booking_drafts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** One manual NAS share walk. Admin and the agent connector share these rows. */
+export const nasSyncJobs = pgTable("nas_sync_jobs", {
+  id: text("id").primaryKey(),
+  status: text("status").notNull(),
+  source: text("source").notNull(),
+  phase: text("phase").notNull(),
+  detail: text("detail").notNull().default(""),
+  clientsSeen: integer("clients_seen").notNull().default(0),
+  shootsSeen: integer("shoots_seen").notNull().default(0),
+  summary: text("summary"),
+  error: text("error"),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
 export const zipJobs = pgTable("zip_jobs", {
   id: text("id").primaryKey(),
   shootId: uuid("shoot_id")
