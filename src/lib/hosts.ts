@@ -1,3 +1,5 @@
+import { CLIENT_HOME, legacyClientHomeDestination } from "@/lib/routes";
+
 /** Locked production hosts. Flynn adds the admin DNS CNAME separately. */
 export const PRODUCTION_PORTAL_HOST = "portal.billy-kyle.com";
 export const PRODUCTION_ADMIN_HOST = "admin.billy-kyle.com";
@@ -68,7 +70,7 @@ export function isAdminPath(pathname: string) {
 }
 
 const CLIENT_PORTAL_PREFIXES = [
-  "/hub",
+  CLIENT_HOME,
   "/my-content",
   "/account",
   "/scheduling",
@@ -80,7 +82,7 @@ const CLIENT_PORTAL_PREFIXES = [
   "/s",
 ];
 
-/** Client hub / library / public share — stay on the portal host only. */
+/** Client home / library / public share — stay on the portal host only. */
 export function isClientPortalPath(pathname: string) {
   return CLIENT_PORTAL_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -104,7 +106,8 @@ export function resolveHostRedirect(input: {
   search?: string;
 }): HostRedirect | null {
   const hostname = hostnameOf(input.hostname);
-  const pathname = input.pathname || "/";
+  const requested = input.pathname || "/";
+  const pathname = legacyClientHomeDestination(requested) ?? requested;
   const search = input.search ?? "";
 
   if (isPortalHostname(hostname) && isAdminPath(pathname)) {

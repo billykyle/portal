@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { activeNavId, navItemsFor } from "./app-nav";
 
-test("client menu lists hub destinations and highlights the current section", () => {
+test("client menu lists home destinations and highlights the current section", () => {
   assert.deepEqual(
     navItemsFor("client").map((item) => item.label),
     ["Home", "My Content", "Scheduling"],
   );
-  assert.equal(activeNavId("client", "/hub"), "home");
+  assert.equal(activeNavId("client", "/home"), "home");
+  assert.equal(navItemsFor("client").find((item) => item.id === "home")?.href, "/home");
+  assert.equal(activeNavId("client", "/hub"), null);
   assert.equal(activeNavId("client", "/my-content"), "library");
   assert.equal(navItemsFor("client").find((item) => item.id === "library")?.href, "/my-content");
   assert.equal(activeNavId("client", "/my-content/269-pennock-bridge-road"), "library");

@@ -5,7 +5,7 @@ import { isUuid } from "@/lib/admin/ids";
 import { PORTAL_CHOICE_COOKIE, readSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { ensureDb } from "@/lib/db/ensure";
 import { resolveHostRedirect } from "@/lib/hosts";
-import { CLIENT_HOME, PORTAL_CHOOSER } from "@/lib/routes";
+import { CLIENT_HOME, PORTAL_CHOOSER, isClientHomePath, legacyClientHomeDestination } from "@/lib/routes";
 import {
   adminShootPath,
   canonicalShootForId,
@@ -45,6 +45,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(hostRedirect.location, hostRedirect.status);
   }
 
+  const legacyHome = legacyClientHomeDestination(pathname);
+  if (legacyHome) {
+    return redirectTo(request, legacyHome, search);
+  }
+
   const session = await sessionFromCookie(request.cookies.get(SESSION_COOKIE)?.value);
   const choosing = await choosingPortal(request.cookies.get(PORTAL_CHOICE_COOKIE)?.value);
   const admin = await valid(request.cookies.get(ADMIN_COOKIE)?.value);
@@ -62,7 +67,7 @@ export async function middleware(request: NextRequest) {
   }
   if (
     (pathname.startsWith("/my-content") ||
-      pathname.startsWith("/hub") ||
+      isClientHomePath(pathname) ||
       pathname.startsWith("/account") ||
       pathname.startsWith("/scheduling")) &&
     !session
@@ -157,6 +162,8 @@ export const config = {
     "/choose",
     "/forgot-password",
     "/reset-password",
+    "/home",
+    "/home/:path*",
     "/hub",
     "/hub/:path*",
     "/account",
