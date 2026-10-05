@@ -139,7 +139,15 @@ export type AgentOps = {
     startsAt?: string;
     endsAt?: string | null;
     notes?: string | null;
-  }): Promise<{ ok: true; booking: BookingDto; issues: { calendar: boolean; email: boolean } } | { ok: false; error: string }>;
+  }): Promise<
+    | {
+        ok: true;
+        booking: BookingDto;
+        issues: { calendar: boolean; email: boolean };
+        overlapWarning: string | null;
+      }
+    | { ok: false; error: string }
+  >;
   queueBooking(input: { bookingId: string }): Promise<
     | { ok: true; booking: BookingDto; issues: { calendar: boolean; email: boolean } }
     | { ok: false; error: string }
@@ -489,7 +497,12 @@ export const portalAgentOps: AgentOps = {
     }
     const row = await bookingWithClient(finished.bookingId);
     if (!row) return { ok: false, error: "Booking was not found." };
-    return { ok: true, booking: bookingDto(row.booking, row.clientName, row.inviteCode), issues: finished.issues };
+    return {
+      ok: true,
+      booking: bookingDto(row.booking, row.clientName, row.inviteCode),
+      issues: finished.issues,
+      overlapWarning: prepared.overlapWarning,
+    };
   },
 
   async queueBooking({ bookingId }) {

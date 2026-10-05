@@ -219,6 +219,7 @@ test("modify_booking forwards partial fields and revalidates booking pages", asy
         return {
           ok: true,
           issues: { calendar: false, email: false },
+          overlapWarning: "Overlaps an existing booking.",
           booking: {
             id: "booking-1",
             clientId: "c1",
@@ -242,6 +243,10 @@ test("modify_booking forwards partial fields and revalidates booking pages", asy
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.ok(result.revalidate.includes("/admin/bookings/booking-1"));
+  assert.equal(
+    (result.data as { overlapWarning: string | null }).overlapWarning,
+    "Overlaps an existing booking.",
+  );
 });
 
 test("queue_booking requires an id and revalidates the client queue", async () => {

@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import {
-  adminQueuedScheduleWindow,
-  busyWithoutOwnCalendarEvent,
-  isAdminQueuedSchedule,
-  QUEUED_SCHEDULE_CONFLICT_ERROR,
-  queuedScheduleConflictError,
-} from "./queued-schedule";
+import { shootOverlapWarning } from "./admin-time";
+import { adminQueuedScheduleWindow, isAdminQueuedSchedule, queuedScheduleOverlapWarning } from "./queued-schedule";
 
 test("only an admin or agent save of a queued shoot skips the slot grid", () => {
   assert.equal(isAdminQueuedSchedule({ fromAdmin: true, status: "queued" }), true);
@@ -14,7 +10,7 @@ test("only an admin or agent save of a queued shoot skips the slot grid", () => 
   assert.equal(isAdminQueuedSchedule({ fromAdmin: true, status: "confirmed" }), false);
 });
 
-test("a free Tuesday afternoon is accepted when the morning is the only busy block", () => {
+test("1:15pm stays free when the only confirmed booking is the morning shoot", () => {
   const window = adminQueuedScheduleWindow({
     startIso: "2026-10-13T13:15:00-04:00",
     services: ["Real Estate · Photography"],
@@ -23,8 +19,10 @@ test("a free Tuesday afternoon is accepted when the morning is the only busy blo
   if (!window.ok) return;
   assert.equal(window.start.toISOString(), "2026-10-13T17:15:00.000Z");
   assert.equal(window.end.getTime() - window.start.getTime(), 45 * 60 * 1000);
+  // Matt Curcio 9–12 does not overlap 1:15. A Personal "Laura In Office" block
+  // is calendar free/busy, not a confirmed booking, so it is not an input.
   assert.equal(
-    queuedScheduleConflictError(window, [
+    queuedScheduleOverlapWarning(window, [
       {
         start: new Date("2026-10-13T09:00:00-04:00"),
         end: new Date("2026-10-13T12:00:00-04:00"),
@@ -34,24 +32,21 @@ test("a free Tuesday afternoon is accepted when the morning is the only busy blo
   );
 });
 
-test("an overlapping calendar block is rejected and an abutting one is not", () => {
+test("an overlapping confirmed booking warns with the create_booking message", () => {
   const window = adminQueuedScheduleWindow({
     startIso: "2026-10-13T13:15:00-04:00",
     services: ["Real Estate · Photography"],
   });
   assert.equal(window.ok, true);
   if (!window.ok) return;
+  const overlap = {
+    start: new Date("2026-10-13T13:00:00-04:00"),
+    end: new Date("2026-10-13T14:00:00-04:00"),
+  };
+  assert.equal(queuedScheduleOverlapWarning(window, [overlap]), "Overlaps an existing booking.");
+  assert.equal(queuedScheduleOverlapWarning(window, [overlap]), shootOverlapWarning(window, [overlap]));
   assert.equal(
-    queuedScheduleConflictError(window, [
-      {
-        start: new Date("2026-10-13T13:00:00-04:00"),
-        end: new Date("2026-10-13T14:00:00-04:00"),
-      },
-    ]),
-    QUEUED_SCHEDULE_CONFLICT_ERROR,
-  );
-  assert.equal(
-    queuedScheduleConflictError(window, [
+    queuedScheduleOverlapWarning(window, [
       {
         start: new Date("2026-10-13T12:00:00-04:00"),
         end: new Date("2026-10-13T13:15:00-04:00"),
@@ -61,28 +56,17 @@ test("an overlapping calendar block is rejected and an abutting one is not", () 
   );
 });
 
-test("this booking's leftover calendar event does not block the new time", () => {
-  const window = adminQueuedScheduleWindow({
-    startIso: "2026-10-13T13:15:00-04:00",
-    services: ["Real Estate · Photography"],
-  });
-  assert.equal(window.ok, true);
-  if (!window.ok) return;
-  const own = {
-    start: new Date("2026-10-13T13:00:00-04:00"),
-    end: new Date("2026-10-13T15:00:00-04:00"),
-    eventId: "evt-own",
-  };
-  const other = {
-    start: new Date("2026-10-13T09:00:00-04:00"),
-    end: new Date("2026-10-13T12:00:00-04:00"),
-    eventId: "evt-other",
-  };
-  const busy = busyWithoutOwnCalendarEvent([own, other], [own, other], "evt-own");
-  assert.equal(queuedScheduleConflictError(window, busy), null);
+test("the queued save warns on portal bookings and does not read calendar free/busy", () => {
+  const source = readFileSync(new URL("./booking-commit.ts", import.meta.url), "utf8");
+  const start = source.indexOf("if (isAdminQueuedSchedule");
+  const end = source.indexOf("} else if (isPastAdminBookingStart");
+  const branch = source.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(branch, /queuedScheduleOverlapWarning/);
+  assert.doesNotMatch(branch, /queuedScheduleConflictError|fetchCalendarBusy|That time overlaps another event/);
 });
 
-test("an unreadable start is rejected before any calendar check", () => {
+test("an unreadable start is rejected before any overlap warning", () => {
   const window = adminQueuedScheduleWindow({
     startIso: "not-a-time",
     services: ["Real Estate · Photography"],
