@@ -17,6 +17,7 @@ import {
   selectServedVideo,
   shouldReportDisplaySize,
   videoFrameStyle,
+  videoTileStyle,
 } from "./video-renditions";
 
 const ffmpeg = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
@@ -84,6 +85,20 @@ test("frames use the real ratio and stay inside the viewport", () => {
   assert.match(horizontal.width, /1\.777778/);
   assert.match(vertical.maxHeight, /78dvh/);
   assert.equal(videoFrameStyle(null, null).aspectRatio, undefined);
+});
+
+test("tiles fill a photo column and keep 9:16 and 16:9", () => {
+  const vertical = videoTileStyle(1080, 1920);
+  const horizontal = videoTileStyle(1920, 1080);
+  assert.equal(vertical.aspectRatio, "1080 / 1920");
+  assert.equal(horizontal.aspectRatio, "1920 / 1080");
+  assert.equal(vertical.width, "100%");
+  assert.equal(horizontal.width, "100%");
+  assert.equal("maxHeight" in vertical, false);
+  assert.equal("maxHeight" in horizontal, false);
+  assert.equal(videoTileStyle(null, null).aspectRatio, undefined);
+  assert.equal(videoTileStyle(null, null).width, "100%");
+  assert.equal(videoTileStyle(null, null).minHeight, "12rem");
 });
 
 test("reports a display size when it is missing or the shape disagrees", () => {

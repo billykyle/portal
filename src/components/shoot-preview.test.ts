@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { listPreviewSrc } from "@/lib/list-preview";
+import { listPreviewSrc, listRowFrame } from "@/lib/list-preview";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 import {
   parseListShootSections,
@@ -379,7 +379,9 @@ test("videos play at their own ratio and default to a lighter rendition", () => 
   const video = html.slice(html.indexOf('id="video"'));
   assert.match(video, /aspect-ratio:\s*1080\s*\/\s*1920/);
   assert.match(video, /aspect-ratio:\s*1920\s*\/\s*1080/);
-  assert.doesNotMatch(video, /aspect-video/);
+  assert.match(video, /width:\s*100%/);
+  assert.match(video, /grid-cols-3 gap-1\.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6 min-w-0 items-start/);
+  assert.doesNotMatch(video, /78dvh|grid-cols-2|aspect-video/);
   assert.match(video, /<source[^>]*src="\/api\/media\/tall\?rendition=720"/);
   assert.match(video, /<source[^>]*src="\/api\/media\/wide\?rendition=720"/);
   assert.match(video, /href="\/api\/media\/tall"/);
@@ -644,7 +646,10 @@ test("list view is rows for stills and a playable file row for video", () => {
   assert.match(video, /data-layout="list"/);
   assert.match(video, />walkthrough\.mp4</);
   assert.match(video, />Play</);
-  assert.match(video, /size-12/);
+  assert.match(video, /h-12 w-auto/);
+  assert.match(video, /aspect-ratio:\s*1920\s*\/\s*1080/);
+  assert.match(video, /size-full object-contain/);
+  assert.doesNotMatch(video, /size-12/);
   assert.match(video, /src="\/api\/media\/vid-1\/thumb"/);
   assert.match(video, /<video\b[^>]*controls/);
   assert.match(video, /<source[^>]*src="\/api\/media\/vid-1\?rendition=720"/);
@@ -654,6 +659,8 @@ test("list view is rows for stills and a playable file row for video", () => {
   const raw = html.slice(html.indexOf('id="raw-video"'));
   assert.match(raw, /data-layout="list"/);
   assert.match(raw, /size-12/);
+  assert.match(raw, /h-12 w-auto/);
+  assert.match(raw, /aspect-ratio:\s*3840\s*\/\s*2160/);
   assert.doesNotMatch(raw, /<img\b/);
   assert.match(raw, /2 files · 4\.2 GB/);
   assert.match(raw, />Raw Video\/A001\.mov</);
@@ -699,11 +706,11 @@ test("one section can be a list while the others stay on the grid", () => {
   assert.doesNotMatch(plans, /size-12/);
   assert.match(plans, /aspect-square/);
   assert.match(video, /data-layout="grid"/);
-  assert.match(video, /lg:grid lg:grid-cols-2/);
-  assert.doesNotMatch(video, />Play</);
+  assert.match(video, /grid-cols-3 gap-1\.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6 min-w-0 items-start/);
+  assert.doesNotMatch(video, />Play|grid-cols-2/);
   assert.match(raw, /data-layout="grid"/);
   assert.match(raw, /2 files · 4\.2 GB/);
-  assert.match(raw, /lg:grid lg:grid-cols-2/);
+  assert.match(raw, /grid-cols-3 gap-1\.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6 min-w-0 items-start/);
 });
 
 test("podcast sections switch between the current layout and a file list", () => {
@@ -755,7 +762,7 @@ test("podcast sections switch between the current layout and a file list", () =>
   assert.match(full, /data-layout="grid"/);
   assert.match(full, /<video\b/);
   assert.doesNotMatch(full, />Play</);
-  assert.match(clips, /grid-cols-3 items-start/);
+  assert.match(clips, /grid-cols-3 gap-1\.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6 min-w-0 items-start/);
   assert.match(audio, /data-layout="grid"/);
   assert.match(audio, />episode\.mp3</);
   assert.match(audio, /href="\/api\/media\/audio-1"/);
@@ -786,13 +793,28 @@ test("podcast sections switch between the current layout and a file list", () =>
   assert.match(listedAudio, /href="\/api\/media\/audio-1"/);
   assert.match(listedAudio, /size-12/);
   assert.doesNotMatch(listedAudio, /<img\b/);
-  assert.match(listedFull, /size-12/);
+  assert.match(listedFull, /h-12 w-auto/);
+  assert.match(listedFull, /aspect-ratio:\s*1920\s*\/\s*1080/);
+  assert.doesNotMatch(listedFull, /size-12/);
   assert.doesNotMatch(listedFull, /<img\b/);
   assert.match(listedStills, /data-layout="list"/);
   assert.match(listedStills, />cover\.jpg</);
   assert.match(listedStills, /size-12/);
   assert.match(listedStills, /src="\/thumbs\/cover\.jpg"/);
   assert.doesNotMatch(listedStills, /grid-cols-3/);
+});
+
+test("a video list thumb keeps its ratio inside the row height", () => {
+  const wide = listRowFrame(1920, 1080);
+  const tall = listRowFrame(1080, 1920);
+  assert.equal(wide.style?.aspectRatio, "1920 / 1080");
+  assert.equal(tall.style?.aspectRatio, "1080 / 1920");
+  assert.match(wide.className, /h-12 w-auto/);
+  assert.match(tall.className, /h-12 w-auto/);
+  assert.doesNotMatch(wide.className, /size-12/);
+  const plain = listRowFrame(null, null);
+  assert.equal(plain.style, undefined);
+  assert.match(plain.className, /size-12/);
 });
 
 test("a list row uses a low-res thumb and leaves files without one blank", () => {

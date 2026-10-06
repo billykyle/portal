@@ -7,6 +7,7 @@ import {
   resolvePlaybackQuality,
   shouldReportDisplaySize,
   videoFrameStyle,
+  videoTileStyle,
   type VideoQuality,
 } from "@/lib/video-playback";
 
@@ -21,6 +22,7 @@ export function VideoPlayer({
   renditions = [],
   caption = true,
   showDownload = true,
+  tile = false,
 }: {
   id: string;
   url: string;
@@ -31,6 +33,8 @@ export function VideoPlayer({
   /** File name and download under the frame. List rows supply their own. */
   caption?: boolean;
   showDownload?: boolean;
+  /** Fill a photo-grid cell. The stage player keeps the large frame. */
+  tile?: boolean;
 }) {
   const reportedRef = useRef(false);
   const [size, setSize] = useState(() => (width && height ? { width, height } : null));
@@ -76,7 +80,7 @@ export function VideoPlayer({
     <figure className="flex w-full flex-col gap-2">
       <div
         className="mx-auto max-w-full overflow-hidden rounded-xl bg-black"
-        style={videoFrameStyle(size?.width ?? null, size?.height ?? null)}
+        style={(tile ? videoTileStyle : videoFrameStyle)(size?.width ?? null, size?.height ?? null)}
       >
         <video
           key={playUrl}

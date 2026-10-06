@@ -3,6 +3,7 @@
 import { ListRowPreview } from "@/components/list-row-preview";
 import { useSectionLayout } from "@/components/section-layout";
 import { SelectionMark, useShootSelection } from "@/components/shoot-selection";
+import { PHOTO_GRID } from "@/components/still-layout";
 import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
 import { listPreviewSrc } from "@/lib/list-preview";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
@@ -17,8 +18,8 @@ export type VideoLayoutItem = {
   renditions?: PlayerRendition[];
 };
 
-const PAIR_GRID = "flex flex-col gap-8 lg:grid lg:grid-cols-2 lg:items-start";
-const CLIPS_GRID = "grid grid-cols-3 items-start gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5";
+/** Same column counts as photo tiles. Each clip keeps its own height. */
+const TILE_GRID = `${PHOTO_GRID} min-w-0 items-start`;
 
 function VideoList({ items }: { items: VideoLayoutItem[] }) {
   const selection = useShootSelection();
@@ -37,7 +38,13 @@ function VideoList({ items }: { items: VideoLayoutItem[] }) {
                 className="flex w-full items-center gap-3 text-left text-sm"
               >
                 <SelectionMark selected={selected} />
-                <ListRowPreview src={listPreviewSrc(item)} eager={index < PREVIEW_EAGER_COUNT} />
+                <ListRowPreview
+                  src={listPreviewSrc(item)}
+                  contain
+                  width={item.width}
+                  height={item.height}
+                  eager={index < PREVIEW_EAGER_COUNT}
+                />
                 <span className="min-w-0 flex-1 truncate text-[#c7c7cc]">{item.filename}</span>
               </button>
             </li>
@@ -46,7 +53,13 @@ function VideoList({ items }: { items: VideoLayoutItem[] }) {
         return (
           <li key={item.id} className="border-b border-white/10 py-2">
             <div className="flex items-start gap-3 text-sm">
-              <ListRowPreview src={listPreviewSrc(item)} eager={index < PREVIEW_EAGER_COUNT} />
+              <ListRowPreview
+                src={listPreviewSrc(item)}
+                contain
+                width={item.width}
+                height={item.height}
+                eager={index < PREVIEW_EAGER_COUNT}
+              />
               <details className="min-w-0 flex-1">
                 <summary className="flex h-12 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
                   <span className="min-w-0 truncate text-[#c7c7cc]">{item.filename}</span>
@@ -117,11 +130,11 @@ export function VideoLayout({
     );
   }
   return (
-    <div className={columns === "clips" ? CLIPS_GRID : PAIR_GRID}>
+    <div className={TILE_GRID}>
       {items.map((item) => {
         const selected = selection?.selected.has(item.id) ?? false;
         return (
-          <div key={item.id} className="relative">
+          <div key={item.id} className="relative min-w-0">
             <VideoPlayer
               id={item.id}
               url={item.url}
@@ -130,6 +143,7 @@ export function VideoLayout({
               height={item.height}
               renditions={item.renditions}
               showDownload={!selecting}
+              tile
             />
             {selecting ? (
               <button
