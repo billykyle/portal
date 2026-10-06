@@ -20,6 +20,7 @@ export function VideoPlayer({
   height,
   renditions = [],
   caption = true,
+  showDownload = true,
 }: {
   id: string;
   url: string;
@@ -29,6 +30,7 @@ export function VideoPlayer({
   renditions?: PlayerRendition[];
   /** File name and download under the frame. List rows supply their own. */
   caption?: boolean;
+  showDownload?: boolean;
 }) {
   const reportedRef = useRef(false);
   const [size, setSize] = useState(() => (width && height ? { width, height } : null));
@@ -95,9 +97,11 @@ export function VideoPlayer({
       {caption ? (
         <figcaption className="flex items-center justify-between gap-3 px-1 text-sm text-[#c7c7cc]">
           <span className="min-w-0 truncate">{filename}</span>
-          <a href={url} download={filename} className="shrink-0 text-white">
-            Download
-          </a>
+          {showDownload ? (
+            <a href={url} download={filename} className="shrink-0 text-white">
+              Download
+            </a>
+          ) : null}
         </figcaption>
       ) : null}
     </figure>

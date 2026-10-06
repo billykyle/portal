@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { createWriteStream } from "fs";
+import { createReadStream, createWriteStream } from "fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
@@ -778,6 +778,28 @@ export async function loadNasFileBytes(nasPath: string, filename: string) {
   const hit = await cachedFile("files", nasPath, ext);
   if (hit) return readFile(/* turbopackIgnore: true */ hit);
   return queueNasDownload(() => downloadNasFileBytes(nasPath, filename, ext));
+}
+
+/** Original file as a stream. A cache hit reads from disk; a miss streams the UGREENlink download. */
+export async function openNasOriginalStream(nasPath: string, filename: string) {
+  const ext = extensionFrom(filename, "bin");
+  const hit = await cachedFile("files", nasPath, ext);
+  if (hit) return createReadStream(/* turbopackIgnore: true */ hit);
+  const pending = fileCacheInflight.get(nasPath);
+  if (pending) {
+    try {
+      return createReadStream(/* turbopackIgnore: true */ await pending);
+    } catch {
+      /* The in-flight copy failed; open a new download below. */
+    }
+  }
+  return queueNasDownload(() =>
+    withNasDownloadRetries(async () => {
+      const res = await openNasDownload(nasPath);
+      if (!res.body) throw new Error(`Could not read ${filename}`);
+      return Readable.fromWeb(res.body as import("stream/web").ReadableStream);
+    }),
+  );
 }
 
 const fileCacheInflight = new Map<string, Promise<string>>();

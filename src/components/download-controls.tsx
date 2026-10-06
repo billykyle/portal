@@ -158,25 +158,12 @@ type ZipJobPayload = {
   error?: string | null;
 };
 
-export async function downloadZipFromUrl(
-  zipUrl: string,
-  folderName: string,
-  onProgress?: (progress: ZipJobProgress) => void,
+async function watchZipJob(
+  jobId: string,
+  zipName: string,
+  started: number,
+  tracker: ProgressEmitter,
 ) {
-  const started = Date.now();
-  const zipName = zipDownloadName(folderName);
-  const jobId = crypto.randomUUID();
-  const tracker = createProgressTracker(started, onProgress);
-  tracker.emit({
-    state: "preparing",
-    filesDone: 0,
-    filesTotal: 0,
-    filename: zipName,
-  });
-
-  // Native attachment so Safari/iPhone streams ~470MB to disk and confirms once.
-  startNativeZipDownload(withZipJob(zipUrl, jobId), folderName);
-
   const deadline = started + 6 * 60 * 1000;
   let seen = false;
   while (Date.now() < deadline) {
@@ -202,6 +189,75 @@ export async function downloadZipFromUrl(
     if (job.state === "done") return;
   }
   throw new Error(`Could not download ${zipName}`);
+}
+
+export async function downloadZipFromUrl(
+  zipUrl: string,
+  folderName: string,
+  onProgress?: (progress: ZipJobProgress) => void,
+) {
+  const started = Date.now();
+  const zipName = zipDownloadName(folderName);
+  const jobId = crypto.randomUUID();
+  const tracker = createProgressTracker(started, onProgress);
+  tracker.emit({
+    state: "preparing",
+    filesDone: 0,
+    filesTotal: 0,
+    filename: zipName,
+  });
+
+  // Native attachment so Safari/iPhone streams ~470MB to disk and confirms once.
+  startNativeZipDownload(withZipJob(zipUrl, jobId), folderName);
+  await watchZipJob(jobId, zipName, started, tracker);
+}
+
+/** One original, saved by the browser. Does not read the file into the page. */
+export function downloadOriginalFile(file: DownloadFile) {
+  clickDownload(downloadHref(file.url), file.filename);
+}
+
+export async function downloadZipFromPost(
+  zipUrl: string,
+  folderName: string,
+  ids: readonly string[],
+  onProgress?: (progress: ZipJobProgress) => void,
+) {
+  const started = Date.now();
+  const zipName = zipDownloadName(folderName);
+  const jobId = crypto.randomUUID();
+  const tracker = createProgressTracker(started, onProgress);
+  tracker.emit({
+    state: "preparing",
+    filesDone: 0,
+    filesTotal: ids.length,
+    filename: zipName,
+  });
+  startNativeZipPost(withZipJob(zipUrl, jobId), ids);
+  await watchZipJob(jobId, zipName, started, tracker);
+}
+
+export function startNativeZipPost(action: string, ids: readonly string[]) {
+  const frameName = `bk-zip-${crypto.randomUUID()}`;
+  const frame = document.createElement("iframe");
+  frame.name = frameName;
+  frame.setAttribute("hidden", "");
+  frame.setAttribute("aria-hidden", "true");
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = action;
+  form.target = frameName;
+  const input = document.createElement("input");
+  input.type = "hidden";
+  input.name = "ids";
+  input.value = ids.join(",");
+  form.append(input);
+  document.body.append(frame, form);
+  form.submit();
+  window.setTimeout(() => {
+    form.remove();
+    frame.remove();
+  }, 120_000);
 }
 
 export function startNativeZipDownload(zipUrl: string, _folderName: string) {

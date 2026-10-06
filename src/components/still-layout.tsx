@@ -2,6 +2,7 @@
 
 import { ListRowPreview } from "@/components/list-row-preview";
 import { MediaTile } from "@/components/media-tile";
+import { SelectionMark, useShootSelection } from "@/components/shoot-selection";
 import { useSectionLayout } from "@/components/section-layout";
 import { listPreviewSrc } from "@/lib/list-preview";
 import { photoViewerHref } from "@/lib/photo-viewer";
@@ -30,23 +31,44 @@ export function StillLayout({
   ratio?: "square" | "3/2";
 }) {
   const layout = useSectionLayout();
+  const selection = useShootSelection();
+  const selecting = Boolean(selection?.selecting);
   if (layout === "list") {
     return (
       <ul>
-        {items.map((item, index) => (
-          <li
-            key={item.id}
-            className="flex items-center gap-3 border-b border-white/10 py-2 text-sm"
-          >
-            <ListRowPreview src={listPreviewSrc(item)} contain={contain} eager={index < PREVIEW_EAGER_COUNT} />
-            <a href={photoViewerHref(basePath, item.id)} className="min-w-0 flex-1 truncate text-[#c7c7cc]">
-              {item.filename}
-            </a>
-            <a href={item.url} download={item.filename} className="shrink-0 text-white">
-              Download
-            </a>
-          </li>
-        ))}
+        {items.map((item, index) => {
+          const selected = selection?.selected.has(item.id) ?? false;
+          if (selecting) {
+            return (
+              <li key={item.id} className="border-b border-white/10 py-2 text-sm">
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => selection?.toggle(item.id)}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <SelectionMark selected={selected} />
+                  <ListRowPreview src={listPreviewSrc(item)} contain={contain} eager={index < PREVIEW_EAGER_COUNT} />
+                  <span className="min-w-0 flex-1 truncate text-[#c7c7cc]">{item.filename}</span>
+                </button>
+              </li>
+            );
+          }
+          return (
+            <li
+              key={item.id}
+              className="flex items-center gap-3 border-b border-white/10 py-2 text-sm"
+            >
+              <ListRowPreview src={listPreviewSrc(item)} contain={contain} eager={index < PREVIEW_EAGER_COUNT} />
+              <a href={photoViewerHref(basePath, item.id)} className="min-w-0 flex-1 truncate text-[#c7c7cc]">
+                {item.filename}
+              </a>
+              <a href={item.url} download={item.filename} className="shrink-0 text-white">
+                Download
+              </a>
+            </li>
+          );
+        })}
       </ul>
     );
   }
@@ -56,6 +78,7 @@ export function StillLayout({
       {items.map((item, index) => (
         <MediaTile
           key={item.id}
+          id={item.id}
           href={photoViewerHref(basePath, item.id)}
           src={item.thumbUrl ?? item.url}
           filename={item.filename}

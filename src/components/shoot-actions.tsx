@@ -17,9 +17,8 @@ import {
   type ZipMediaType,
 } from "@/lib/download-scope";
 import { publicShootPath } from "@/lib/public-link";
-
-const chip =
-  "inline-flex h-9 shrink-0 appearance-none items-center justify-center rounded-lg px-2.5 text-sm";
+import { shootPrimaryButtonClass, shootSecondaryButtonClass } from "@/components/shoot-buttons";
+import { useShootSelection } from "@/components/shoot-selection";
 
 export function ShootActions({
   files,
@@ -41,6 +40,7 @@ export function ShootActions({
   const present = presentMediaTypes(files);
   const needsPicker = present.length > 1;
   const options = zipDownloadOptions(present);
+  const selection = useShootSelection();
 
   function publicHref() {
     return `${window.location.origin}${publicShootPath(shareToken ?? "")}`;
@@ -136,7 +136,7 @@ export function ShootActions({
           aria-haspopup={needsPicker ? "menu" : undefined}
           aria-expanded={needsPicker ? menuOpen : undefined}
           aria-controls={needsPicker ? menuId : undefined}
-          className={`${chip} gap-1 bg-white font-medium text-black disabled:bg-[#c7c7cc] disabled:text-black/45`}
+          className={shootPrimaryButtonClass}
         >
           {buttonLabel}
           {needsPicker && !pending ? (
@@ -149,9 +149,20 @@ export function ShootActions({
           <button
             type="button"
             onClick={copyLink}
-            className={`${chip} border border-white/20 text-white`}
+            className={shootSecondaryButtonClass}
           >
             Copy link
+          </button>
+        ) : null}
+        {selection ? (
+          <button
+            type="button"
+            aria-pressed={selection.selecting}
+            onClick={selection.toggleSelecting}
+            disabled={files.length === 0}
+            className={shootSecondaryButtonClass}
+          >
+            {selection.selecting ? "Cancel" : "Select"}
           </button>
         ) : null}
       </div>
