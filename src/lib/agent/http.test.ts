@@ -265,6 +265,8 @@ test("tools/list includes create_booking and a token call creates the booking", 
   assert.ok(tool);
   assert.match(tool.description ?? "", /America\/New_York/);
   assert.match(tool.description ?? "", /Real Estate · Photography/);
+  assert.match(tool.description ?? "", /Real Estate · Exterior Only/);
+  assert.match(tool.description ?? "", /15-minute appointment/);
   assert.match(tool.description ?? "", /New shoot/);
   for (const field of ["client", "address", "services", "date", "time", "notes"]) {
     assert.ok(tool.inputSchema?.properties?.[field], field);
@@ -397,6 +399,7 @@ test("tools/list includes create_queued_booking and a call creates a shoot with 
   assert.match(tool.description ?? "", /Your shoot is on hold/);
   assert.match(tool.description ?? "", /does not send Billy's New shoot email/i);
   assert.match(tool.description ?? "", /Google Calendar/);
+  assert.match(tool.description ?? "", /Real Estate · Exterior Only/);
   for (const field of ["client", "address", "services", "notes", "commercialHours"]) {
     assert.ok(tool.inputSchema?.properties?.[field], field);
   }

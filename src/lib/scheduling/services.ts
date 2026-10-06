@@ -13,7 +13,7 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
 export const SCHEDULING_INDUSTRIES = [
   {
     industry: "Real Estate",
-    options: ["Photography", "Video", "Aerial Photos", "Zillow 360"],
+    options: ["Photography", "Video", "Aerial Photos", "Zillow 360", "Exterior Only"],
   },
   {
     industry: "Construction",
@@ -85,6 +85,7 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Real Estate · Video": 30,
   "Real Estate · Aerial Photos": 15,
   "Real Estate · Zillow 360": 15,
+  "Real Estate · Exterior Only": 15,
   "Construction · Photography": 45,
   "Construction · Video": 45,
   "Podcast · 1 episode": 60,

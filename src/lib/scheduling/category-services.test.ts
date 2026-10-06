@@ -28,6 +28,7 @@ test("each client category keeps Social Media Video and Meeting, plus its own se
     "Real Estate · Video",
     "Real Estate · Aerial Photos",
     "Real Estate · Zillow 360",
+    "Real Estate · Exterior Only",
     ...SHARED,
   ]);
   assert.deepEqual(CLIENT_CATEGORY_SERVICES.construction, [
@@ -90,6 +91,13 @@ test("construction, podcast, and commercial stay on their own services", () => {
     clientCategoryServiceError(["Real Estate · Aerial Photos"], "construction"),
     "Real Estate · Aerial Photos is not available for this account.",
   );
+  assert.equal(
+    clientCategoryServiceError(["Real Estate · Exterior Only"], "construction"),
+    "Real Estate · Exterior Only is not available for this account.",
+  );
+  assert.equal(clientCategoryServiceError(["Real Estate · Exterior Only"], "real_estate"), null);
+  assert.equal(clientCategoryServiceError(["Real Estate · Exterior Only"], "other"), null);
+  assert.equal(clientCategoryServiceError(["Real Estate · Exterior Only"], null), null);
   assert.equal(clientCategoryServiceError(["Podcast · 2 episodes"], "podcast"), null);
   assert.equal(
     clientCategoryServiceError(["Construction · Video"], "podcast"),

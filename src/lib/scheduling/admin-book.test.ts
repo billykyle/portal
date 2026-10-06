@@ -11,6 +11,7 @@ import {
 } from "./admin-book";
 import { COMMERCIAL_VIDEO_HOURS_ERROR } from "./services";
 import { DEFAULT_TIMEZONE } from "./rules";
+import { formatBookingDuration } from "./slots";
 import { utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
 
 const samId = "11111111-1111-4111-8111-111111111111";
@@ -114,6 +115,96 @@ test("admin and agent can book Construction overnight", async () => {
   const { start, end } = bookedWindow;
   assert.equal(start?.toISOString(), zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year: 2026, month: 9, day: 23, hour: 2, minute: 15 }).toISOString());
   assert.equal(end && start ? end.getTime() - start.getTime() : 0, (45 + 45) * 60 * 1000);
+});
+
+test("exterior only occupies 15 minutes and titles the calendar Ext", async () => {
+  const seen: {
+    start: Date | null;
+    end: Date | null;
+    summary: string;
+    description: string;
+    emailStart: Date | null;
+    emailEnd: Date | null;
+  } = {
+    start: null,
+    end: null,
+    summary: "",
+    description: "",
+    emailStart: null,
+    emailEnd: null,
+  };
+  const booked = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Exterior Only"],
+      date: "2026-09-23",
+      time: "10:00am",
+    },
+    {
+      listClients: async () => [client()],
+      listConfirmedIntervals: async () => [],
+      insertBooking: async (row) => {
+        seen.start = row.startsAt;
+        seen.end = row.endsAt;
+        return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+      },
+      settle: async (input) => {
+        seen.summary = input.calendarWrite?.summary ?? "";
+        seen.description = input.calendarWrite?.description ?? "";
+        seen.emailStart = input.email.start;
+        seen.emailEnd = input.email.end;
+        return {
+          issues: { calendar: false, email: false, alertFailed: false },
+          calendarEventId: "evt_ext",
+          billyNotified: false,
+          alertSent: false,
+        };
+      },
+      calendarOn: () => true,
+    },
+  );
+  assert.equal(booked.ok, true);
+  assert.ok(seen.start && seen.end && seen.emailStart && seen.emailEnd);
+  assert.equal(seen.end.getTime() - seen.start.getTime(), 15 * 60 * 1000);
+  assert.equal(seen.emailEnd.getTime() - seen.emailStart.getTime(), 15 * 60 * 1000);
+  assert.equal(formatBookingDuration(seen.emailStart, seen.emailEnd), "15 minutes");
+  assert.equal(seen.summary, "Sam Lepore - Ext");
+  assert.match(seen.description, /Services: Real Estate · Exterior Only/);
+
+  const withPhotos = await createOverrideBooking(
+    {
+      source: "admin-ui",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Photography", "Real Estate · Exterior Only"],
+      date: "2026-09-23",
+      time: "10:00am",
+    },
+    {
+      listClients: async () => [client()],
+      listConfirmedIntervals: async () => [],
+      insertBooking: async (row) => {
+        seen.start = row.startsAt;
+        seen.end = row.endsAt;
+        return { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+      },
+      settle: async (input) => {
+        seen.summary = input.calendarWrite?.summary ?? "";
+        return {
+          issues: { calendar: false, email: false, alertFailed: false },
+          calendarEventId: null,
+          billyNotified: false,
+          alertSent: false,
+        };
+      },
+      calendarOn: () => true,
+    },
+  );
+  assert.equal(withPhotos.ok, true);
+  assert.equal(seen.end && seen.start ? seen.end.getTime() - seen.start.getTime() : 0, 60 * 60 * 1000);
+  assert.equal(seen.summary, "Sam Lepore - P Ext");
 });
 
 test("commercial video override refuses a missing length and occupies the chosen hours", async () => {
