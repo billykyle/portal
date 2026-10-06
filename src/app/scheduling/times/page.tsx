@@ -15,6 +15,7 @@ import {
   type LegacySchedulingQuery,
 } from "@/lib/scheduling/draft";
 import { migrateLegacySchedulingDraft, readSchedulingDraft } from "@/lib/scheduling/draft-store";
+import { clientCategoryServiceError, loadClientCategory } from "@/lib/scheduling/category-services";
 import {
   bookingServiceList,
   COMMERCIAL_VIDEO_HOURS_ERROR,
@@ -55,9 +56,10 @@ export default async function SchedulingTimesPage({
   }
 
   const modifyId = (params.modify ?? "").trim();
-  const [draft, modifying] = await Promise.all([
+  const [draft, modifying, category] = await Promise.all([
     readSchedulingDraft("client", session.clientId),
     modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
+    loadClientCategory(session.clientId),
   ]);
   if (modifyId && (!modifying || !canClientOpenBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
@@ -78,6 +80,10 @@ export default async function SchedulingTimesPage({
   );
   if (fields.services.length === 0) {
     redirect(schedulingBookHref({ modify: modifying?.id ?? null, error: "Pick at least one service." }));
+  }
+  const serviceError = clientCategoryServiceError(fields.services, category);
+  if (serviceError) {
+    redirect(schedulingBookHref({ modify: modifying?.id ?? null, error: serviceError }));
   }
   if (includesCommercialVideo(fields.services) && fields.commercialHours == null) {
     redirect(schedulingBookHref({ modify: modifying?.id ?? null, error: COMMERCIAL_VIDEO_HOURS_ERROR }));

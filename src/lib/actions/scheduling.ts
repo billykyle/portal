@@ -42,6 +42,7 @@ import {
   includesCommercialVideo,
   parseSchedulingServices,
 } from "@/lib/scheduling/services";
+import { clientCategoryServiceError, loadClientCategory } from "@/lib/scheduling/category-services";
 import { draftInputFromForm, type SchedulingDraftInput } from "@/lib/scheduling/draft";
 import { clearSchedulingDraft, writeSchedulingDraft } from "@/lib/scheduling/draft-store";
 import {
@@ -124,6 +125,16 @@ export async function continueToTimes(formData: FormData) {
     await fail(COMMERCIAL_VIDEO_HOURS_ERROR);
     return;
   }
+  if (!fromAdmin && session) {
+    const categoryError = clientCategoryServiceError(
+      input.services,
+      await loadClientCategory(session.clientId),
+    );
+    if (categoryError) {
+      await fail(categoryError);
+      return;
+    }
+  }
   const parsed = parseShootAddress(input.address);
   if (!parsed.ok) {
     await fail(parsed.error);
@@ -183,6 +194,11 @@ export async function createBooking(formData: FormData) {
     await ensureDb();
     if (services.length === 0) {
       await failBook("Pick at least one service.");
+      return;
+    }
+    const categoryError = clientCategoryServiceError(services, await loadClientCategory(session.clientId));
+    if (categoryError) {
+      await failBook(categoryError);
       return;
     }
     if (!parsedSlot) {
@@ -382,6 +398,15 @@ export async function updateBooking(formData: FormData) {
   if (!exactSlot.ok) {
     await failTimes(exactSlot.error);
     return;
+  }
+
+  if (!fromAdmin && session) {
+    await ensureDb();
+    const categoryError = clientCategoryServiceError(services, await loadClientCategory(session.clientId));
+    if (categoryError) {
+      await failBook(categoryError);
+      return;
+    }
   }
 
   let prepared;
