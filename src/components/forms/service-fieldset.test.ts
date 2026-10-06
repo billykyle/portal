@@ -87,6 +87,10 @@ test("a client category hides the other industries and drops a disallowed select
   assert.match(html, /value="Real Estate · Photography"/);
   assert.match(html, /Aerial Photos/);
   assert.match(html, /Zillow 360/);
+  assert.match(html, /Exterior Only/);
+  const zillow = html.indexOf("Zillow 360");
+  const exterior = html.indexOf("Exterior Only");
+  assert.ok(zillow >= 0 && exterior > zillow);
   assert.doesNotMatch(html, /Podcast/);
   assert.doesNotMatch(html, /Construction/);
   assert.doesNotMatch(html, /Commercial/);

@@ -13,7 +13,7 @@
  *    that write hook is live. Event title is
  *    `{First Last} - {service initials}` using user first+last (displayName
  *    only if those are missing — never company). Initials are P, V, V., AP, 360,
- *    Podcast, CV, and M in catalog order, deduped, so industry names stay out of
+ *    Ext, Podcast, CV, and M in catalog order, deduped, so industry names stay out of
  *    the title. Title parens are only a lockbox: a short access code typed in
  *    notes. Sentences and other notes stay out of the title. Omit the parens
  *    when notes are empty or are not a lockbox. Do not use accessCodes

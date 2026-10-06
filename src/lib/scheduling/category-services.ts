@@ -31,6 +31,7 @@ export const CLIENT_CATEGORY_SERVICES: Record<ClientCategory, readonly Schedulin
     "Real Estate · Video",
     "Real Estate · Aerial Photos",
     "Real Estate · Zillow 360",
+    "Real Estate · Exterior Only",
     ...SHARED_CLIENT_SERVICES,
   ],
   construction: [

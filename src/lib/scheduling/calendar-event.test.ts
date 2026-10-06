@@ -252,6 +252,24 @@ test("calendar title uses service initials in catalog order and keeps a lockbox"
     calendarEventTitle({ ...jane, services: ["Real Estate · Zillow 360"] }),
     "Jane Doe - 360",
   );
+  assert.equal(
+    calendarEventTitle({ ...jane, services: ["Real Estate · Exterior Only"] }),
+    "Jane Doe - Ext",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Photography", "Real Estate · Exterior Only"],
+    }),
+    "Jane Doe - P Ext",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Zillow 360", "Real Estate · Exterior Only"],
+    }),
+    "Jane Doe - 360 Ext",
+  );
   const titled = calendarEventTitle({
     ...jane,
     services: ["Construction · Photography", "Construction · Video", "Commercial video"],
