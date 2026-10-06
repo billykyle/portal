@@ -35,8 +35,9 @@
  *    addresses) and drive time cannot be measured, refuse the slot. Never
  *    assume 0 minutes or a guessed duration.
  * 5. After a successful Book shoot (`createBooking`), send two Resend emails
- *    (no CC/BCC): client confirmation to the booker's login email
- *    (`users.email`, else the session email), and a
+ *    (no CC/BCC): one client confirmation whose To list is every signed-up
+ *    user on that client, the client's real primary contact when it is not
+ *    already included, and addresses in the booking Notes; and a
  *    `New shoot: …` alert to Billy (`billy@billyhere.com` /
  *    `BOOKING_NOTIFY_EMAIL`) with Pepper instructions not to add the shoot
  *    to his calendar. Do not require Pepper. Never roll back the calendar
@@ -45,8 +46,9 @@
  *    gets `Portal booking sync issue` when Calendar or Resend fails; if
  *    that alert also fails, log `PORTAL_BOOKING_SYNC_ALERT` and store
  *    `sync_issue` on the booking. Never send client mail to a NAS
- *    `@pending.local` placeholder. Fall back to the client's real login
- *    emails; if none exist, skip the client send and raise that same alert.
+ *    `@pending.local` placeholder. Billy's address is not a client
+ *    recipient unless he is the booker. If nobody real is left, skip the
+ *    client send and raise that same alert.
  *    Modify (`updateBooking`) uses the same
  *    two-send + Calendar pattern, excluding the
  *    booking being edited from availability so its own slot stays offered.
@@ -65,9 +67,10 @@
  *    update emails include Add to calendar (ICS attachment + signed ICS
  *    URL, plus a Google Calendar template link). Cancelled client mail
  *    omits that CTA. Billy’s notify emails never include it.
- *    Other addresses in the current Notes get a separate send of that same
- *    client email (deduped against the booker). Billy's notify and
- *    sync-issue mail are not copied to them. A lockbox code in Notes is
+ *    The same client To list (every signed-up user, the real primary
+ *    contact, and Notes addresses, deduped) is used for confirm, change,
+ *    cancel, queue hold, and the 6:00am ET day-of reminder. Billy's notify
+ *    and sync-issue mail are not copied to them. A lockbox code in Notes is
  *    the only notes text copied into the calendar title, exactly as typed.
  *    When `calendarEventId` is present, also DELETE the Work calendar event
  *    (same `writeCalendarId` as create). 403/404/auth is logged and does
@@ -75,12 +78,15 @@
  *    Queue (`queueBooking` and the agent `queue_booking` tool) moves an
  *    upcoming confirmed shoot to status `queued` with no start or end.
  *    The Google Calendar event is deleted and that time is released.
- *    Address, services, notes, and access codes stay. The client gets
- *    “Your shoot is on hold.” Notes addresses are copied. Billy is not.
+ *    Address, services, notes, and access codes stay. Every signed-up user
+ *    gets “Your shoot is on hold.” Notes addresses are on that same To
+ *    list. Billy is not.
  *    `create_queued_booking` creates that same queued row from scratch
  *    (no start, no end, no calendar event, no Billy New shoot mail).
- *    The client still gets “Your shoot is on hold.” Notes addresses are
- *    copied. That message does not mention a previous time.
+ *    The same recipients get “Your shoot is on hold.” That message does
+ *    not mention a previous time. Admin and agent creates (`create_booking`,
+ *    `create_queued_booking`, Book a shoot) attach the booking and the
+ *    calendar contact to the client's primary contact, not the newest login.
  *    Scheduling lists Queue above Upcoming only when that client has
  *    queued shoots. A client picking a time later still uses the open-slot
  *    grid. Admin and agent `modify_booking` scheduling a queued shoot onto

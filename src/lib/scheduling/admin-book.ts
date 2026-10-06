@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { isUuid } from "@/lib/admin/ids";
+import { primaryBookingContact } from "@/lib/client-contact";
 import { db } from "@/lib/db";
 import { bookings, clients } from "@/lib/db/schema";
 import { directoryLogins } from "@/lib/user-portals";
@@ -29,6 +30,7 @@ import {
 } from "./services";
 
 export type BookingClientLogin = {
+  userId?: string | null;
   email: string;
   firstName: string | null;
   lastName: string | null;
@@ -74,6 +76,7 @@ export type OverrideBookingResult = OverrideBookingSuccess | { ok: false; error:
 
 type InsertedBooking = {
   clientId: string;
+  createdByUserId: string | null;
   address: string;
   services: SchedulingService[];
   commercialVideoHours: number | null;
@@ -165,8 +168,11 @@ export function parseOverrideServices(
   return { ok: true, services };
 }
 
-function earliestLogin(client: BookingClientRecord) {
-  return [...client.logins].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0] ?? null;
+function bookingContact(client: BookingClientRecord) {
+  return primaryBookingContact({
+    primaryEmail: client.primaryEmail,
+    logins: client.logins,
+  });
 }
 
 export async function createOverrideBooking(
@@ -203,13 +209,13 @@ export async function createOverrideBooking(
   const jobs = await deps.listConfirmedIntervals();
   const overlapWarning = shootOverlapWarning(window, jobs);
   const client = resolved.client;
-  const login = earliestLogin(client);
+  const contact = bookingContact(client);
   const calendar = calendarEventCopy({
-    firstName: login?.firstName,
-    lastName: login?.lastName,
+    firstName: contact?.login?.firstName,
+    lastName: contact?.login?.lastName,
     displayName: client.displayName,
-    email: login?.email,
-    phone: login?.phone,
+    email: contact?.email,
+    phone: contact?.login?.phone,
     company: client.company,
     address: address.address,
     services: services.services,
@@ -218,6 +224,7 @@ export async function createOverrideBooking(
 
   const inserted = await deps.insertBooking({
     clientId: client.id,
+    createdByUserId: contact?.login?.userId ?? null,
     address: address.address,
     services: services.services,
     commercialVideoHours,
@@ -245,7 +252,7 @@ export async function createOverrideBooking(
       : undefined,
     email: {
       bookingId: inserted.id,
-      clientEmail: login?.email || client.primaryEmail,
+      clientEmail: contact?.email || client.primaryEmail,
       primaryEmail: client.primaryEmail,
       loginEmails: client.logins.map((row) => row.email),
       clientName: client.displayName,
@@ -302,6 +309,7 @@ export type QueuedBookingResult = QueuedBookingSuccess | { ok: false; error: str
 
 type InsertedQueuedBooking = {
   clientId: string;
+  createdByUserId: string | null;
   address: string;
   services: SchedulingService[];
   commercialVideoHours: number | null;
@@ -347,9 +355,10 @@ export async function createQueuedBooking(
 
   const notes = input.notes?.trim() || null;
   const client = resolved.client;
-  const login = earliestLogin(client);
+  const contact = bookingContact(client);
   const inserted = await deps.insertQueuedBooking({
     clientId: client.id,
+    createdByUserId: contact?.login?.userId ?? null,
     address: address.address,
     services: services.services,
     commercialVideoHours,
@@ -364,10 +373,10 @@ export async function createQueuedBooking(
   let emailFailed = false;
   try {
     const sent = await deps.sendHold({
-      clientEmail: login?.email || client.primaryEmail,
+      clientEmail: contact?.email || client.primaryEmail,
       primaryEmail: client.primaryEmail,
       loginEmails: client.logins.map((row) => row.email),
-      firstName: login?.firstName ?? null,
+      firstName: contact?.login?.firstName ?? null,
       clientName: client.displayName,
       address: address.address,
       notes,
@@ -421,6 +430,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
       for (const login of loginRows) {
         const list = logins.get(login.clientId) ?? [];
         list.push({
+          userId: login.userId,
           email: login.email,
           firstName: login.firstName,
           lastName: login.lastName,
@@ -450,7 +460,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
         .insert(bookings)
         .values({
           clientId: row.clientId,
-          createdByUserId: null,
+          createdByUserId: row.createdByUserId,
           address: row.address,
           services: row.services,
           commercialVideoHours: row.commercialVideoHours,
@@ -478,7 +488,7 @@ export function defaultQueuedBookingDeps(): QueuedBookingDeps {
         .insert(bookings)
         .values({
           clientId: row.clientId,
-          createdByUserId: null,
+          createdByUserId: row.createdByUserId,
           address: row.address,
           services: row.services,
           commercialVideoHours: row.commercialVideoHours,

@@ -53,15 +53,16 @@ test("due reminders claim once, mail the client and notes, and release a total f
         released.push(id);
       },
       async send(message) {
-        sentTo.push(message.to);
+        const to = [message.to].flat();
+        sentTo.push(to.join(","));
         assert.match(message.subject, /^Re: Shoot confirmed/);
         assert.equal(message.headers?.["In-Reply-To"], "<booking-booking-1@portal.billy-kyle.com>");
-        return { sent: message.to !== "fail@example.com" };
+        return { sent: !to.includes("fail@example.com") };
       },
     },
   );
 
-  assert.deepEqual(sentTo, ["sam.preview@example.com", "alex@example.com", "fail@example.com"]);
+  assert.deepEqual(sentTo, ["sam.preview@example.com,alex@example.com", "fail@example.com"]);
   assert.deepEqual(claimed, ["booking-1", "booking-fail"]);
   assert.deepEqual(released, ["booking-fail"]);
   assert.deepEqual(counts, { checked: 3, sent: 1, skipped: 1, failed: 1 });
