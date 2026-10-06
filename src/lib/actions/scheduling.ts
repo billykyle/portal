@@ -22,9 +22,11 @@ import {
   canAdminOpenBooking,
   canClientOpenBooking,
   canQueueUpcomingBooking,
+  confirmedTwilightDayTaken,
   getBookingById,
   getClientBooking,
   loadConfirmedPortalJobs,
+  loadConfirmedTwilightDays,
 } from "@/lib/scheduling/bookings";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
 import {
@@ -43,6 +45,14 @@ import {
   parseSchedulingServices,
 } from "@/lib/scheduling/services";
 import { clientCategoryServiceError, loadClientCategory } from "@/lib/scheduling/category-services";
+import {
+  includesTwilight,
+  TWILIGHT_DAY_TAKEN,
+  twilightAloneError,
+  twilightConflictMessage,
+  twilightDateKey,
+  twilightDayValue,
+} from "@/lib/scheduling/twilight";
 import { draftInputFromForm, type SchedulingDraftInput } from "@/lib/scheduling/draft";
 import { clearSchedulingDraft, writeSchedulingDraft } from "@/lib/scheduling/draft-store";
 import {
@@ -121,6 +131,11 @@ export async function continueToTimes(formData: FormData) {
     await fail("Pick at least one service.");
     return;
   }
+  const twilightError = twilightAloneError(input.services);
+  if (twilightError) {
+    await fail(twilightError);
+    return;
+  }
   if (includesCommercialVideo(input.services) && input.commercialHours == null) {
     await fail(COMMERCIAL_VIDEO_HOURS_ERROR);
     return;
@@ -196,6 +211,11 @@ export async function createBooking(formData: FormData) {
       await failBook("Pick at least one service.");
       return;
     }
+    const twilightError = twilightAloneError(services);
+    if (twilightError) {
+      await failBook(twilightError);
+      return;
+    }
     const categoryError = clientCategoryServiceError(services, await loadClientCategory(session.clientId));
     if (categoryError) {
       await failBook(categoryError);
@@ -222,6 +242,7 @@ export async function createBooking(formData: FormData) {
     }
     const availability = await offerSlotsForAddress(address, sources, services, {
       commercialHours: draftInput.commercialHours,
+      twilightBookedDays: includesTwilight(services) ? await loadConfirmedTwilightDays() : undefined,
     });
     if (availability.error) {
       await failBook(availability.error);
@@ -242,6 +263,10 @@ export async function createBooking(formData: FormData) {
       })
     ) {
       await failTimes("That time is no longer available. Pick another.", availability.address);
+      return;
+    }
+    if (includesTwilight(services) && (await confirmedTwilightDayTaken(twilightDateKey(start)))) {
+      await failTimes(TWILIGHT_DAY_TAKEN, availability.address);
       return;
     }
     const offered = availability.slots.find((slot) => slot.start === startIso && slot.end === endIso);
@@ -276,6 +301,7 @@ export async function createBooking(formData: FormData) {
         accessCodes,
         calendarEventId: null,
         driveSecondsFromPrior: offered?.driveSecondsFromPrior ?? null,
+        twilightDay: twilightDayValue(services, start),
       })
       .returning({ id: bookings.id });
     if (!booking) {
@@ -301,7 +327,7 @@ export async function createBooking(formData: FormData) {
     };
   } catch (error) {
     unstable_rethrow(error);
-    await failTimes(bookingUserError(error));
+    await failTimes(twilightConflictMessage(error) ?? bookingUserError(error));
     return;
   }
 

@@ -18,6 +18,12 @@ import {
 } from "./services";
 import { formatSlotRange, generateCandidateSlots, slotEndsByClose } from "./slots";
 import {
+  generateTwilightCandidateSlots,
+  isTwilightBooking,
+  twilightAloneError,
+  withoutRetainedTwilightDaySunset,
+} from "./twilight";
+import {
   pickNextJobs,
   pickPriorJobs,
   travelFits,
@@ -79,7 +85,12 @@ export async function offerSlotsForAddress(
   rawAddress: string,
   sources: AvailabilitySources,
   services: readonly string[] = [],
-  options?: { retainStarts?: readonly Date[]; commercialHours?: number | null },
+  options?: {
+    retainStarts?: readonly Date[];
+    commercialHours?: number | null;
+    /** Eastern date keys that already have a confirmed Twilight. */
+    twilightBookedDays?: readonly string[];
+  },
 ): Promise<AvailabilityResult> {
   const parsed = parseShootAddress(rawAddress);
   const now = sources.now ?? new Date();
@@ -118,15 +129,43 @@ export async function offerSlotsForAddress(
     };
   }
 
+  const twilightError = twilightAloneError(selected);
+  if (twilightError) {
+    return {
+      address: parsed.address,
+      timeZone: hours.timeZone,
+      calendarConfigured: sources.calendarConfigured,
+      driveTimeConfigured: sources.driveTimeConfigured,
+      ...window,
+      slots: [],
+      notices,
+      error: twilightError,
+    };
+  }
+
   const allDay = bookingUsesAllDayHours(selected);
   const requireEndByClose = allDay ? false : bookingRequiresEndByClose(selected);
-  const candidates = generateCandidateSlots({
-    ...hours,
-    now,
-    retainStarts: options?.retainStarts,
-    requireEndByClose,
-    allDay,
-  });
+  const twilight = isTwilightBooking(selected);
+  const candidates = twilight
+    ? withoutRetainedTwilightDaySunset(
+        generateTwilightCandidateSlots({
+          now,
+          timeZone: hours.timeZone,
+          daysAhead: hours.daysAhead,
+          minLeadMinutes: hours.minLeadMinutes,
+          retainStarts: options?.retainStarts,
+          twilightBookedDays: options?.twilightBookedDays,
+        }),
+        options?.retainStarts,
+        hours.timeZone,
+      )
+    : generateCandidateSlots({
+        ...hours,
+        now,
+        retainStarts: options?.retainStarts,
+        requireEndByClose,
+        allDay,
+      });
   const busy = mergeIntervals(sources.busy);
   const afterBusy = candidates.filter((slot) => !busy.some((block) => overlaps(slot, block)));
   const neighborJobs = travelJobsWithBusy(sources.jobs, busy);

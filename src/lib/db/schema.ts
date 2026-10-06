@@ -130,6 +130,8 @@ export const bookings = pgTable("bookings", {
   reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
   syncIssue: text("sync_issue"),
   driveSecondsFromPrior: integer("drive_seconds_from_prior"),
+  /** Eastern YYYY-MM-DD when this confirmed row is a Twilight. One per day. */
+  twilightDay: text("twilight_day"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

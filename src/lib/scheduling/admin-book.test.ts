@@ -10,6 +10,7 @@ import {
   type OverrideBookingSource,
 } from "./admin-book";
 import { COMMERCIAL_VIDEO_HOURS_ERROR } from "./services";
+import { TWILIGHT_ALONE_ERROR, TWILIGHT_DAY_TAKEN, twilightSlotForCalendarDate } from "./twilight";
 import { DEFAULT_TIMEZONE } from "./rules";
 import { formatBookingDuration } from "./slots";
 import { utcToZonedParts, zonedDateTimeToUtc } from "./zoned-time";
@@ -640,3 +641,124 @@ async function book(
     else process.env.BOOKING_NOTIFY_EMAIL = previousNotify;
   }
 }
+
+test("twilight defaults to the sunset slot, keeps an override, and rejects a second one that day", async () => {
+  const sunset = twilightSlotForCalendarDate({ year: 2026, month: 6, day: 24 });
+  assert.ok(sunset);
+  const seen: { start: Date | null; end: Date | null; summary: string; twilightDay: string | null } = {
+    start: null,
+    end: null,
+    summary: "",
+    twilightDay: null,
+  };
+  const deps: OverrideBookingDeps = {
+    listClients: async () => [client()],
+    listConfirmedIntervals: async () => [],
+    insertBooking: async (row) => {
+      seen.start = row.startsAt;
+      seen.end = row.endsAt;
+      seen.twilightDay = row.twilightDay;
+      return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+    },
+    settle: async (input: { calendarWrite?: { summary: string } }) => {
+      seen.summary = input.calendarWrite?.summary ?? "";
+      return {
+        issues: { calendar: false, email: false, alertFailed: false },
+        calendarEventId: "evt_twi",
+        billyNotified: false,
+        alertSent: false,
+      };
+    },
+    calendarOn: () => true,
+    twilightDayTaken: async () => false,
+  };
+
+  const omitted = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Twilight"],
+      date: "2026-06-24",
+      time: "",
+    },
+    deps,
+  );
+  assert.equal(omitted.ok, true);
+  assert.equal(seen.start?.toISOString(), sunset.start.toISOString());
+  assert.equal(seen.end?.getTime(), sunset.end.getTime());
+  assert.equal(seen.end && seen.start ? seen.end.getTime() - seen.start.getTime() : 0, 30 * 60 * 1000);
+  assert.equal(seen.summary, "Sam Lepore - Twi");
+  assert.equal(seen.twilightDay, "2026-06-24");
+
+  const override = await createOverrideBooking(
+    {
+      source: "admin-ui",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Twilight"],
+      date: "2026-06-24",
+      time: "4:00pm",
+    },
+    deps,
+  );
+  assert.equal(override.ok, true);
+  assert.equal(
+    seen.start?.toISOString(),
+    zonedDateTimeToUtc(DEFAULT_TIMEZONE, { year: 2026, month: 6, day: 24, hour: 16, minute: 0 }).toISOString(),
+  );
+  assert.equal(seen.end && seen.start ? seen.end.getTime() - seen.start.getTime() : 0, 30 * 60 * 1000);
+  assert.equal(seen.twilightDay, "2026-06-24");
+
+  const taken = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Twilight"],
+      date: "2026-06-24",
+      time: "4:15pm",
+    },
+    { ...deps, twilightDayTaken: async () => true },
+  );
+  assert.equal(taken.ok, false);
+  if (!taken.ok) assert.equal(taken.error, TWILIGHT_DAY_TAKEN);
+
+  const raced = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Twilight"],
+      date: "2026-06-25",
+      time: "8:30pm",
+    },
+    {
+      ...deps,
+      twilightDayTaken: async () => false,
+      insertBooking: async () => {
+        const error = new Error(
+          'duplicate key value violates unique constraint "bookings_one_twilight_per_day"',
+        ) as Error & { code: string };
+        error.code = "23505";
+        throw error;
+      },
+    },
+  );
+  assert.equal(raced.ok, false);
+  if (!raced.ok) assert.equal(raced.error, TWILIGHT_DAY_TAKEN);
+
+  const mixed = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00004",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Twilight", "Real Estate · Photography"],
+      date: "2026-06-24",
+      time: "4:00pm",
+    },
+    deps,
+  );
+  assert.equal(mixed.ok, false);
+  if (!mixed.ok) assert.equal(mixed.error, TWILIGHT_ALONE_ERROR);
+});

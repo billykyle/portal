@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { bookings, clients } from "@/lib/db/schema";
 import { directoryLogins } from "@/lib/user-portals";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
+import { confirmedTwilightDayTaken } from "./bookings";
 import { calendarConfigured } from "./config";
 import { parseShootAddress } from "./address";
 import { calendarEventCopy } from "./calendar-event";
@@ -28,6 +29,16 @@ import {
   SCHEDULING_SERVICES,
   type SchedulingService,
 } from "./services";
+import {
+  includesTwilight,
+  isTwilightBooking,
+  isTwilightDayConflict,
+  TWILIGHT_DAY_TAKEN,
+  twilightAloneError,
+  twilightClockForDateKey,
+  twilightDateKey,
+  twilightDayValue,
+} from "./twilight";
 
 export type BookingClientLogin = {
   userId?: string | null;
@@ -84,6 +95,7 @@ type InsertedBooking = {
   endsAt: Date;
   notes: string | null;
   driveSecondsFromPrior: null;
+  twilightDay: string | null;
 };
 
 export type OverrideBookingDeps = {
@@ -93,6 +105,8 @@ export type OverrideBookingDeps = {
   settle: typeof settleBookingIntegrations;
   calendarOn: () => boolean;
   timeZone?: string;
+  /** Confirmed Twilight already stored on this Eastern date. Omitted in tests that do not book Twilight. */
+  twilightDayTaken?: (dateKey: string) => Promise<boolean>;
 };
 
 function clientLabel(client: Pick<BookingClientRecord, "displayName" | "inviteCode" | "company">) {
@@ -197,13 +211,27 @@ export async function createOverrideBooking(
   if (includesCommercialVideo(services.services) && commercialVideoHours == null) {
     return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR };
   }
+  const alone = twilightAloneError(services.services);
+  if (alone) return { ok: false, error: alone };
+
+  let timeText = input.time.trim();
+  if (!timeText && isTwilightBooking(services.services)) {
+    const sunset = twilightClockForDateKey(input.date, timeZone);
+    if (!sunset) return { ok: false, error: "Enter a date as YYYY-MM-DD." };
+    timeText = sunset;
+  }
 
   if (!parseAdminShootDate(input.date)) return { ok: false, error: "Enter a date as YYYY-MM-DD." };
-  const clock = parseAdminShootTime(input.time);
+  const clock = parseAdminShootTime(timeText);
   if (!clock.ok) return clock;
 
-  const window = adminShootWindow(input.date, input.time, services.services, timeZone, commercialVideoHours);
+  const window = adminShootWindow(input.date, timeText, services.services, timeZone, commercialVideoHours);
   if (!window) return { ok: false, error: "Could not read that time." };
+
+  if (includesTwilight(services.services) && deps.twilightDayTaken) {
+    const taken = await deps.twilightDayTaken(twilightDateKey(window.start, timeZone));
+    if (taken) return { ok: false, error: TWILIGHT_DAY_TAKEN };
+  }
 
   const notes = input.notes?.trim() || null;
   const jobs = await deps.listConfirmedIntervals();
@@ -222,17 +250,24 @@ export async function createOverrideBooking(
     notes,
   });
 
-  const inserted = await deps.insertBooking({
-    clientId: client.id,
-    createdByUserId: contact?.login?.userId ?? null,
-    address: address.address,
-    services: services.services,
-    commercialVideoHours,
-    startsAt: window.start,
-    endsAt: window.end,
-    notes,
-    driveSecondsFromPrior: null,
-  });
+  let inserted: { id: string } | null;
+  try {
+    inserted = await deps.insertBooking({
+      clientId: client.id,
+      createdByUserId: contact?.login?.userId ?? null,
+      address: address.address,
+      services: services.services,
+      commercialVideoHours,
+      startsAt: window.start,
+      endsAt: window.end,
+      notes,
+      driveSecondsFromPrior: null,
+      twilightDay: twilightDayValue(services.services, window.start, "confirmed", timeZone),
+    });
+  } catch (error) {
+    if (isTwilightDayConflict(error)) return { ok: false, error: TWILIGHT_DAY_TAKEN };
+    throw error;
+  }
   if (!inserted) return { ok: false, error: "Booking could not be completed." };
 
   const calendarOn = deps.calendarOn();
@@ -352,6 +387,8 @@ export async function createQueuedBooking(
   if (includesCommercialVideo(services.services) && commercialVideoHours == null) {
     return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR };
   }
+  const alone = twilightAloneError(services.services);
+  if (alone) return { ok: false, error: alone };
 
   const notes = input.notes?.trim() || null;
   const client = resolved.client;
@@ -471,12 +508,14 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
           accessCodes: null,
           calendarEventId: null,
           driveSecondsFromPrior: row.driveSecondsFromPrior,
+          twilightDay: row.twilightDay,
         })
         .returning({ id: bookings.id });
       return created ?? null;
     },
     settle: settleBookingIntegrations,
     calendarOn: calendarConfigured,
+    twilightDayTaken: (dateKey) => confirmedTwilightDayTaken(dateKey),
   };
 }
 

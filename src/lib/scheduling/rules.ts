@@ -12,7 +12,7 @@
  *    bookings are always busy too, and are written to the work calendar when
  *    that write hook is live. Event title is
  *    `{First Last} - {service initials}` using user first+last (displayName
- *    only if those are missing — never company). Initials are P, V, V., AP, 360,
+ *    only if those are missing — never company). Initials are P, V, V., AP, Twi, 360,
  *    Ext, Podcast, CV, and M in catalog order, deduped, so industry names stay out of
  *    the title. Title parens are only a lockbox: a short access code typed in
  *    notes. Sentences and other notes stay out of the title. Omit the parens
@@ -130,6 +130,17 @@
  *    selectable (even if that day is today or a blocked weekday) and does
  *    not invent other slots on a blocked day. Create/update reject a new
  *    start on a blocked day so the API cannot bypass the list.
+ * 9. Twilight (`Real Estate · Twilight`, initial Twi) is its own appointment
+ *    and is not combined with other services. Clients see one start per day:
+ *    sunset in Philadelphia (39.9526, -75.1652, America/New_York), rounded
+ *    down to the previous 15-minute mark, lasting 30 minutes. That slot is
+ *    offered only when the window is free on Work and Personal and no other
+ *    confirmed Twilight exists that Eastern day. A second Twilight that day
+ *    is rejected, including when two requests arrive together. Admin Book a
+ *    shoot and agent `create_booking` default to that sunset time and may
+ *    still override the clock the same way they override other services.
+ *    The one-per-day limit still applies. The event is written to the Work
+ *    calendar. Shoot mail uses the same recipients as every other service.
  */
 
 /** Locked at 0 — live Maps ETA only, no extra minutes (Billy, 2026-09-20). */

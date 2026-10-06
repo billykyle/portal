@@ -7,13 +7,14 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
  * Admin and agent booking still use this full list. Clients may select more
  * than one option, except exclusive groups
  * (Podcast episode count, Social Media Video option, and Meeting length).
+ * Twilight is its own appointment and cannot be combined with anything else.
  * Do not invent prices here.
  * Slot length is the **sum** of selected option minutes (never longest-only).
  */
 export const SCHEDULING_INDUSTRIES = [
   {
     industry: "Real Estate",
-    options: ["Photography", "Video", "Aerial Photos", "Zillow 360", "Exterior Only"],
+    options: ["Photography", "Video", "Aerial Photos", "Twilight", "Zillow 360", "Exterior Only"],
   },
   {
     industry: "Construction",
@@ -76,6 +77,9 @@ export const SCHEDULING_SERVICES = [
 
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
 
+/** Stored as Real Estate · Twilight. Booked alone, at the Philadelphia sunset slot. */
+export const TWILIGHT_SERVICE = "Real Estate · Twilight" as const satisfies SchedulingService;
+
 /**
  * Locked minutes per option (Billy, 2026-09-20). Multi-select bookings
  * **sum** these values.
@@ -84,6 +88,7 @@ export const SCHEDULING_SERVICE_MINUTES = {
   "Real Estate · Photography": 45,
   "Real Estate · Video": 30,
   "Real Estate · Aerial Photos": 15,
+  "Real Estate · Twilight": 30,
   "Real Estate · Zillow 360": 15,
   "Real Estate · Exterior Only": 15,
   "Construction · Photography": 45,
@@ -251,9 +256,18 @@ export function toggleSchedulingService(
   const parsed = parseSchedulingService(value);
   if (!parsed) return parseSchedulingServices(current);
   const selected = new Set(parseSchedulingServices(current));
+  if (parsed === TWILIGHT_SERVICE) {
+    if (selected.has(TWILIGHT_SERVICE) && selected.size === 1) selected.delete(TWILIGHT_SERVICE);
+    else {
+      selected.clear();
+      selected.add(TWILIGHT_SERVICE);
+    }
+    return SCHEDULING_SERVICES.filter((item) => selected.has(item));
+  }
   if (selected.has(parsed)) {
     selected.delete(parsed);
   } else {
+    selected.delete(TWILIGHT_SERVICE);
     const group = EXCLUSIVE_GROUP_KEY.get(parsed);
     if (group) {
       for (const item of SCHEDULING_SERVICES) {

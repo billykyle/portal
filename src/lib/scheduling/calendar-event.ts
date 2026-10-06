@@ -9,6 +9,7 @@ const CALENDAR_SERVICE_INITIALS: { token: string; services: readonly string[] }[
     services: ["Social Media Video · Monthly Batch Video", "Social Media Video · Long Form Content Creation"],
   },
   { token: "AP", services: ["Real Estate · Aerial Photos"] },
+  { token: "Twi", services: ["Real Estate · Twilight"] },
   { token: "360", services: ["Real Estate · Zillow 360"] },
   { token: "Ext", services: ["Real Estate · Exterior Only"] },
   { token: "Podcast", services: ["Podcast · 1 episode", "Podcast · 2 episodes"] },

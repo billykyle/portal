@@ -5,9 +5,11 @@ import {
   getBookingById,
   getClientBooking,
   loadConfirmedPortalJobs,
+  loadConfirmedTwilightDays,
 } from "./bookings";
 import { resolveBookAddress } from "./places";
 import { parseSchedulingServices } from "./services";
+import { includesTwilight } from "./twilight";
 
 export type OfferedAvailabilityFailureKind = "address" | "calendar" | "availability";
 
@@ -99,6 +101,9 @@ export async function loadOfferedAvailability(input: {
   const availability = await offerSlotsForAddress(resolved.address, sources, services, {
     retainStarts: ownWindow ? [ownWindow.start] : undefined,
     commercialHours: input.commercialHours,
+    twilightBookedDays: includesTwilight(services)
+      ? await loadConfirmedTwilightDays({ excludeBookingId: input.modifying?.id })
+      : undefined,
   });
   if (availability.error) {
     return { ok: false, kind: "availability", error: availability.error };

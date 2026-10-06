@@ -20,9 +20,11 @@ import {
   canAdminOpenBooking,
   canClientOpenBooking,
   canQueueUpcomingBooking,
+  confirmedTwilightDayTaken,
   getBookingById,
   getClientBooking,
   loadConfirmedPortalJobs,
+  loadConfirmedTwilightDays,
 } from "@/lib/scheduling/bookings";
 import { parseShootAddress } from "@/lib/scheduling/address";
 import { calendarConfigured, schedulingHours } from "@/lib/scheduling/config";
@@ -42,6 +44,14 @@ import {
   parseSchedulingServices,
 } from "@/lib/scheduling/services";
 import { reminderDateChanged } from "@/lib/scheduling/shoot-reminder";
+import {
+  includesTwilight,
+  TWILIGHT_DAY_TAKEN,
+  twilightAloneError,
+  twilightConflictMessage,
+  twilightDateKey,
+  twilightDayValue,
+} from "@/lib/scheduling/twilight";
 
 type ActorSession = { clientId: string; userId: string; email: string } | null;
 
@@ -148,6 +158,10 @@ export async function prepareBookingModification(input: {
   if (includesCommercialVideo(services) && commercialHours == null) {
     return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR, stage: "book" };
   }
+  const twilightError = twilightAloneError(services);
+  if (twilightError) {
+    return { ok: false, error: twilightError, stage: "book" };
+  }
   if (!input.startIso) {
     return { ok: false, error: "Pick a time.", stage: "times", address: input.address };
   }
@@ -228,6 +242,9 @@ export async function prepareBookingModification(input: {
     const availability = await offerSlotsForAddress(input.address, sources, services, {
       retainStarts: ownWindow ? [ownWindow.start] : undefined,
       commercialHours,
+      twilightBookedDays: includesTwilight(services)
+        ? await loadConfirmedTwilightDays({ excludeBookingId: booking.id })
+        : undefined,
     });
     if (availability.error) {
       return { ok: false, error: availability.error, stage: "book" };
@@ -309,7 +326,13 @@ export async function prepareBookingModification(input: {
     accessCodes: booking.accessCodes,
   });
 
-  const [saved] = await db
+  if (includesTwilight(services) && (await confirmedTwilightDayTaken(twilightDateKey(start), booking.id))) {
+    return { ok: false, error: TWILIGHT_DAY_TAKEN, stage: "times", address: savedAddress };
+  }
+
+  let saved: { id: string } | undefined;
+  try {
+    [saved] = await db
     .update(bookings)
     .set({
       address: savedAddress,
@@ -320,6 +343,7 @@ export async function prepareBookingModification(input: {
       notes: input.notes,
       driveSecondsFromPrior,
       status: "confirmed",
+      twilightDay: twilightDayValue(services, start),
       ...(!booking.startsAt || reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
       updatedAt: new Date(),
     })
@@ -333,6 +357,12 @@ export async function prepareBookingModification(input: {
           ),
     )
     .returning({ id: bookings.id });
+  } catch (error) {
+    if (twilightConflictMessage(error)) {
+      return { ok: false, error: TWILIGHT_DAY_TAKEN, stage: "times", address: savedAddress };
+    }
+    throw error;
+  }
   if (!saved) {
     return { ok: false, error: "Booking could not be updated.", stage: "times", address: savedAddress };
   }
@@ -402,7 +432,7 @@ export async function finishBookingModification(prepared: PreparedBookingModific
 }
 
 export function bookingModifyThrownMessage(error: unknown) {
-  return bookingUserError(error, "Booking could not be updated.");
+  return twilightConflictMessage(error) ?? bookingUserError(error, "Booking could not be updated.");
 }
 
 export async function resolveBookingContactEmail(input: {
@@ -446,7 +476,7 @@ export async function commitBookingCancellation(input: {
   const { booking } = input;
   const [cancelled] = await db
     .update(bookings)
-    .set({ status: "cancelled", updatedAt: new Date() })
+    .set({ status: "cancelled", twilightDay: null, updatedAt: new Date() })
     .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")))
     .returning({ id: bookings.id });
 
@@ -532,6 +562,7 @@ export async function commitMoveToQueue(booking: Booking): Promise<
       status: "queued",
       startsAt: null,
       endsAt: null,
+      twilightDay: null,
       reminderSentAt: null,
       updatedAt: new Date(),
     })
