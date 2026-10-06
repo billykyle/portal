@@ -20,7 +20,12 @@ import {
   type LegacySchedulingQuery,
 } from "@/lib/scheduling/draft";
 import { migrateLegacySchedulingDraft, readSchedulingDraft } from "@/lib/scheduling/draft-store";
-import { bookingServiceList } from "@/lib/scheduling/services";
+import {
+  limitServicesToCategory,
+  loadClientCategory,
+  servicesForClientCategory,
+} from "@/lib/scheduling/category-services";
+import { bookingServiceList, COMMERCIAL_VIDEO_SERVICE } from "@/lib/scheduling/services";
 import { schedulingBookHref } from "@/lib/scheduling/urls";
 
 export const metadata: Metadata = {
@@ -63,11 +68,12 @@ export default async function SchedulingPage({
   }
 
   const modifyId = (params.modify ?? "").trim();
-  const [draft, modifying, upcoming, queued] = await Promise.all([
+  const [draft, modifying, upcoming, queued, category] = await Promise.all([
     readSchedulingDraft("client", session.clientId),
     modifyId ? getClientBooking(session.clientId, modifyId) : Promise.resolve(null),
     listClientUpcomingBookings(session.clientId),
     listClientQueuedBookings(session.clientId),
+    loadClientCategory(session.clientId),
   ]);
   if (modifyId && (!modifying || !canClientOpenBooking(modifying, session.clientId))) {
     redirect(schedulingBookHref({ error: "That booking cannot be modified." }));
@@ -86,6 +92,9 @@ export default async function SchedulingPage({
       : null,
   );
   const hours = schedulingHours();
+  const allowedServices = servicesForClientCategory(category);
+  const services = limitServicesToCategory(fields.services, category);
+  const commercialHours = services.includes(COMMERCIAL_VIDEO_SERVICE) ? fields.commercialHours : null;
 
   return (
     <PhoneShell>
@@ -104,14 +113,15 @@ export default async function SchedulingPage({
           </h2>
           <FormColumn className="md:max-w-none lg:max-w-none">
             <BookShootForm
-              key={`${modifying?.id ?? "book"}:${fields.address}:${fields.services.join("\n")}:${fields.commercialHours ?? ""}:${fields.notes}`}
+              key={`${modifying?.id ?? "book"}:${fields.address}:${services.join("\n")}:${commercialHours ?? ""}:${fields.notes}:${category ?? ""}`}
               address={fields.address}
               placeId={fields.placeId}
-              services={fields.services}
-              commercialHours={fields.commercialHours}
+              services={services}
+              commercialHours={commercialHours}
               notes={fields.notes}
               placesConfigured={placesConfigured()}
               modifyBookingId={modifying?.id}
+              allowedServices={allowedServices}
             />
           </FormColumn>
         </section>

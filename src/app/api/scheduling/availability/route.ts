@@ -13,6 +13,7 @@ import {
   parseCommercialVideoHours,
   parseSchedulingServices,
 } from "@/lib/scheduling/services";
+import { clientCategoryServiceError, loadClientCategory } from "@/lib/scheduling/category-services";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,12 @@ export async function GET(request: NextRequest) {
   const commercialHours = parseCommercialVideoHours(request.nextUrl.searchParams.get("commercialHours"));
   if (includesCommercialVideo(services) && commercialHours == null) {
     return NextResponse.json({ error: COMMERCIAL_VIDEO_HOURS_ERROR, kind: "address" }, { status: 400 });
+  }
+  if (!admin && session) {
+    const categoryError = clientCategoryServiceError(services, await loadClientCategory(session.clientId));
+    if (categoryError) {
+      return NextResponse.json({ error: categoryError, kind: "address" }, { status: 400 });
+    }
   }
 
   const modifyId = request.nextUrl.searchParams.get("modify");

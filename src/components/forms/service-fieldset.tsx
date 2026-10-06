@@ -28,17 +28,21 @@ export function ServiceFieldset({
   selected,
   commercialHours = null,
   name = "service",
+  allowedServices,
   onSelectedChange,
   onCommercialHoursChange,
 }: {
   selected: string[];
   commercialHours?: number | null;
   name?: string;
+  /** When set, only these services are shown and submitted. Omit to show the full catalog. */
+  allowedServices?: readonly string[];
   onSelectedChange?: (services: string[]) => void;
   onCommercialHoursChange?: (hours: number | null) => void;
 }) {
   const fieldsetRef = useRef<HTMLFieldSetElement>(null);
-  const initial = parseSchedulingServices(selected);
+  const allowed = allowedServices ? new Set(allowedServices) : null;
+  const initial = parseSchedulingServices(selected).filter((service) => serviceAllowed(allowed, service));
   const [picked, setPicked] = useState(initial);
   const pickedRef = useRef(picked);
   const [hours, setHours] = useState<number | null>(commercialHours);
@@ -131,6 +135,7 @@ export function ServiceFieldset({
       <ul className="flex flex-col gap-2">
         <IndustryGroup
           group={industryNamed("Real Estate")}
+          allowed={allowed}
           open={openIndustries.includes("Real Estate")}
           picked={picked}
           onOpenChange={(next) => setIndustryOpen("Real Estate", next)}
@@ -138,7 +143,7 @@ export function ServiceFieldset({
         />
         <ExclusiveChoices
           label={SOCIAL_MEDIA_VIDEO_LABEL}
-          options={SOCIAL_MEDIA_VIDEO_OPTIONS}
+          options={SOCIAL_MEDIA_VIDEO_OPTIONS.filter((option) => serviceAllowed(allowed, option.id))}
           picked={picked}
           open={socialOpen}
           onOpenChange={setSocialOpen}
@@ -146,6 +151,7 @@ export function ServiceFieldset({
         />
         <IndustryGroup
           group={industryNamed("Podcast")}
+          allowed={allowed}
           open={openIndustries.includes("Podcast")}
           picked={picked}
           onOpenChange={(next) => setIndustryOpen("Podcast", next)}
@@ -153,11 +159,13 @@ export function ServiceFieldset({
         />
         <IndustryGroup
           group={industryNamed("Construction")}
+          allowed={allowed}
           open={openIndustries.includes("Construction")}
           picked={picked}
           onOpenChange={(next) => setIndustryOpen("Construction", next)}
           onToggle={toggle}
         />
+        {serviceAllowed(allowed, COMMERCIAL_VIDEO_SERVICE) ? (
         <li>
           <Collapsible open={commercialOpen} onOpenChange={setCommercialOpen}>
             <div
@@ -209,9 +217,10 @@ export function ServiceFieldset({
             </div>
           </Collapsible>
         </li>
+        ) : null}
         <ExclusiveChoices
           label={MEETING_LABEL}
-          options={MEETING_OPTIONS}
+          options={MEETING_OPTIONS.filter((option) => serviceAllowed(allowed, option.id))}
           picked={picked}
           open={meetingOpen}
           onOpenChange={setMeetingOpen}
@@ -227,19 +236,25 @@ export function ServiceFieldset({
 
 function IndustryGroup({
   group,
+  allowed,
   open,
   picked,
   onOpenChange,
   onToggle,
 }: {
   group: (typeof SCHEDULING_INDUSTRIES)[number];
+  allowed: ReadonlySet<string> | null;
   open: boolean;
   picked: readonly string[];
   onOpenChange: (open: boolean) => void;
   onToggle: (value: string) => void;
 }) {
+  const options = group.options.filter((option) =>
+    serviceAllowed(allowed, schedulingServiceId(group.industry, option)),
+  );
+  if (options.length === 0) return null;
   const exclusive = isExclusiveIndustry(group);
-  const selectedOptions = group.options.filter((option) =>
+  const selectedOptions = options.filter((option) =>
     picked.includes(schedulingServiceId(group.industry, option)),
   );
   return (
@@ -278,7 +293,7 @@ function IndustryGroup({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <ul className="grid grid-cols-1 gap-2 px-3 pb-3 lg:grid-cols-2">
-              {group.options.map((option) => {
+              {options.map((option) => {
                 const value = schedulingServiceId(group.industry, option);
                 const checked = picked.includes(value);
                 return (
@@ -333,6 +348,7 @@ function ExclusiveChoices({
   onOpenChange: (open: boolean) => void;
   onToggle: (value: string) => void;
 }) {
+  if (options.length === 0) return null;
   const selected = options.filter((option) => picked.includes(option.id));
   return (
     <li>
@@ -395,6 +411,10 @@ function ExclusiveChoices({
       </Collapsible>
     </li>
   );
+}
+
+function serviceAllowed(allowed: ReadonlySet<string> | null, id: string) {
+  return !allowed || allowed.has(id);
 }
 
 function industryNamed(name: "Real Estate" | "Podcast" | "Construction") {

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ServiceFieldset } from "./service-fieldset";
+import { servicesForClientCategory } from "@/lib/scheduling/category-services";
 
 test("Commercial video label capitalizes Video and the subtext is Select your hours", () => {
   const html = renderToStaticMarkup(
@@ -71,4 +72,25 @@ test("Social Media Video and Meeting each keep a single exclusive choice", () =>
   assert.match(html, /30 min appointment/);
   const pressed = html.match(/aria-pressed="true"/g) ?? [];
   assert.equal(pressed.length, 2);
+});
+
+test("a client category hides the other industries and drops a disallowed selection", () => {
+  const html = renderToStaticMarkup(
+    createElement(ServiceFieldset, {
+      selected: ["Podcast · 1 episode", "Real Estate · Photography", "Commercial video"],
+      commercialHours: 3,
+      allowedServices: servicesForClientCategory("real_estate"),
+    }),
+  );
+  const titles = [...html.matchAll(/block text-\[15px\]">([^<]+)/g)].map((match) => match[1]);
+  assert.deepEqual(titles, ["Real Estate", "Social Media Video", "Meeting"]);
+  assert.match(html, /value="Real Estate · Photography"/);
+  assert.match(html, /Aerial Photos/);
+  assert.match(html, /Zillow 360/);
+  assert.doesNotMatch(html, /Podcast/);
+  assert.doesNotMatch(html, /Construction/);
+  assert.doesNotMatch(html, /Commercial/);
+  assert.doesNotMatch(html, /value="Podcast · 1 episode"/);
+  assert.doesNotMatch(html, /value="Commercial video"/);
+  assert.doesNotMatch(html, /value="3"/);
 });

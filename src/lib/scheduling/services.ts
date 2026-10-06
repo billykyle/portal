@@ -2,8 +2,10 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
 
 /**
  * Client-bookable services, grouped by industry. One catalog for the
- * Scheduling picker, booking records, and admin. Clients may select more
- * than one option, including across industries, except exclusive groups
+ * Scheduling picker, booking records, and admin. The client portal only
+ * offers the services for that client's category (`category-services.ts`).
+ * Admin and agent booking still use this full list. Clients may select more
+ * than one option, except exclusive groups
  * (Podcast episode count, Social Media Video option, and Meeting length).
  * Do not invent prices here.
  * Slot length is the **sum** of selected option minutes (never longest-only).
