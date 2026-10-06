@@ -8,7 +8,7 @@ import { listPreviewSrc } from "@/lib/list-preview";
 import { photoViewerHref } from "@/lib/photo-viewer";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
-const PHOTO_GRID = "grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6";
+export const PHOTO_GRID = "grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6";
 const PLAN_GRID = "grid grid-cols-3 gap-1.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5";
 
 export type StillItem = {

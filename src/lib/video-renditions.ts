@@ -16,6 +16,7 @@ export {
   resolvePlaybackQuality,
   shouldReportDisplaySize,
   videoFrameStyle,
+  videoTileStyle,
   VIDEO_FRAME_MAX_HEIGHT,
   VIDEO_QUALITIES,
 } from "./video-playback";

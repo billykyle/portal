@@ -65,6 +65,24 @@ export function videoFrameStyle(width: number | null, height: number | null): {
   };
 }
 
+/**
+ * Grid tile. Fills one photo column and lets height follow the real ratio.
+ * No viewport cap, so a 9:16 clip stays tall and a 16:9 clip stays wide.
+ */
+export function videoTileStyle(width: number | null, height: number | null): {
+  aspectRatio?: string;
+  width: string;
+  minHeight?: string;
+} {
+  if (!width || !height || width <= 0 || height <= 0) {
+    return { width: "100%", minHeight: "12rem" };
+  }
+  return {
+    aspectRatio: `${width} / ${height}`,
+    width: "100%",
+  };
+}
+
 export function shouldReportDisplaySize(stored: VideoDisplaySize | null, reported: VideoDisplaySize) {
   if (reported.width < 16 || reported.height < 16 || reported.width > 8000 || reported.height > 8000) {
     return false;
