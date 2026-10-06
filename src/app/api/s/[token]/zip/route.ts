@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
 import { zipDownloadName } from "@/lib/download-all";
+import { selectionZipResponse } from "@/lib/selection-zip";
 import { shootFolderName } from "@/lib/media";
+import { authorizeZipDownload } from "@/lib/shoot-selection";
 import { approxZipSourceBytes, scopeZipRequest, streamShootZip } from "@/lib/shoot-zip";
 import { trackShootZipJob } from "@/lib/zip-jobs";
 
@@ -56,4 +58,34 @@ export async function GET(
     const message = error instanceof Error ? error.message : "Zip failed.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ token: string }> },
+) {
+  const { token } = await params;
+  await ensureDb();
+  const [shoot] = await db.select().from(shoots).where(eq(shoots.publicToken, token)).limit(1);
+  const access = authorizeZipDownload({
+    kind: "share",
+    admin: false,
+    session: null,
+    accessibleClientIds: [],
+    shoot: shoot ?? null,
+    shareToken: token,
+  });
+  if (!access.ok || !shoot) {
+    return NextResponse.json(
+      { error: access.ok ? "Not found." : access.error },
+      { status: access.ok ? 404 : access.status },
+    );
+  }
+
+  const files = await db
+    .select()
+    .from(media)
+    .where(eq(media.shootId, shoot.id))
+    .orderBy(asc(media.sortOrder));
+  return selectionZipResponse(request, shoot, files);
 }

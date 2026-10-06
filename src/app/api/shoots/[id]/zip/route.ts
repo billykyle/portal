@@ -6,8 +6,11 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media, shoots } from "@/lib/db/schema";
 import { zipDownloadName } from "@/lib/download-all";
+import { selectionZipResponse } from "@/lib/selection-zip";
 import { shootFolderName } from "@/lib/media";
+import { authorizeZipDownload } from "@/lib/shoot-selection";
 import { approxZipSourceBytes, scopeZipRequest, streamShootZip } from "@/lib/shoot-zip";
+import { listPortalsForUser } from "@/lib/user-portals";
 import { trackShootZipJob } from "@/lib/zip-jobs";
 
 export const runtime = "nodejs";
@@ -70,4 +73,38 @@ export async function GET(
     const message = error instanceof Error ? error.message : "Zip failed.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const admin = await getAdminSession();
+  const session = await getSession();
+  const { id } = await params;
+  await ensureDb();
+  const [shoot] = await db.select().from(shoots).where(eq(shoots.id, id)).limit(1);
+  let accessibleClientIds: string[] = [];
+  if (!admin && session && shoot && session.clientId !== shoot.clientId) {
+    accessibleClientIds = (await listPortalsForUser(session.userId)).map((portal) => portal.id);
+  }
+  const access = authorizeZipDownload({
+    kind: "account",
+    admin,
+    session,
+    accessibleClientIds,
+    shoot: shoot ?? null,
+  });
+  if (!access.ok || !shoot) {
+    const status = access.ok ? 404 : access.status;
+    const error = access.ok ? "Not found." : access.error;
+    return NextResponse.json({ error }, { status });
+  }
+
+  const files = await db
+    .select()
+    .from(media)
+    .where(eq(media.shootId, shoot.id))
+    .orderBy(asc(media.sortOrder));
+  return selectionZipResponse(request, shoot, files);
 }

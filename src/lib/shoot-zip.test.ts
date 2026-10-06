@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { test } from "node:test";
 import { ZipFile } from "yazl";
-import { contentDispositionAttachment, extrapolateApproxBytes, scopeZipRequest } from "./shoot-zip";
+import { contentDispositionAttachment, extrapolateApproxBytes, scopeZipRequest, streamStoredZip } from "./shoot-zip";
 
 test("sets a Safari-safe attachment filename", () => {
   const header = contentDispositionAttachment("2026-09-04 - 12 Wood View Drive.zip");
@@ -27,6 +27,40 @@ test("scopes a zip request by media type", () => {
   );
   assert.equal(scoped.files.length, 1);
   assert.equal(scoped.folderName, "2026-09-04 - 12 Wood View Drive - Floor plans");
+});
+
+test("selection zip streams originals one at a time", async () => {
+  const opened: string[] = [];
+  const response = streamStoredZip({
+    folderName: "2026-09-04 - 12 Wood View Drive",
+    entries: [
+      {
+        filename: "a.txt",
+        open: async () => {
+          opened.push("a");
+          return Readable.from(Buffer.from("alpha"));
+        },
+      },
+      {
+        filename: "b.txt",
+        open: async () => {
+          opened.push("b");
+          return Readable.from(Buffer.from("bravo"));
+        },
+      },
+    ],
+  });
+  assert.deepEqual(opened, ["a"]);
+  const out = Buffer.from(await response.arrayBuffer());
+  assert.deepEqual(opened, ["a", "b"]);
+  assert.equal(out[0], 0x50);
+  assert.equal(out[1], 0x4b);
+  assert.equal(out.readUInt16LE(8), 0);
+  assert.ok(out.includes(Buffer.from("a.txt")));
+  assert.ok(out.includes(Buffer.from("b.txt")));
+  assert.ok(out.includes(Buffer.from("alpha")));
+  assert.ok(out.includes(Buffer.from("bravo")));
+  assert.equal(response.headers.get("content-type"), "application/zip");
 });
 
 test("yazl streams a store zip", async () => {

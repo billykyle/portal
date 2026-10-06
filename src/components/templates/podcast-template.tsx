@@ -5,6 +5,7 @@ import { PhotoViewer } from "@/components/photo-viewer";
 import { pageHeadingWrapClass, pageStackClass, pageTitleClass, shootCardGridClass } from "@/components/phone-shell";
 import { PreviewImage } from "@/components/preview-image";
 import { ShootActions } from "@/components/shoot-actions";
+import { ShootSelection } from "@/components/shoot-selection";
 import { RawVideoSection, rawVideoJump } from "@/components/raw-video-section";
 import { ShootSectionNav } from "@/components/shoot-section-nav";
 import { FileDownloadList } from "@/components/file-download-list";
@@ -135,6 +136,11 @@ function PodcastShoot({
   ].filter((item) => item !== null);
 
   return (
+    <ShootSelection
+      items={media.map((item) => ({ id: item.id, url: item.url, filename: item.filename }))}
+      zipUrl={zipUrl}
+      folderName={folderName}
+    >
     <div className="flex flex-col gap-6 pb-16 lg:gap-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
         <header className="flex min-w-0 flex-col gap-1">
@@ -201,6 +207,7 @@ function PodcastShoot({
       {media.length === 0 ? <p className="text-sm text-[#8e8e93]">No files on this episode yet.</p> : null}
 
     </div>
+    </ShootSelection>
   );
 }
 
