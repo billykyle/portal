@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { deliverableClientEmails } from "@/lib/client-contact";
+import { deliverableClientEmails, primaryBookingContact } from "@/lib/client-contact";
+import { isPendingClientEmail } from "@/lib/signup-fields";
 import { unstable_rethrow } from "next/navigation";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
@@ -277,8 +278,15 @@ export async function prepareBookingModification(input: {
   if (!user && booking.createdByUserId) {
     [user] = await db.select().from(users).where(eq(users.id, booking.createdByUserId)).limit(1);
   }
+  let unmatchedPrimaryEmail = "";
   if (!user) {
-    [user] = await listMemberUsers(booking.clientId);
+    const members = await listMemberUsers(booking.clientId);
+    const contact = primaryBookingContact({
+      primaryEmail: client?.primaryEmail,
+      logins: members,
+    });
+    if (contact?.login) user = contact.login;
+    else if (contact?.email) unmatchedPrimaryEmail = contact.email;
   }
   const clientEmail = input.fromAdmin
     ? await resolveBookingContactEmail({
@@ -292,7 +300,7 @@ export async function prepareBookingModification(input: {
     firstName: user?.firstName,
     lastName: user?.lastName,
     displayName: client?.displayName,
-    email: user?.email ?? clientEmail,
+    email: user?.email ?? (unmatchedPrimaryEmail || clientEmail),
     phone: user?.phone,
     company: client?.company,
     address: savedAddress,
@@ -413,12 +421,21 @@ export async function resolveBookingContactEmail(input: {
     creatorEmail = creator?.email ?? null;
   }
   const members = await listMemberUsers(input.clientId);
-  const [email] = deliverableClientEmails({
-    preferred: input.ownerEmail || creatorEmail || "",
-    primaryEmail: input.primaryEmail,
-    loginEmails: members.map((row) => row.email),
-  });
-  return email ?? "";
+  const preferred = input.ownerEmail || creatorEmail || "";
+  if (preferred && !isPendingClientEmail(preferred)) {
+    const [email] = deliverableClientEmails({
+      preferred,
+      primaryEmail: input.primaryEmail,
+      loginEmails: members.map((row) => row.email),
+    });
+    if (email) return email;
+  }
+  return (
+    primaryBookingContact({
+      primaryEmail: input.primaryEmail,
+      logins: members,
+    })?.email ?? ""
+  );
 }
 
 /** Status flip plus calendar delete and cancellation emails. Callers own redirects. */
@@ -539,7 +556,15 @@ export async function commitMoveToQueue(booking: Booking): Promise<
   const [client] = await db.select().from(clients).where(eq(clients.id, booking.clientId)).limit(1);
   const members = await listMemberUsers(booking.clientId);
   const creator = members.find((member) => member.id === booking.createdByUserId);
-  const named = creator?.firstName?.trim() ? creator : members.find((member) => member.firstName?.trim());
+  const contact = primaryBookingContact({
+    primaryEmail: client?.primaryEmail,
+    logins: members,
+  });
+  const named = creator?.firstName?.trim()
+    ? creator
+    : contact?.login?.firstName?.trim()
+      ? contact.login
+      : null;
   const clientEmail = await resolveBookingContactEmail({
     clientId: booking.clientId,
     createdByUserId: booking.createdByUserId,

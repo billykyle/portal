@@ -344,7 +344,8 @@ test("tools/list includes create_queued_booking and a call creates a shoot with 
         return { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
       },
       async sendHold(email) {
-        assert.equal(email.clientEmail, "sam.login@example.com");
+        assert.equal(email.clientEmail, "sam@example.com");
+        assert.deepEqual(email.loginEmails, ["sam.login@example.com"]);
         assert.equal(email.notes, "Copy alex@agency.com");
         assert.equal(email.address, "12 Wood View Drive, Princeton NJ");
         return { clientSent: true };

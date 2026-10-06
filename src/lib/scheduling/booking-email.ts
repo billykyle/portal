@@ -7,10 +7,15 @@ import {
   wrapBookingEmailHtml,
 } from "@/lib/email-brand";
 import { adminUrl, publicPortalOrigin } from "@/lib/hosts";
-import { deliverableClientEmails, reportSkippedPlaceholder } from "@/lib/client-contact";
+import {
+  deliverableClientEmails,
+  reportSkippedPlaceholder,
+  shootNotificationRecipients,
+} from "@/lib/client-contact";
 import {
   bookingNotifyEmail,
   emailConfigured,
+  normalizeEmail,
   sendEmail,
   uniqueEmails,
   type EmailAttachment,
@@ -19,7 +24,6 @@ import {
 import { isPendingClientEmail } from "@/lib/signup-fields";
 import { CLIENT_SCHEDULING } from "@/lib/routes";
 import { clientCalendarLinks } from "./booking-ics";
-import { emailsInNotes } from "./notes-emails";
 import {
   BOOKING_SYNC_ISSUE_SUBJECT,
   bookingSyncIssueLines,
@@ -113,12 +117,19 @@ type BookingMailDelivery = {
 
 function bookingClientRecipients(input: BookingMailDelivery) {
   if (input.clientRecipients != null) {
-    return uniqueEmails(input.clientRecipients).filter((email) => !isPendingClientEmail(email));
+    return shootNotificationRecipients({
+      clientEmail: input.clientRecipients.length === 0 ? null : input.clientEmail,
+      loginEmails: input.clientRecipients,
+      notes: input.notes,
+      notifyEmail: bookingNotifyEmail(),
+    });
   }
-  return deliverableClientEmails({
-    preferred: input.clientEmail,
+  return shootNotificationRecipients({
+    clientEmail: input.clientEmail,
     primaryEmail: input.primaryEmail,
     loginEmails: input.loginEmails,
+    notes: input.notes,
+    notifyEmail: bookingNotifyEmail(),
   });
 }
 
@@ -126,7 +137,15 @@ function bookingClientRecipients(input: BookingMailDelivery) {
 function withDeliverableClient<T extends BookingMailDelivery>(input: T): T {
   const clientTo = bookingClientRecipients(input);
   if (clientTo.length === 0) return { ...input, clientRecipients: [] };
-  return { ...input, clientEmail: clientTo[0] ?? input.clientEmail, clientRecipients: clientTo };
+  const have = new Set(clientTo);
+  const listed = [input.primaryEmail, input.clientEmail]
+    .map((value) => normalizeEmail(value))
+    .find((email) => email && have.has(email));
+  return {
+    ...input,
+    clientEmail: listed || clientTo[0] || input.clientEmail,
+    clientRecipients: clientTo,
+  };
 }
 
 function escapeHtml(value: string) {
@@ -349,7 +368,7 @@ export function buildQueueHoldEmail(input: BookingConfirmationInput) {
   return { subject: QUEUE_HOLD_SUBJECT, text, html };
 }
 
-/** Hold mail to the client and Notes copies. Billy is not copied. */
+/** Hold mail to every signed-up user, the real primary contact, and Notes. Billy is not copied. */
 export async function sendQueueHoldEmail(input: BookingConfirmationInput): Promise<BookingEmailSendResult> {
   const mailing = withDeliverableClient(input);
   const message = buildQueueHoldEmail(mailing);
@@ -388,7 +407,7 @@ export function buildQueuedShootEmail(input: QueuedShootEmailInput) {
   return { subject: QUEUE_HOLD_SUBJECT, text, html };
 }
 
-/** Client and Notes copies for a shoot created straight into the queue. Billy is not copied. */
+/** Queued-shoot mail to every signed-up user, the real primary contact, and Notes. Billy is not copied. */
 export async function sendQueuedShootEmail(input: QueuedShootEmailInput): Promise<BookingEmailSendResult> {
   const mailing = withDeliverableClient(input);
   const message = buildQueuedShootEmail(mailing);
@@ -652,14 +671,12 @@ export type BookingEmailSendOptions = {
 
 /**
  * Two separate Resend sends after a successful booking:
- * 1. Client confirmation → the booker's login email
+ * 1. Client confirmation → every signed-up user on the client, the real
+ *    primary contact, and addresses in Notes, in one To list
  * 2. Billy's copy → BOOKING_NOTIFY_EMAIL (default billy@billyhere.com)
  *
- * Other addresses in the current Notes get their own send of email #1
- * (same subject and body). They are not added to Billy's notify.
- * No CC/BCC. Soft-fails: never throws, never rolls back the booking.
- * One failed send does not skip the other. A failed Notes copy does not
- * fail the booker's send.
+ * Billy is not added to email #1. No CC/BCC. Soft-fails: never throws,
+ * never rolls back the booking. One failed send does not skip the other.
  */
 export async function sendBookingConfirmation(
   input: BookingConfirmationInput,
@@ -756,14 +773,6 @@ export async function sendBookingSyncIssue(input: BookingSyncIssueInput): Promis
   return sendOwnerNotify(message);
 }
 
-function headersWithoutMessageId(headers?: Record<string, string>) {
-  if (!headers) return undefined;
-  const next = { ...headers };
-  delete next["Message-ID"];
-  delete next["Message-Id"];
-  return Object.keys(next).length > 0 ? next : undefined;
-}
-
 async function sendOwnerNotify(message: { subject: string; text: string; html: string }): Promise<SendEmailResult> {
   if (!emailConfigured()) return { sent: false, reason: "resend-unconfigured" };
   const [notify] = uniqueEmails([bookingNotifyEmail()]);
@@ -793,8 +802,8 @@ async function sendBookingPair(
   const skipNotify = Boolean(options?.skipNotify);
   const refusedPlaceholder =
     clientTo.length === 0 &&
-    [input.clientEmail, input.primaryEmail, ...(input.loginEmails ?? [])].some((value) =>
-      isPendingClientEmail(String(value ?? "")),
+    [input.clientEmail, input.primaryEmail, ...(input.loginEmails ?? []), ...(input.clientRecipients ?? [])].some(
+      (value) => isPendingClientEmail(String(value ?? "")),
     );
   if (refusedPlaceholder) {
     reportSkippedPlaceholder({
@@ -803,12 +812,8 @@ async function sendBookingPair(
       primaryEmail: input.primaryEmail ?? null,
     });
   }
-  const copies = emailsInNotes(input.notes, [input.clientEmail, input.primaryEmail, ...clientTo]).filter(
-    (email) => !isPendingClientEmail(email),
-  );
-  const copyHeaders = headersWithoutMessageId(sendMeta?.clientHeaders);
 
-  const [client, notify, copyResults] = await Promise.all([
+  const [client, notify] = await Promise.all([
     clientTo.length > 0
       ? sendEmail({
           to: clientTo,
@@ -832,25 +837,7 @@ async function sendBookingPair(
             html: notifyMessage.html,
           })
         : Promise.resolve({ sent: false as const, reason: "no-recipients" }),
-    Promise.all(
-      copies.map((to) =>
-        sendEmail({
-          to,
-          subject: clientMessage.subject,
-          text: clientMessage.text,
-          html: clientMessage.html,
-          attachments: clientMessage.attachments,
-          headers: copyHeaders,
-        }),
-      ),
-    ),
   ]);
-
-  copyResults.forEach((result, index) => {
-    if (!result.sent) {
-      console.error(`Notes copy email failed for ${copies[index]}: ${result.reason}`);
-    }
-  });
 
   return {
     sent: client.sent && (skipNotify || notify.sent),

@@ -7,6 +7,8 @@ import {
   deliverableClientEmails,
   inviteRedeemClientUpdate,
   prepareDeliverableBookingEmail,
+  primaryBookingContact,
+  shootNotificationRecipients,
   skippedPlaceholderDeliveryWarning,
   stripNasInviteNote,
 } from "./client-contact";
@@ -112,6 +114,102 @@ test("client mail prefers a real login and never returns a placeholder", () => {
     deliverableClientEmails({ preferred: placeholder, primaryEmail: placeholder, loginEmails: [] }),
     [],
   );
+});
+
+test("shoot recipients are every login, the real primary, and notes, once", () => {
+  assert.deepEqual(
+    shootNotificationRecipients({
+      clientEmail: "Nana.Shames@compass.com",
+      primaryEmail: "office@compass.com",
+      loginEmails: [
+        "nana.shames@compass.com",
+        "guest@pending.local",
+        "assistant@compass.com",
+      ],
+      notes: "cc Office@compass.com and alex@agency.com and billy@billyhere.com",
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["nana.shames@compass.com", "assistant@compass.com", "office@compass.com", "alex@agency.com"],
+  );
+  assert.deepEqual(
+    shootNotificationRecipients({
+      clientEmail: "justin.heath@pending.local",
+      primaryEmail: "justin.heath@pending.local",
+      loginEmails: [],
+      notes: "cc justin.heath@pending.local",
+      notifyEmail: "billy@billyhere.com",
+    }),
+    [],
+  );
+  assert.deepEqual(
+    shootNotificationRecipients({
+      clientEmail: "Billy@BillyHere.com",
+      primaryEmail: "office@example.com",
+      loginEmails: ["billy@billyhere.com"],
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["billy@billyhere.com", "office@example.com"],
+  );
+});
+
+test("admin booking contact is the primary login, not the newest user", () => {
+  type ContactLogin = { email: string; createdAt: Date; userId?: string };
+  const oldest: ContactLogin = {
+    email: "assistant@compass.com",
+    createdAt: new Date("2020-01-01T00:00:00.000Z"),
+  };
+  const colleen: ContactLogin = {
+    email: "colleen.hadden@compass.com",
+    createdAt: new Date("2026-06-01T00:00:00.000Z"),
+    userId: "colleen",
+  };
+  const nana: ContactLogin = {
+    email: "nana.shames@compass.com",
+    createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    userId: "nana",
+  };
+  const matched = primaryBookingContact({
+    primaryEmail: "Colleen.Hadden@compass.com",
+    logins: [nana, oldest, colleen],
+  });
+  assert.equal(matched?.email, "colleen.hadden@compass.com");
+  assert.equal(matched?.login?.userId, "colleen");
+
+  const office = primaryBookingContact({
+    primaryEmail: "office@compass.com",
+    logins: [nana, colleen],
+  });
+  assert.equal(office?.email, "office@compass.com");
+  assert.equal(office?.login, null);
+
+  const placeholder = primaryBookingContact({
+    primaryEmail: "colleen.hadden@pending.local",
+    logins: [nana, { email: "guest@pending.local", createdAt: new Date("2019-01-01T00:00:00.000Z") }, colleen],
+  });
+  assert.equal(placeholder?.email, "colleen.hadden@compass.com");
+  assert.equal(placeholder?.login, colleen);
+
+  assert.equal(
+    primaryBookingContact({
+      primaryEmail: "guest@pending.local",
+      logins: [{ email: "guest@pending.local", createdAt: signedUp }],
+    }),
+    null,
+  );
+});
+
+test("booking send list includes teammates even when the booker address is real", () => {
+  const prepared = prepareDeliverableBookingEmail(
+    {
+      clientEmail: login,
+      primaryEmail: "office@example.com",
+      loginEmails: [login, "teammate@example.com"],
+      notes: "cc extra@example.com",
+    },
+    { loginEmails: ["Teammate@Example.com"] },
+  );
+  assert.deepEqual(prepared.recipients, [login, "teammate@example.com", "office@example.com", "extra@example.com"]);
+  assert.equal(prepared.send.clientEmail, "office@example.com");
 });
 
 test("booking send list falls back to logins and the alert keeps the refused placeholder", () => {

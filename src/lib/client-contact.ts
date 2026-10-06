@@ -10,6 +10,7 @@ import {
   uniqueEmails,
 } from "@/lib/email";
 import { BOOKING_SYNC_ISSUE_SUBJECT } from "@/lib/scheduling/booking-sync";
+import { emailsInNotes } from "@/lib/scheduling/notes-emails";
 import { isPendingClientEmail } from "@/lib/signup-fields";
 
 /** Note stored on clients created by Sync from NAS, before anyone signs up. */
@@ -83,6 +84,61 @@ export function deliverableClientEmails(input: {
   const primary = normalizeEmail(input.primaryEmail);
   if (primary && !isPendingClientEmail(primary)) return [primary];
   return [];
+}
+
+/**
+ * Client-facing shoot mail: every real signed-up login, the real primary
+ * contact, and addresses typed in Notes. Case-insensitive. Placeholders are
+ * dropped. The owner notify address is dropped unless it is the booker's own
+ * login (Billy still gets his separate New shoot mail, not a client copy).
+ */
+export function shootNotificationRecipients(input: {
+  clientEmail?: string | null;
+  primaryEmail?: string | null;
+  loginEmails?: readonly (string | null | undefined)[] | null;
+  notes?: string | null;
+  notifyEmail?: string | null;
+}): string[] {
+  const people = uniqueEmails([
+    ...(input.loginEmails ?? []),
+    input.clientEmail,
+    input.primaryEmail,
+  ]).filter((email) => !isPendingClientEmail(email));
+  const notes = emailsInNotes(input.notes);
+  const notify = normalizeEmail(input.notifyEmail);
+  const booker = normalizeEmail(input.clientEmail);
+  const all = uniqueEmails([...people, ...notes]).filter((email) => !isPendingClientEmail(email));
+  if (!notify) return all;
+  return all.filter((email) => email !== notify || email === booker);
+}
+
+/**
+ * Admin and agent bookings attach to the primary contact, not the newest login.
+ * A real primary email wins. When it matches a signed-up user, that profile is
+ * the contact. A placeholder primary falls through to the earliest real login.
+ */
+export function primaryBookingContact<T extends { email: string; createdAt: Date }>(input: {
+  primaryEmail?: string | null;
+  logins: readonly T[];
+}): { email: string; login: T | null } | null {
+  const primary = normalizeEmail(input.primaryEmail);
+  const real = input.logins.filter((login) => {
+    const email = normalizeEmail(login.email);
+    return Boolean(email) && !isPendingClientEmail(email);
+  });
+  if (primary && !isPendingClientEmail(primary)) {
+    const match = real.find((login) => normalizeEmail(login.email) === primary) ?? null;
+    return { email: match ? match.email.trim() : primary, login: match };
+  }
+  const oldest = real
+    .slice()
+    .sort(
+      (a, b) =>
+        a.createdAt.getTime() - b.createdAt.getTime() ||
+        normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)),
+    )[0];
+  if (!oldest) return null;
+  return { email: oldest.email.trim(), login: oldest };
 }
 
 export function skippedPlaceholderDeliveryWarning(input: {
@@ -212,6 +268,7 @@ type BookingEmailShape = {
   primaryEmail?: string | null;
   loginEmails?: readonly (string | null | undefined)[] | null;
   clientRecipients?: string[];
+  notes?: string | null;
 };
 
 /** Resolve who the booking mail may go to. `alert` keeps the refused placeholder when nobody is real. */
@@ -224,11 +281,17 @@ export function prepareDeliverableBookingEmail<T extends BookingEmailShape>(
     primaryEmail: email.primaryEmail ?? lookedUp?.primaryEmail ?? null,
     loginEmails: [...(email.loginEmails ?? []), ...(lookedUp?.loginEmails ?? [])],
   };
-  const recipients = deliverableClientEmails({
-    preferred: enriched.clientEmail,
+  const recipients = shootNotificationRecipients({
+    clientEmail: enriched.clientEmail,
     primaryEmail: enriched.primaryEmail,
-    loginEmails: enriched.loginEmails,
+    loginEmails: [...(enriched.loginEmails ?? []), ...(enriched.clientRecipients ?? [])],
+    notes: enriched.notes,
+    notifyEmail: bookingNotifyEmail(),
   });
+  const listed =
+    recipients.find((emailAddress) => emailAddress === normalizeEmail(enriched.primaryEmail)) ??
+    recipients.find((emailAddress) => emailAddress === normalizeEmail(enriched.clientEmail)) ??
+    recipients[0];
   const blocked =
     [enriched.clientEmail, enriched.primaryEmail].find((value) => isPendingClientEmail(String(value ?? ""))) ??
     enriched.clientEmail;
@@ -237,7 +300,7 @@ export function prepareDeliverableBookingEmail<T extends BookingEmailShape>(
     send: {
       ...enriched,
       clientRecipients: recipients,
-      clientEmail: recipients[0] ?? enriched.clientEmail,
+      clientEmail: listed ?? enriched.clientEmail,
     },
     alert: {
       ...enriched,
@@ -250,8 +313,12 @@ export async function prepareDeliverableBookingEmailForBooking<T extends Booking
   bookingId: string,
   email: T,
 ) {
-  const first = prepareDeliverableBookingEmail(email);
-  if (first.recipients.length > 0) return first;
-  const lookedUp = await lookupClientLoginEmails(bookingId);
-  return prepareDeliverableBookingEmail(email, lookedUp);
+  if (!process.env.DATABASE_URL) return prepareDeliverableBookingEmail(email);
+  try {
+    const lookedUp = await lookupClientLoginEmails(bookingId);
+    return prepareDeliverableBookingEmail(email, lookedUp);
+  } catch (error) {
+    console.error("booking recipient lookup failed", error);
+    return prepareDeliverableBookingEmail(email);
+  }
 }

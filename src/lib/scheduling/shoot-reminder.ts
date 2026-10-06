@@ -1,6 +1,5 @@
-import { deliverableClientEmails } from "@/lib/client-contact";
-import { bookingNotifyEmail, normalizeEmail, uniqueEmails } from "@/lib/email";
-import { isPendingClientEmail } from "@/lib/signup-fields";
+import { shootNotificationRecipients } from "@/lib/client-contact";
+import { bookingNotifyEmail } from "@/lib/email";
 import {
   EMAIL_FONT_STACK,
   emailActionButtons,
@@ -10,7 +9,6 @@ import {
 } from "@/lib/email-brand";
 import { publicPortalOrigin } from "@/lib/hosts";
 import { calendarDateKey, utcToZonedParts, zonedDateTimeToUtc } from "@/lib/scheduling/zoned-time";
-import { emailsInNotes } from "@/lib/scheduling/notes-emails";
 import { formatBookingServices } from "@/lib/scheduling/services";
 import { formatBookingWhen } from "@/lib/scheduling/slots";
 import { schedulingBookHref, schedulingConfirmedHref } from "@/lib/scheduling/urls";
@@ -84,16 +82,13 @@ export function reminderRecipients(
   },
   notifyEmail: string | null = bookingNotifyEmail(),
 ) {
-  const client = deliverableClientEmails({
-    preferred: input.clientEmail,
+  return shootNotificationRecipients({
+    clientEmail: input.clientEmail,
     primaryEmail: input.primaryEmail,
     loginEmails: input.loginEmails,
+    notes: input.notes,
+    notifyEmail,
   });
-  const copies = emailsInNotes(input.notes, [input.clientEmail, input.primaryEmail, ...client]);
-  const blocked = normalizeEmail(notifyEmail);
-  return uniqueEmails([...client, ...copies]).filter(
-    (email) => !isPendingClientEmail(email) && email !== blocked,
-  );
 }
 
 function escapeHtml(value: string) {

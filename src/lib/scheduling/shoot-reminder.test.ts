@@ -89,6 +89,22 @@ test("reminder recipients are the client and notes addresses, never notify or pl
     "billy@billyhere.com",
   );
   assert.deepEqual(fromLogin, ["teammate@example.com"]);
+
+  const team = reminderRecipients(
+    {
+      clientEmail: "nana.shames@compass.com",
+      primaryEmail: "Office@compass.com",
+      loginEmails: ["nana.shames@compass.com", "colleen.hadden@compass.com", "guest@pending.local"],
+      notes: "cc alex@example.com and billy@billyhere.com",
+    },
+    "billy@billyhere.com",
+  );
+  assert.deepEqual(team, [
+    "nana.shames@compass.com",
+    "colleen.hadden@compass.com",
+    "office@compass.com",
+    "alex@example.com",
+  ]);
 });
 
 test("the reminder is a threaded reply with the address, access line, and manage links", () => {

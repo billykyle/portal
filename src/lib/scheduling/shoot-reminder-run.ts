@@ -42,7 +42,7 @@ export type ReminderRunCounts = {
 };
 
 export type ReminderSend = (input: {
-  to: string;
+  to: string | string[];
   subject: string;
   text: string;
   html: string;
@@ -54,8 +54,8 @@ function sleep(ms: number) {
 }
 
 /**
- * Claim, send, and release. A booking counts as sent when any recipient
- * accepts the message. A total failure clears the claim so the next hour retries.
+ * Claim, send, and release. One message lists every recipient in To.
+ * A failed send clears the claim so the next hour retries.
  */
 export async function deliverDueReminders(
   candidates: ReminderCandidate[],
@@ -103,20 +103,16 @@ export async function deliverDueReminders(
       notes: booking.notes,
       thread: booking.thread,
     });
-    let sentAny = false;
-    for (const to of recipients) {
-      if (paused && gapMs > 0) await sleep(gapMs);
-      paused = true;
-      const result = await options.send({
-        to,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-        headers: message.headers,
-      });
-      if (result.sent) sentAny = true;
-    }
-    if (sentAny) {
+    if (paused && gapMs > 0) await sleep(gapMs);
+    paused = true;
+    const result = await options.send({
+      to: recipients,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      headers: message.headers,
+    });
+    if (result.sent) {
       counts.sent += 1;
     } else {
       await options.release(booking.id);

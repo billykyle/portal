@@ -298,7 +298,8 @@ test("create queued booking stores no start, skips calendar, and emails the clie
         hold.address = input.address;
         hold.notes = input.notes;
         hold.firstName = input.firstName;
-        assert.equal(input.clientEmail, "sam.login@example.com");
+        assert.equal(input.clientEmail, "sam@example.com");
+        assert.deepEqual(input.loginEmails, ["sam.login@example.com"]);
         return { clientSent: true };
       },
       saveEmailIssue: async (_id, emailFailed) => {
@@ -322,7 +323,7 @@ test("create queued booking stores no start, skips calendar, and emails the clie
   assert.equal(inserted.row?.endsAt, null);
   assert.equal(inserted.row?.calendarEventId, null);
   assert.equal(hold.address, "12 Wood View Drive, Princeton, NJ");
-  assert.equal(hold.firstName, "Sam");
+  assert.equal(hold.firstName, null);
 });
 
 test("create queued booking refuses a missing commercial length and an unknown client", async () => {
@@ -449,6 +450,117 @@ test("an overlapping booking warns and still saves, from either path", async () 
     assert.equal(seen.skipOwnerNotify, true);
     assert.equal(seen.ownerMails, 0);
   }
+});
+
+test("admin and agent bookings attach to the primary contact, not the newest login", async () => {
+  const colleenId = "44444444-4444-4444-8444-444444444444";
+  const nanaId = "55555555-5555-4555-8555-555555555555";
+  const team = client({
+    displayName: "Colleen Hadden",
+    inviteCode: "BK00016",
+    primaryEmail: "Colleen.Hadden@compass.com",
+    logins: [
+      {
+        userId: nanaId,
+        email: "nana.shames@compass.com",
+        firstName: "Nana",
+        lastName: "Shames",
+        phone: "609-555-0199",
+        createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      },
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        email: "assistant@compass.com",
+        firstName: "Alex",
+        lastName: "Assistant",
+        phone: "609-555-0100",
+        createdAt: new Date("2020-01-01T00:00:00.000Z"),
+      },
+      {
+        userId: colleenId,
+        email: "colleen.hadden@compass.com",
+        firstName: "Colleen",
+        lastName: "Hadden",
+        phone: "609-555-0101",
+        createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+    ],
+  });
+
+  let createdByUserId: string | null = "unset";
+  let summary = "";
+  let description = "";
+  let mailed: { clientEmail?: string; loginEmails?: ReadonlyArray<string | null | undefined> | null } = {};
+  const booked = await createOverrideBooking(
+    {
+      source: "agent",
+      client: "BK00016",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Photography"],
+      date: "2026-09-22",
+      time: "10:00am",
+      notes: "cc alex@agency.com",
+    },
+    {
+      listClients: async () => [team],
+      listConfirmedIntervals: async () => [],
+      insertBooking: async (row) => {
+        createdByUserId = row.createdByUserId;
+        return { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+      },
+      settle: async (input) => {
+        summary = input.calendarWrite?.summary ?? "";
+        description = input.calendarWrite?.description ?? "";
+        mailed = { clientEmail: input.email.clientEmail, loginEmails: input.email.loginEmails };
+        return {
+          issues: { calendar: false, email: false, alertFailed: false },
+          calendarEventId: "evt_primary",
+          billyNotified: false,
+          alertSent: false,
+        };
+      },
+      calendarOn: () => true,
+    },
+  );
+  assert.equal(booked.ok, true);
+  assert.equal(createdByUserId, colleenId);
+  assert.equal(summary, "Colleen Hadden - P");
+  assert.match(description, /Email: colleen\.hadden@compass\.com/);
+  assert.match(description, /Phone: 609-555-0101/);
+  assert.doesNotMatch(description, /Nana Shames|609-555-0199|nana\.shames/);
+  assert.equal(mailed.clientEmail, "colleen.hadden@compass.com");
+  assert.deepEqual(mailed.loginEmails, [
+    "nana.shames@compass.com",
+    "assistant@compass.com",
+    "colleen.hadden@compass.com",
+  ]);
+
+  let queuedBy: string | null = "unset";
+  let queuedMail: { clientEmail?: string; firstName?: string | null } = {};
+  const queued = await createQueuedBooking(
+    {
+      source: "admin-ui",
+      client: "BK00016",
+      address: "12 Wood View Drive, Princeton, NJ",
+      services: ["Real Estate · Photography"],
+    },
+    {
+      listClients: async () => [team],
+      insertQueuedBooking: async (row) => {
+        queuedBy = row.createdByUserId;
+        return { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+      },
+      sendHold: async (input) => {
+        queuedMail = { clientEmail: input.clientEmail, firstName: input.firstName };
+        return { clientSent: true };
+      },
+      saveEmailIssue: async () => {},
+    },
+  );
+  assert.equal(queued.ok, true);
+  assert.equal(queuedBy, colleenId);
+  assert.equal(queuedMail.clientEmail, "colleen.hadden@compass.com");
+  assert.equal(queuedMail.firstName, "Colleen");
 });
 
 function et(year: number, month: number, day: number, hour: number, minute: number) {
