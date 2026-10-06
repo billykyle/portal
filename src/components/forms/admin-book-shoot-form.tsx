@@ -13,6 +13,8 @@ import {
   shootOverlapWarning,
 } from "@/lib/scheduling/admin-time";
 import { DEFAULT_TIMEZONE } from "@/lib/scheduling/rules";
+import { TWILIGHT_SERVICE } from "@/lib/scheduling/services";
+import { twilightClockForDateKey } from "@/lib/scheduling/twilight";
 import { zonedDateTimeToUtc } from "@/lib/scheduling/zoned-time";
 import { useActionState } from "react";
 import { formMeasureClass } from "@/components/phone-shell";
@@ -93,6 +95,17 @@ function AdminBookShootFields({
   const [commercialHours, setCommercialHours] = useState<number | null>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const suggestionRef = useRef("");
+  const twilightOnly = services.length === 1 && services[0] === TWILIGHT_SERVICE;
+  const sunsetSuggestion = twilightOnly ? (twilightClockForDateKey(date) ?? "") : "";
+  useEffect(() => {
+    if (!sunsetSuggestion) {
+      suggestionRef.current = "";
+      return;
+    }
+    setTime((current) => (current === "" || current === suggestionRef.current ? sunsetSuggestion : current));
+    suggestionRef.current = sunsetSuggestion;
+  }, [sunsetSuggestion]);
   const intervals = useMemo(
     () => jobs.map((job) => ({ start: new Date(job.start), end: new Date(job.end) })),
     [jobs],
@@ -152,6 +165,11 @@ function AdminBookShootFields({
           className="h-12 w-full appearance-none rounded-xl border-0 bg-[#1c1c1e] px-4 text-base text-white outline-none placeholder:text-[#8e8e93]"
         />
         {clock && !clock.ok ? <p className="text-sm text-[#a1a1a1]">{clock.error}</p> : null}
+        {sunsetSuggestion ? (
+          <p className="text-sm text-[#a1a1a1]">
+            Twilight starts at {sunsetSuggestion} unless you set another time. Only one Twilight per day.
+          </p>
+        ) : null}
         {preview ? (
           <p className="text-sm text-white" data-testid="shoot-time-preview">
             {preview}

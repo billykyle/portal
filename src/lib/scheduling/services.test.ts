@@ -29,7 +29,7 @@ test("scheduling services are Billy's industry catalog", () => {
     [
       {
         industry: "Real Estate",
-        options: ["Photography", "Video", "Aerial Photos", "Zillow 360", "Exterior Only"],
+        options: ["Photography", "Video", "Aerial Photos", "Twilight", "Zillow 360", "Exterior Only"],
         exclusive: false,
       },
       {
@@ -48,6 +48,7 @@ test("scheduling services are Billy's industry catalog", () => {
     "Real Estate · Photography",
     "Real Estate · Video",
     "Real Estate · Aerial Photos",
+    "Real Estate · Twilight",
     "Real Estate · Zillow 360",
     "Real Estate · Exterior Only",
     "Construction · Photography",
@@ -60,7 +61,7 @@ test("scheduling services are Billy's industry catalog", () => {
     "Meeting · 30 min appointment",
     "Meeting · 1 hour appointment",
   ]);
-  assert.equal(SCHEDULING_SERVICES.length, 14);
+  assert.equal(SCHEDULING_SERVICES.length, 15);
   assert.equal(COMMERCIAL_VIDEO_SERVICE, "Commercial video");
   assert.equal(schedulingServiceId("Real Estate", "Photography"), "Real Estate · Photography");
   assert.equal(schedulingServiceId("Podcast", "1 episode"), "Podcast · 1 episode");
@@ -175,6 +176,18 @@ test("toggleSchedulingService is exclusive inside Podcast and multi-select elsew
     ),
     ["Construction · Video"],
   );
+  assert.deepEqual(
+    toggleSchedulingService(
+      ["Real Estate · Photography", "Real Estate · Video"],
+      "Real Estate · Twilight",
+    ),
+    ["Real Estate · Twilight"],
+  );
+  assert.deepEqual(
+    toggleSchedulingService(["Real Estate · Twilight"], "Real Estate · Photography"),
+    ["Real Estate · Photography"],
+  );
+  assert.deepEqual(toggleSchedulingService(["Real Estate · Twilight"], "Real Estate · Twilight"), []);
 });
 
 test("bookingSlotMinutes sums locked option times including Aerial Photos", () => {
@@ -182,6 +195,7 @@ test("bookingSlotMinutes sums locked option times including Aerial Photos", () =
     "Real Estate · Photography": 45,
     "Real Estate · Video": 30,
     "Real Estate · Aerial Photos": 15,
+    "Real Estate · Twilight": 30,
     "Real Estate · Zillow 360": 15,
     "Real Estate · Exterior Only": 15,
     "Construction · Photography": 45,
@@ -198,6 +212,7 @@ test("bookingSlotMinutes sums locked option times including Aerial Photos", () =
   assert.equal(bookingSlotMinutes(["Real Estate · Photography"]), 45);
   assert.equal(bookingSlotMinutes(["Real Estate · Video"]), 30);
   assert.equal(bookingSlotMinutes(["Real Estate · Aerial Photos"]), 15);
+  assert.equal(bookingSlotMinutes(["Real Estate · Twilight"]), 30);
   assert.equal(bookingSlotMinutes(["Real Estate · Zillow 360"]), 15);
   assert.equal(bookingSlotMinutes(["Real Estate · Exterior Only"]), 15);
   assert.equal(

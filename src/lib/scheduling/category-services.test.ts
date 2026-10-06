@@ -27,6 +27,7 @@ test("each client category keeps Social Media Video and Meeting, plus its own se
     "Real Estate · Photography",
     "Real Estate · Video",
     "Real Estate · Aerial Photos",
+    "Real Estate · Twilight",
     "Real Estate · Zillow 360",
     "Real Estate · Exterior Only",
     ...SHARED,

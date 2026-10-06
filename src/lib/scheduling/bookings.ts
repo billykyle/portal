@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookings, clients } from "@/lib/db/schema";
 import { adminBookingNotices } from "./booking-sync";
@@ -109,6 +109,29 @@ export function splitActiveBookings<T extends { status: string; startsAt: Date |
     else past.push(row);
   }
   return { queued, upcoming, past };
+}
+
+/** Eastern dates that already have a confirmed Twilight. The booking being edited is omitted. */
+export async function loadConfirmedTwilightDays(options?: {
+  excludeBookingId?: string | null;
+}): Promise<string[]> {
+  const rows = await db
+    .select({ id: bookings.id, twilightDay: bookings.twilightDay })
+    .from(bookings)
+    .where(and(eq(bookings.status, "confirmed"), isNotNull(bookings.twilightDay)));
+  return rows.flatMap((row) => {
+    if (!row.twilightDay) return [];
+    if (options?.excludeBookingId && row.id === options.excludeBookingId) return [];
+    return [row.twilightDay];
+  });
+}
+
+export async function confirmedTwilightDayTaken(
+  dateKey: string,
+  excludeBookingId?: string | null,
+): Promise<boolean> {
+  const days = await loadConfirmedTwilightDays({ excludeBookingId });
+  return days.includes(dateKey);
 }
 
 export async function loadConfirmedPortalBusy(): Promise<Interval[]> {

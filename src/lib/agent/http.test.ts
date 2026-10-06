@@ -266,14 +266,17 @@ test("tools/list includes create_booking and a token call creates the booking", 
   assert.match(tool.description ?? "", /America\/New_York/);
   assert.match(tool.description ?? "", /Real Estate · Photography/);
   assert.match(tool.description ?? "", /Real Estate · Exterior Only/);
+  assert.match(tool.description ?? "", /Real Estate · Twilight/);
   assert.match(tool.description ?? "", /15-minute appointment/);
+  assert.match(tool.description ?? "", /Philadelphia sunset/);
   assert.match(tool.description ?? "", /New shoot/);
   for (const field of ["client", "address", "services", "date", "time", "notes"]) {
     assert.ok(tool.inputSchema?.properties?.[field], field);
   }
-  for (const field of ["client", "address", "services", "date", "time"]) {
+  for (const field of ["client", "address", "services", "date"]) {
     assert.ok(tool.inputSchema?.required?.includes(field), field);
   }
+  assert.equal(tool.inputSchema?.required?.includes("time"), false);
 
   const called = await handleAgentMcp(
     mcpRequest("tools/call", {

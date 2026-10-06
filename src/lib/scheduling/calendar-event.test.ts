@@ -249,6 +249,10 @@ test("calendar title uses service initials in catalog order and keeps a lockbox"
     "Jane Doe - P V (gate code 1234)",
   );
   assert.equal(
+    calendarEventTitle({ ...jane, services: ["Real Estate · Twilight"] }),
+    "Jane Doe - Twi",
+  );
+  assert.equal(
     calendarEventTitle({ ...jane, services: ["Real Estate · Zillow 360"] }),
     "Jane Doe - 360",
   );

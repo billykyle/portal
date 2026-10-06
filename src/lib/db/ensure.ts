@@ -183,6 +183,12 @@ async function createTables() {
   await sql`ALTER TYPE booking_status ADD VALUE IF NOT EXISTS 'queued'`;
   await sql`ALTER TABLE bookings ALTER COLUMN starts_at DROP NOT NULL`;
   await sql`ALTER TABLE bookings ALTER COLUMN ends_at DROP NOT NULL`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS twilight_day text`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS bookings_one_twilight_per_day
+    ON bookings (twilight_day)
+    WHERE status = 'confirmed' AND twilight_day IS NOT NULL
+  `;
   await sql`
     CREATE TABLE IF NOT EXISTS maintenance_notices (
       id text PRIMARY KEY,

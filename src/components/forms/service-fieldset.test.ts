@@ -86,11 +86,14 @@ test("a client category hides the other industries and drops a disallowed select
   assert.deepEqual(titles, ["Real Estate", "Social Media Video", "Meeting"]);
   assert.match(html, /value="Real Estate · Photography"/);
   assert.match(html, /Aerial Photos/);
+  assert.match(html, /Twilight/);
   assert.match(html, /Zillow 360/);
   assert.match(html, /Exterior Only/);
+  const aerial = html.indexOf("Aerial Photos");
+  const twilight = html.indexOf("Twilight");
   const zillow = html.indexOf("Zillow 360");
   const exterior = html.indexOf("Exterior Only");
-  assert.ok(zillow >= 0 && exterior > zillow);
+  assert.ok(aerial >= 0 && twilight > aerial && zillow > twilight && exterior > zillow);
   assert.doesNotMatch(html, /Podcast/);
   assert.doesNotMatch(html, /Construction/);
   assert.doesNotMatch(html, /Commercial/);
