@@ -50,7 +50,14 @@ export function schedulingEditorHref(input: {
 
 export function schedulingConfirmedHref(
   bookingId: string,
-  options?: { updated?: boolean; cancelled?: boolean; calendar?: "failed"; email?: "failed" },
+  options?: {
+    updated?: boolean;
+    cancelled?: boolean;
+    calendar?: "failed";
+    email?: "failed";
+    /** Second booking created with this one, shown on the same confirmation. */
+    also?: string | null;
+  },
 ) {
   const path = `${CLIENT_SCHEDULING_CONFIRMED}/${bookingId}`;
   const query = new URLSearchParams();
@@ -58,6 +65,8 @@ export function schedulingConfirmedHref(
   if (options?.updated) query.set("updated", "1");
   if (options?.calendar === "failed") query.set("calendar", "failed");
   if (options?.email === "failed") query.set("email", "failed");
+  const also = options?.also?.trim();
+  if (also) query.set("also", also);
   const qs = query.toString();
   return qs ? `${path}?${qs}` : path;
 }

@@ -688,7 +688,7 @@ test("twilight defaults to the sunset slot, keeps an override, and rejects a sec
   assert.equal(seen.start?.toISOString(), sunset.start.toISOString());
   assert.equal(seen.end?.getTime(), sunset.end.getTime());
   assert.equal(seen.end && seen.start ? seen.end.getTime() - seen.start.getTime() : 0, 30 * 60 * 1000);
-  assert.equal(seen.summary, "Sam Lepore - Twi");
+  assert.equal(seen.summary, "Sam Lepore - Twilight");
   assert.equal(seen.twilightDay, "2026-06-24");
 
   const override = await createOverrideBooking(

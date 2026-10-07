@@ -29,6 +29,7 @@ export function ServiceFieldset({
   commercialHours = null,
   name = "service",
   allowedServices,
+  pairTwilight = false,
   onSelectedChange,
   onCommercialHoursChange,
 }: {
@@ -37,6 +38,8 @@ export function ServiceFieldset({
   name?: string;
   /** When set, only these services are shown and submitted. Omit to show the full catalog. */
   allowedServices?: readonly string[];
+  /** New client bookings may add Twilight beside other services. */
+  pairTwilight?: boolean;
   onSelectedChange?: (services: string[]) => void;
   onCommercialHoursChange?: (hours: number | null) => void;
 }) {
@@ -83,7 +86,7 @@ export function ServiceFieldset({
   }, []);
 
   function toggle(value: string) {
-    const next = toggleSchedulingService(picked, value);
+    const next = toggleSchedulingService(picked, value, { pairTwilight });
     setPicked(next);
     onSelectedChange?.(next);
     if (!includesCommercialVideo(next)) {
@@ -101,7 +104,7 @@ export function ServiceFieldset({
     onCommercialHoursChange?.(parsed);
     const hasService = picked.includes(COMMERCIAL_VIDEO_SERVICE);
     if (hasService !== chooseService) {
-      const next = toggleSchedulingService(picked, COMMERCIAL_VIDEO_SERVICE);
+      const next = toggleSchedulingService(picked, COMMERCIAL_VIDEO_SERVICE, { pairTwilight });
       setPicked(next);
       onSelectedChange?.(next);
     }

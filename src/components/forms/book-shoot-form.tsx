@@ -10,7 +10,12 @@ import {
   COMMERCIAL_VIDEO_SERVICE,
   parseSchedulingServices,
 } from "@/lib/scheduling/services";
-import { AVAILABILITY_PREFETCH_DEBOUNCE_MS, availabilityQueryKey, canPrefetchAvailability } from "@/lib/scheduling/times-prefetch";
+import {
+  AVAILABILITY_PREFETCH_DEBOUNCE_MS,
+  availabilityQueriesForBooking,
+  availabilityQueryKey,
+  canPrefetchAvailability,
+} from "@/lib/scheduling/times-prefetch";
 
 export function BookShootForm({
   address,
@@ -57,7 +62,9 @@ export function BookShootForm({
   useEffect(() => {
     if (!canPrefetchAvailability(query)) return;
     const timer = window.setTimeout(() => {
-      void prefetchAvailability(query);
+      for (const next of availabilityQueriesForBooking(query)) {
+        void prefetchAvailability(next);
+      }
     }, AVAILABILITY_PREFETCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [queryKey, query]);
@@ -87,6 +94,7 @@ export function BookShootForm({
         selected={pickerServices}
         commercialHours={pickerHours}
         allowedServices={allowedServices}
+        pairTwilight={!modifyBookingId}
         onSelectedChange={setPickedServices}
         onCommercialHoursChange={setPickedHours}
       />

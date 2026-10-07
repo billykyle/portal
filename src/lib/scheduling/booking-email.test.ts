@@ -195,6 +195,45 @@ test("confirmation body is confirmed, Eastern time, and includes optional notes"
   assertOnBrandHtml(message.html);
 });
 
+test("a Twilight pair confirmation is one email covering both appointments", () => {
+  const twilightStart = new Date("2026-09-22T23:30:00.000Z");
+  const twilightEnd = new Date("2026-09-23T00:00:00.000Z");
+  const message = buildBookingConfirmation(
+    sampleInput({
+      services: ["Real Estate · Photography"],
+      companion: {
+        bookingId: "22222222-2222-4222-8222-222222222222",
+        services: ["Real Estate · Twilight"],
+        start: twilightStart,
+        end: twilightEnd,
+      },
+    }),
+  );
+  const notify = buildBookingNotify(
+    sampleInput({
+      services: ["Real Estate · Photography"],
+      companion: {
+        bookingId: "22222222-2222-4222-8222-222222222222",
+        services: ["Real Estate · Twilight"],
+        start: twilightStart,
+        end: twilightEnd,
+      },
+    }),
+  );
+  assert.match(message.subject, /Shoot confirmed/);
+  assert.match(message.subject, /Twilight/);
+  assert.match(message.text, /Real Estate · Photography/);
+  assert.match(message.text, /^Twilight$/m);
+  assert.match(message.text, /Twilight — Add to calendar/);
+  assert.match(message.text, /also=22222222-2222-4222-8222-222222222222/);
+  assert.equal(message.attachments?.length, 2);
+  assert.match(message.attachments?.[1]?.filename ?? "", /-twilight\.ics$/);
+  assert.match(notify.subject, /New shoot/);
+  assert.match(notify.subject, /Twilight/);
+  assert.match(notify.text, /Twilight/);
+  assert.doesNotMatch(notify.text, /Add to calendar/);
+});
+
 test("Billy's copy uses a New shoot subject, no under-title copy, and Pepper instructions", () => {
   const message = buildBookingNotify(sampleInput({ services: ["Real Estate · Photography"] }));
   const when = formatBookingWhen(start, end, "America/New_York");

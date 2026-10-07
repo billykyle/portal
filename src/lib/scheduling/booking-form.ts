@@ -34,6 +34,10 @@ export function readBookingFormSlot(formData: FormData): ParsedBookingSlot | nul
   return parseBookingSlot(formData.getAll("slot"));
 }
 
+export function readNamedBookingSlot(formData: FormData, name: string): ParsedBookingSlot | null {
+  return parseBookingSlot(formData.getAll(name));
+}
+
 /** Tap an already-selected time to clear it; tap another time to select it. */
 export function toggleSelectedSlot(current: string, tapped: string) {
   return current === tapped ? "" : tapped;

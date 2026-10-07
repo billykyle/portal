@@ -6,6 +6,7 @@ import { revalidateAdminHome } from "@/lib/revalidate-admin-home";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-auth";
 import { getSession } from "@/lib/auth";
+import { prepareDeliverableBookingEmailForBooking } from "@/lib/client-contact";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
@@ -17,7 +18,7 @@ import {
 } from "@/lib/scheduling/availability";
 import { parseShootAddress } from "@/lib/scheduling/address";
 import { adminExactSlotFromForm } from "@/lib/scheduling/admin-time";
-import { bookingUserError, readBookingFormSlot } from "@/lib/scheduling/booking-form";
+import { bookingUserError, readBookingFormSlot, readNamedBookingSlot } from "@/lib/scheduling/booking-form";
 import {
   canAdminOpenBooking,
   canClientOpenBooking,
@@ -28,7 +29,10 @@ import {
   loadConfirmedPortalJobs,
   loadConfirmedTwilightDays,
 } from "@/lib/scheduling/bookings";
+import { sendBookingConfirmation, sendBookingSyncIssue } from "@/lib/scheduling/booking-email";
 import { settleBookingIntegrations } from "@/lib/scheduling/booking-integrations";
+import { formatSyncIssue, type BookingSyncFailure } from "@/lib/scheduling/booking-sync";
+import { attemptReplaceCalendarBooking, portalCalendarEventId, tryDeleteCalendarBooking } from "@/lib/scheduling/calendar";
 import {
   bookingModifyThrownMessage,
   commitBookingCancellation,
@@ -53,6 +57,12 @@ import {
   twilightDateKey,
   twilightDayValue,
 } from "@/lib/scheduling/twilight";
+import {
+  commitTwilightPair,
+  TWILIGHT_PAIR_INCOMPLETE,
+  twilightBookingFlow,
+  type TwilightBookingFlow,
+} from "@/lib/scheduling/twilight-pair";
 import { draftInputFromForm, type SchedulingDraftInput } from "@/lib/scheduling/draft";
 import { clearSchedulingDraft, writeSchedulingDraft } from "@/lib/scheduling/draft-store";
 import {
@@ -131,10 +141,13 @@ export async function continueToTimes(formData: FormData) {
     await fail("Pick at least one service.");
     return;
   }
-  const twilightError = twilightAloneError(input.services);
-  if (twilightError) {
-    await fail(twilightError);
-    return;
+  const entering = twilightBookingFlow(input.services);
+  if (entering.kind !== "paired" || modifyId) {
+    const twilightError = twilightAloneError(input.services);
+    if (twilightError) {
+      await fail(twilightError);
+      return;
+    }
   }
   if (includesCommercialVideo(input.services) && input.commercialHours == null) {
     await fail(COMMERCIAL_VIDEO_HOURS_ERROR);
@@ -161,6 +174,244 @@ export async function continueToTimes(formData: FormData) {
     redirect(adminBookingTimesHref(modifyId));
   }
   redirect(schedulingTimesHref({ modify: modifyId }));
+}
+
+async function bookClientTwilightPair(input: {
+  session: { clientId: string; userId: string; email: string };
+  address: string;
+  flow: Extract<TwilightBookingFlow, { kind: "paired" }>;
+  notes: string | null;
+  accessCodes: string | null;
+  commercialHours: number | null;
+  regularSlot: { startIso: string; endIso: string } | null;
+  twilightSlot: { startIso: string; endIso: string } | null;
+  failBook: (error: string) => Promise<never>;
+  failTimes: (error: string, nextAddress?: string) => Promise<never>;
+}): Promise<void> {
+  const { session, flow } = input;
+  if (!input.regularSlot || !input.twilightSlot) {
+    await input.failTimes(TWILIGHT_PAIR_INCOMPLETE);
+    return;
+  }
+  const regularSlot = input.regularSlot;
+  const twilightSlot = input.twilightSlot;
+  const regularStart = new Date(regularSlot.startIso);
+  const regularEnd = new Date(regularSlot.endIso);
+  const twilightStart = new Date(twilightSlot.startIso);
+  const twilightEnd = new Date(twilightSlot.endIso);
+  const now = new Date();
+  if (bookingStartIsPast(regularStart, now) || bookingStartIsPast(twilightStart, now)) {
+    await input.failTimes("That time is no longer available. Pick another.");
+    return;
+  }
+
+  const portalJobs = await loadConfirmedPortalJobs();
+  const sources = await loadLiveAvailabilitySources({
+    portalBusy: portalJobs.map((job) => ({ start: job.start, end: job.end })),
+    portalJobs,
+  });
+  if ("error" in sources) {
+    await input.failTimes(sources.error);
+    return;
+  }
+  const [regularAvailability, twilightAvailability] = await Promise.all([
+    offerSlotsForAddress(input.address, sources, flow.regular, {
+      commercialHours: input.commercialHours,
+    }),
+    offerSlotsForAddress(input.address, sources, flow.twilight, {
+      twilightBookedDays: await loadConfirmedTwilightDays(),
+    }),
+  ]);
+  if (regularAvailability.error) {
+    await input.failBook(regularAvailability.error);
+    return;
+  }
+  if (twilightAvailability.error) {
+    await input.failBook(twilightAvailability.error);
+    return;
+  }
+  const savedAddress = regularAvailability.address;
+  if (
+    !slotStillOffered(regularAvailability, regularSlot.startIso, regularSlot.endIso) ||
+    !slotStillOffered(twilightAvailability, twilightSlot.startIso, twilightSlot.endIso)
+  ) {
+    await input.failTimes("That time is no longer available. Pick another.", savedAddress);
+    return;
+  }
+  const clock = sources.now ?? now;
+  if (
+    !clientMaySaveBookingStart({ start: regularStart, now: clock, timeZone: regularAvailability.timeZone }) ||
+    !clientMaySaveBookingStart({ start: twilightStart, now: clock, timeZone: twilightAvailability.timeZone })
+  ) {
+    await input.failTimes("That time is no longer available. Pick another.", savedAddress);
+    return;
+  }
+  if (await confirmedTwilightDayTaken(twilightDateKey(twilightStart))) {
+    await input.failTimes(TWILIGHT_DAY_TAKEN, savedAddress);
+    return;
+  }
+
+  const [client] = await db.select().from(clients).where(eq(clients.id, session.clientId)).limit(1);
+  const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
+  const hours = schedulingHours();
+  const identity = {
+    firstName: user?.firstName,
+    lastName: user?.lastName,
+    displayName: client?.displayName,
+    email: user?.email ?? session.email,
+    phone: user?.phone,
+    company: client?.company,
+    address: savedAddress,
+    notes: input.notes,
+    accessCodes: input.accessCodes,
+  };
+  const regularCopy = calendarEventCopy({ ...identity, services: flow.regular });
+  const twilightCopy = calendarEventCopy({ ...identity, services: flow.twilight });
+  const regularOffered = regularAvailability.slots.find(
+    (slot) => slot.start === regularSlot.startIso && slot.end === regularSlot.endIso,
+  );
+  const twilightOffered = twilightAvailability.slots.find(
+    (slot) => slot.start === twilightSlot.startIso && slot.end === twilightSlot.endIso,
+  );
+
+  const result = await commitTwilightPair(
+    {
+      regular: {
+        clientId: session.clientId,
+        createdByUserId: session.userId,
+        address: savedAddress,
+        services: [...flow.regular],
+        commercialVideoHours: input.commercialHours,
+        startsAt: regularStart,
+        endsAt: regularEnd,
+        notes: input.notes,
+        accessCodes: input.accessCodes,
+        driveSecondsFromPrior: regularOffered?.driveSecondsFromPrior ?? null,
+      },
+      twilight: {
+        clientId: session.clientId,
+        createdByUserId: session.userId,
+        address: savedAddress,
+        services: [...flow.twilight],
+        commercialVideoHours: null,
+        startsAt: twilightStart,
+        endsAt: twilightEnd,
+        notes: input.notes,
+        accessCodes: input.accessCodes,
+        driveSecondsFromPrior: twilightOffered?.driveSecondsFromPrior ?? null,
+      },
+      calendarConfigured: regularAvailability.calendarConfigured,
+      regularCalendar: {
+        address: savedAddress,
+        start: regularStart,
+        end: regularEnd,
+        timeZone: hours.timeZone,
+        summary: regularCopy.summary,
+        description: regularCopy.description,
+      },
+      twilightCalendar: {
+        address: savedAddress,
+        start: twilightStart,
+        end: twilightEnd,
+        timeZone: hours.timeZone,
+        summary: twilightCopy.summary,
+        description: twilightCopy.description,
+      },
+    },
+    {
+      async insertBooking(row) {
+        const [booking] = await db.insert(bookings).values(row).returning({ id: bookings.id });
+        return booking ?? null;
+      },
+      async deleteBooking(id) {
+        await db.delete(bookings).where(eq(bookings.id, id));
+      },
+      twilightDayTaken: (dateKey) => confirmedTwilightDayTaken(dateKey),
+      async writeCalendar(bookingId, write) {
+        const eventId = portalCalendarEventId(bookingId);
+        const written = await attemptReplaceCalendarBooking(null, { ...write, eventId });
+        if (written.status === "written") return { ok: true, eventId: written.eventId };
+        if (written.status === "skipped") return { ok: true, eventId: null };
+        return { ok: false };
+      },
+      async deleteCalendar(eventId) {
+        await tryDeleteCalendarBooking(eventId);
+      },
+      async saveCalendarId(bookingId, eventId) {
+        await db
+          .update(bookings)
+          .set({ calendarEventId: eventId, updatedAt: new Date() })
+          .where(eq(bookings.id, bookingId));
+      },
+      async sendPairEmail({ regularId, twilightId }) {
+        const email = {
+          bookingId: regularId,
+          clientEmail: user?.email ?? session.email,
+          primaryEmail: client?.primaryEmail ?? null,
+          clientName: client?.displayName ?? null,
+          address: savedAddress,
+          services: [...flow.regular],
+          start: regularStart,
+          end: regularEnd,
+          timeZone: hours.timeZone,
+          notes: input.notes,
+          accessCodes: input.accessCodes,
+          companion: {
+            bookingId: twilightId,
+            services: [...flow.twilight],
+            start: twilightStart,
+            end: twilightEnd,
+          },
+        };
+        const prepared = await prepareDeliverableBookingEmailForBooking(regularId, email);
+        const sent = await sendBookingConfirmation(prepared.send);
+        if (sent.client.sent && sent.clientMessageId) {
+          await db
+            .update(bookings)
+            .set({
+              clientEmailMessageId: sent.clientMessageId,
+              clientEmailReferences: sent.clientMessageId,
+              clientEmailSubject: sent.clientSubject ?? null,
+              updatedAt: new Date(),
+            })
+            .where(eq(bookings.id, regularId));
+        }
+        const emailFailed = !sent.client.sent || !sent.notify.sent;
+        if (emailFailed) {
+          const failures: BookingSyncFailure[] = [];
+          if (!sent.client.sent) failures.push("client-email");
+          if (!sent.notify.sent) failures.push("owner-email");
+          const alert = await sendBookingSyncIssue({
+            ...prepared.alert,
+            bookingId: regularId,
+            action: "create",
+            failures,
+          });
+          const syncIssue = formatSyncIssue({ calendar: false, email: true, alertFailed: !alert.sent });
+          await db.update(bookings).set({ syncIssue, updatedAt: new Date() }).where(eq(bookings.id, regularId));
+          await db.update(bookings).set({ syncIssue, updatedAt: new Date() }).where(eq(bookings.id, twilightId));
+        }
+        return { emailFailed };
+      },
+    },
+  );
+
+  if (!result.ok) {
+    await input.failTimes(result.error, savedAddress);
+    return;
+  }
+
+  revalidatePath(CLIENT_SCHEDULING);
+  revalidatePath(CLIENT_SCHEDULING_TIMES);
+  revalidatePath("/admin/bookings");
+  revalidateAdminHome();
+  await forgetSchedulingDraft("client");
+  redirect(
+    schedulingConfirmedHref(result.regularId, {
+      also: result.twilightId,
+      email: result.emailFailed ? "failed" : undefined,
+    }),
+  );
 }
 
 export async function createBooking(formData: FormData) {
@@ -211,14 +462,30 @@ export async function createBooking(formData: FormData) {
       await failBook("Pick at least one service.");
       return;
     }
-    const twilightError = twilightAloneError(services);
-    if (twilightError) {
-      await failBook(twilightError);
-      return;
-    }
     const categoryError = clientCategoryServiceError(services, await loadClientCategory(session.clientId));
     if (categoryError) {
       await failBook(categoryError);
+      return;
+    }
+    const flow = twilightBookingFlow(services);
+    if (flow.kind === "paired") {
+      await bookClientTwilightPair({
+        session,
+        address,
+        flow,
+        notes,
+        accessCodes,
+        commercialHours: draftInput.commercialHours,
+        regularSlot: parsedSlot,
+        twilightSlot: readNamedBookingSlot(formData, "twilightSlot"),
+        failBook,
+        failTimes,
+      });
+      return;
+    }
+    const twilightError = twilightAloneError(services);
+    if (twilightError) {
+      await failBook(twilightError);
       return;
     }
     if (!parsedSlot) {

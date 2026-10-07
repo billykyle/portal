@@ -14,9 +14,9 @@ import {
 } from "./zoned-time";
 
 /**
- * Twilight is its own appointment. It is not combined with other services in
- * one booking: the sunset window would not line up with a daytime shoot, so
- * a client who also wants Photography (or anything else) books that separately.
+ * Twilight is its own 30-minute sunset appointment. A client who also wants
+ * other services gets two bookings: the regular slot, then this sunset slot.
+ * Agent create and admin Book a shoot still reject a mixed service list.
  */
 
 /** Philadelphia City Hall. Sunset is computed for this point, America/New_York. */

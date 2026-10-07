@@ -7,7 +7,9 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
  * Admin and agent booking still use this full list. Clients may select more
  * than one option, except exclusive groups
  * (Podcast episode count, Social Media Video option, and Meeting length).
- * Twilight is its own appointment and cannot be combined with anything else.
+ * Twilight can be selected with other services on a new client booking.
+ * That creates two appointments. Admin Book a shoot and agent booking
+ * still keep Twilight on its own.
  * Do not invent prices here.
  * Slot length is the **sum** of selected option minutes (never longest-only).
  */
@@ -77,7 +79,7 @@ export const SCHEDULING_SERVICES = [
 
 export type SchedulingService = (typeof SCHEDULING_SERVICES)[number];
 
-/** Stored as Real Estate · Twilight. Booked alone, at the Philadelphia sunset slot. */
+/** Stored as Real Estate · Twilight. Its own 30-minute Philadelphia sunset slot. */
 export const TWILIGHT_SERVICE = "Real Estate · Twilight" as const satisfies SchedulingService;
 
 /**
@@ -252,11 +254,13 @@ export function parseSchedulingServices(raw: unknown): SchedulingService[] {
 export function toggleSchedulingService(
   current: readonly string[],
   value: string,
+  options?: { pairTwilight?: boolean },
 ): SchedulingService[] {
   const parsed = parseSchedulingService(value);
   if (!parsed) return parseSchedulingServices(current);
   const selected = new Set(parseSchedulingServices(current));
-  if (parsed === TWILIGHT_SERVICE) {
+  const pairTwilight = options?.pairTwilight === true;
+  if (!pairTwilight && parsed === TWILIGHT_SERVICE) {
     if (selected.has(TWILIGHT_SERVICE) && selected.size === 1) selected.delete(TWILIGHT_SERVICE);
     else {
       selected.clear();
@@ -267,7 +271,7 @@ export function toggleSchedulingService(
   if (selected.has(parsed)) {
     selected.delete(parsed);
   } else {
-    selected.delete(TWILIGHT_SERVICE);
+    if (!pairTwilight) selected.delete(TWILIGHT_SERVICE);
     const group = EXCLUSIVE_GROUP_KEY.get(parsed);
     if (group) {
       for (const item of SCHEDULING_SERVICES) {

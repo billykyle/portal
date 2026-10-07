@@ -49,6 +49,13 @@ export type BookingEmailThread = {
   originalSubject?: string | null;
 };
 
+export type BookingCompanion = {
+  bookingId?: string | null;
+  services: readonly string[];
+  start: Date;
+  end: Date;
+};
+
 export type BookingConfirmationInput = {
   clientEmail: string;
   /** Resolved real recipients. Empty means do not fall back to `clientEmail` (it may be a placeholder). */
@@ -67,6 +74,8 @@ export type BookingConfirmationInput = {
   accessCodes?: string | null;
   previous?: BookingSnapshot | null;
   thread?: BookingEmailThread | null;
+  /** Second appointment created with this one. One email covers both. */
+  companion?: BookingCompanion | null;
 };
 
 export function normalizeEmailMessageId(raw: string | null | undefined) {
@@ -168,7 +177,10 @@ export function bookingAdminUrl() {
   return adminUrl("/admin/bookings");
 }
 
-export function bookingShootManageUrl(bookingId?: string | null, options?: { updated?: boolean }) {
+export function bookingShootManageUrl(
+  bookingId?: string | null,
+  options?: { updated?: boolean; also?: string | null },
+) {
   const origin = publicPortalOrigin();
   const id = bookingId?.trim();
   if (id) return `${origin}${schedulingConfirmedHref(id, options)}`;
@@ -290,14 +302,21 @@ function paragraphHtml(text: string) {
   return `<p style="margin:0 0 20px;font-family:${EMAIL_FONT_STACK};font-size:16px;line-height:1.5;color:#000000;">${escapeHtml(text)}</p>`;
 }
 
+function companionWhen(input: BookingConfirmationInput) {
+  if (!input.companion) return "";
+  return formatBookingWhen(input.companion.start, input.companion.end, input.timeZone);
+}
+
 function sharedDetailRows(input: BookingConfirmationInput, extras: DetailRow[] = []) {
   const { when, services, notes, accessCodes } = bookingDetails(input);
   const changed = new Set(bookingFieldChanges(input, input.previous).map((change) => change.label));
+  const twilight = companionWhen(input);
   return [
     ...extras,
     { label: "When", value: `${when} (${input.timeZone})`, changed: changed.has("When") },
     { label: "Where", value: input.address, changed: changed.has("Where") },
     { label: "Services", value: services, changed: changed.has("Services") },
+    ...(twilight ? [{ label: "Twilight", value: `${twilight} (${input.timeZone})` }] : []),
     { label: "Notes", value: notes, changed: changed.has("Notes") },
     { label: "Access codes", value: accessCodes },
   ];
@@ -426,7 +445,10 @@ function clientLabel(input: BookingConfirmationInput) {
 function clientCta(input: BookingConfirmationInput, updated: boolean) {
   return {
     label: "Modify or cancel this shoot",
-    href: bookingShootManageUrl(input.bookingId, updated ? { updated: true } : undefined),
+    href: bookingShootManageUrl(input.bookingId, {
+      updated: updated || undefined,
+      also: input.companion?.bookingId,
+    }),
   };
 }
 
@@ -502,15 +524,43 @@ function buildClientMessage(
           updated: Boolean(copy.updated),
         })
       : null;
-  const attachments: EmailAttachment[] | undefined = calendar
-    ? [
-        {
-          filename: calendar.filename,
-          content: Buffer.from(calendar.ics, "utf8").toString("base64"),
-          contentType: "text/calendar; charset=utf-8",
-        },
-      ]
-    : undefined;
+  const companionId = input.companion?.bookingId?.trim();
+  const companionCalendar =
+    copy.includeCalendar && input.companion && companionId
+      ? clientCalendarLinks({
+          bookingId: companionId,
+          address: input.address,
+          services: input.companion.services,
+          start: input.companion.start,
+          end: input.companion.end,
+          notes: input.notes,
+          accessCodes: input.accessCodes,
+          updated: Boolean(copy.updated),
+        })
+      : null;
+  const attachments: EmailAttachment[] | undefined =
+    calendar || companionCalendar
+      ? [
+          ...(calendar
+            ? [
+                {
+                  filename: calendar.filename,
+                  content: Buffer.from(calendar.ics, "utf8").toString("base64"),
+                  contentType: "text/calendar; charset=utf-8",
+                },
+              ]
+            : []),
+          ...(companionCalendar
+            ? [
+                {
+                  filename: companionCalendar.filename.replace(/\.ics$/, "-twilight.ics"),
+                  content: Buffer.from(companionCalendar.ics, "utf8").toString("base64"),
+                  contentType: "text/calendar; charset=utf-8",
+                },
+              ]
+            : []),
+        ]
+      : undefined;
 
   const text = [
     greeting,
@@ -521,6 +571,9 @@ function buildClientMessage(
     ...detailText(rows),
     "",
     ...(calendar ? ["Add to calendar", calendar.icsUrl, "", "Google Calendar", calendar.googleUrl, ""] : []),
+    ...(companionCalendar
+      ? ["Twilight — Add to calendar", companionCalendar.icsUrl, "", "Twilight — Google Calendar", companionCalendar.googleUrl, ""]
+      : []),
     cta.label,
     cta.href,
     "",
@@ -536,13 +589,18 @@ function buildClientMessage(
       paragraphHtml(copy.intro),
       changeSummaryHtml(changes),
       detailHtml(rows),
-      `<div style="padding:28px 0 8px;">${calendar ? calendarCtaHtml(calendar.icsUrl, calendar.googleUrl) : ""}${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
+      `<div style="padding:28px 0 8px;">${calendar ? calendarCtaHtml(calendar.icsUrl, calendar.googleUrl) : ""}${
+        companionCalendar
+          ? `<p style="margin:0 0 12px;font-family:${EMAIL_FONT_STACK};font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:#000000;">Twilight</p>${calendarCtaHtml(companionCalendar.icsUrl, companionCalendar.googleUrl)}`
+          : ""
+      }${bookingEmailCtaButton(cta.href, cta.label)}</div>`,
       `<div style="padding-top:24px;">${emailSignatureHtml()}</div>`,
     ].join("\n"),
   });
 
+  const twilightWhen = companionWhen(input);
   return {
-    subject: copy.subject ?? `${copy.subjectPrefix} — ${when}`,
+    subject: copy.subject ?? (twilightWhen ? `${copy.subjectPrefix} — ${when} · Twilight ${twilightWhen}` : `${copy.subjectPrefix} — ${when}`),
     text,
     html,
     attachments,
@@ -583,8 +641,9 @@ function buildNotifyMessage(
     ].join("\n"),
   });
 
+  const twilightWhen = companionWhen(input);
   return {
-    subject: `${copy.subjectPrefix}: ${when}`,
+    subject: twilightWhen ? `${copy.subjectPrefix}: ${when} · Twilight ${twilightWhen}` : `${copy.subjectPrefix}: ${when}`,
     text,
     html,
   };

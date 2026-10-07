@@ -24,6 +24,7 @@ import { schedulingEditorHref } from "@/lib/scheduling/urls";
 export function BookTimesForm({
   availability,
   services,
+  postedServices,
   commercialHours = null,
   notes = "",
   placeId = "",
@@ -33,9 +34,21 @@ export function BookTimesForm({
   refreshing = false,
   stale = false,
   fromAdmin = false,
+  heading = "Available times",
+  intro,
+  submitLabel,
+  onAdvance,
+  slotFieldName = "slot",
+  extraHidden,
+  preferredDateKey,
+  defaultSlot = "",
+  onBack,
+  backLabel,
 }: {
   availability: AvailabilityResult;
   services: string[];
+  /** Hidden service fields. Defaults to the services shown in the heading. */
+  postedServices?: string[];
   commercialHours?: number | null;
   notes?: string;
   placeId?: string;
@@ -45,6 +58,17 @@ export function BookTimesForm({
   refreshing?: boolean;
   stale?: boolean;
   fromAdmin?: boolean;
+  heading?: string;
+  intro?: string;
+  submitLabel?: string;
+  /** Step 1 of a Twilight pair: keep the choice on this page instead of booking. */
+  onAdvance?: (slot: string) => void;
+  slotFieldName?: string;
+  extraHidden?: readonly { name: string; value: string }[];
+  preferredDateKey?: string;
+  defaultSlot?: string;
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   const slotsByDate = useMemo(() => groupSlotsByDate(availability.slots), [availability.slots]);
   const datesWithSlots = useMemo(() => new Set(slotsByDate.keys()), [slotsByDate]);
@@ -55,14 +79,19 @@ export function BookTimesForm({
     ? availability.slots.find((slot) => `${slot.start}|${slot.end}` === currentSlot) ??
       availability.slots.find((slot) => slot.start === currentStart)
     : undefined;
-  const firstKey = offeredCurrent?.dateKey ?? availability.firstBookableDate;
+  const preferredKey = preferredDateKey && datesWithSlots.has(preferredDateKey) ? preferredDateKey : "";
+  const firstKey = offeredCurrent?.dateKey ?? (preferredKey || availability.firstBookableDate);
+  const offeredDefault =
+    defaultSlot && availability.slots.some((slot) => `${slot.start}|${slot.end}` === defaultSlot) ? defaultSlot : "";
   const [weekStart, setWeekStart] = useState(firstKey);
   const [openDates, setOpenDates] = useState<string[]>(() =>
-    firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots),
+    preferredKey
+      ? [preferredKey]
+      : firstOpenDate(weekDateKeys(parseRequiredDateKey(firstKey), last), datesWithSlots),
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(
-    offeredCurrent ? `${offeredCurrent.start}|${offeredCurrent.end}` : "",
+    offeredCurrent ? `${offeredCurrent.start}|${offeredCurrent.end}` : offeredDefault,
   );
   const [slotError, setSlotError] = useState("");
   const selectedSlotRef = useRef(selectedSlot);
@@ -89,6 +118,7 @@ export function BookTimesForm({
   const weekKeys = weekDateKeys(parseRequiredDateKey(weekStart), last);
   const changeHref = schedulingEditorHref({ fromAdmin, bookingId: modifyBookingId });
   const submitError = slotError || error;
+  const submittedServices = postedServices ?? services;
 
   useEffect(() => {
     if (!error) return;
@@ -96,6 +126,15 @@ export function BookTimesForm({
   }, [error]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
+    if (onAdvance) {
+      event.preventDefault();
+      if (!selectedSlot) {
+        setSlotError("Pick a time.");
+        return;
+      }
+      onAdvance(selectedSlot);
+      return;
+    }
     const form = event.currentTarget;
     if (fromAdmin) {
       const date = String(new FormData(form).get("exactDate") ?? "").trim();
@@ -140,7 +179,8 @@ export function BookTimesForm({
     <div>
       <TimesStepHeader address={availability.address} services={services} changeHref={changeHref} />
 
-      <h2 className={`${sectionLabelClass} mt-8`}>Available times</h2>
+      <h2 className={`${sectionLabelClass} mt-8`}>{heading}</h2>
+      {intro ? <p className="mb-4 text-sm leading-6 text-[#c7c7cc]">{intro}</p> : null}
       {refreshing ? (
         <p className="mb-4 text-sm text-[#8e8e93]" role="status" aria-live="polite" aria-busy="true">
           {TIMES_LOADING_COPY}
@@ -155,18 +195,25 @@ export function BookTimesForm({
         <p className="mb-4 text-sm text-[#8e8e93]">No times fit this address right now.</p>
       ) : null}
 
-      <form action={modifyBookingId ? updateBooking : createBooking} onSubmit={onSubmit} className="flex flex-col gap-6">
+      <form
+        action={onAdvance ? undefined : modifyBookingId ? updateBooking : createBooking}
+        onSubmit={onSubmit}
+        className="flex flex-col gap-6"
+      >
         {modifyBookingId ? <input type="hidden" name="bookingId" value={modifyBookingId} /> : null}
         {fromAdmin ? <input type="hidden" name="fromAdmin" value="1" /> : null}
         {fromAdmin ? <input ref={exactSlotRef} type="hidden" name="slot" defaultValue="" /> : null}
         <input type="hidden" name="address" value={availability.address} />
         <input type="hidden" name="placeId" value={placeId} />
-        {services.map((service) => (
+        {submittedServices.map((service) => (
           <input key={service} type="hidden" name="service" value={service} />
+        ))}
+        {extraHidden?.map((field) => (
+          <input key={field.name} type="hidden" name={field.name} value={field.value} />
         ))}
         {commercialHours != null ? <input type="hidden" name="commercialHours" value={commercialHours} /> : null}
         <input type="hidden" name="notes" value={notes} />
-        {selectedSlot ? <input type="hidden" name="slot" value={selectedSlot} /> : null}
+        {selectedSlot ? <input type="hidden" name={slotFieldName} value={selectedSlot} /> : null}
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Choose a date and time</legend>
           <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
@@ -229,7 +276,7 @@ export function BookTimesForm({
                                   <label className={timeOptionClassName(checked)}>
                                     <input
                                       type="radio"
-                                      name="slot"
+                                      name={slotFieldName}
                                       value={value}
                                       checked={checked}
                                       onClick={() => {
@@ -299,6 +346,15 @@ export function BookTimesForm({
           </div>
         ) : null}
         <div id="book-shoot-error" className="flex flex-col gap-3">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 text-[15px]"
+            >
+              {backLabel ?? "Back"}
+            </button>
+          ) : null}
           <FormError message={submitError} />
           <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-3">
             <button
@@ -308,7 +364,7 @@ export function BookTimesForm({
             >
               Date options further out
             </button>
-            <BookShootSubmit modify={Boolean(modifyBookingId)} disabled={stale} />
+            <BookShootSubmit modify={Boolean(modifyBookingId)} disabled={stale} label={submitLabel} />
           </div>
         </div>
       </form>
@@ -351,8 +407,26 @@ function groupSlotsByDate(slots: OfferedSlot[]) {
   return groups;
 }
 
-function BookShootSubmit({ modify, disabled }: { modify?: boolean; disabled?: boolean }) {
+function BookShootSubmit({
+  modify,
+  disabled,
+  label,
+}: {
+  modify?: boolean;
+  disabled?: boolean;
+  label?: string;
+}) {
   const { pending } = useFormStatus();
-  const label = modify ? (pending ? "Saving…" : "Save changes") : pending ? "Booking…" : "Book shoot";
-  return <SubmitButton disabled={pending || disabled}>{label}</SubmitButton>;
+  const text = label
+    ? pending
+      ? "Booking…"
+      : label
+    : modify
+      ? pending
+        ? "Saving…"
+        : "Save changes"
+      : pending
+        ? "Booking…"
+        : "Book shoot";
+  return <SubmitButton disabled={pending || disabled}>{text}</SubmitButton>;
 }
