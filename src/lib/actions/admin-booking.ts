@@ -14,6 +14,7 @@ export type AdminBookState = {
   error?: string;
   message?: string;
   overlap?: string | null;
+  warnings?: string[];
   calendar?: "written" | "failed" | "skipped";
   email?: "sent" | "failed";
 };
@@ -51,6 +52,7 @@ export async function bookShootForClient(
     ok: true,
     message: `Booked ${result.startEt} for ${result.client.displayName}.`,
     overlap: result.overlapWarning,
+    warnings: result.warnings,
     calendar: result.calendar,
     email: result.email,
   };

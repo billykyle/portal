@@ -28,11 +28,12 @@ import {
 } from "@/lib/scheduling/bookings";
 import { parseShootAddress } from "@/lib/scheduling/address";
 import { calendarConfigured, schedulingHours } from "@/lib/scheduling/config";
+import { collectScheduleWarnings } from "@/lib/scheduling/admin-time";
 import { bookingStartAllowed, bookingStartIsPast, clientMaySaveBookingStart } from "@/lib/scheduling/horizon";
 import { isPastAdminBookingStart, pastAdminModifyWindow } from "@/lib/scheduling/modify-time";
 import {
   adminQueuedScheduleWindow,
-  isAdminQueuedSchedule,
+  modifyUsesExactWindow,
   queuedScheduleOverlapWarning,
 } from "@/lib/scheduling/queued-schedule";
 import { calendarEventCopy } from "@/lib/scheduling/calendar-event";
@@ -46,11 +47,11 @@ import {
 import { reminderDateChanged } from "@/lib/scheduling/shoot-reminder";
 import {
   includesTwilight,
+  overrideTwilightDay,
   TWILIGHT_DAY_TAKEN,
   twilightAloneError,
   twilightConflictMessage,
   twilightDateKey,
-  twilightDayValue,
 } from "@/lib/scheduling/twilight";
 
 type ActorSession = { clientId: string; userId: string; email: string } | null;
@@ -65,8 +66,10 @@ export type BookingModifyFailure = {
 export type PreparedBookingModification = {
   ok: true;
   bookingId: string;
-  /** Same field as create_booking. Set when a queued shoot is scheduled onto another confirmed booking. */
+  /** Same field as create_booking. Set when this save overlaps another confirmed booking. */
   overlapWarning: string | null;
+  /** overlapWarning plus any other non-blocking conflict, such as a second Twilight that day. */
+  warnings: string[];
   settlement: {
     action: "create" | "modify";
     skipOwnerNotify?: boolean;
@@ -114,14 +117,19 @@ export type PreparedBookingModification = {
  * Admin and client Bookings modify share this write. Callers still own redirects,
  * drafts, and cache revalidation. `endIso` null matches the offered slot by start only
  * (agent partial updates). A stale end still saves the single offered slot for that start.
- * Admin and agent scheduling of a queued shoot skips that grid. Calendar free/busy,
- * Personal office blocks, and drive buffers do not reject it. An overlap with another
- * confirmed booking is the same warning create_booking returns, and the save continues.
- * The end is the service length.
+ * Agent `scheduleOverride` skips that grid for queued and already confirmed bookings.
+ * Admin scheduling of a queued shoot does too. Calendar free/busy, Personal office
+ * blocks, drive buffers, weekdays, hours, category limits, and the one-Twilight-per-day
+ * rule do not reject an override. An overlap with another confirmed booking is the
+ * same warning create_booking returns, and the save continues. The end is the service
+ * length. Client booking and admin modify of a confirmed shoot still require an offered
+ * slot (a past admin start uses the service length).
  */
 export async function prepareBookingModification(input: {
   bookingId: string;
   fromAdmin: boolean;
+  /** Agent tools. Ignores availability and confirms the exact start. */
+  scheduleOverride?: boolean;
   session: ActorSession;
   address: string;
   services: readonly string[];
@@ -158,9 +166,11 @@ export async function prepareBookingModification(input: {
   if (includesCommercialVideo(services) && commercialHours == null) {
     return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR, stage: "book" };
   }
-  const twilightError = twilightAloneError(services);
-  if (twilightError) {
-    return { ok: false, error: twilightError, stage: "book" };
+  if (!input.scheduleOverride) {
+    const twilightError = twilightAloneError(services);
+    if (twilightError) {
+      return { ok: false, error: twilightError, stage: "book" };
+    }
   }
   if (!input.startIso) {
     return { ok: false, error: "Pick a time.", stage: "times", address: input.address };
@@ -175,7 +185,7 @@ export async function prepareBookingModification(input: {
   let calendarOn: boolean;
   let overlapWarning: string | null = null;
 
-  if (isAdminQueuedSchedule({ fromAdmin: input.fromAdmin, status: booking.status })) {
+  if (modifyUsesExactWindow({ scheduleOverride: input.scheduleOverride, fromAdmin: input.fromAdmin, status: booking.status })) {
     const parsed = parseShootAddress(input.address);
     if (!parsed.ok) {
       return { ok: false, error: parsed.error, stage: "book" };
@@ -191,7 +201,7 @@ export async function prepareBookingModification(input: {
     const portalJobs = await loadConfirmedPortalJobs({ excludeBookingId: booking.id });
     overlapWarning = queuedScheduleOverlapWarning(window, portalJobs);
     if (overlapWarning) {
-      console.warn(`queued schedule ${booking.id}: ${overlapWarning}`);
+      console.warn(`schedule ${booking.id}: ${overlapWarning}`);
     }
     start = window.start;
     end = window.end;
@@ -326,51 +336,75 @@ export async function prepareBookingModification(input: {
     accessCodes: booking.accessCodes,
   });
 
-  if (includesTwilight(services) && (await confirmedTwilightDayTaken(twilightDateKey(start), booking.id))) {
+  const dayTaken =
+    includesTwilight(services) && (await confirmedTwilightDayTaken(twilightDateKey(start), booking.id));
+  const twilight = overrideTwilightDay({ services, start, dayTaken });
+  if (twilight.warning && !input.scheduleOverride) {
     return { ok: false, error: TWILIGHT_DAY_TAKEN, stage: "times", address: savedAddress };
   }
+  let twilightWarning = input.scheduleOverride ? twilight.warning : null;
+  let storedTwilightDay = twilight.twilightDay;
+
+  const writeBooking = (day: string | null) =>
+    db
+      .update(bookings)
+      .set({
+        address: savedAddress,
+        services,
+        commercialVideoHours: commercialHours,
+        startsAt: start,
+        endsAt: end,
+        notes: input.notes,
+        driveSecondsFromPrior,
+        status: "confirmed",
+        twilightDay: day,
+        ...(!booking.startsAt || reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
+        updatedAt: new Date(),
+      })
+      .where(
+        input.fromAdmin
+          ? and(eq(bookings.id, booking.id), eq(bookings.status, booking.status === "queued" ? "queued" : "confirmed"))
+          : and(
+              eq(bookings.id, booking.id),
+              eq(bookings.clientId, input.session?.clientId ?? booking.clientId),
+              eq(bookings.status, booking.status === "queued" ? "queued" : "confirmed"),
+            ),
+      )
+      .returning({ id: bookings.id });
 
   let saved: { id: string } | undefined;
   try {
-    [saved] = await db
-    .update(bookings)
-    .set({
-      address: savedAddress,
-      services,
-      commercialVideoHours: commercialHours,
-      startsAt: start,
-      endsAt: end,
-      notes: input.notes,
-      driveSecondsFromPrior,
-      status: "confirmed",
-      twilightDay: twilightDayValue(services, start),
-      ...(!booking.startsAt || reminderDateChanged(booking.startsAt, start) ? { reminderSentAt: null } : {}),
-      updatedAt: new Date(),
-    })
-    .where(
-      input.fromAdmin
-        ? and(eq(bookings.id, booking.id), eq(bookings.status, booking.status === "queued" ? "queued" : "confirmed"))
-        : and(
-            eq(bookings.id, booking.id),
-            eq(bookings.clientId, input.session?.clientId ?? booking.clientId),
-            eq(bookings.status, booking.status === "queued" ? "queued" : "confirmed"),
-          ),
-    )
-    .returning({ id: bookings.id });
+    [saved] = await writeBooking(storedTwilightDay);
   } catch (error) {
-    if (twilightConflictMessage(error)) {
+    if (twilightConflictMessage(error) && input.scheduleOverride && storedTwilightDay) {
+      twilightWarning = TWILIGHT_DAY_TAKEN;
+      storedTwilightDay = null;
+      try {
+        [saved] = await writeBooking(storedTwilightDay);
+      } catch (retryError) {
+        if (twilightConflictMessage(retryError)) {
+          return { ok: false, error: TWILIGHT_DAY_TAKEN, stage: "times", address: savedAddress };
+        }
+        throw retryError;
+      }
+    } else if (twilightConflictMessage(error)) {
       return { ok: false, error: TWILIGHT_DAY_TAKEN, stage: "times", address: savedAddress };
+    } else {
+      throw error;
     }
-    throw error;
   }
   if (!saved) {
     return { ok: false, error: "Booking could not be updated.", stage: "times", address: savedAddress };
   }
 
+  const warnings = collectScheduleWarnings(overlapWarning, twilightWarning);
+  if (twilightWarning) console.warn(`schedule ${booking.id}: ${twilightWarning}`);
+
   return {
     ok: true,
     bookingId: booking.id,
     overlapWarning,
+    warnings,
     settlement: {
       action: booking.status === "queued" ? "create" : "modify",
       skipOwnerNotify: booking.status === "queued" && input.fromAdmin,

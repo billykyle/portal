@@ -2,12 +2,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { shootOverlapWarning } from "./admin-time";
-import { adminQueuedScheduleWindow, isAdminQueuedSchedule, queuedScheduleOverlapWarning } from "./queued-schedule";
+import {
+  adminQueuedScheduleWindow,
+  isAdminQueuedSchedule,
+  modifyUsesExactWindow,
+  queuedScheduleOverlapWarning,
+} from "./queued-schedule";
 
 test("only an admin or agent save of a queued shoot skips the slot grid", () => {
   assert.equal(isAdminQueuedSchedule({ fromAdmin: true, status: "queued" }), true);
   assert.equal(isAdminQueuedSchedule({ fromAdmin: false, status: "queued" }), false);
   assert.equal(isAdminQueuedSchedule({ fromAdmin: true, status: "confirmed" }), false);
+});
+
+test("agent override uses an exact window for confirmed bookings; clients and admin confirmed modify do not", () => {
+  assert.equal(modifyUsesExactWindow({ scheduleOverride: true, fromAdmin: true, status: "confirmed" }), true);
+  assert.equal(modifyUsesExactWindow({ scheduleOverride: true, fromAdmin: true, status: "queued" }), true);
+  assert.equal(modifyUsesExactWindow({ fromAdmin: true, status: "queued" }), true);
+  assert.equal(modifyUsesExactWindow({ fromAdmin: true, status: "confirmed" }), false);
+  assert.equal(modifyUsesExactWindow({ scheduleOverride: false, fromAdmin: false, status: "confirmed" }), false);
+  assert.equal(modifyUsesExactWindow({ fromAdmin: false, status: "queued" }), false);
 });
 
 test("1:15pm stays free when the only confirmed booking is the morning shoot", () => {
@@ -58,12 +72,14 @@ test("an overlapping confirmed booking warns with the create_booking message", (
 
 test("the queued save warns on portal bookings and does not read calendar free/busy", () => {
   const source = readFileSync(new URL("./booking-commit.ts", import.meta.url), "utf8");
-  const start = source.indexOf("if (isAdminQueuedSchedule");
+  const start = source.lastIndexOf("modifyUsesExactWindow");
   const end = source.indexOf("} else if (isPastAdminBookingStart");
   const branch = source.slice(start, end);
   assert.ok(start >= 0 && end > start);
   assert.match(branch, /queuedScheduleOverlapWarning/);
-  assert.doesNotMatch(branch, /queuedScheduleConflictError|fetchCalendarBusy|That time overlaps another event/);
+  assert.doesNotMatch(branch, /offerSlotsForAddress|loadLiveAvailabilitySources|fetchCalendarBusy|That time overlaps another event/);
+  assert.match(source, /offeredSlotForSubmission/);
+  assert.match(source, /if \(!input\.scheduleOverride\)/);
 });
 
 test("an unreadable start is rejected before any overlap warning", () => {

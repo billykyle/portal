@@ -154,6 +154,9 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
   assert.match(modify?.description ?? "", /slot grid/);
   assert.match(modify?.description ?? "", /Shoot confirmed/);
   assert.match(modify?.description ?? "", /overlapWarning/);
+  assert.match(modify?.description ?? "", /warnings/);
+  assert.match(modify?.description ?? "", /already confirmed/);
+  assert.doesNotMatch(modify?.description ?? "", /still has to be an offered slot/);
   assert.doesNotMatch(modify?.description ?? "", /rejected only when/);
   const cancel = tools.find((tool) => tool.name === "cancel_booking");
   assert.equal(cancel?.annotations?.destructiveHint, true);
@@ -270,6 +273,11 @@ test("tools/list includes create_booking and a token call creates the booking", 
   assert.match(tool.description ?? "", /15-minute appointment/);
   assert.match(tool.description ?? "", /Philadelphia sunset/);
   assert.match(tool.description ?? "", /New shoot/);
+  assert.match(tool.description ?? "", /overlapWarning/);
+  assert.match(tool.description ?? "", /warnings/);
+  assert.match(tool.description ?? "", /can be combined with other services/);
+  assert.doesNotMatch(tool.description ?? "", /cannot be combined/);
+  assert.doesNotMatch(tool.description ?? "", /second one is rejected/);
   for (const field of ["client", "address", "services", "date", "time", "notes"]) {
     assert.ok(tool.inputSchema?.properties?.[field], field);
   }

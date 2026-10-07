@@ -54,7 +54,16 @@ export function AdminBookShootForm({
           <p role="status" className="text-sm text-white">
             {state.message}
           </p>
-          {state.overlap ? <p className="text-sm text-[#a1a1a1]">{state.overlap}</p> : null}
+          {(state.warnings && state.warnings.length > 0
+            ? state.warnings
+            : state.overlap
+              ? [state.overlap]
+              : []
+          ).map((warning) => (
+            <p key={warning} className="text-sm text-[#a1a1a1]">
+              {warning}
+            </p>
+          ))}
           {state.calendar === "failed" ? (
             <p className="text-sm text-[#a1a1a1]">Calendar was not updated.</p>
           ) : null}
@@ -96,8 +105,8 @@ function AdminBookShootFields({
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const suggestionRef = useRef("");
-  const twilightOnly = services.length === 1 && services[0] === TWILIGHT_SERVICE;
-  const sunsetSuggestion = twilightOnly ? (twilightClockForDateKey(date) ?? "") : "";
+  const hasTwilight = services.includes(TWILIGHT_SERVICE);
+  const sunsetSuggestion = hasTwilight ? (twilightClockForDateKey(date) ?? "") : "";
   useEffect(() => {
     if (!sunsetSuggestion) {
       suggestionRef.current = "";
@@ -131,6 +140,7 @@ function AdminBookShootFields({
       <ServiceFieldset
         selected={services}
         commercialHours={commercialHours}
+        pairTwilight
         onSelectedChange={setServices}
         onCommercialHoursChange={setCommercialHours}
       />
@@ -167,7 +177,7 @@ function AdminBookShootFields({
         {clock && !clock.ok ? <p className="text-sm text-[#a1a1a1]">{clock.error}</p> : null}
         {sunsetSuggestion ? (
           <p className="text-sm text-[#a1a1a1]">
-            Twilight starts at {sunsetSuggestion} unless you set another time. Only one Twilight per day.
+            Starts at {sunsetSuggestion} unless you set another time. Overlaps and a second Twilight that day are warnings. The shoot is still booked.
           </p>
         ) : null}
         {preview ? (

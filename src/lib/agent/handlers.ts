@@ -225,7 +225,12 @@ export async function runAgentTool(
       if (!result.ok) return result;
       return {
         ok: true,
-        data: { booking: result.booking, issues: result.issues, overlapWarning: result.overlapWarning },
+        data: {
+          booking: result.booking,
+          issues: result.issues,
+          overlapWarning: result.overlapWarning,
+          warnings: result.warnings,
+        },
         revalidate: refresh(
           CLIENT_SCHEDULING,
           CLIENT_SCHEDULING_TIMES,
