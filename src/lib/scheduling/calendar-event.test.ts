@@ -213,7 +213,7 @@ test("calendar title uses service initials in catalog order and keeps a lockbox"
       ...jane,
       services: ["Real Estate · Video", "Social Media Video · Monthly Batch Video"],
     }),
-    "Jane Doe - V V.",
+    "Jane Doe - V MV",
   );
   assert.equal(
     calendarEventTitle({
@@ -223,7 +223,7 @@ test("calendar title uses service initials in catalog order and keeps a lockbox"
         "Social Media Video · Long Form Content Creation",
       ],
     }),
-    "Jane Doe - V.",
+    "Jane Doe - MV",
   );
   assert.equal(
     calendarEventTitle({
@@ -231,7 +231,7 @@ test("calendar title uses service initials in catalog order and keeps a lockbox"
       services: ["Real Estate · Photography", "Social Media Video · Long Form Content Creation"],
       notes: "gate code 1234",
     }),
-    "Jane Doe - P V. (gate code 1234)",
+    "Jane Doe - P MV (gate code 1234)",
   );
   assert.doesNotMatch(
     calendarEventTitle({
@@ -250,7 +250,14 @@ test("calendar title uses service initials in catalog order and keeps a lockbox"
   );
   assert.equal(
     calendarEventTitle({ ...jane, services: ["Real Estate · Twilight"] }),
-    "Jane Doe - Twi",
+    "Jane Doe - Twilight",
+  );
+  assert.equal(
+    calendarEventTitle({
+      ...jane,
+      services: ["Real Estate · Photography", "Real Estate · Twilight"],
+    }),
+    "Jane Doe - P Twilight",
   );
   assert.equal(
     calendarEventTitle({ ...jane, services: ["Real Estate · Zillow 360"] }),

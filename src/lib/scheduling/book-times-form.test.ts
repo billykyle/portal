@@ -70,6 +70,43 @@ test("the first day with a slot in the opening week is expanded", () => {
   assert.doesNotMatch(html, /checked/);
 });
 
+test("a Twilight step defaults and opens the same day when that sunset is free", () => {
+  const sunsetStart = "2026-09-23T23:30:00.000Z";
+  const sunsetEnd = "2026-09-24T00:00:00.000Z";
+  const html = renderToStaticMarkup(
+    createElement(BookTimesForm, {
+      availability: {
+        ...availability,
+        firstBookableDate: "2026-09-21",
+        slots: [
+          availability.slots[0]!,
+          {
+            start: sunsetStart,
+            end: sunsetEnd,
+            dateKey: "2026-09-23",
+            dateLabel: "Wednesday, Sep 23",
+            timeLabel: "7:30 PM",
+            driveSecondsFromPrior: null,
+          },
+        ],
+      },
+      services: ["Real Estate · Twilight"],
+      heading: "Twilight",
+      preferredDateKey: "2026-09-23",
+      defaultSlot: `${sunsetStart}|${sunsetEnd}`,
+      slotFieldName: "twilightSlot",
+    }),
+  );
+  assert.match(html, /Wednesday, Sep 23/);
+  assert.match(html, /7:30 PM/);
+  assert.match(html, /checked/);
+  assert.match(html, /name="twilightSlot"/);
+  assert.match(
+    html,
+    /aria-label="Wednesday, Sep 23"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-label="Wednesday, Sep 23"/,
+  );
+});
+
 test("book times radios post a named slot value the server can read", () => {
   const html = renderToStaticMarkup(
     createElement(BookTimesForm, {

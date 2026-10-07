@@ -1,4 +1,5 @@
 import { parseShootAddress } from "./address";
+import { twilightBookingFlow } from "./twilight-pair";
 import type { AvailabilityResult } from "./availability";
 import {
   commercialVideoHoursForServices,
@@ -17,6 +18,18 @@ export type AvailabilityQuery = {
   commercialHours?: number | null;
   modify?: string | null;
 };
+
+/** A Twilight pair prefetches the regular grid and the sunset list separately. */
+export function availabilityQueriesForBooking(query: AvailabilityQuery): AvailabilityQuery[] {
+  const flow = twilightBookingFlow(query.services);
+  if (flow.kind === "paired" && !String(query.modify ?? "").trim()) {
+    return [
+      { ...query, services: flow.regular },
+      { ...query, services: flow.twilight, commercialHours: null },
+    ];
+  }
+  return [query];
+}
 
 export function canPrefetchAvailability(query: AvailabilityQuery) {
   const services = parseSchedulingServices(query.services);

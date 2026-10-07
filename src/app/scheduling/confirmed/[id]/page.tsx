@@ -15,7 +15,7 @@ export async function generateMetadata({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string; cancelled?: string; calendar?: string; email?: string }>;
+  searchParams: Promise<{ updated?: string; cancelled?: string; calendar?: string; email?: string; also?: string }>;
 }): Promise<Metadata> {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const session = await getSession();
@@ -34,7 +34,7 @@ export default async function SchedulingConfirmedPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string; cancelled?: string; calendar?: string; email?: string }>;
+  searchParams: Promise<{ updated?: string; cancelled?: string; calendar?: string; email?: string; also?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
@@ -42,7 +42,11 @@ export default async function SchedulingConfirmedPage({
   }
   await ensureDb();
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const booking = await getClientBooking(session.clientId, id);
+  const alsoId = (query.also ?? "").trim();
+  const [booking, companion] = await Promise.all([
+    getClientBooking(session.clientId, id),
+    alsoId ? getClientBooking(session.clientId, alsoId) : Promise.resolve(null),
+  ]);
   const startsAt = booking?.startsAt;
   const endsAt = booking?.endsAt;
   if (!booking || !startsAt || !endsAt) {
@@ -60,6 +64,11 @@ export default async function SchedulingConfirmedPage({
       <div className="flex flex-col items-center pb-16 pt-2">
         <BookingConfirmation
           booking={{ ...booking, startsAt, endsAt }}
+          also={
+            companion?.startsAt && companion.endsAt
+              ? { ...companion, startsAt: companion.startsAt, endsAt: companion.endsAt }
+              : null
+          }
           timeZone={hours.timeZone}
           updated={Boolean(query.updated) && booking.status !== "cancelled"}
           clientId={session.clientId}

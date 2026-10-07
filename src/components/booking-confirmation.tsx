@@ -26,6 +26,7 @@ export type BookingConfirmationDetails = {
 
 export function BookingConfirmation({
   booking,
+  also,
   timeZone,
   updated = false,
   clientId,
@@ -33,6 +34,8 @@ export function BookingConfirmation({
   billyNotified = true,
 }: {
   booking: BookingConfirmationDetails;
+  /** Twilight appointment booked with this one. Modified and cancelled on its own. */
+  also?: BookingConfirmationDetails | null;
   timeZone: string;
   updated?: boolean;
   clientId?: string;
@@ -40,7 +43,10 @@ export function BookingConfirmation({
   billyNotified?: boolean;
 }) {
   const services = bookingServiceList(booking);
+  const alsoServices = also ? bookingServiceList(also) : [];
   const when = formatBookingWhen(booking.startsAt, booking.endsAt, timeZone);
+  const alsoWhen = also ? formatBookingWhen(also.startsAt, also.endsAt, timeZone) : "";
+  const alsoDuration = also ? formatBookingDuration(also.startsAt, also.endsAt) : "";
   const duration = formatBookingDuration(booking.startsAt, booking.endsAt);
   const zone = formatBookingTimeZone(timeZone);
   const notes = booking.notes?.trim() || "";
@@ -70,6 +76,23 @@ export function BookingConfirmation({
   const title = copy.title;
   const subtitle = copy.subtitle;
   const modifyHref = schedulingBookHref({ modify: booking.id });
+  const alsoOwnerId = clientId ?? also?.clientId;
+  const alsoUpcoming =
+    Boolean(also) &&
+    (also?.status ?? "confirmed") === "confirmed" &&
+    (also?.startsAt.getTime() ?? 0) > Date.now();
+  const alsoModify =
+    alsoUpcoming &&
+    Boolean(alsoOwnerId) &&
+    Boolean(also) &&
+    canModifyBooking(
+      {
+        status: also?.status ?? "confirmed",
+        startsAt: also?.startsAt ?? booking.startsAt,
+        clientId: also?.clientId ?? alsoOwnerId ?? "",
+      },
+      alsoOwnerId ?? "",
+    );
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center text-center lg:max-w-3xl">
@@ -113,6 +136,33 @@ export function BookingConfirmation({
             </span>
           </dd>
         </div>
+        {also ? (
+          <>
+            {alsoServices.length > 0 ? (
+              <div className="border-b border-white/10 py-4">
+                <dt className={sectionLabelTextClass}>Twilight</dt>
+                <dd className="mt-2">
+                  <ul className="flex flex-col gap-0.5">
+                    {alsoServices.map((service) => (
+                      <li key={service} className="text-[15px]">
+                        {service}
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            ) : null}
+            <div className="border-b border-white/10 py-4">
+              <dt className={sectionLabelTextClass}>Twilight time</dt>
+              <dd className="mt-2 text-[15px]">
+                {alsoWhen}
+                <span className="mt-1 block text-sm text-[#8e8e93]">
+                  {alsoDuration} · {zone}
+                </span>
+              </dd>
+            </div>
+          </>
+        ) : null}
         {notes ? (
           <div className="border-b border-white/10 py-4">
             <dt className={sectionLabelTextClass}>Notes</dt>
@@ -128,6 +178,7 @@ export function BookingConfirmation({
       </dl>
 
       <div className="mt-10 flex w-full max-w-md flex-col items-center gap-3">
+        {also ? <p className="w-full text-left text-sm text-[#8e8e93]">{services.join(", ")}</p> : null}
         <BookingModifyCancelActions
           modifyHref={modifyHref}
           bookingId={booking.id}
@@ -135,6 +186,18 @@ export function BookingConfirmation({
           showModify={showModify}
           showCancel={showCancel}
         />
+        {also ? (
+          <>
+            <p className="mt-2 w-full text-left text-sm text-[#8e8e93]">Twilight</p>
+            <BookingModifyCancelActions
+              modifyHref={schedulingBookHref({ modify: also.id })}
+              bookingId={also.id}
+              clientId={also.clientId}
+              showModify={alsoModify}
+              showCancel={alsoUpcoming}
+            />
+          </>
+        ) : null}
         <Link href={CLIENT_SCHEDULING} className={bookingPrimaryButtonClass}>
           Back to Scheduling
         </Link>

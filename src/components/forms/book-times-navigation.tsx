@@ -4,7 +4,11 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { TimesLoadingScreen } from "@/components/times-loading-screen";
 import { continueToTimes } from "@/lib/actions/scheduling";
 import { prefetchAvailability } from "@/lib/scheduling/availability-cache";
-import { canPrefetchAvailability, readAvailabilityQuery } from "@/lib/scheduling/times-prefetch";
+import {
+  availabilityQueriesForBooking,
+  canPrefetchAvailability,
+  readAvailabilityQuery,
+} from "@/lib/scheduling/times-prefetch";
 
 /**
  * Saves the in-progress shoot on the server, then opens the clean times path.
@@ -23,7 +27,9 @@ export function BookTimesNavigation({
     const query = readAvailabilityQuery(new FormData(event.currentTarget));
     if (!canPrefetchAvailability(query)) return;
     setLoading(true);
-    void prefetchAvailability(query);
+    for (const next of availabilityQueriesForBooking(query)) {
+      void prefetchAvailability(next);
+    }
   }
 
   return (
