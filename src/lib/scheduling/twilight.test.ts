@@ -6,6 +6,7 @@ import { DEFAULT_TIMEZONE } from "./rules";
 import { SCHEDULING_INDUSTRIES, SCHEDULING_SERVICES } from "./services";
 import {
   TWILIGHT_DAY_TAKEN,
+  overrideTwilightDay,
   phillySunset,
   roundDownToQuarterHour,
   twilightDayConflict,
@@ -224,4 +225,20 @@ test("the client slot list offers only the free sunset window, one per day", asy
     taken.slots.some((slot) => slot.dateKey === "2026-06-25"),
     true,
   );
+});
+
+test("an override Twilight keeps the day when it is free and warns without occupying it when taken", () => {
+  const start = et(2026, 6, 24, 16);
+  const open = overrideTwilightDay({
+    services: ["Real Estate · Twilight", "Real Estate · Photography"],
+    start,
+    dayTaken: false,
+  });
+  assert.equal(open.warning, null);
+  assert.equal(open.twilightDay, "2026-06-24");
+  const taken = overrideTwilightDay({ services: ["Real Estate · Twilight"], start, dayTaken: true });
+  assert.equal(taken.warning, TWILIGHT_DAY_TAKEN);
+  assert.equal(taken.twilightDay, null);
+  const other = overrideTwilightDay({ services: ["Real Estate · Photography"], start, dayTaken: true });
+  assert.deepEqual(other, { twilightDay: null, warning: null });
 });

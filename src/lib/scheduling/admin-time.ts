@@ -141,3 +141,12 @@ export function shootOverlapWarning(
 ): string | null {
   return jobs.some((job) => overlaps(window, job)) ? "Overlaps an existing booking." : null;
 }
+
+/** Stable warning list for agent and admin override saves. Drops blanks and duplicates. */
+export function collectScheduleWarnings(...items: Array<string | null | undefined>): string[] {
+  const warnings: string[] = [];
+  for (const item of items) {
+    if (item && !warnings.includes(item)) warnings.push(item);
+  }
+  return warnings;
+}

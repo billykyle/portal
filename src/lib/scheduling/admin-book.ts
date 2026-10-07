@@ -14,6 +14,7 @@ import { sendQueuedShootEmail, type QueuedShootEmailInput } from "./booking-emai
 import { formatSyncIssue, type BookingSyncIssue } from "./booking-sync";
 import {
   adminShootWindow,
+  collectScheduleWarnings,
   formatAdminShootPreview,
   parseAdminShootDate,
   parseAdminShootTime,
@@ -31,13 +32,12 @@ import {
 } from "./services";
 import {
   includesTwilight,
-  isTwilightBooking,
   isTwilightDayConflict,
+  overrideTwilightDay,
   TWILIGHT_DAY_TAKEN,
   twilightAloneError,
   twilightClockForDateKey,
   twilightDateKey,
-  twilightDayValue,
 } from "./twilight";
 
 export type BookingClientLogin = {
@@ -81,6 +81,8 @@ export type OverrideBookingSuccess = {
   calendar: "written" | "failed" | "skipped";
   email: "sent" | "failed";
   overlapWarning: string | null;
+  /** overlapWarning plus any other non-blocking conflict, such as a second Twilight that day. */
+  warnings: string[];
 };
 
 export type OverrideBookingResult = OverrideBookingSuccess | { ok: false; error: string };
@@ -211,11 +213,9 @@ export async function createOverrideBooking(
   if (includesCommercialVideo(services.services) && commercialVideoHours == null) {
     return { ok: false, error: COMMERCIAL_VIDEO_HOURS_ERROR };
   }
-  const alone = twilightAloneError(services.services);
-  if (alone) return { ok: false, error: alone };
 
   let timeText = input.time.trim();
-  if (!timeText && isTwilightBooking(services.services)) {
+  if (!timeText && includesTwilight(services.services)) {
     const sunset = twilightClockForDateKey(input.date, timeZone);
     if (!sunset) return { ok: false, error: "Enter a date as YYYY-MM-DD." };
     timeText = sunset;
@@ -228,14 +228,20 @@ export async function createOverrideBooking(
   const window = adminShootWindow(input.date, timeText, services.services, timeZone, commercialVideoHours);
   if (!window) return { ok: false, error: "Could not read that time." };
 
-  if (includesTwilight(services.services) && deps.twilightDayTaken) {
-    const taken = await deps.twilightDayTaken(twilightDateKey(window.start, timeZone));
-    if (taken) return { ok: false, error: TWILIGHT_DAY_TAKEN };
-  }
-
   const notes = input.notes?.trim() || null;
   const jobs = await deps.listConfirmedIntervals();
   const overlapWarning = shootOverlapWarning(window, jobs);
+  const dayTaken =
+    includesTwilight(services.services) && deps.twilightDayTaken
+      ? await deps.twilightDayTaken(twilightDateKey(window.start, timeZone))
+      : false;
+  const twilight = overrideTwilightDay({
+    services: services.services,
+    start: window.start,
+    dayTaken,
+    timeZone,
+  });
+  let twilightWarning = twilight.warning;
   const client = resolved.client;
   const contact = bookingContact(client);
   const calendar = calendarEventCopy({
@@ -250,25 +256,34 @@ export async function createOverrideBooking(
     notes,
   });
 
+  const row: InsertedBooking = {
+    clientId: client.id,
+    createdByUserId: contact?.login?.userId ?? null,
+    address: address.address,
+    services: services.services,
+    commercialVideoHours,
+    startsAt: window.start,
+    endsAt: window.end,
+    notes,
+    driveSecondsFromPrior: null,
+    twilightDay: twilight.twilightDay,
+  };
   let inserted: { id: string } | null;
   try {
-    inserted = await deps.insertBooking({
-      clientId: client.id,
-      createdByUserId: contact?.login?.userId ?? null,
-      address: address.address,
-      services: services.services,
-      commercialVideoHours,
-      startsAt: window.start,
-      endsAt: window.end,
-      notes,
-      driveSecondsFromPrior: null,
-      twilightDay: twilightDayValue(services.services, window.start, "confirmed", timeZone),
-    });
+    inserted = await deps.insertBooking(row);
   } catch (error) {
-    if (isTwilightDayConflict(error)) return { ok: false, error: TWILIGHT_DAY_TAKEN };
-    throw error;
+    if (!row.twilightDay || !isTwilightDayConflict(error)) throw error;
+    twilightWarning = TWILIGHT_DAY_TAKEN;
+    try {
+      inserted = await deps.insertBooking({ ...row, twilightDay: null });
+    } catch (retryError) {
+      if (isTwilightDayConflict(retryError)) return { ok: false, error: TWILIGHT_DAY_TAKEN };
+      throw retryError;
+    }
   }
   if (!inserted) return { ok: false, error: "Booking could not be completed." };
+  const warnings = collectScheduleWarnings(overlapWarning, twilightWarning);
+  for (const warning of warnings) console.warn(`override booking ${inserted.id}: ${warning}`);
 
   const calendarOn = deps.calendarOn();
   const settled = await deps.settle({
@@ -313,6 +328,7 @@ export async function createOverrideBooking(
     calendar: calendarStatus(calendarOn, settled.issues, settled.calendarEventId),
     email: settled.issues.email ? "failed" : "sent",
     overlapWarning,
+    warnings,
   };
 }
 

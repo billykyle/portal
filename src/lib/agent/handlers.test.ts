@@ -220,6 +220,7 @@ test("modify_booking forwards partial fields and revalidates booking pages", asy
           ok: true,
           issues: { calendar: false, email: false },
           overlapWarning: "Overlaps an existing booking.",
+          warnings: ["Overlaps an existing booking."],
           booking: {
             id: "booking-1",
             clientId: "c1",
@@ -247,6 +248,7 @@ test("modify_booking forwards partial fields and revalidates booking pages", asy
     (result.data as { overlapWarning: string | null }).overlapWarning,
     "Overlaps an existing booking.",
   );
+  assert.deepEqual((result.data as { warnings: string[] }).warnings, ["Overlaps an existing booking."]);
 });
 
 test("queue_booking requires an id and revalidates the client queue", async () => {
@@ -365,6 +367,7 @@ test("create_booking forwards the shoot and revalidates booking pages", async ()
             calendar: "written",
             email: "sent",
             overlapWarning: null,
+            warnings: [],
           },
         };
       },

@@ -89,14 +89,18 @@
  *    calendar contact to the client's primary contact, not the newest login.
  *    Scheduling lists Queue above Upcoming only when that client has
  *    queued shoots. A client picking a time later still uses the open-slot
- *    grid. Admin and agent `modify_booking` scheduling a queued shoot onto
- *    a `startsAt` skips that grid (weekdays, hours, drive time, and calendar
- *    free/busy, including Personal office blocks). An overlap with another
+ *    grid. Agent `modify_booking` skips that grid for a queued shoot and
+ *    for an already confirmed booking (weekdays, hours, drive time, category
+ *    limits, and calendar free/busy, including Personal office blocks).
+ *    Admin scheduling of a queued shoot skips it too. Admin Bookings modify
+ *    of a confirmed shoot still requires an offered slot, except a past
+ *    start, which uses the service length. An overlap with another
  *    confirmed booking is the same warning as `create_booking` and the save
- *    still proceeds. That save creates the calendar event, sets status
- *    confirmed, and sends the client the usual Shoot confirmed email. It
- *    does not send another on-hold email, and it does not send Billy's New
- *    shoot email.
+ *    still proceeds. Scheduling a queued shoot creates the calendar event,
+ *    sets status confirmed, and sends the client the usual Shoot confirmed
+ *    email. It does not send another on-hold email, and it does not send
+ *    Billy's New shoot email. Moving an already confirmed shoot sends the
+ *    Shoot changes email and updates the Work calendar event.
  * 6. Slot length is the **sum** of selected service minutes (Billy, 2026-09-20).
  *    Never longest-only. When services are known, offered times and calendar
  *    event end use that sum instead of {@link DEFAULT_SLOT_MINUTES}.
@@ -128,8 +132,10 @@
  *    Today and blocked weekdays still appear in the times list / week range
  *    as **no time available**. Modify always keeps the existing start
  *    selectable (even if that day is today or a blocked weekday) and does
- *    not invent other slots on a blocked day. Create/update reject a new
- *    start on a blocked day so the API cannot bypass the list.
+ *    not invent other slots on a blocked day. Client create/update reject a
+ *    new start on a blocked day so that API cannot bypass the list. Agent
+ *    tools and Admin Book a shoot accept any calendar day. Conflicts come
+ *    back as warnings and the booking is still saved.
  * 9. Twilight (`Real Estate · Twilight`, calendar label Twilight) is its own
  *    30-minute appointment: sunset in Philadelphia (39.9526, -75.1652,
  *    America/New_York), rounded down to the previous 15-minute mark. One
@@ -145,10 +151,14 @@
  *    create fails, both are removed and the client sees an error. One
  *    confirmation email covers both appointments and uses the usual
  *    recipients. Modify and cancel stay per booking.
- *    Admin Book a shoot does not share that times picker, and agent
- *    `create_booking` still books Twilight on its own. Both default to the
- *    sunset time and may still override the clock. The one-per-day limit
- *    still applies. The event is written to the Work calendar.
+ *    Admin Book a shoot and agent `create_booking` / `modify_booking` do not
+ *    share that times picker. They may book Twilight alone or with other
+ *    services as one appointment (the minutes are summed). Omit the time and
+ *    the start is that day's sunset; any explicit time is accepted, including
+ *    one that is not sunset. A second confirmed Twilight that Eastern day is
+ *    a warning, not a rejection, and the booking is still saved. The event
+ *    is written to the Work calendar. Client booking still enforces one
+ *    Twilight per day.
  */
 
 /** Locked at 0 — live Maps ETA only, no extra minutes (Billy, 2026-09-20). */

@@ -16,7 +16,9 @@ import {
 /**
  * Twilight is its own 30-minute sunset appointment. A client who also wants
  * other services gets two bookings: the regular slot, then this sunset slot.
- * Agent create and admin Book a shoot still reject a mixed service list.
+ * Agent create/modify and Admin Book a shoot may store Twilight with other
+ * services as one appointment. A second Twilight that day is a warning there,
+ * not a rejection. Client booking still enforces one per Eastern day.
  */
 
 /** Philadelphia City Hall. Sunset is computed for this point, America/New_York. */
@@ -114,6 +116,27 @@ export function twilightAloneError(services: readonly string[]): string | null {
   if (!parsed.includes(TWILIGHT_SERVICE)) return null;
   if (parsed.length === 1) return null;
   return TWILIGHT_ALONE_ERROR;
+}
+
+/**
+ * Column value for an agent or admin override. A day that already has a
+ * Twilight leaves the column empty so the unique index can keep guarding
+ * the client one-per-day race. The caller surfaces {@link TWILIGHT_DAY_TAKEN}
+ * as a warning and still saves the row.
+ */
+export function overrideTwilightDay(input: {
+  services: readonly string[];
+  start: Date;
+  dayTaken: boolean;
+  status?: string;
+  timeZone?: string;
+}): { twilightDay: string | null; warning: string | null } {
+  if (!includesTwilight(input.services)) return { twilightDay: null, warning: null };
+  if (input.dayTaken) return { twilightDay: null, warning: TWILIGHT_DAY_TAKEN };
+  return {
+    twilightDay: twilightDayValue(input.services, input.start, input.status ?? "confirmed", input.timeZone),
+    warning: null,
+  };
 }
 
 /** Column value for a confirmed Twilight start. Anything else leaves the day free. */

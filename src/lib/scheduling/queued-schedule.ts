@@ -5,10 +5,22 @@ import { COMMERCIAL_VIDEO_HOURS_ERROR } from "./services";
 
 /**
  * Admin and agent scheduling of a queued shoot. Clients still use the slot grid.
- * A confirmed booking's future start stays on that grid too.
  */
 export function isAdminQueuedSchedule(input: { fromAdmin: boolean; status: string }) {
   return input.fromAdmin && input.status === "queued";
+}
+
+/**
+ * Exact start, ignoring the open-slot grid. Agent modify uses this for queued
+ * and already confirmed bookings. Admin queued scheduling does too. Admin
+ * Bookings modify of a confirmed shoot stays on the grid.
+ */
+export function modifyUsesExactWindow(input: {
+  scheduleOverride?: boolean;
+  fromAdmin: boolean;
+  status: string;
+}) {
+  return input.scheduleOverride === true || isAdminQueuedSchedule(input);
 }
 
 /**

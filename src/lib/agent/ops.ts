@@ -145,6 +145,7 @@ export type AgentOps = {
         booking: BookingDto;
         issues: { calendar: boolean; email: boolean };
         overlapWarning: string | null;
+        warnings: string[];
       }
     | { ok: false; error: string }
   >;
@@ -479,6 +480,7 @@ export const portalAgentOps: AgentOps = {
     const prepared = await prepareBookingModification({
       bookingId: booking.id,
       fromAdmin: true,
+      scheduleOverride: true,
       session: null,
       address: input.address === undefined ? booking.address : input.address,
       services: input.services === undefined ? bookingServiceList(booking) : input.services,
@@ -502,6 +504,7 @@ export const portalAgentOps: AgentOps = {
       booking: bookingDto(row.booking, row.clientName, row.inviteCode),
       issues: finished.issues,
       overlapWarning: prepared.overlapWarning,
+      warnings: prepared.warnings,
     };
   },
 

@@ -8,8 +8,8 @@ import { DEFAULT_SLOT_MINUTES } from "./rules";
  * than one option, except exclusive groups
  * (Podcast episode count, Social Media Video option, and Meeting length).
  * Twilight can be selected with other services on a new client booking.
- * That creates two appointments. Admin Book a shoot and agent booking
- * still keep Twilight on its own.
+ * That creates two appointments. Admin Book a shoot and agent booking may
+ * store Twilight with other services as one appointment.
  * Do not invent prices here.
  * Slot length is the **sum** of selected option minutes (never longest-only).
  */
