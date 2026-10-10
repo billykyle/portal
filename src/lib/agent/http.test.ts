@@ -23,6 +23,7 @@ function stubOps(): AgentOps {
         primaryEmail: "sam@example.com",
         notesSummary: "",
         category: "real_estate",
+        agentAccess: false,
         userCount: 1,
         shootCount: 1,
         createdAt: "2026-09-04T00:00:00.000Z",
@@ -49,6 +50,9 @@ function stubOps(): AgentOps {
     getShootShareLink: fail,
     getMaintenanceNotice: async () => ({ notice: null }),
     setMaintenanceNotice: fail,
+    setClientAgentAccess: fail,
+    listClientAgentConnections: fail,
+    revokeClientAgentConnection: fail,
   };
 }
 
@@ -141,6 +145,9 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
     "get_shoot_share_link",
     "get_maintenance_notice",
     "set_maintenance_notice",
+    "set_client_agent_access",
+    "list_client_agent_connections",
+    "revoke_client_agent_connection",
   ]) {
     assert.ok(names.includes(name), name);
   }
@@ -160,6 +167,12 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
   assert.doesNotMatch(modify?.description ?? "", /rejected only when/);
   const cancel = tools.find((tool) => tool.name === "cancel_booking");
   assert.equal(cancel?.annotations?.destructiveHint, true);
+  const accessTool = tools.find((tool) => tool.name === "set_client_agent_access") as { description?: string } | undefined;
+  assert.match(accessTool?.description ?? "", /revokes every token/);
+  const connectionsTool = tools.find((tool) => tool.name === "list_client_agent_connections") as
+    | { description?: string }
+    | undefined;
+  assert.match(connectionsTool?.description ?? "", /approvedBy/);
   const listClientsTool = tools.find((tool) => tool.name === "list_clients");
   assert.deepEqual(listClientsTool?.inputSchema?.properties?.sort?.enum, [
     "code-desc",

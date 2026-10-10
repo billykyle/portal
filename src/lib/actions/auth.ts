@@ -25,6 +25,7 @@ import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 import { CLIENT_ACCOUNT, CLIENT_HOME, CLIENT_LIBRARY, PORTAL_CHOOSER } from "@/lib/routes";
 import { listPortalsForUser, signInDestination, userBelongsToClient } from "@/lib/user-portals";
 import { recordInviteRedeemedContact } from "@/lib/client-contact";
+import { safeOauthReturn } from "@/lib/client-agent/protocol";
 import { parseAccountProfile, parsePasswordChange, parseSignupProfile } from "@/lib/signup-fields";
 
 export type ActionState = {
@@ -115,6 +116,7 @@ export async function signIn(_prev: ActionState | undefined, formData: FormData)
   await ensureDb();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const returnTo = safeOauthReturn(String(formData.get("returnTo") ?? ""));
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user || !(await compare(password, user.passwordHash))) {
     return { error: "Email or password is incorrect." };
@@ -125,6 +127,17 @@ export async function signIn(_prev: ActionState | undefined, formData: FormData)
     return { error: "This account is missing its client library." };
   }
   if (destination.kind === "choose") {
+    if (returnTo) {
+      const home = portals.find((portal) => portal.id === user.clientId) ?? portals[0];
+      await clearPortalChoice();
+      await createSession({
+        userId: user.id,
+        email: user.email,
+        clientId: home.id,
+        inviteCode: home.inviteCode,
+      });
+      redirect(returnTo);
+    }
     await clearSession();
     await createPortalChoice({ userId: user.id, email: user.email });
     redirect(PORTAL_CHOOSER);
@@ -136,7 +149,7 @@ export async function signIn(_prev: ActionState | undefined, formData: FormData)
     clientId: destination.clientId,
     inviteCode: destination.inviteCode,
   });
-  redirect(CLIENT_HOME);
+  redirect(returnTo ?? CLIENT_HOME);
 }
 
 export async function enterPortal(formData: FormData) {

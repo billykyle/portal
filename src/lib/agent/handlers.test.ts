@@ -31,6 +31,9 @@ function stubOps(overrides: Partial<AgentOps> = {}): AgentOps {
     getShootShareLink: fail,
     getMaintenanceNotice: fail,
     setMaintenanceNotice: fail,
+    setClientAgentAccess: fail,
+    listClientAgentConnections: fail,
+    revokeClientAgentConnection: fail,
     ...overrides,
   };
 }
@@ -52,6 +55,7 @@ test("list_clients returns the op payload and does not revalidate", async () => 
             primaryEmail: "sam@example.com",
             notesSummary: "Repeat client",
             category: "real_estate",
+            agentAccess: false,
             userCount: 1,
             shootCount: 2,
             createdAt: "2026-09-04T00:00:00.000Z",
@@ -148,6 +152,7 @@ test("update_client leaves category untouched when the argument is omitted", asy
             notesSummary: "",
             notes: null,
             category: "podcast",
+            agentAccess: true,
             userCount: 1,
             shootCount: 1,
             createdAt: "2026-09-04T00:00:00.000Z",
@@ -550,6 +555,167 @@ test("maintenance notice tools save or clear and never email", async () => {
   assert.match(tools, /get_maintenance_notice/);
   assert.match(tools, /set_maintenance_notice/);
   assert.doesNotMatch(tools, /Email all clients/);
+});
+
+test("set_client_agent_access requires a client and a boolean, and turning off is the revoke path", async () => {
+  let calls = 0;
+  const ops = stubOps({
+    async setClientAgentAccess(input) {
+      calls += 1;
+      assert.equal(input.client, "BK00004");
+      assert.equal(input.enabled, false);
+      return {
+        ok: true,
+        revoked: true,
+        client: {
+          id: "c1",
+          inviteCode: "BK00004",
+          displayName: "Sam",
+          company: null,
+          primaryEmail: "sam@example.com",
+          notesSummary: "",
+          notes: null,
+          category: "real_estate",
+          agentAccess: false,
+          userCount: 1,
+          shootCount: 0,
+          createdAt: "2026-09-04T00:00:00.000Z",
+        },
+      };
+    },
+  });
+  const missing = await runAgentTool("set_client_agent_access", { enabled: false }, ops);
+  assert.equal(missing.ok, false);
+  assert.equal(calls, 0);
+  if (!missing.ok) assert.match(missing.error, /BK code/);
+
+  const badFlag = await runAgentTool("set_client_agent_access", { client: "BK00004", enabled: "false" }, ops);
+  assert.equal(badFlag.ok, false);
+  assert.equal(calls, 0);
+  if (!badFlag.ok) assert.match(badFlag.error, /true or false/);
+
+  const saved = await runAgentTool("set_client_agent_access", { client: "BK00004", enabled: false }, ops);
+  assert.equal(saved.ok, true);
+  assert.equal(calls, 1);
+  if (!saved.ok) return;
+  assert.deepEqual(saved.revalidate, ["/admin/clients/c1"]);
+  const data = saved.data as { revoked: boolean; client: { agentAccess: boolean } };
+  assert.equal(data.revoked, true);
+  assert.equal(data.client.agentAccess, false);
+
+  const on = await runAgentTool(
+    "set_client_agent_access",
+    { clientId: "c1", enabled: true },
+    stubOps({
+      async setClientAgentAccess(input) {
+        assert.equal(input.clientId, "c1");
+        assert.equal(input.enabled, true);
+        return {
+          ok: true,
+          revoked: false,
+          client: {
+            id: "c1",
+            inviteCode: "BK00004",
+            displayName: "Sam",
+            company: null,
+            primaryEmail: "sam@example.com",
+            notesSummary: "",
+            notes: null,
+            category: "real_estate",
+            agentAccess: true,
+            userCount: 1,
+            shootCount: 0,
+            createdAt: "2026-09-04T00:00:00.000Z",
+          },
+        };
+      },
+    }),
+  );
+  assert.equal(on.ok, true);
+  if (on.ok) assert.equal((on.data as { revoked: boolean }).revoked, false);
+});
+
+test("list_client_agent_connections and revoke_client_agent_connection forward the client and token", async () => {
+  const listed = await runAgentTool(
+    "list_client_agent_connections",
+    { inviteCode: "BK00004" },
+    stubOps({
+      async listClientAgentConnections(input) {
+        assert.equal(input.inviteCode, "BK00004");
+        return {
+          ok: true,
+          clientId: "c1",
+          inviteCode: "BK00004",
+          agentAccess: true,
+          connections: [
+            {
+              tokenId: "tok-1",
+              agentName: "Cursor",
+              approvedBy: "sam@example.com",
+              connectedAt: "2026-10-01T12:00:00.000Z",
+              lastUsedAt: "2026-10-02T12:00:00.000Z",
+            },
+          ],
+        };
+      },
+    }),
+  );
+  assert.equal(listed.ok, true);
+  if (!listed.ok) return;
+  assert.deepEqual(listed.revalidate, []);
+  const row = (listed.data as { connections: { approvedBy: string; agentName: string }[] }).connections[0];
+  assert.equal(row.agentName, "Cursor");
+  assert.equal(row.approvedBy, "sam@example.com");
+
+  let revoked = 0;
+  const ops = stubOps({
+    async revokeClientAgentConnection(input) {
+      revoked += 1;
+      assert.equal(input.client, "BK00004");
+      assert.equal(input.tokenId, "tok-1");
+      return { ok: true, clientId: "c1", tokenId: input.tokenId };
+    },
+  });
+  const missingToken = await runAgentTool("revoke_client_agent_connection", { client: "BK00004" }, ops);
+  assert.equal(missingToken.ok, false);
+  assert.equal(revoked, 0);
+  const removed = await runAgentTool(
+    "revoke_client_agent_connection",
+    { client: "BK00004", tokenId: "tok-1" },
+    ops,
+  );
+  assert.equal(removed.ok, true);
+  assert.equal(revoked, 1);
+  if (removed.ok) assert.deepEqual(removed.revalidate, ["/admin/clients/c1"]);
+});
+
+test("list_clients includes agent access status", async () => {
+  const result = await runAgentTool(
+    "list_clients",
+    {},
+    stubOps({
+      async listClients() {
+        return [
+          {
+            id: "c1",
+            inviteCode: "BK00004",
+            displayName: "Sam",
+            company: null,
+            primaryEmail: "sam@example.com",
+            notesSummary: "",
+            category: "real_estate",
+            agentAccess: true,
+            userCount: 1,
+            shootCount: 0,
+            createdAt: "2026-09-04T00:00:00.000Z",
+          },
+        ];
+      },
+    }),
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal((result.data as { clients: { agentAccess: boolean }[] }).clients[0].agentAccess, true);
 });
 
 test("agent tools do not reintroduce delivery tracking or attach-shoot", () => {

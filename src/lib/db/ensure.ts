@@ -101,6 +101,7 @@ async function createTables() {
     END $$
   `;
   await sql`ALTER TYPE client_category ADD VALUE IF NOT EXISTS 'commercial'`;
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS agent_access boolean NOT NULL DEFAULT false`;
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS category client_category`;
   await sql`UPDATE clients SET category = 'real_estate' WHERE category IS NULL`;
   await sql`ALTER TABLE clients ALTER COLUMN category SET DEFAULT 'other'`;
@@ -223,6 +224,63 @@ async function createTables() {
   `;
   await sql`ALTER TABLE booking_drafts ADD COLUMN IF NOT EXISTS commercial_video_hours integer`;
   await sql`CREATE INDEX IF NOT EXISTS booking_drafts_expires_idx ON booking_drafts (expires_at)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      id text PRIMARY KEY,
+      secret_hash text,
+      name text NOT NULL,
+      redirect_uris text[] NOT NULL,
+      auth_method text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS oauth_auth_codes (
+      code_hash text PRIMARY KEY,
+      oauth_client_id text NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      portal_client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      redirect_uri text NOT NULL,
+      code_challenge text NOT NULL,
+      scope text NOT NULL,
+      resource text NOT NULL,
+      expires_at timestamptz NOT NULL,
+      consumed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      oauth_client_id text NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      portal_client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      access_token_hash text NOT NULL UNIQUE,
+      refresh_token_hash text NOT NULL UNIQUE,
+      previous_refresh_token_hash text UNIQUE,
+      scope text NOT NULL,
+      resource text NOT NULL,
+      access_expires_at timestamptz NOT NULL,
+      refresh_expires_at timestamptz NOT NULL,
+      revoked_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      last_used_at timestamptz
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS oauth_tokens_portal_idx ON oauth_tokens (portal_client_id)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_agent_calls (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      token_id uuid REFERENCES oauth_tokens(id) ON DELETE SET NULL,
+      portal_client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      tool text NOT NULL,
+      summary text NOT NULL,
+      ok boolean NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_agent_calls_portal_idx ON client_agent_calls (portal_client_id, created_at DESC)`;
   await sql`DROP TABLE IF EXISTS upload_files`;
   await sql`DROP TABLE IF EXISTS upload_submissions`;
   await ensurePreviewSchema();

@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { AgentAccessToggle, RevokeAgentButton } from "@/components/forms/agent-access-forms";
 import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
@@ -21,6 +22,18 @@ import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { adminBookingHref } from "@/lib/scheduling/urls";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { teammateDisplayName } from "@/lib/signup-fields";
+import { listAgentActivity, listConnectedAgents } from "@/lib/client-agent/connections";
+
+function formatAgentWhen(date: Date, timeZone: string) {
+  return date.toLocaleString("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export default async function AdminClientPage({
   params,
@@ -33,22 +46,26 @@ export default async function AdminClientPage({
     userRemoved?: string;
     detached?: string;
     bookingCancelled?: string;
+    agentSaved?: string;
+    agentRevoked?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, saved, userRemoved, detached, bookingCancelled } = await searchParams;
+  const { error, saved, userRemoved, detached, bookingCancelled, agentSaved, agentRevoked } = await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
     notFound();
   }
-  const [teammateRows, shootRows, bookingRows] = await Promise.all([
+  const [teammateRows, shootRows, bookingRows, connections, activity] = await Promise.all([
     listClientMembers(client.id),
     db.select().from(shoots).where(eq(shoots.clientId, client.id)).orderBy(desc(shoots.shotDate)),
     listClientBookingsAdmin(client.id),
+    listConnectedAgents(client.id),
+    listAgentActivity(client.id),
   ]);
   const mediaRows =
     shootRows.length === 0
@@ -84,11 +101,54 @@ export default async function AdminClientPage({
           </p>
         ) : null}
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
+        {agentSaved ? <p className="mt-3 text-sm text-white">Agent access saved.</p> : null}
+        {agentRevoked ? <p className="mt-3 text-sm text-white">Agent disconnected.</p> : null}
       </header>
       <div className={pageStackClass}>
         <AdminSection id="client:info" label="Client info" defaultOpen={false} remember={false}>
           <div className={formMeasureClass}>
             <EditClientForm client={client} />
+          </div>
+        </AdminSection>
+        <AdminSection id="client:agents" label="Agent access" defaultOpen={false} remember={false}>
+          <div className={formMeasureClass}>
+            <AgentAccessToggle clientId={client.id} enabled={client.agentAccess} />
+            <h3 className="mb-3 mt-8 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Connected agents</h3>
+            {connections.length === 0 ? (
+              <p className="text-sm text-[#8e8e93]">No agents are connected.</p>
+            ) : (
+              <ul>
+                {connections.map((connection) => (
+                  <li key={connection.tokenId} className="flex items-center gap-3 border-b border-white/10 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px]">{connection.agentName}</p>
+                      <p className="truncate text-sm text-[#8e8e93]">Approved by {connection.userEmail}</p>
+                      <p className="text-xs text-[#8e8e93]">Connected {formatAgentWhen(connection.connectedAt, hours.timeZone)}</p>
+                      <p className="text-xs text-[#8e8e93]">
+                        Last used{" "}
+                        {connection.lastUsedAt ? formatAgentWhen(connection.lastUsedAt, hours.timeZone) : "not yet"}
+                      </p>
+                    </div>
+                    <RevokeAgentButton clientId={client.id} tokenId={connection.tokenId} agentName={connection.agentName} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <h3 className="mb-3 mt-8 text-sm uppercase tracking-[0.14em] text-[#8e8e93]">Activity</h3>
+            {activity.length === 0 ? (
+              <p className="text-sm text-[#8e8e93]">No tool calls yet.</p>
+            ) : (
+              <ul>
+                {activity.map((call) => (
+                  <li key={call.id} className="border-b border-white/10 py-3">
+                    <p className="text-xs text-[#8e8e93]">
+                      {formatAgentWhen(call.createdAt, hours.timeZone)} · {call.tool}
+                    </p>
+                    <p className="text-sm text-[#c7c7cc]">{call.summary}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </AdminSection>
         <AdminSection id="client:logins" label="Teammate logins" defaultOpen={false} remember={false}>
