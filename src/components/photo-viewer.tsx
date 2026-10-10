@@ -43,7 +43,7 @@ export function PhotoViewer({
   // Index is the only source of truth. initialId seeds it and is not applied again:
   // the URL mirrors the index, and a late router restore must not skip or rewind a tap.
   const [index, setIndex] = useState(() => indexOfPhoto(photos, initialId));
-  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
   const [naturalRatio, setNaturalRatio] = useState<{ id: string; width: number; height: number } | null>(null);
   const [stageSize, setStageSize] = useState<{ width: number; height: number } | null>(null);
   const [captionHeight, setCaptionHeight] = useState(0);
@@ -96,14 +96,10 @@ export function PhotoViewer({
   }, []);
 
   useLayoutEffect(() => {
-    const node = document.createElement("div");
-    node.setAttribute("data-photo-viewer-host", "");
-    document.documentElement.appendChild(node);
-    // The host has to exist before this layer can portal into it. Strict mode
-    // runs the cleanup and creates a replacement before paint.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- portal host is created once on mount
-    setHost(node);
-    return () => node.remove();
+    // Portal onto body before paint. A disposable host gets removed during
+    // the dev remount and drops the open lightbox for a frame.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client portal
+    setPortalReady(true);
   }, []);
 
   useEffect(() => {
@@ -141,10 +137,10 @@ export function PhotoViewer({
     observer.observe(stage);
     if (captionNode) observer.observe(captionNode);
     return () => observer.disconnect();
-  }, [host, photoId, layoutMode]);
+  }, [portalReady, photoId, layoutMode]);
 
   useLayoutEffect(() => {
-    if (!host) return;
+    if (!portalReady) return;
     const root = document.documentElement;
     const body = document.body;
     const scrollY = window.scrollY;
@@ -160,8 +156,8 @@ export function PhotoViewer({
       bodyRight: body.style.right,
       bodyWidth: body.style.width,
     };
-    // Freeze the scrolled page. The viewer lives in a host beside body, so this
-    // fixed body is not the viewer's containing block and cannot shift it.
+    // Freeze the scrolled page in place. The viewer is position:fixed, so it
+    // stays on the viewport while body is pinned.
     root.style.overflow = "hidden";
     root.style.overscrollBehavior = "none";
     body.style.overflow = "hidden";
@@ -196,7 +192,7 @@ export function PhotoViewer({
       body.style.width = previous.bodyWidth;
       window.scrollTo(0, scrollY);
     };
-  }, [host]);
+  }, [portalReady]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -393,9 +389,7 @@ export function PhotoViewer({
     </div>
   );
 
-  // Host is a sibling of <body>. The scroll lock pins body, and this layer
-  // stays on the viewport instead of moving with that pinned body.
-  if (host) return createPortal(layer, host);
+  if (portalReady && typeof document !== "undefined") return createPortal(layer, document.body);
   return layer;
 }
 

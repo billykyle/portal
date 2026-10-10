@@ -194,6 +194,21 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(photos, /src="\/thumbs\/front\.jpg"/);
   assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-2"/);
 
+  const share = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/Sam-Lepore/12-Wood-View-Drive",
+      viewId: "photo-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media,
+    }),
+  );
+  const sharePhotos = share.slice(share.indexOf('id="photos"'), share.indexOf('id="floor-plans"'));
+  assert.match(sharePhotos, /data-photo-viewer/);
+  assert.match(sharePhotos, /aria-label="Close"[^>]*href="\/Sam-Lepore\/12-Wood-View-Drive"|href="\/Sam-Lepore\/12-Wood-View-Drive"[^>]*aria-label="Close"/);
+  assert.match(sharePhotos, /href="\/Sam-Lepore\/12-Wood-View-Drive\?view=photo-2"/);
+
   const nas = renderToStaticMarkup(
     createElement(ShootDetail, {
       basePath: "/s/token",
@@ -873,14 +888,15 @@ test("shoot pages copy the public link and do not offer Share", () => {
     createElement(ShootActions, {
       files: [{ url: "/api/media/1", filename: "front.jpg", type: "photo" }],
       folderName: "2026-09-04-12-wood-view",
-      shareToken: "public-token",
+      shareUrl: "https://portal.billy-kyle.com/Sam-Lepore/12-Wood-View-Drive",
     }),
   );
   assert.match(html, />Copy link</);
   assert.doesNotMatch(html, />Share</);
 
   const actions = readFileSync("src/components/shoot-actions.tsx", "utf8");
-  assert.match(actions, /publicShootPath\(shareToken/);
+  assert.match(actions, /writeText\(shareUrl\)/);
+  assert.doesNotMatch(actions, /window\.location/);
   assert.doesNotMatch(actions, /navigator\.share/);
 
   const client = readFileSync("src/app/my-content/[slug]/page.tsx", "utf8");
@@ -888,11 +904,18 @@ test("shoot pages copy the public link and do not offer Share", () => {
   assert.match(client, /ShootScreen/);
   assert.match(admin, /ShootScreen/);
   const screen = readFileSync("src/components/shoot-screen.tsx", "utf8");
-  assert.match(screen, /shareToken=\{shoot\.publicToken\}/);
+  assert.match(screen, /shareUrl=\{publicShootUrl\(owner\?\.publicSlug/);
 
-  const publicPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
+  const publicPage = readFileSync("src/app/[clientSlug]/[shootSlug]/page.tsx", "utf8");
   assert.match(publicPage, /getPublicShoot/);
-  assert.doesNotMatch(publicPage, /getSession|getAdminSession|redirect\(/);
+  assert.match(publicPage, /viewId=\{view\}/);
+  assert.match(publicPage, /basePath=\{publicShootPath\(resolved\.client\.publicSlug, shoot\.publicSlug\)\}/);
+  assert.match(publicPage, /permanentRedirect/);
+  assert.doesNotMatch(publicPage, /getSession|getAdminSession|\bredirect\(/);
+  const legacyPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
+  assert.match(legacyPage, /getLegacyPublicShoot/);
+  assert.match(legacyPage, /permanentRedirect/);
+  assert.doesNotMatch(legacyPage, /getSession|getAdminSession/);
   const middleware = readFileSync("src/middleware.ts", "utf8");
   assert.doesNotMatch(middleware, /pathname\.startsWith\("\/s"\)/);
 });

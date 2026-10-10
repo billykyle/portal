@@ -8,10 +8,11 @@ export function createPublicToken() {
   return randomBytes(18).toString("base64url");
 }
 
-export function publicShootPath(token: string) {
-  return `/s/${token}`;
+export function publicShootPath(clientSlug: string, shootSlug: string) {
+  return `/${encodeURIComponent(clientSlug)}/${encodeURIComponent(shootSlug)}`;
 }
 
-export function publicShootUrl(token: string) {
-  return `${portalOrigin()}${publicShootPath(token)}`;
+/** Absolute share link. Uses PORTAL_PUBLIC_URL, never the admin host. */
+export function publicShootUrl(clientSlug: string, shootSlug: string) {
+  return `${portalOrigin()}${publicShootPath(clientSlug, shootSlug)}`;
 }

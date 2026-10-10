@@ -47,7 +47,7 @@ function EpisodeGrid({ shoots, admin = false }: { shoots: TemplateShootCard[]; a
             </Link>
             {admin ? (
               <div className="mt-2">
-                <CopyPublicLink token={shoot.publicToken} compact />
+                <CopyPublicLink url={shoot.publicUrl} compact />
               </div>
             ) : null}
           </li>
@@ -111,7 +111,7 @@ function PodcastShoot({
   folderName,
   zipUrl,
   media,
-  shareToken,
+  shareUrl,
   closedSectionIds,
   listSectionIds,
 }: Parameters<ContentTemplate["Shoot"]>[0]) {
@@ -149,7 +149,7 @@ function PodcastShoot({
           {identity.guest ? <p className="text-sm text-[#c7c7cc]">{identity.guest}</p> : null}
         </header>
         <div className="lg:shrink-0">
-          <ShootActions files={files} folderName={folderName} zipUrl={zipUrl} shareToken={shareToken} />
+          <ShootActions files={files} folderName={folderName} zipUrl={zipUrl} shareUrl={shareUrl} />
         </div>
       </div>
 

@@ -280,7 +280,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "list_client_shoots",
-    "List shoots for a client (id or invite code). Includes address, shot date, categoryFolder (the NAS folder name when the shoot is grouped, otherwise null), media counts by type, ready (has imported media), portalUrl (signed-in /my-content/[slug]), and the public share URL. Does not return file bytes.",
+    "List shoots for a client (id or invite code). Includes address, shot date, categoryFolder (the NAS folder name when the shoot is grouped, otherwise null), media counts by type, ready (has imported media), portalUrl (signed-in /my-content/[slug]), and the public /<Client-Name>/<Shoot-Name> share URL. Does not return file bytes.",
     {
       clientId: z.string().optional(),
       inviteCode: z.string().optional(),
@@ -289,7 +289,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "get_shoot",
-    "Shoot metadata plus a media inventory of ids and filenames for photos, floor plans, finished video, and raw video. Not the binary files. categoryFolder is the NAS folder name when the shoot is grouped, otherwise null. ready is true when the shoot has imported media. portalUrl is the signed-in /my-content/[slug] page; publicUrl stays the share link.",
+    "Shoot metadata plus a media inventory of ids and filenames for photos, floor plans, finished video, and raw video. Not the binary files. categoryFolder is the NAS folder name when the shoot is grouped, otherwise null. ready is true when the shoot has imported media. portalUrl is the signed-in /my-content/[slug] page. publicUrl is the public /<Client-Name>/<Shoot-Name> share link.",
     { shootId: z.string() },
     readOnly,
   );
@@ -344,7 +344,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "get_shoot_share_link",
-    "Return the stable public /s/[token] URL on the client portal. Tokens are created with the shoot; this does not rotate an existing link. portalUrl is the signed-in My Content slug page and is not a substitute for the share link.",
+    "Return the public /<Client-Name>/<Shoot-Name> share URL on the client portal (PORTAL_PUBLIC_URL). Capitalization is kept. Old /s/<token> and /s/<Shoot-Name> links redirect to it. This does not rotate an existing link. portalUrl is the signed-in My Content page and is not a substitute for the share link.",
     { shootId: z.string() },
     readOnly,
   );

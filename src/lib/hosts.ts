@@ -1,3 +1,4 @@
+import { isPublicShootSharePath } from "@/lib/reserved-routes";
 import {
   ADMIN_HOME,
   CLIENT_HOME,
@@ -91,7 +92,10 @@ const CLIENT_PORTAL_PREFIXES = [
 
 /** Client home / library / public share — stay on the portal host only. */
 export function isClientPortalPath(pathname: string) {
-  return CLIENT_PORTAL_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return (
+    isPublicShootSharePath(pathname) ||
+    CLIENT_PORTAL_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+  );
 }
 
 /** Public portal origin for cross-host redirects. Never send Billy to loopback. */

@@ -18,7 +18,8 @@ export type TemplateShootCard = {
   folderName: string;
   thumbUrl: string | null;
   fileCount: number;
-  publicToken: string;
+  /** Absolute https://portal…/s/<slug> link. */
+  publicUrl: string;
   /** NAS category folder, when this shoot is grouped under one. */
   categoryFolder?: string | null;
 };
@@ -56,7 +57,7 @@ export type TemplateShootProps = {
   folderName: string;
   zipUrl?: string;
   media: TemplateMedia[];
-  shareToken?: string;
+  shareUrl?: string;
   closedSectionIds?: readonly string[];
   /** Section ids this browser shows as a file list. Omitted means grid. */
   listSectionIds?: readonly string[];

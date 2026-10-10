@@ -21,18 +21,23 @@ export type DeliveryPayload = {
 
 export function buildDeliveryPayload(input: {
   event: DeliveryEvent;
-  client: { id: string; displayName: string; inviteCode: string; primaryEmail: string };
-  shoot: { id: string; shotDate: string; address: string; publicToken: string };
+  client: { id: string; displayName: string; inviteCode: string; primaryEmail: string; publicSlug: string };
+  shoot: { id: string; shotDate: string; address: string; publicSlug: string };
   fileCount: number;
 }): DeliveryPayload {
   return {
     event: input.event,
-    client: input.client,
+    client: {
+      id: input.client.id,
+      displayName: input.client.displayName,
+      inviteCode: input.client.inviteCode,
+      primaryEmail: input.client.primaryEmail,
+    },
     shoot: {
       id: input.shoot.id,
       shotDate: input.shoot.shotDate,
       address: input.shoot.address,
-      publicUrl: publicShootUrl(input.shoot.publicToken),
+      publicUrl: publicShootUrl(input.client.publicSlug, input.shoot.publicSlug),
       fileCount: input.fileCount,
     },
   };

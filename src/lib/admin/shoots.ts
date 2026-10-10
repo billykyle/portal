@@ -5,11 +5,13 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { clients, media, shoots } from "@/lib/db/schema";
 import { createPublicToken } from "@/lib/public-link";
+import { syncPublicShareSlug } from "@/lib/public-share-slug";
 
 const shootColumns = {
   id: shoots.id,
   clientId: shoots.clientId,
   publicToken: shoots.publicToken,
+  publicSlug: shoots.publicSlug,
   shotDate: shoots.shotDate,
   address: shoots.address,
   slug: shoots.slug,
@@ -23,6 +25,7 @@ export type ShootRecord = {
   id: string;
   clientId: string;
   publicToken: string;
+  publicSlug: string;
   shotDate: string;
   address: string;
   slug: string;
@@ -32,12 +35,14 @@ export type ShootRecord = {
   createdAt: Date;
   inviteCode: string;
   clientName: string;
+  clientPublicSlug: string;
 };
 
 async function withClient(row: {
   id: string;
   clientId: string;
   publicToken: string;
+  publicSlug: string;
   shotDate: string;
   address: string;
   slug: string;
@@ -47,19 +52,24 @@ async function withClient(row: {
   createdAt: Date;
 }): Promise<ShootRecord | null> {
   const [client] = await db
-    .select({ inviteCode: clients.inviteCode, displayName: clients.displayName })
+    .select({ inviteCode: clients.inviteCode, displayName: clients.displayName, publicSlug: clients.publicSlug })
     .from(clients)
     .where(eq(clients.id, row.clientId))
     .limit(1);
   if (!client) return null;
-  return { ...row, inviteCode: client.inviteCode, clientName: client.displayName };
+  return {
+    ...row,
+    inviteCode: client.inviteCode,
+    clientName: client.displayName,
+    clientPublicSlug: client.publicSlug,
+  };
 }
 
 export async function listShootRecordsForClient(clientId: string): Promise<AdminResult<ShootRecord[]>> {
   await ensureDb();
   if (!isUuid(clientId)) return adminFail("Client was not found.");
   const [client] = await db
-    .select({ id: clients.id, inviteCode: clients.inviteCode, displayName: clients.displayName })
+    .select({ id: clients.id, inviteCode: clients.inviteCode, displayName: clients.displayName, publicSlug: clients.publicSlug })
     .from(clients)
     .where(eq(clients.id, clientId))
     .limit(1);
@@ -75,6 +85,7 @@ export async function listShootRecordsForClient(clientId: string): Promise<Admin
       ...row,
       inviteCode: client.inviteCode,
       clientName: client.displayName,
+      clientPublicSlug: client.publicSlug,
     })),
   };
 }
@@ -117,14 +128,25 @@ export async function listShootMedia(shootId: string) {
     .where(eq(media.shootId, shootId));
 }
 
-/** Return the stable public token, minting one only when the row has none. Does not rotate. */
-export async function ensureShootPublicToken(shootId: string): Promise<AdminResult<{ token: string; minted: boolean }>> {
+/** Return the stable public token and readable slug. Mints a token only when the row has none. */
+export async function ensureShootPublicToken(
+  shootId: string,
+): Promise<AdminResult<{ token: string; publicSlug: string; minted: boolean }>> {
   const found = await getShootRecord(shootId);
   if (!found.ok) return found;
-  if (found.value.publicToken) {
-    return { ok: true, value: { token: found.value.publicToken, minted: false } };
+  let minted = false;
+  let token = found.value.publicToken;
+  if (!token) {
+    token = createPublicToken();
+    await db.update(shoots).set({ publicToken: token }).where(eq(shoots.id, shootId));
+    minted = true;
   }
-  const token = createPublicToken();
-  await db.update(shoots).set({ publicToken: token }).where(eq(shoots.id, shootId));
-  return { ok: true, value: { token, minted: true } };
+  const publicSlug = await syncPublicShareSlug({
+    shootId,
+    clientId: found.value.clientId,
+    title: found.value.address,
+    slug: found.value.publicSlug || null,
+  });
+  if (!found.value.publicSlug) minted = true;
+  return { ok: true, value: { token, publicSlug, minted } };
 }

@@ -12,6 +12,7 @@ import { clients, media, shoots } from "@/lib/db/schema";
 import { coverUrlByShoot } from "@/lib/episode-covers";
 import { formatShootDate, shootFolderName } from "@/lib/media";
 import { parseClosedCategoryFolders, SHOOT_CATEGORY_FOLDERS_COOKIE } from "@/lib/shoot-categories";
+import { publicShootUrl } from "@/lib/public-link";
 import { clientShootPath } from "@/lib/shoot-slug";
 
 export const metadata: Metadata = {
@@ -76,7 +77,7 @@ export default async function LibraryPage() {
           folderName: shootFolderName(shoot.shotDate, shoot.address),
           thumbUrl: covers.get(shoot.id) ?? null,
           fileCount: 0,
-          publicToken: shoot.publicToken,
+          publicUrl: publicShootUrl(client?.publicSlug ?? "client", shoot.publicSlug),
           categoryFolder: shoot.categoryFolder,
         }))}
       />

@@ -4,6 +4,12 @@ import { backfillPlaceholderPrimaryEmails } from "../client-contact";
 import { ensurePreviewSchema } from "../nas-preview";
 import { ensureNasSyncJobsTable } from "../nas-sync-store";
 import { createPublicToken } from "../public-link";
+import {
+  backfillClientShareSlugs,
+  backfillPublicShareSlugs,
+  formatClientSlugBackfill,
+  formatPublicSlugBackfill,
+} from "../public-share-slug";
 import { backfillShootSlugs } from "../shoot-slug";
 import { db, sql } from "./index";
 import { clients, shoots } from "./schema";
@@ -71,11 +77,37 @@ async function createTables() {
       created_at timestamptz NOT NULL DEFAULT now()
     )
   `;
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS public_slug text`;
   await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS public_token text`;
+  await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS public_slug text`;
   await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS delivered_at timestamptz`;
   await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS slug text`;
   await sql`ALTER TABLE shoots ADD COLUMN IF NOT EXISTS category_folder text`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_public_token_uidx ON shoots (public_token)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS shoot_public_slug_aliases (
+      slug text PRIMARY KEY,
+      shoot_id uuid NOT NULL REFERENCES shoots(id) ON DELETE CASCADE
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoot_public_slug_aliases_lower_uidx ON shoot_public_slug_aliases (lower(slug))`;
+  await sql`CREATE INDEX IF NOT EXISTS shoot_public_slug_aliases_shoot_idx ON shoot_public_slug_aliases (shoot_id)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_public_slug_aliases (
+      slug text PRIMARY KEY,
+      client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS client_public_slug_aliases_lower_uidx ON client_public_slug_aliases (lower(slug))`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS shoot_share_aliases (
+      client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      slug text NOT NULL,
+      shoot_id uuid NOT NULL REFERENCES shoots(id) ON DELETE CASCADE,
+      PRIMARY KEY (client_id, slug)
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoot_share_aliases_client_lower_uidx ON shoot_share_aliases (client_id, lower(slug))`;
   await sql`
     CREATE TABLE IF NOT EXISTS shoot_slug_aliases (
       client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -293,9 +325,23 @@ export async function ensureDb() {
     ready = migration.run(true, async () => {
       try {
         await createTables();
+        await sql`DROP INDEX IF EXISTS shoots_public_slug_lower_uidx`;
         await backfillShootSlugs();
         await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_client_slug_uidx ON shoots (client_id, slug)`;
         await sql`ALTER TABLE shoots ALTER COLUMN slug SET NOT NULL`;
+        const clientSlugs = await backfillClientShareSlugs();
+        if (clientSlugs.assigned.length > 0) {
+          console.log(formatClientSlugBackfill(clientSlugs));
+        }
+        const publicSlugs = await backfillPublicShareSlugs();
+        if (publicSlugs.assigned.length > 0 || publicSlugs.recomputed.length > 0) {
+          console.log(formatPublicSlugBackfill(publicSlugs));
+        }
+        await sql`DROP INDEX IF EXISTS shoots_public_slug_lower_uidx`;
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS shoots_client_public_slug_lower_uidx ON shoots (client_id, lower(public_slug))`;
+        await sql`ALTER TABLE shoots ALTER COLUMN public_slug SET NOT NULL`;
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS clients_public_slug_lower_uidx ON clients (lower(public_slug))`;
+        await sql`ALTER TABLE clients ALTER COLUMN public_slug SET NOT NULL`;
         const missing = await db.select({ id: shoots.id }).from(shoots).where(isNull(shoots.publicToken));
         for (const row of missing) {
           await db.update(shoots).set({ publicToken: createPublicToken() }).where(eq(shoots.id, row.id));

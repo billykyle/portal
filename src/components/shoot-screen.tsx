@@ -10,6 +10,7 @@ import { shootZipPath } from "@/lib/download-all";
 import { formatShootDate, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
 import { parseListShootSections, SHOOT_LAYOUT_COOKIE } from "@/lib/shoot-layout";
 import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
+import { publicShootUrl } from "@/lib/public-link";
 import { adminShootPath, clientShootPath } from "@/lib/shoot-slug";
 import { videoPlaybackById } from "@/lib/video-store";
 
@@ -24,7 +25,7 @@ export async function ShootScreen({
     slug: string;
     address: string;
     shotDate: string;
-    publicToken: string;
+    publicSlug: string;
   };
   view?: string;
   admin: boolean;
@@ -39,7 +40,7 @@ export async function ShootScreen({
   const closedSectionIds = [...parseClosedShootSections(jar.get(SHOOT_SECTIONS_COOKIE)?.value)];
   const listSectionIds = [...parseListShootSections(jar.get(SHOOT_LAYOUT_COOKIE)?.value)];
   const [owner] = await db
-    .select({ category: clients.category })
+    .select({ category: clients.category, publicSlug: clients.publicSlug })
     .from(clients)
     .where(eq(clients.id, shoot.clientId))
     .limit(1);
@@ -59,7 +60,7 @@ export async function ShootScreen({
         dateLabel={formatShootDate(shoot.shotDate)}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={shootZipPath(shoot.id)}
-        shareToken={shoot.publicToken}
+        shareUrl={publicShootUrl(owner?.publicSlug ?? "client", shoot.publicSlug)}
         closedSectionIds={closedSectionIds}
         listSectionIds={listSectionIds}
         media={files.map((item) => ({

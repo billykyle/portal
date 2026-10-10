@@ -35,6 +35,7 @@ import {
   type ClientFolderChild,
 } from "./nas-folder";
 import { createPublicToken } from "./public-link";
+import { allocateClientShareSlug, allocatePublicShareSlug, syncClientShareSlug, syncPublicShareSlug } from "./public-share-slug";
 import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
 
 export type NasSyncResult = {
@@ -177,7 +178,14 @@ async function upsertClientByName(displayName: string) {
     .where(ilike(clients.displayName, displayName))
     .limit(1);
   if (existing) {
-    return { client: existing, created: false };
+    if (existing.publicSlug) return { client: existing, created: false };
+    const publicSlug = await syncClientShareSlug({
+      clientId: existing.id,
+      displayName: existing.displayName,
+      company: existing.company,
+      slug: null,
+    });
+    return { client: { ...existing, publicSlug }, created: false };
   }
   const [client] = await db
     .insert(clients)
@@ -185,6 +193,7 @@ async function upsertClientByName(displayName: string) {
       inviteCode: await nextInviteCode(),
       displayName,
       primaryEmail: pendingClientEmail(displayName),
+      publicSlug: await allocateClientShareSlug({ displayName }),
       notes: NAS_IMPORT_INVITE_NOTE,
     })
     .returning();
@@ -220,6 +229,12 @@ async function upsertShoot(input: {
           shotDate: input.shotDate,
           slug: null,
         });
+    const publicSlug = await syncPublicShareSlug({
+      shootId: existing.id,
+      clientId: input.clientId,
+      title: input.address,
+      slug: existing.publicSlug || null,
+    });
     const pathChanged = existing.nasRelativePath !== input.nasRelativePath;
     const categoryChanged = (existing.categoryFolder ?? null) !== categoryFolder;
     if (pathChanged || categoryChanged) {
@@ -232,7 +247,7 @@ async function upsertShoot(input: {
         .where(eq(shoots.id, existing.id));
     }
     return {
-      shoot: { ...existing, slug, nasRelativePath: input.nasRelativePath, categoryFolder },
+      shoot: { ...existing, slug, publicSlug, nasRelativePath: input.nasRelativePath, categoryFolder },
       created: false,
     };
   }
@@ -241,6 +256,7 @@ async function upsertShoot(input: {
     .values({
       clientId: input.clientId,
       publicToken: createPublicToken(),
+      publicSlug: await allocatePublicShareSlug({ clientId: input.clientId, title: input.address }),
       shotDate: input.shotDate,
       address: input.address,
       slug: await allocateShootSlug({

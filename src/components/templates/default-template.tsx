@@ -42,7 +42,7 @@ function DefaultAdminShoots({ shoots, closedCategoryFolders }: Parameters<Conten
         shotDate: shoot.shotDate,
         dateLabel: shoot.dateLabel,
         fileCount: shoot.fileCount,
-        publicToken: shoot.publicToken,
+        publicUrl: shoot.publicUrl,
         categoryFolder: shoot.categoryFolder,
       }))}
     />
