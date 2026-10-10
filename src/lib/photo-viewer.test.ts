@@ -10,11 +10,13 @@ import {
   shouldRenderPhotoSlide,
   stepPhotoIndex,
   swipeStep,
-  PREVIOUS_VIEWER_BACKDROP_OPACITY,
   VIEWER_BACKDROP_OPACITY,
+  VIEWER_CAPTION_GAP_PX,
   viewerBackdropColor,
   viewerCaption,
   viewerCountLabel,
+  viewerImageRatio,
+  viewerPhotoFrameWidth,
   viewerOriginalSrc,
   viewerPlaceholderSrc,
 } from "./photo-viewer";
@@ -87,9 +89,24 @@ test("splits count and filename for the stacked header", () => {
   assert.equal(viewerCaption("Full-09.jpg", 8, 38), "9 / 38, Full-09.jpg");
 });
 
-test("lightbox backdrop is half the previous solid black overlay", () => {
-  assert.equal(PREVIOUS_VIEWER_BACKDROP_OPACITY, 1);
-  assert.equal(VIEWER_BACKDROP_OPACITY, 0.5);
-  assert.equal(VIEWER_BACKDROP_OPACITY, PREVIOUS_VIEWER_BACKDROP_OPACITY / 2);
-  assert.equal(viewerBackdropColor(), "rgb(0 0 0 / 0.5)");
+test("lightbox backdrop is solid 80% black with no blur", () => {
+  assert.equal(VIEWER_BACKDROP_OPACITY, 0.8);
+  assert.equal(viewerBackdropColor(), "rgb(0 0 0 / 0.8)");
+});
+
+test("filename gap sits a few pixels above an object-contain frame", () => {
+  assert.ok(VIEWER_CAPTION_GAP_PX >= 8 && VIEWER_CAPTION_GAP_PX <= 12);
+  assert.equal(VIEWER_CAPTION_GAP_PX, 10);
+  assert.deepEqual(viewerImageRatio(3000, 2000), { width: 3000, height: 2000 });
+  assert.equal(viewerImageRatio(0, 2000), null);
+  assert.equal(viewerImageRatio(null, 2000), null);
+  assert.equal(
+    viewerPhotoFrameWidth(3000, 2000),
+    "min(100cqw, calc(100cqh * 3000 / 2000))",
+  );
+  assert.equal(
+    viewerPhotoFrameWidth(1080, 1620),
+    "min(100cqw, calc(100cqh * 1080 / 1620))",
+  );
+  assert.equal(viewerPhotoFrameWidth(0, 100), null);
 });

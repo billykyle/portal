@@ -165,8 +165,11 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(viewer, /fixed inset-0/);
   assert.match(viewer, /role="dialog"/);
   assert.match(viewer, /aria-modal="true"/);
-  assert.match(viewer, /data-photo-backdrop=""[^>]*style="background-color:rgb\(0 0 0 \/ 0\.5\)"|style="background-color:rgb\(0 0 0 \/ 0\.5\)"[^>]*data-photo-backdrop=""/);
+  assert.match(viewer, /data-photo-backdrop=""[^>]*style="background-color:rgb\(0 0 0 \/ 0\.8\)"|style="background-color:rgb\(0 0 0 \/ 0\.8\)"[^>]*data-photo-backdrop=""/);
   assert.doesNotMatch(viewer, /backdrop-blur/);
+  assert.match(viewer, /data-photo-caption=""/);
+  assert.match(viewer, /bottom:calc\(100% \+ 10px\)/);
+  assert.doesNotMatch(viewer, /top-\[max\(0\.75rem,env\(safe-area-inset-top\)\)\] bottom-3/);
   assert.match(viewer, /src="\/photos\/front\.jpg"/);
   assert.match(viewer, /alt="front\.jpg"/);
   assert.match(viewer, /object-contain/);
@@ -225,8 +228,13 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.doesNotMatch(nasViewer, /href="[^"]*\/thumb/);
   assert.match(nasViewer, /aria-label="Next photo"/);
   assert.match(nasViewer, /aria-label="Close"/);
-  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.5\)/);
+  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.8\)/);
   assert.doesNotMatch(nasViewer, /backdrop-blur/);
+  assert.match(nasViewer, /data-photo-caption=""/);
+  assert.match(nasViewer, /bottom:calc\(100% \+ 10px\)/);
+  assert.match(nasViewer, /aspect-ratio:3000 \/ 2000/);
+  assert.match(nasViewer, /min\(100cqw, calc\(100cqh \* 3000 \/ 2000\)\)/);
+  assert.match(nasViewer, /container-type:size/);
 
   const construction = renderToStaticMarkup(
     createElement(defaultTemplate.Shoot, {
