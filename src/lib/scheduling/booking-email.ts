@@ -76,7 +76,11 @@ export type BookingConfirmationInput = {
   thread?: BookingEmailThread | null;
   /** Second appointment created with this one. One email covers both. */
   companion?: BookingCompanion | null;
+  /** Client MCP booking. One general line. Never names the agent. */
+  viaAgent?: boolean;
 };
+
+export const AGENT_BOOKING_LINE = "This shoot was booked through an agent.";
 
 export function normalizeEmailMessageId(raw: string | null | undefined) {
   const id = String(raw ?? "").trim();
@@ -567,6 +571,7 @@ function buildClientMessage(
     "",
     copy.intro,
     "",
+    ...(input.viaAgent ? [AGENT_BOOKING_LINE, ""] : []),
     ...changeSummaryText(changes),
     ...detailText(rows),
     "",
@@ -587,6 +592,7 @@ function buildClientMessage(
       headingHtml(copy.title),
       paragraphHtml(greeting),
       paragraphHtml(copy.intro),
+      ...(input.viaAgent ? [paragraphHtml(AGENT_BOOKING_LINE)] : []),
       changeSummaryHtml(changes),
       detailHtml(rows),
       `<div style="padding:28px 0 8px;">${calendar ? calendarCtaHtml(calendar.icsUrl, calendar.googleUrl) : ""}${
@@ -618,6 +624,7 @@ function buildNotifyMessage(
   const pepperNote = copy.pepperNote?.trim() || "";
 
   const text = [
+    ...(input.viaAgent ? [AGENT_BOOKING_LINE, ""] : []),
     ...changeSummaryText(changes),
     ...detailText(rows),
     "",
@@ -633,6 +640,7 @@ function buildNotifyMessage(
     preheader: when,
     body: [
       headingHtml(copy.title),
+      ...(input.viaAgent ? [paragraphHtml(AGENT_BOOKING_LINE)] : []),
       changeSummaryHtml(changes),
       detailHtml(rows),
       `<div style="padding:28px 0 8px;">${bookingEmailCtaButton(cta.href, cta.label)}</div>`,

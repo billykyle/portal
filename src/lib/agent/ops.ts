@@ -25,6 +25,11 @@ import {
   type BookingWhen,
 } from "@/lib/agent/present";
 import { db } from "@/lib/db";
+import {
+  listConnectedAgents,
+  revokeOneAgentToken,
+  revokePortalAgentTokens,
+} from "@/lib/client-agent/connections";
 import type { ClientCategory } from "@/lib/client-category";
 import { maintenanceIsLive } from "@/lib/maintenance";
 import {
@@ -59,9 +64,18 @@ export type ClientSummary = {
   primaryEmail: string;
   notesSummary: string;
   category: ClientCategory;
+  agentAccess: boolean;
   userCount: number;
   shootCount: number;
   createdAt: string;
+};
+
+export type ClientAgentConnection = {
+  tokenId: string;
+  agentName: string;
+  approvedBy: string;
+  connectedAt: string;
+  lastUsedAt: string | null;
 };
 
 export type ClientDetail = ClientSummary & { notes: string | null };
@@ -199,6 +213,28 @@ export type AgentOps = {
   setMaintenanceNotice(
     input: { clear: true } | { message: string; startsAt: Date; endsAt: Date },
   ): Promise<{ ok: true; notice: MaintenanceNoticeDto | null } | { ok: false; error: string }>;
+  setClientAgentAccess(input: ClientAgentAccessInput & { enabled: boolean }): Promise<
+    { ok: true; client: ClientDetail; revoked: boolean } | { ok: false; error: string }
+  >;
+  listClientAgentConnections(input: ClientAgentAccessInput): Promise<
+    | {
+        ok: true;
+        clientId: string;
+        inviteCode: string;
+        agentAccess: boolean;
+        connections: ClientAgentConnection[];
+      }
+    | { ok: false; error: string }
+  >;
+  revokeClientAgentConnection(input: ClientAgentAccessInput & { tokenId: string }): Promise<
+    { ok: true; clientId: string; tokenId: string } | { ok: false; error: string }
+  >;
+};
+
+export type ClientAgentAccessInput = {
+  client?: string;
+  clientId?: string;
+  inviteCode?: string;
 };
 
 export type MaintenanceNoticeDto = {
@@ -240,6 +276,7 @@ function summaryFrom(client: {
   primaryEmail: string;
   notes: string | null;
   category: ClientCategory;
+  agentAccess: boolean;
   createdAt: Date;
 }, counts: { users: Map<string, number>; shoots: Map<string, number> }): ClientSummary {
   return {
@@ -250,10 +287,29 @@ function summaryFrom(client: {
     primaryEmail: client.primaryEmail,
     notesSummary: notesSummary(client.notes),
     category: client.category,
+    agentAccess: client.agentAccess,
     userCount: counts.users.get(client.id) ?? 0,
     shootCount: counts.shoots.get(client.id) ?? 0,
     createdAt: client.createdAt.toISOString(),
   };
+}
+
+function clientLocator(input: ClientAgentAccessInput) {
+  const clientId = input.clientId?.trim() ?? "";
+  const inviteCode = input.inviteCode?.trim() ?? "";
+  const client = input.client?.trim() ?? "";
+  if (clientId || inviteCode) {
+    return { id: clientId || undefined, inviteCode: inviteCode || undefined };
+  }
+  if (!client) return null;
+  if (isUuid(client)) return { id: client };
+  return { inviteCode: client };
+}
+
+async function locatedClient(input: ClientAgentAccessInput) {
+  const locator = clientLocator(input);
+  if (!locator) return { ok: false as const, error: "Client id or BK code is required." };
+  return findClient(locator);
 }
 
 function detailFrom(
@@ -662,5 +718,47 @@ export const portalAgentOps: AgentOps = {
     }
     const saved = await saveMaintenanceNotice(input);
     return { ok: true, notice: maintenanceNoticeDto(saved) };
+  },
+
+  async setClientAgentAccess(input) {
+    const found = await locatedClient(input);
+    if (!found.ok) return found;
+    await db.update(clients).set({ agentAccess: input.enabled }).where(eq(clients.id, found.value.id));
+    if (!input.enabled) await revokePortalAgentTokens(found.value.id);
+    const counts = await clientCounts();
+    return {
+      ok: true,
+      client: detailFrom({ ...found.value, agentAccess: input.enabled }, counts),
+      revoked: !input.enabled,
+    };
+  },
+
+  async listClientAgentConnections(input) {
+    const found = await locatedClient(input);
+    if (!found.ok) return found;
+    const rows = await listConnectedAgents(found.value.id);
+    return {
+      ok: true,
+      clientId: found.value.id,
+      inviteCode: found.value.inviteCode,
+      agentAccess: found.value.agentAccess,
+      connections: rows.map((row) => ({
+        tokenId: row.tokenId,
+        agentName: row.agentName,
+        approvedBy: row.userEmail,
+        connectedAt: row.connectedAt.toISOString(),
+        lastUsedAt: row.lastUsedAt ? row.lastUsedAt.toISOString() : null,
+      })),
+    };
+  },
+
+  async revokeClientAgentConnection(input) {
+    const found = await locatedClient(input);
+    if (!found.ok) return found;
+    const tokenId = input.tokenId.trim();
+    if (!tokenId) return { ok: false, error: "Token id is required." };
+    const removed = await revokeOneAgentToken(found.value.id, tokenId);
+    if (!removed) return { ok: false, error: "Connected agent was not found." };
+    return { ok: true, clientId: found.value.id, tokenId };
   },
 };

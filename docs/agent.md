@@ -58,8 +58,11 @@ No local clone and no stdio process. The portal deployment is the server.
 
 | Tool | What it does |
 | --- | --- |
-| `list_clients` | Invite code, display name, company, primary email, notes summary, user count, shoot count. Optional `query`. Optional `sort`: `code-desc` (highest BK code first), `code-asc` or `code` (BK00001 upward), `name-asc`, `name-desc`, `company` (blank company last), `newest`, `oldest`, `shoots` (most first). Omit `sort` to keep the existing listing order. |
-| `get_client` | One client by id or invite code (`BK#####`), including full notes. |
+| `list_clients` | Invite code, display name, company, primary email, notes summary, category, `agentAccess`, user count, shoot count. Optional `query`. Optional `sort`: `code-desc` (highest BK code first), `code-asc` or `code` (BK00001 upward), `name-asc`, `name-desc`, `company` (blank company last), `newest`, `oldest`, `shoots` (most first). Omit `sort` to keep the existing listing order. |
+| `get_client` | One client by id or invite code (`BK#####`), including full notes and `agentAccess`. |
+| `set_client_agent_access` | Turn Agent access on or off. `client` is a client id or BK code (`clientId` / `inviteCode` also work). `enabled` is `true` or `false`. `false` revokes every token for that client immediately. |
+| `list_client_agent_connections` | Connected agents for one client: `tokenId`, `agentName`, `approvedBy`, `connectedAt`, `lastUsedAt`. |
+| `revoke_client_agent_connection` | Revoke one connection. Requires the client and `tokenId` from the list. Does not change the Agent access toggle. |
 | `create_client` | Create the next BK code. Display name and primary email required. Optional company and notes. |
 | `update_client` | Update display name, primary email, company, notes. Omitted fields stay. |
 | `delete_client` | **Destructive.** Deletes the client, logins, shoots, and photos. Requires `clientId` and `confirmInviteCode`. |

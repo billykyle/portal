@@ -51,6 +51,18 @@ function categoryArgument(args: Record<string, unknown>): string | undefined {
   return typeof args.category === "string" ? args.category : "invalid";
 }
 
+function clientAgentRef(args: Record<string, unknown>) {
+  return {
+    client: optionalText(args.client)?.trim() || undefined,
+    clientId: optionalText(args.clientId)?.trim() || undefined,
+    inviteCode: optionalText(args.inviteCode)?.trim() || undefined,
+  };
+}
+
+function hasClientAgentRef(ref: { client?: string; clientId?: string; inviteCode?: string }) {
+  return Boolean(ref.client || ref.clientId || ref.inviteCode);
+}
+
 export async function runAgentTool(
   name: string,
   args: Record<string, unknown>,
@@ -379,6 +391,47 @@ export async function runAgentTool(
       const result = await ops.setMaintenanceNotice({ message, startsAt: start, endsAt: end });
       if (!result.ok) return result;
       return { ok: true, data: { notice: result.notice }, revalidate: ["/"] };
+    }
+    case "set_client_agent_access": {
+      const ref = clientAgentRef(args);
+      if (!hasClientAgentRef(ref)) return { ok: false, error: "Client id or BK code is required." };
+      if (typeof args.enabled !== "boolean") return { ok: false, error: "enabled must be true or false." };
+      const result = await ops.setClientAgentAccess({ ...ref, enabled: args.enabled });
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { client: result.client, revoked: result.revoked },
+        revalidate: refresh(`/admin/clients/${result.client.id}`),
+      };
+    }
+    case "list_client_agent_connections": {
+      const ref = clientAgentRef(args);
+      if (!hasClientAgentRef(ref)) return { ok: false, error: "Client id or BK code is required." };
+      const result = await ops.listClientAgentConnections(ref);
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: {
+          clientId: result.clientId,
+          inviteCode: result.inviteCode,
+          agentAccess: result.agentAccess,
+          connections: result.connections,
+        },
+        revalidate: [],
+      };
+    }
+    case "revoke_client_agent_connection": {
+      const ref = clientAgentRef(args);
+      const tokenId = text(args.tokenId).trim();
+      if (!hasClientAgentRef(ref)) return { ok: false, error: "Client id or BK code is required." };
+      if (!tokenId) return { ok: false, error: "Token id is required." };
+      const result = await ops.revokeClientAgentConnection({ ...ref, tokenId });
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { clientId: result.clientId, tokenId: result.tokenId },
+        revalidate: refresh(`/admin/clients/${result.clientId}`),
+      };
     }
     case "get_shoot_share_link": {
       const shootId = text(args.shootId).trim();

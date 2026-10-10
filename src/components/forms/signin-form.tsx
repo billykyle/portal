@@ -5,11 +5,12 @@ import { useActionState } from "react";
 import { Field, FormError, SubmitButton } from "@/components/field";
 import { signIn } from "@/lib/actions/auth";
 
-export function SigninForm() {
+export function SigninForm({ returnTo }: { returnTo?: string }) {
   const [state, action, pending] = useActionState(signIn, undefined);
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
       <Field id="email" label="Email" type="email" autoComplete="email" required />
       <Field id="password" label="Password" type="password" autoComplete="current-password" required />
       <FormError message={state?.error} />

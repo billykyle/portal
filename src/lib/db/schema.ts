@@ -1,4 +1,4 @@
-import { bigint, integer, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, integer, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const mediaTypeEnum = pgEnum("media_type", ["photo", "video", "floor_plan", "audio", "raw_video"]);
 
@@ -18,6 +18,8 @@ export const clients = pgTable("clients", {
   company: text("company"),
   notes: text("notes"),
   category: clientCategoryEnum("category").notNull().default("other"),
+  /** Client MCP connector. Off until an admin turns it on. */
+  agentAccess: boolean("agent_access").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -191,6 +193,75 @@ export const zipJobs = pgTable("zip_jobs", {
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Dynamic client registration for the client MCP connector. */
+export const oauthClients = pgTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  secretHash: text("secret_hash"),
+  name: text("name").notNull(),
+  redirectUris: text("redirect_uris").array().notNull(),
+  authMethod: text("auth_method").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** One-time authorization codes. Only the SHA-256 hash is stored. */
+export const oauthAuthCodes = pgTable("oauth_auth_codes", {
+  codeHash: text("code_hash").primaryKey(),
+  oauthClientId: text("oauth_client_id")
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  portalClientId: uuid("portal_client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  scope: text("scope").notNull(),
+  resource: text("resource").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Access and refresh tokens. Only SHA-256 hashes are stored. */
+export const oauthTokens = pgTable("oauth_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  oauthClientId: text("oauth_client_id")
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  portalClientId: uuid("portal_client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  accessTokenHash: text("access_token_hash").notNull().unique(),
+  refreshTokenHash: text("refresh_token_hash").notNull().unique(),
+  previousRefreshTokenHash: text("previous_refresh_token_hash").unique(),
+  scope: text("scope").notNull(),
+  resource: text("resource").notNull(),
+  accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }).notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+});
+
+/** One row per client MCP tool call. */
+export const clientAgentCalls = pgTable("client_agent_calls", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tokenId: uuid("token_id").references(() => oauthTokens.id, { onDelete: "set null" }),
+  portalClientId: uuid("portal_client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  tool: text("tool").notNull(),
+  summary: text("summary").notNull(),
+  ok: boolean("ok").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Client = typeof clients.$inferSelect;

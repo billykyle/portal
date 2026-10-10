@@ -104,6 +104,7 @@ export type PreparedBookingModification = {
         timeZone: string;
         notes: string | null;
       } | null;
+      viaAgent?: boolean;
       thread: {
         inReplyTo: string | null;
         references: string | null;
@@ -137,6 +138,8 @@ export async function prepareBookingModification(input: {
   commercialHours?: number | null;
   startIso: string | null;
   endIso: string | null;
+  /** Client MCP. Adds one line to the shoot emails. */
+  viaAgent?: boolean;
 }): Promise<BookingModifyFailure | PreparedBookingModification> {
   await ensureDb();
   const services = parseSchedulingServices(input.services);
@@ -442,6 +445,7 @@ export async function prepareBookingModification(input: {
                 notes: booking.notes,
               }
             : null,
+        viaAgent: input.viaAgent || undefined,
         thread: {
           inReplyTo: booking.clientEmailMessageId,
           references: booking.clientEmailReferences,
@@ -506,6 +510,7 @@ export async function resolveBookingContactEmail(input: {
 export async function commitBookingCancellation(input: {
   booking: Booking;
   session: ActorSession;
+  viaAgent?: boolean;
 }): Promise<{ updated: boolean; issues: { calendar?: "failed"; email?: "failed" } }> {
   const { booking } = input;
   const [cancelled] = await db
@@ -560,6 +565,7 @@ export async function commitBookingCancellation(input: {
         timeZone: hours.timeZone,
         notes: booking.notes,
         accessCodes: booking.accessCodes,
+        viaAgent: input.viaAgent || undefined,
         thread: {
           inReplyTo: booking.clientEmailMessageId,
           references: booking.clientEmailReferences,

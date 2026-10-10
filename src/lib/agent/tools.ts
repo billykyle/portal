@@ -34,7 +34,7 @@ export function createPortalMcpServer(ops: AgentOps) {
     { name: "atmos-portal", version: "1.0.0" },
     {
       instructions:
-        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails every signed-up user on the client plus the real primary contact. It does not email Billy. create_queued_booking creates a new queued shoot for an existing client with no start time and no Google Calendar event. It emails every signed-up user on the client plus the real primary contact “Your shoot is on hold.” and includes addresses in Notes on that same To list. The booking contact is the client's primary contact, not the newest login. It does not email Billy. To put that queued shoot on the calendar, call modify_booking with its bookingId and startsAt. create_booking and modify_booking, including a booking that is already confirmed, do not use the client slot grid. Free/busy on Work or Personal, overlaps with other bookings, drive buffers, business hours, weekdays, category restrictions, the one-Twilight-per-day rule, and the Twilight sunset time do not reject the save. An overlap is returned as overlapWarning and in warnings, and the booking is still confirmed. A second Twilight that day is a warning in warnings, not an error. Twilight may be combined with other services on create_booking and modify_booking. Omit time on a Twilight create to use that day's Philadelphia sunset, or pass any explicit time. The save creates the Work calendar event for the primary contact and sends the normal shoot email to every signed-up user on the client, the real primary contact, and Notes addresses. Scheduling a queued shoot sends one Shoot confirmed email and does not send another on-hold email. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action.",
+        "Admin tools for the Billy Kyle / Atmos client portal. Use the server API key already configured on this connector. Do not ask for the admin password. delete_client, remove_client_user, and cancel_booking are destructive and require explicit ids. queue_booking moves an upcoming booking into the client queue, drops the start time, deletes the Google Calendar event, and emails every signed-up user on the client plus the real primary contact. It does not email Billy. create_queued_booking creates a new queued shoot for an existing client with no start time and no Google Calendar event. It emails every signed-up user on the client plus the real primary contact “Your shoot is on hold.” and includes addresses in Notes on that same To list. The booking contact is the client's primary contact, not the newest login. It does not email Billy. To put that queued shoot on the calendar, call modify_booking with its bookingId and startsAt. create_booking and modify_booking, including a booking that is already confirmed, do not use the client slot grid. Free/busy on Work or Personal, overlaps with other bookings, drive buffers, business hours, weekdays, category restrictions, the one-Twilight-per-day rule, and the Twilight sunset time do not reject the save. An overlap is returned as overlapWarning and in warnings, and the booking is still confirmed. A second Twilight that day is a warning in warnings, not an error. Twilight may be combined with other services on create_booking and modify_booking. Omit time on a Twilight create to use that day's Philadelphia sunset, or pass any explicit time. The save creates the Work calendar event for the primary contact and sends the normal shoot email to every signed-up user on the client, the real primary contact, and Notes addresses. Scheduling a queued shoot sends one Shoot confirmed email and does not send another on-hold email. Sync from NAS is manual only: call sync_from_nas to start, then get_nas_sync_status until the job is done or failed. It mirrors the share and can remove portal files that are no longer on the NAS. There is no automatic sync. There is no mark-delivered action and no manual attach-shoot action. set_client_agent_access turns Agent access on or off for one client (id or BK code). Turning it off revokes that client's tokens immediately. list_client_agent_connections lists connected agents with the approving login, connected time, and last used time. revoke_client_agent_connection revokes one connection by token id. list_clients and get_client include agentAccess.",
     },
   );
 
@@ -61,7 +61,7 @@ export function createPortalMcpServer(ops: AgentOps) {
 
   register(
     "list_clients",
-    "List portal clients. Each row includes invite code, display name, company, primary email, category, a short notes summary, user count, and shoot count. Optional query, sort, and category. Omit sort to keep the current listing order.",
+    "List portal clients. Each row includes invite code, display name, company, primary email, category, agentAccess, a short notes summary, user count, and shoot count. Optional query, sort, and category. Omit sort to keep the current listing order.",
     {
       query: z.string().optional().describe("Optional case-insensitive match on invite code, name, company, or primary email."),
       sort: z
@@ -79,7 +79,7 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "get_client",
-    "Get one client by id or invite code (BK#####). Returns the full notes plus user and shoot counts.",
+    "Get one client by id or invite code (BK#####). Returns the full notes, agentAccess, plus user and shoot counts.",
     {
       id: z.string().optional().describe("Client UUID."),
       inviteCode: z.string().optional().describe("Invite code such as BK00004."),
@@ -309,6 +309,38 @@ export function createPortalMcpServer(ops: AgentOps) {
       clear: z.boolean().optional().describe("Delete the saved notice."),
     },
     write,
+  );
+  register(
+    "set_client_agent_access",
+    "Turn Agent access on or off for one client. Pass a client id or BK code as client, or pass clientId and/or inviteCode. enabled must be true or false. Turning it off revokes every token for that client immediately, so connected agents stop working on the next call.",
+    {
+      client: z.string().optional().describe("Client UUID or BK code such as BK00004."),
+      clientId: z.string().optional().describe("Client UUID. Use with or instead of client."),
+      inviteCode: z.string().optional().describe("BK code. Use with or instead of client."),
+      enabled: z.boolean().describe("true allows new and existing agent connections. false revokes that client's tokens."),
+    },
+    write,
+  );
+  register(
+    "list_client_agent_connections",
+    "List connected agents for one client (id or BK code). Each row has tokenId, agentName (the OAuth client name from registration), approvedBy (the login that approved the connection), connectedAt, and lastUsedAt.",
+    {
+      client: z.string().optional().describe("Client UUID or BK code such as BK00004."),
+      clientId: z.string().optional(),
+      inviteCode: z.string().optional(),
+    },
+    readOnly,
+  );
+  register(
+    "revoke_client_agent_connection",
+    "Revoke one connected agent for a client. Requires the client (id or BK code) and tokenId from list_client_agent_connections. Does not change the Agent access toggle.",
+    {
+      client: z.string().optional().describe("Client UUID or BK code such as BK00004."),
+      clientId: z.string().optional(),
+      inviteCode: z.string().optional(),
+      tokenId: z.string().describe("Token id from list_client_agent_connections."),
+    },
+    destroy,
   );
   register(
     "get_shoot_share_link",
