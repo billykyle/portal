@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 import { downloadHref } from "@/lib/download-all";
 import {
   clampPhotoIndex,
@@ -8,7 +9,9 @@ import {
   photoViewerHref,
   preloadPhotoSrcs,
   swipeStep,
+  viewerBackdropColor,
   viewerCaption,
+  viewerCountLabel,
   viewerOriginalSrc,
   viewerPlaceholderSrc,
   type ViewerPhoto,
@@ -23,6 +26,8 @@ export function PhotoViewer({
   initialId: string;
   basePath: string;
 }) {
+  const titleId = useId();
+  const closeRef = useRef<HTMLAnchorElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -41,8 +46,11 @@ export function PhotoViewer({
   const photo = photos[index];
   const photoId = photo?.id;
   const total = photos.length;
+  const countLabel = viewerCountLabel(index, total);
   const caption = photo ? viewerCaption(photo.filename, index, total) : "";
   const closeHref = photoViewerHref(basePath);
+  const canPrev = index > 0;
+  const canNext = index < total - 1;
 
   useEffect(() => {
     if (!photoId) return;
@@ -57,7 +65,48 @@ export function PhotoViewer({
   }, [index, photos]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const previous = {
+      rootOverflow: root.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+    };
+    root.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      root.style.overflow = previous.rootOverflow;
+      body.style.overflow = previous.bodyOverflow;
+      body.style.position = previous.bodyPosition;
+      body.style.top = previous.bodyTop;
+      body.style.left = previous.bodyLeft;
+      body.style.right = previous.bodyRight;
+      body.style.width = previous.bodyWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
       if (event.key === "Escape") {
         window.location.assign(closeHref);
         return;
@@ -117,55 +166,83 @@ export function PhotoViewer({
 
   if (!photo) return null;
 
-  const ratio =
-    photo.width && photo.height && photo.width > 0 && photo.height > 0
-      ? `${photo.width} / ${photo.height}`
-      : undefined;
-
   return (
-    <div className="mb-4 flex flex-col gap-3" data-photo-viewer="">
+    <div
+      className="fixed inset-0 z-50 flex flex-col overscroll-none"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      data-photo-viewer=""
+    >
       <div
-        ref={frameRef}
-        className="relative w-full touch-pan-y select-none"
-        style={ratio ? { aspectRatio: ratio } : undefined}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        <ViewerStill photo={photo} active />
-      </div>
-      <div className="flex gap-1.5 overflow-x-auto overscroll-x-contain" aria-label="Other photos">
-        {photos.map((item, itemIndex) =>
-          itemIndex === index ? null : (
-            <button
-              key={item.id}
-              type="button"
-              aria-label={item.filename}
-              onClick={() => setIndex(itemIndex)}
-              className="shrink-0"
+        className="absolute inset-0"
+        style={{ backgroundColor: viewerBackdropColor() }}
+        data-photo-backdrop=""
+        aria-hidden="true"
+      />
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <header className="relative flex shrink-0 items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+          <a
+            ref={closeRef}
+            href={closeHref}
+            aria-label="Close"
+            className="relative z-10 flex size-11 shrink-0 items-center justify-center rounded-full text-white"
+          >
+            <X aria-hidden="true" className="size-6" strokeWidth={2.25} />
+          </a>
+          <div
+            className="pointer-events-none absolute inset-x-[6.5rem] top-[max(0.75rem,env(safe-area-inset-top))] bottom-3 flex items-center justify-center gap-2"
+            aria-live="polite"
+          >
+            <p
+              id={titleId}
+              title={photo.filename}
+              className="min-w-0 truncate text-center text-xl font-semibold leading-none text-white sm:text-2xl lg:text-3xl"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={item.thumbUrl ?? item.url}
-                alt=""
-                draggable={false}
-                className="pointer-events-none h-16 w-24 rounded-md object-cover"
-              />
-            </button>
-          ),
-        )}
+              {photo.filename}
+            </p>
+            <p className="shrink-0 text-xs leading-none text-white/70 tabular-nums sm:text-sm">{countLabel}</p>
+          </div>
+          <a
+            href={downloadHref(viewerOriginalSrc(photo))}
+            download={photo.filename}
+            className="relative z-10 inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-white px-3 text-sm font-medium text-black"
+          >
+            Download
+          </a>
+        </header>
+        <div className="relative min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
+          <div
+            ref={frameRef}
+            className="absolute inset-0 touch-none select-none"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+          >
+            <ViewerStill photo={photo} active />
+          </div>
+          <button
+            type="button"
+            aria-label="Previous photo"
+            disabled={!canPrev}
+            onClick={() => setIndex((current) => clampPhotoIndex(current - 1, total))}
+            className="absolute top-1/2 left-[max(0.75rem,env(safe-area-inset-left))] z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black shadow-lg disabled:opacity-30 lg:left-6"
+          >
+            <ChevronLeft aria-hidden="true" className="size-7" strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            aria-label="Next photo"
+            disabled={!canNext}
+            onClick={() => setIndex((current) => clampPhotoIndex(current + 1, total))}
+            className="absolute top-1/2 right-[max(0.75rem,env(safe-area-inset-right))] z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black shadow-lg disabled:opacity-30 lg:right-6"
+          >
+            <ChevronRight aria-hidden="true" className="size-7" strokeWidth={2.25} />
+          </button>
+        </div>
       </div>
-      <a
-        href={downloadHref(viewerOriginalSrc(photo))}
-        download={photo.filename}
-        className="inline-flex h-9 w-fit items-center justify-center rounded-lg bg-white px-3 text-sm font-medium text-black"
-      >
-        Download
-      </a>
-      <p className="sr-only" aria-live="polite">
-        {caption}
-      </p>
+      <p className="sr-only">{caption}</p>
     </div>
   );
 }
@@ -185,15 +262,14 @@ export function ViewerStill({ photo, active }: { photo: ViewerPhoto; active: boo
           className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain"
         />
       ) : null}
-      {/* The preview is absolute, so it paints above an in-flow image.
-          z-10 keeps the original on top once those bytes arrive. */}
+      {/* Both layers fill the frame. z-10 keeps the original above the thumb once it arrives. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={original}
         alt={active ? photo.filename : ""}
         draggable={false}
         decoding="async"
-        className="relative z-10 h-auto w-full"
+        className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
       />
     </>
   );
