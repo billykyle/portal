@@ -80,16 +80,33 @@ export function resistedDrag(deltaX: number, index: number, total: number) {
 }
 
 /**
- * Backdrop alpha for the full-screen photo viewer.
- * The previous lightbox used solid black (`bg-black`, alpha 1, 100% opaque).
- * This is half of that so the page shows faintly behind the photo.
- * The overlay stays a solid color — that viewer had no blur.
+ * Backdrop of the full-screen photo viewer.
+ * Solid black at 80% opacity. The overlay stays a flat color with no blur.
  */
-export const PREVIOUS_VIEWER_BACKDROP_OPACITY = 1;
-export const VIEWER_BACKDROP_OPACITY = PREVIOUS_VIEWER_BACKDROP_OPACITY / 2;
+export const VIEWER_BACKDROP_OPACITY = 0.8;
 
 export function viewerBackdropColor(opacity = VIEWER_BACKDROP_OPACITY) {
   return `rgb(0 0 0 / ${opacity})`;
+}
+
+/** Space between the filename row and the photo's rendered top edge. */
+export const VIEWER_CAPTION_GAP_PX = 10;
+
+export function viewerImageRatio(width?: number | null, height?: number | null) {
+  if (typeof width !== "number" || typeof height !== "number") return null;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+/**
+ * Width of a box that matches `object-contain` (centered) inside a size
+ * container. Pair with `aspect-ratio: width / height` so the box's top
+ * edge is the photo's rendered top at any frame size.
+ */
+export function viewerPhotoFrameWidth(imageWidth: number, imageHeight: number) {
+  const ratio = viewerImageRatio(imageWidth, imageHeight);
+  if (!ratio) return null;
+  return `min(100cqw, calc(100cqh * ${ratio.width} / ${ratio.height}))`;
 }
 
 export function viewerCountLabel(index: number, total: number) {

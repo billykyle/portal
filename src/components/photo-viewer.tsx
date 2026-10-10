@@ -9,10 +9,13 @@ import {
   photoViewerHref,
   preloadPhotoSrcs,
   swipeStep,
+  VIEWER_CAPTION_GAP_PX,
   viewerBackdropColor,
   viewerCaption,
   viewerCountLabel,
+  viewerImageRatio,
   viewerOriginalSrc,
+  viewerPhotoFrameWidth,
   viewerPlaceholderSrc,
   type ViewerPhoto,
 } from "@/lib/photo-viewer";
@@ -29,6 +32,8 @@ export function PhotoViewer({
   const titleId = useId();
   const closeRef = useRef<HTMLAnchorElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const originalRef = useRef<HTMLImageElement>(null);
+  const [naturalRatio, setNaturalRatio] = useState<{ id: string; width: number; height: number } | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -63,6 +68,23 @@ export function PhotoViewer({
       image.src = src;
     }
   }, [index, photos]);
+
+  useEffect(() => {
+    const image = originalRef.current;
+    if (!image || !photo) return;
+    const read = () => {
+      const next = renderedPhotoRatio(image, photo);
+      if (!next) return;
+      setNaturalRatio((current) =>
+        current && current.id === next.id && current.width === next.width && current.height === next.height
+          ? current
+          : next,
+      );
+    };
+    read();
+    image.addEventListener("load", read);
+    return () => image.removeEventListener("load", read);
+  }, [photo]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -166,6 +188,11 @@ export function PhotoViewer({
 
   if (!photo) return null;
 
+  const metaRatio = viewerImageRatio(photo.width, photo.height);
+  const renderedRatio = naturalRatio?.id === photo.id ? viewerImageRatio(naturalRatio.width, naturalRatio.height) : null;
+  const ratio = renderedRatio ?? metaRatio;
+  const frameWidth = ratio ? viewerPhotoFrameWidth(ratio.width, ratio.height) : null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col overscroll-none"
@@ -190,19 +217,6 @@ export function PhotoViewer({
           >
             <X aria-hidden="true" className="size-6" strokeWidth={2.25} />
           </a>
-          <div
-            className="pointer-events-none absolute inset-x-[6.5rem] top-[max(0.75rem,env(safe-area-inset-top))] bottom-3 flex items-center justify-center gap-2"
-            aria-live="polite"
-          >
-            <p
-              id={titleId}
-              title={photo.filename}
-              className="min-w-0 truncate text-center text-xl font-semibold leading-none text-white sm:text-2xl lg:text-3xl"
-            >
-              {photo.filename}
-            </p>
-            <p className="shrink-0 text-xs leading-none text-white/70 tabular-nums sm:text-sm">{countLabel}</p>
-          </div>
           <a
             href={downloadHref(viewerOriginalSrc(photo))}
             download={photo.filename}
@@ -215,12 +229,39 @@ export function PhotoViewer({
           <div
             ref={frameRef}
             className="absolute inset-0 touch-none select-none"
+            style={{ containerType: "size" }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
           >
-            <ViewerStill photo={photo} active />
+            <ViewerStill photo={photo} active originalRef={originalRef} />
+            {/* Tracks the object-contain rect so the filename sits on the photo's top edge. */}
+            <div
+              data-photo-frame=""
+              className="pointer-events-none absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2"
+              style={
+                frameWidth && ratio
+                  ? { aspectRatio: `${ratio.width} / ${ratio.height}`, width: frameWidth }
+                  : { visibility: "hidden", width: "100%", height: "100%" }
+              }
+            >
+              <div
+                data-photo-caption=""
+                className="absolute left-1/2 flex w-max max-w-[calc(100cqw-13rem)] -translate-x-1/2 items-center justify-center gap-2"
+                style={{ bottom: `calc(100% + ${VIEWER_CAPTION_GAP_PX}px)` }}
+                aria-live="polite"
+              >
+                <p
+                  id={titleId}
+                  title={photo.filename}
+                  className="min-w-0 truncate text-center text-xl font-semibold leading-none text-white sm:text-2xl lg:text-3xl"
+                >
+                  {photo.filename}
+                </p>
+                <p className="shrink-0 text-xs leading-none text-white/70 tabular-nums sm:text-sm">{countLabel}</p>
+              </div>
+            </div>
           </div>
           <button
             type="button"
@@ -247,7 +288,22 @@ export function PhotoViewer({
   );
 }
 
-export function ViewerStill({ photo, active }: { photo: ViewerPhoto; active: boolean }) {
+function renderedPhotoRatio(image: HTMLImageElement, photo: ViewerPhoto) {
+  if (image.getAttribute("src") !== viewerOriginalSrc(photo)) return null;
+  if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
+  const ratio = viewerImageRatio(image.naturalWidth, image.naturalHeight);
+  return ratio ? { id: photo.id, width: ratio.width, height: ratio.height } : null;
+}
+
+export function ViewerStill({
+  photo,
+  active,
+  originalRef,
+}: {
+  photo: ViewerPhoto;
+  active: boolean;
+  originalRef?: React.Ref<HTMLImageElement>;
+}) {
   const placeholder = viewerPlaceholderSrc(photo);
   const original = viewerOriginalSrc(photo);
   return (
@@ -265,6 +321,7 @@ export function ViewerStill({ photo, active }: { photo: ViewerPhoto; active: boo
       {/* Both layers fill the frame. z-10 keeps the original above the thumb once it arrives. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={originalRef}
         src={original}
         alt={active ? photo.filename : ""}
         draggable={false}
