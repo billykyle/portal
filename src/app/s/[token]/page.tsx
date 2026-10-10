@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { PhoneShell } from "@/components/phone-shell";
 import { ShootDetail } from "@/components/shoot-detail";
@@ -13,6 +13,7 @@ import { videoPlaybackById } from "@/lib/video-store";
 import { publicShootPath, publicShootUrl } from "@/lib/public-link";
 import { getPublicShoot } from "@/lib/public-shoot";
 import { shootPageMetadata } from "@/lib/site-metadata";
+import { withSearch } from "@/lib/shoot-slug";
 import { parseListShootSections, SHOOT_LAYOUT_COOKIE } from "@/lib/shoot-layout";
 import { parseClosedShootSections, SHOOT_SECTIONS_COOKIE } from "@/lib/shoot-sections";
 
@@ -23,12 +24,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { token } = await params;
   try {
-    const shoot = await getPublicShoot(token);
-    if (!shoot) return {};
+    const resolved = await getPublicShoot(token);
+    if (!resolved) return {};
     return shootPageMetadata({
-      address: shoot.address,
-      dateLabel: formatShootDate(shoot.shotDate),
-      url: publicShootUrl(shoot.publicToken),
+      address: resolved.shoot.address,
+      dateLabel: formatShootDate(resolved.shoot.shotDate),
+      url: publicShootUrl(resolved.shoot.publicSlug),
     });
   } catch {
     return {};
@@ -44,10 +45,15 @@ export default async function PublicShootPage({
 }) {
   const { token } = await params;
   const { view } = await searchParams;
-  const shoot = await getPublicShoot(token);
-  if (!shoot) {
+  const resolved = await getPublicShoot(token);
+  if (!resolved) {
     notFound();
   }
+  const search = view ? `?view=${encodeURIComponent(view)}` : "";
+  if (resolved.redirectTo) {
+    permanentRedirect(withSearch(resolved.redirectTo, search));
+  }
+  const shoot = resolved.shoot;
   const files = await db
     .select()
     .from(media)
@@ -62,12 +68,12 @@ export default async function PublicShootPage({
     <PhoneShell>
       <AppHeader />
       <ShootDetail
-        basePath={publicShootPath(shoot.publicToken)}
+        basePath={publicShootPath(shoot.publicSlug)}
         viewId={view}
         address={shoot.address}
         dateLabel={formatShootDate(shoot.shotDate)}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
-        zipUrl={publicShootZipPath(shoot.publicToken)}
+        zipUrl={publicShootZipPath(shoot.publicSlug)}
         closedSectionIds={closedSectionIds}
         listSectionIds={listSectionIds}
         media={files.flatMap((item) => {

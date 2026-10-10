@@ -16,11 +16,11 @@ test("builds a shoot.ready payload with an absolute public URL", () => {
       id: "s1",
       shotDate: "2026-09-04",
       address: "12 Wood View Drive",
-      publicToken: "abc",
+      publicSlug: "12-Wood-View-Drive",
     },
     fileCount: 83,
   });
   assert.equal(payload.event, "shoot.ready");
-  assert.equal(payload.shoot.publicUrl, "http://127.0.0.1:43173/s/abc");
+  assert.equal(payload.shoot.publicUrl, "http://127.0.0.1:43173/s/12-Wood-View-Drive");
   assert.equal(payload.shoot.fileCount, 83);
 });

@@ -33,7 +33,7 @@ export function ShootDetail({
   folderName,
   zipUrl,
   media,
-  shareToken,
+  shareUrl,
   closedSectionIds,
   listSectionIds,
 }: {
@@ -44,7 +44,7 @@ export function ShootDetail({
   folderName: string;
   zipUrl?: string;
   media: ShootMedia[];
-  shareToken?: string;
+  shareUrl?: string;
   /** Section ids the browser has closed. Omitted means every section starts open. */
   closedSectionIds?: readonly string[];
   /** Section ids this browser shows as a file list. Omitted means grid. */
@@ -90,7 +90,7 @@ export function ShootDetail({
             files={files}
             folderName={folderName}
             zipUrl={zipUrl}
-            shareToken={shareToken}
+            shareUrl={shareUrl}
           />
         </div>
       </div>

@@ -35,6 +35,7 @@ import {
   type ClientFolderChild,
 } from "./nas-folder";
 import { createPublicToken } from "./public-link";
+import { allocatePublicShareSlug, syncPublicShareSlug } from "./public-share-slug";
 import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
 
 export type NasSyncResult = {
@@ -220,6 +221,11 @@ async function upsertShoot(input: {
           shotDate: input.shotDate,
           slug: null,
         });
+    const publicSlug = await syncPublicShareSlug({
+      shootId: existing.id,
+      title: input.address,
+      slug: existing.publicSlug || null,
+    });
     const pathChanged = existing.nasRelativePath !== input.nasRelativePath;
     const categoryChanged = (existing.categoryFolder ?? null) !== categoryFolder;
     if (pathChanged || categoryChanged) {
@@ -232,7 +238,7 @@ async function upsertShoot(input: {
         .where(eq(shoots.id, existing.id));
     }
     return {
-      shoot: { ...existing, slug, nasRelativePath: input.nasRelativePath, categoryFolder },
+      shoot: { ...existing, slug, publicSlug, nasRelativePath: input.nasRelativePath, categoryFolder },
       created: false,
     };
   }
@@ -241,6 +247,7 @@ async function upsertShoot(input: {
     .values({
       clientId: input.clientId,
       publicToken: createPublicToken(),
+      publicSlug: await allocatePublicShareSlug({ title: input.address }),
       shotDate: input.shotDate,
       address: input.address,
       slug: await allocateShootSlug({

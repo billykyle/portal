@@ -22,7 +22,7 @@ export type DeliveryPayload = {
 export function buildDeliveryPayload(input: {
   event: DeliveryEvent;
   client: { id: string; displayName: string; inviteCode: string; primaryEmail: string };
-  shoot: { id: string; shotDate: string; address: string; publicToken: string };
+  shoot: { id: string; shotDate: string; address: string; publicSlug: string };
   fileCount: number;
 }): DeliveryPayload {
   return {
@@ -32,7 +32,7 @@ export function buildDeliveryPayload(input: {
       id: input.shoot.id,
       shotDate: input.shoot.shotDate,
       address: input.shoot.address,
-      publicUrl: publicShootUrl(input.shoot.publicToken),
+      publicUrl: publicShootUrl(input.shoot.publicSlug),
       fileCount: input.fileCount,
     },
   };

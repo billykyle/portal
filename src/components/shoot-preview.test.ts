@@ -867,14 +867,15 @@ test("shoot pages copy the public link and do not offer Share", () => {
     createElement(ShootActions, {
       files: [{ url: "/api/media/1", filename: "front.jpg", type: "photo" }],
       folderName: "2026-09-04-12-wood-view",
-      shareToken: "public-token",
+      shareUrl: "https://portal.billy-kyle.com/s/12-Wood-View-Drive",
     }),
   );
   assert.match(html, />Copy link</);
   assert.doesNotMatch(html, />Share</);
 
   const actions = readFileSync("src/components/shoot-actions.tsx", "utf8");
-  assert.match(actions, /publicShootPath\(shareToken/);
+  assert.match(actions, /writeText\(shareUrl\)/);
+  assert.doesNotMatch(actions, /window\.location/);
   assert.doesNotMatch(actions, /navigator\.share/);
 
   const client = readFileSync("src/app/my-content/[slug]/page.tsx", "utf8");
@@ -882,7 +883,7 @@ test("shoot pages copy the public link and do not offer Share", () => {
   assert.match(client, /ShootScreen/);
   assert.match(admin, /ShootScreen/);
   const screen = readFileSync("src/components/shoot-screen.tsx", "utf8");
-  assert.match(screen, /shareToken=\{shoot\.publicToken\}/);
+  assert.match(screen, /shareUrl=\{publicShootUrl\(shoot\.publicSlug\)\}/);
 
   const publicPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
   assert.match(publicPage, /getPublicShoot/);

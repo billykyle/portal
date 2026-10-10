@@ -443,6 +443,7 @@ export async function runAgentTool(
         data: {
           shootId: result.shootId,
           publicToken: result.publicToken,
+          publicSlug: result.publicSlug,
           publicUrl: result.publicUrl,
           portalUrl: result.portalUrl,
           minted: result.minted,
