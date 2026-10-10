@@ -77,7 +77,7 @@ export default async function LibraryPage() {
           folderName: shootFolderName(shoot.shotDate, shoot.address),
           thumbUrl: covers.get(shoot.id) ?? null,
           fileCount: 0,
-          publicUrl: publicShootUrl(shoot.publicSlug),
+          publicUrl: publicShootUrl(client?.publicSlug ?? "client", shoot.publicSlug),
           categoryFolder: shoot.categoryFolder,
         }))}
       />

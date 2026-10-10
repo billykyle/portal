@@ -13,7 +13,7 @@ Black and white only. No favorites. Every shoot has a stable public link.
 5. My Content — the existing library: every shoot for that invite code, labeled date + address, newest first.
 6. Shoot — in-app photo viewer, inline video, floor plans, raw video clips, **Download** (one streamed zip — Safari/mobile confirms once — with a progress bar, speed, and time remaining) and per-file **Download** on each tile. If a shoot has more than one media type, the main Download button opens a picker (Everything / Photos / Floor plans / Video / Raw video). A photos-only shoot still starts the zip in one tap. The zip is named `{date} - {address}.zip`.
 7. Scheduling — two steps. **Step 1** (`/scheduling`): expand Real Estate, Construction, or Podcast. Real Estate and Construction stay multi-select; Podcast is one of **1 episode** or **2 episodes**. Type a single shoot address (Places Autocomplete fills the same field — not split street/city/state/ZIP). Availability prefetch starts once the address and at least one service are valid. **Step 2** (`/scheduling/times`): available times only after that address is set; last good slots stay on screen while times refresh. Slot length is the **sum** of selected service minutes, never longest-only. Upcoming bookings show every selected option as `Industry · Option` (for example `Real Estate · Photography` or `Podcast · 1 episode`). Travel hard-block is live drive time only (Google Maps when `GOOGLE_MAPS_API_KEY` is set); there is no extra pad. Google Calendar is source of truth when wired: work `billy@atmosimagery.com` **and** personal `bkyle015@gmail.com` — a time is busy if either calendar is busy. US Holidays is not used. Geography is never guessed. No prices in this flow. After **Book shoot**, if `RESEND_API_KEY` is set, the portal sends **two** Resend emails (no CC/BCC): a client confirmation to the session email, and a `New shoot: …` alert to `billy@billyhere.com` (or `BOOKING_NOTIFY_EMAIL`). A Calendar or email failure does not undo the saved shoot, but the confirmation page says so instead of looking fully successful. Billy also gets `Portal booking sync issue` (or a `PORTAL_BOOKING_SYNC_ALERT` log plus an admin `sync_issue` flag if that alert cannot send). Calendar writes use a deterministic event id so retries do not double-create. A Workspace Admin must allow external calendar edit sharing (or domain-wide delegation) for live Calendar create. Pepper is not required.
-8. Public link — every shoot has an unguessable `/s/[token]` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle.
+8. Public link — every shoot has a `/<Client-Name>/<Shoot-Name>` URL. Copy it from the logged-in shoot page or from admin. Anyone with the link can view and download without signing in. There is no publish toggle. Old `/s/<token>` and `/s/<Shoot-Name>` links redirect there.
 9. Admin — Billy syncs the NAS share with **Sync from NAS** (nothing syncs on its own), edits or deletes a client, removes a teammate login or a shoot, or creates a BK code by hand. Tap a shoot row to open the same shoot page clients see. Portal files match the NAS tree — no placeholder media. **Bookings** lists every scheduled shoot. The portal does not track deliveries.
 
 Invite codes are the client primary key. They start at **BK00001** and increment. One code is permanent and multi-use: teammates each create their own user and share the same shoot library.
@@ -46,7 +46,7 @@ Webhook body:
     "id": "…",
     "shotDate": "2026-09-04",
     "address": "12 Wood View Drive",
-    "publicUrl": "http://127.0.0.1:43173/s/520-N-Rose-Lane",
+    "publicUrl": "http://127.0.0.1:43173/Sam-Lepore/12-Wood-View-Drive",
     "fileCount": 83
   }
 }
@@ -84,7 +84,7 @@ The first server boot also creates tables and seeds an empty database.
 | Sam Lepore | Invite created on first NAS sync, or sign in as `sam@example.com` / `portal1234` if that login was created during the first import |
 | Admin  | Production: `https://admin.billy-kyle.com/home` (`ADMIN_PASSWORD`, example: `atmos-admin`). Old `/admin/home` redirects here. Local: `/admin` on the same `next dev` origin. `https://portal.billy-kyle.com/admin` redirects to the admin host. |
 
-Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View Drive stills are proxied from `Final/`. Each shoot has a public `/s/…` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
+Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View Drive stills are proxied from `Final/`. Each shoot has a public `/<Client-Name>/<Shoot-Name>` link. Copy it from the logged-in shoot page (or admin). No login is required to open that URL.
 
 ## Env vars
 
@@ -103,7 +103,7 @@ Shoots only exist when they exist on the NAS share. Sam Lepore’s 12 Wood View 
 | `NAS_STILLS_FOLDERS` | Folder names to look under each shoot for stills. Default: `Final,Photos` (first match wins). Floor plans and video are picked up separately (see folder layout). |
 | `NAS_CACHE_DIR` | Same-isolate scratch cache for proxied thumbs and full files. Default: `.nas-cache` locally, `/tmp/nas-cache` on Vercel (ephemeral). Durable grid previews live in Postgres (`media_thumbs`). |
 | `CRON_SECRET` | Bearer token for `GET /api/cron/shoot-reminders`. Required on Vercel. |
-| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot `/s/…` links in webhooks and admin copy links. Production: `https://portal.billy-kyle.com`. Not the admin entry. |
+| `PORTAL_PUBLIC_URL` | Absolute origin for public shoot `/<Client-Name>/<Shoot-Name>` links in webhooks and admin copy links. Production: `https://portal.billy-kyle.com`. Not the admin entry. |
 | `ADMIN_PUBLIC_URL` | Absolute origin for the Billy-only admin app. Production: `https://admin.billy-kyle.com`. Unset locally so `/admin` stays on `next dev`. |
 | `DELIVERY_WEBHOOK_URL` | Optional. POST `shoot.ready` JSON for Pepper when a NAS shoot first has files. Empty = no POST. |
 | `RESEND_API_KEY` | Optional. Sends password-reset and booking-confirmation email. Not delivery mail. |
@@ -205,7 +205,7 @@ Client Deliverables /
 ```
 
 - A new `{client}` folder upserts a client by display name and creates the next BK code if needed. Existing clients (matched case-insensitively) keep their invite and email.
-- A new `{date} - {address}` folder creates a shoot with a public `/s/[token]` link.
+- A new `{date} - {address}` folder creates a shoot with a public `/<Client-Name>/<Shoot-Name>` link.
 - **Photos** come from **`Final` or `Photos`** (first match in `NAS_STILLS_FOLDERS`).
 - **Floor plans** come from any sibling folder whose name matches `Floor Plan`, `Floorplan`, `3D Floorplan`, or `Plans`, including nested folders. JPGs, PNGs, SVG, and PDF are imported. Nested copies (`W sqft` / `Wo sqft`, `jpg-with-dim` / `jpg-without-dim`) are all kept; the portal filename includes the relative path so they do not overwrite each other.
 - **Video** comes from `.mp4` / `.mov` / `.webm` / `.m4v` on the shoot folder itself, inside a `Video`/`Videos` folder, or inside Final/Photos. Monthly `{date} - January Videos` folders are valid shoots.

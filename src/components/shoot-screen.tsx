@@ -40,7 +40,7 @@ export async function ShootScreen({
   const closedSectionIds = [...parseClosedShootSections(jar.get(SHOOT_SECTIONS_COOKIE)?.value)];
   const listSectionIds = [...parseListShootSections(jar.get(SHOOT_LAYOUT_COOKIE)?.value)];
   const [owner] = await db
-    .select({ category: clients.category })
+    .select({ category: clients.category, publicSlug: clients.publicSlug })
     .from(clients)
     .where(eq(clients.id, shoot.clientId))
     .limit(1);
@@ -60,7 +60,7 @@ export async function ShootScreen({
         dateLabel={formatShootDate(shoot.shotDate)}
         folderName={shootFolderName(shoot.shotDate, shoot.address)}
         zipUrl={shootZipPath(shoot.id)}
-        shareUrl={publicShootUrl(shoot.publicSlug)}
+        shareUrl={publicShootUrl(owner?.publicSlug ?? "client", shoot.publicSlug)}
         closedSectionIds={closedSectionIds}
         listSectionIds={listSectionIds}
         media={files.map((item) => ({

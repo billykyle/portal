@@ -35,6 +35,7 @@ export type ShootRecord = {
   createdAt: Date;
   inviteCode: string;
   clientName: string;
+  clientPublicSlug: string;
 };
 
 async function withClient(row: {
@@ -51,19 +52,24 @@ async function withClient(row: {
   createdAt: Date;
 }): Promise<ShootRecord | null> {
   const [client] = await db
-    .select({ inviteCode: clients.inviteCode, displayName: clients.displayName })
+    .select({ inviteCode: clients.inviteCode, displayName: clients.displayName, publicSlug: clients.publicSlug })
     .from(clients)
     .where(eq(clients.id, row.clientId))
     .limit(1);
   if (!client) return null;
-  return { ...row, inviteCode: client.inviteCode, clientName: client.displayName };
+  return {
+    ...row,
+    inviteCode: client.inviteCode,
+    clientName: client.displayName,
+    clientPublicSlug: client.publicSlug,
+  };
 }
 
 export async function listShootRecordsForClient(clientId: string): Promise<AdminResult<ShootRecord[]>> {
   await ensureDb();
   if (!isUuid(clientId)) return adminFail("Client was not found.");
   const [client] = await db
-    .select({ id: clients.id, inviteCode: clients.inviteCode, displayName: clients.displayName })
+    .select({ id: clients.id, inviteCode: clients.inviteCode, displayName: clients.displayName, publicSlug: clients.publicSlug })
     .from(clients)
     .where(eq(clients.id, clientId))
     .limit(1);
@@ -79,6 +85,7 @@ export async function listShootRecordsForClient(clientId: string): Promise<Admin
       ...row,
       inviteCode: client.inviteCode,
       clientName: client.displayName,
+      clientPublicSlug: client.publicSlug,
     })),
   };
 }
@@ -136,6 +143,7 @@ export async function ensureShootPublicToken(
   }
   const publicSlug = await syncPublicShareSlug({
     shootId,
+    clientId: found.value.clientId,
     title: found.value.address,
     slug: found.value.publicSlug || null,
   });

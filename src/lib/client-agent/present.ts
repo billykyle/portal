@@ -6,9 +6,10 @@ import type { Booking } from "@/lib/db/schema";
 export function clientShootSummary(
   shoot: { id: string; shotDate: string; address: string; publicSlug: string },
   items: MediaInventoryItem[],
+  clientSlug: string,
 ) {
   const media = summarizeMedia(items);
-  const share = shootShare(shoot.publicSlug);
+  const share = shootShare(clientSlug, shoot.publicSlug);
   return {
     id: shoot.id,
     shotDate: shoot.shotDate,
@@ -23,10 +24,11 @@ export function clientShootSummary(
 export function clientShootDetail(
   shoot: { id: string; shotDate: string; address: string; publicSlug: string },
   items: MediaInventoryItem[],
+  clientSlug: string,
 ) {
   const media = summarizeMedia(items);
   return {
-    ...clientShootSummary(shoot, items),
+    ...clientShootSummary(shoot, items, clientSlug),
     photos: media.photos,
     floorPlans: media.floorPlans,
     videos: media.videos,

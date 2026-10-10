@@ -35,7 +35,7 @@ import {
   type ClientFolderChild,
 } from "./nas-folder";
 import { createPublicToken } from "./public-link";
-import { allocatePublicShareSlug, syncPublicShareSlug } from "./public-share-slug";
+import { allocateClientShareSlug, allocatePublicShareSlug, syncClientShareSlug, syncPublicShareSlug } from "./public-share-slug";
 import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
 
 export type NasSyncResult = {
@@ -178,7 +178,14 @@ async function upsertClientByName(displayName: string) {
     .where(ilike(clients.displayName, displayName))
     .limit(1);
   if (existing) {
-    return { client: existing, created: false };
+    if (existing.publicSlug) return { client: existing, created: false };
+    const publicSlug = await syncClientShareSlug({
+      clientId: existing.id,
+      displayName: existing.displayName,
+      company: existing.company,
+      slug: null,
+    });
+    return { client: { ...existing, publicSlug }, created: false };
   }
   const [client] = await db
     .insert(clients)
@@ -186,6 +193,7 @@ async function upsertClientByName(displayName: string) {
       inviteCode: await nextInviteCode(),
       displayName,
       primaryEmail: pendingClientEmail(displayName),
+      publicSlug: await allocateClientShareSlug({ displayName }),
       notes: NAS_IMPORT_INVITE_NOTE,
     })
     .returning();
@@ -223,6 +231,7 @@ async function upsertShoot(input: {
         });
     const publicSlug = await syncPublicShareSlug({
       shootId: existing.id,
+      clientId: input.clientId,
       title: input.address,
       slug: existing.publicSlug || null,
     });
@@ -247,7 +256,7 @@ async function upsertShoot(input: {
     .values({
       clientId: input.clientId,
       publicToken: createPublicToken(),
-      publicSlug: await allocatePublicShareSlug({ title: input.address }),
+      publicSlug: await allocatePublicShareSlug({ clientId: input.clientId, title: input.address }),
       shotDate: input.shotDate,
       address: input.address,
       slug: await allocateShootSlug({

@@ -1,4 +1,5 @@
 import { hash } from "bcryptjs";
+import { allocateClientShareSlug } from "../public-share-slug";
 import { db } from "./index";
 import { clients, users } from "./schema";
 
@@ -11,6 +12,7 @@ export async function seedDemo() {
       displayName: "Whitfield",
       primaryEmail: "whitfield@example.com",
       company: "Whitfield Homes",
+      publicSlug: await allocateClientShareSlug({ displayName: "Whitfield", company: "Whitfield Homes" }),
       notes:
         "Invite is permanent and multi-use. Shoots appear when a matching folder exists on the NAS Client Deliverables share — this seed does not invent files.",
     })
