@@ -20,6 +20,8 @@ export const clients = pgTable("clients", {
   category: clientCategoryEnum("category").notNull().default("other"),
   /** Client MCP connector. Off until an admin turns it on. */
   agentAccess: boolean("agent_access").notNull().default(false),
+  /** Public /<Client-Name> segment. Unique case-insensitively. Capitalization is kept. */
+  publicSlug: text("public_slug").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -67,7 +69,7 @@ export const shoots = pgTable("shoots", {
     .notNull()
     .references(() => clients.id, { onDelete: "cascade" }),
   publicToken: text("public_token").notNull().unique(),
-  /** Readable /s/<name> share slug. Unique case-insensitively. Capitalization is kept. */
+  /** Readable /<client>/<shoot> share slug. Unique per client, case-insensitively. */
   publicSlug: text("public_slug").notNull(),
   shotDate: text("shot_date").notNull(),
   address: text("address").notNull(),
@@ -80,13 +82,36 @@ export const shoots = pgTable("shoots", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/** Retired public share slugs. A renamed shoot keeps answering at the old /s/<slug>. */
+/** PR #133 /s/<slug> keys, including -2. They 308 to /<client>/<shoot> and are not reused. */
 export const shootPublicSlugAliases = pgTable("shoot_public_slug_aliases", {
   slug: text("slug").primaryKey(),
   shootId: uuid("shoot_id")
     .notNull()
     .references(() => shoots.id, { onDelete: "cascade" }),
 });
+
+/** Retired client names. /<old-client>/<shoot> 308s to the current client slug. */
+export const clientPublicSlugAliases = pgTable("client_public_slug_aliases", {
+  slug: text("slug").primaryKey(),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+});
+
+/** Retired shoot names inside one client. /<client>/<old-shoot> 308s to the current shoot slug. */
+export const shootShareAliases = pgTable(
+  "shoot_share_aliases",
+  {
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    shootId: uuid("shoot_id")
+      .notNull()
+      .references(() => shoots.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.clientId, table.slug] })],
+);
 
 /** Previous slugs for a shoot, so a renamed address still resolves. Unique per client. */
 export const shootSlugAliases = pgTable(

@@ -230,7 +230,7 @@ export default async function AdminClientPage({
                 folderName: shootFolderName(shoot.shotDate, shoot.address),
                 thumbUrl: covers.get(shoot.id) ?? null,
                 fileCount: files.length,
-                publicUrl: publicShootUrl(shoot.publicSlug),
+                publicUrl: publicShootUrl(client.publicSlug, shoot.publicSlug),
                 categoryFolder: shoot.categoryFolder,
               };
             })}

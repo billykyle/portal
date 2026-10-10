@@ -94,8 +94,32 @@ test("admin and client path helpers", () => {
   assert.equal(isClientPortalPath("/choose"), true);
   assert.equal(isClientPortalPath("/scheduling/times"), true);
   assert.equal(isClientPortalPath("/s/token"), true);
+  assert.equal(isClientPortalPath("/Lisa-Yakulis/520-N-Rose-Lane"), true);
   assert.equal(isClientPortalPath("/shoots/abc"), false);
   assert.equal(isClientPortalPath("/admin"), false);
+});
+
+test("a public client/shoot link on the admin host redirects to the portal", () => {
+  delete process.env.ADMIN_PUBLIC_URL;
+  delete process.env.PORTAL_PUBLIC_URL;
+  assert.equal(
+    resolveHostRedirect({
+      hostname: "portal.billy-kyle.com",
+      pathname: "/Lisa-Yakulis/520-N-Rose-Lane",
+    }),
+    null,
+  );
+  assert.deepEqual(
+    resolveHostRedirect({
+      hostname: "admin.billy-kyle.com",
+      pathname: "/Lisa-Yakulis/520-N-Rose-Lane",
+      search: "?view=1",
+    }),
+    {
+      location: "https://portal.billy-kyle.com/Lisa-Yakulis/520-N-Rose-Lane?view=1",
+      status: 308,
+    },
+  );
 });
 
 test("portal /admin redirects to the admin host and keeps path + query", () => {

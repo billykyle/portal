@@ -11,6 +11,7 @@ test("builds a shoot.ready payload with an absolute public URL", () => {
       displayName: "Sam Lepore",
       inviteCode: "BK00004",
       primaryEmail: "sam@example.com",
+      publicSlug: "Sam-Lepore",
     },
     shoot: {
       id: "s1",
@@ -21,6 +22,6 @@ test("builds a shoot.ready payload with an absolute public URL", () => {
     fileCount: 83,
   });
   assert.equal(payload.event, "shoot.ready");
-  assert.equal(payload.shoot.publicUrl, "http://127.0.0.1:43173/s/12-Wood-View-Drive");
+  assert.equal(payload.shoot.publicUrl, "http://127.0.0.1:43173/Sam-Lepore/12-Wood-View-Drive");
   assert.equal(payload.shoot.fileCount, 83);
 });

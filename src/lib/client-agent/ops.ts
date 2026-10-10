@@ -27,6 +27,15 @@ function publicSlots(slots: { start: string; end: string; dateKey: string; dateL
   }));
 }
 
+async function clientShareSlug(clientId: string) {
+  const [client] = await db
+    .select({ publicSlug: clients.publicSlug })
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+  return client?.publicSlug ?? "";
+}
+
 async function shootsFor(clientId: string, limit: number) {
   await ensureDb();
   const rows = await db
@@ -52,7 +61,8 @@ async function shootsFor(clientId: string, limit: number) {
 export const portalClientAgentOps: ClientAgentOps = {
   async listShoots(clientId, limit) {
     const rows = await shootsFor(clientId, limit);
-    return rows.map(({ row, items }) => clientShootSummary(row, items));
+    const clientSlug = await clientShareSlug(clientId);
+    return rows.map(({ row, items }) => clientShootSummary(row, items, clientSlug));
   },
   async getShoot(clientId, shootId) {
     await ensureDb();
@@ -63,7 +73,7 @@ export const portalClientAgentOps: ClientAgentOps = {
       .limit(1);
     if (!row) return null;
     const items = await db.select().from(media).where(eq(media.shootId, row.id));
-    return clientShootDetail(row, items);
+    return clientShootDetail(row, items, await clientShareSlug(clientId));
   },
   async listBookings(clientId, filter) {
     await ensureDb();

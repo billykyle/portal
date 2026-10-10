@@ -366,7 +366,7 @@ function maintenanceNoticeDto(notice: StoredMaintenanceNotice): MaintenanceNotic
 
 function shootSummary(row: ShootRecord, items: { id: string; type: string; filename: string; sortOrder: number }[]): ShootSummary {
   const media = summarizeMedia(items);
-  const share = shootShare(row.publicSlug);
+  const share = shootShare(row.clientPublicSlug, row.publicSlug);
   return {
     id: row.id,
     clientId: row.clientId,
@@ -695,7 +695,7 @@ export const portalAgentOps: AgentOps = {
     if (!shared.ok) return shared;
     const found = await getShootRecord(shootId);
     if (!found.ok) return found;
-    const link = shootShare(shared.value.publicSlug);
+    const link = shootShare(found.value.clientPublicSlug, shared.value.publicSlug);
     return {
       ok: true,
       shootId,

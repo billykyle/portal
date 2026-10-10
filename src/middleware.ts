@@ -208,6 +208,7 @@ export const config = {
     "/my-content/:path*",
     "/s",
     "/s/:path*",
+    "/:clientSlug/:shootSlug",
     "/shoots/:path*",
     "/admin",
     "/admin/:path*",

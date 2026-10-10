@@ -867,7 +867,7 @@ test("shoot pages copy the public link and do not offer Share", () => {
     createElement(ShootActions, {
       files: [{ url: "/api/media/1", filename: "front.jpg", type: "photo" }],
       folderName: "2026-09-04-12-wood-view",
-      shareUrl: "https://portal.billy-kyle.com/s/12-Wood-View-Drive",
+      shareUrl: "https://portal.billy-kyle.com/Sam-Lepore/12-Wood-View-Drive",
     }),
   );
   assert.match(html, />Copy link</);
@@ -883,11 +883,15 @@ test("shoot pages copy the public link and do not offer Share", () => {
   assert.match(client, /ShootScreen/);
   assert.match(admin, /ShootScreen/);
   const screen = readFileSync("src/components/shoot-screen.tsx", "utf8");
-  assert.match(screen, /shareUrl=\{publicShootUrl\(shoot\.publicSlug\)\}/);
+  assert.match(screen, /shareUrl=\{publicShootUrl\(owner\?\.publicSlug/);
 
-  const publicPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
+  const publicPage = readFileSync("src/app/[clientSlug]/[shootSlug]/page.tsx", "utf8");
   assert.match(publicPage, /getPublicShoot/);
   assert.doesNotMatch(publicPage, /getSession|getAdminSession|redirect\(/);
+  const legacyPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
+  assert.match(legacyPage, /getLegacyPublicShoot/);
+  assert.match(legacyPage, /permanentRedirect/);
+  assert.doesNotMatch(legacyPage, /getSession|getAdminSession/);
   const middleware = readFileSync("src/middleware.ts", "utf8");
   assert.doesNotMatch(middleware, /pathname\.startsWith\("\/s"\)/);
 });

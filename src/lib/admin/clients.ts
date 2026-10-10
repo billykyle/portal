@@ -6,6 +6,7 @@ import { ensureDb } from "@/lib/db/ensure";
 import { clients, shoots, userClients, users, type Client } from "@/lib/db/schema";
 import { formatInviteCode, isInviteCode, normalizeInviteCode, parseInviteSequence } from "@/lib/invite";
 import { readClientCategory, type ClientCategory } from "@/lib/client-category";
+import { allocateClientShareSlug, syncClientShareSlug } from "@/lib/public-share-slug";
 
 export async function listClientRows() {
   await ensureDb();
@@ -86,13 +87,15 @@ export async function createClientRecord(input: {
   const existing = await db.select({ inviteCode: clients.inviteCode }).from(clients);
   const next =
     existing.reduce((max, row) => Math.max(max, parseInviteSequence(row.inviteCode) ?? 0), 0) + 1;
+  const company = String(input.company ?? "").trim() || null;
   const [client] = await db
     .insert(clients)
     .values({
       inviteCode: formatInviteCode(next),
       displayName,
       primaryEmail,
-      company: String(input.company ?? "").trim() || null,
+      company,
+      publicSlug: await allocateClientShareSlug({ displayName, company }),
       notes: String(input.notes ?? "").trim() || null,
       category,
     })
@@ -147,7 +150,13 @@ export async function updateClientRecord(input: {
     })
     .where(eq(clients.id, clientId))
     .returning();
-  return { ok: true, value: saved };
+  const publicSlug = await syncClientShareSlug({
+    clientId,
+    displayName: saved.displayName,
+    company: saved.company,
+    slug: saved.publicSlug,
+  });
+  return { ok: true, value: { ...saved, publicSlug } };
 }
 
 export async function deleteClientRecord(clientId: string): Promise<AdminResult<{ inviteCode: string }>> {
