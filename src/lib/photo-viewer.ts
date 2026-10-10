@@ -79,6 +79,19 @@ export function resistedDrag(deltaX: number, index: number, total: number) {
   return deltaX;
 }
 
+/**
+ * Backdrop alpha for the full-screen photo viewer.
+ * The previous lightbox used solid black (`bg-black`, alpha 1, 100% opaque).
+ * This is half of that so the page shows faintly behind the photo.
+ * The overlay stays a solid color — that viewer had no blur.
+ */
+export const PREVIOUS_VIEWER_BACKDROP_OPACITY = 1;
+export const VIEWER_BACKDROP_OPACITY = PREVIOUS_VIEWER_BACKDROP_OPACITY / 2;
+
+export function viewerBackdropColor(opacity = VIEWER_BACKDROP_OPACITY) {
+  return `rgb(0 0 0 / ${opacity})`;
+}
+
 export function viewerCountLabel(index: number, total: number) {
   return `${index + 1} / ${total}`;
 }

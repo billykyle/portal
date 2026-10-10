@@ -145,7 +145,7 @@ test("a photo with no separate thumb does not stack a preview in the viewer", ()
   assert.match(images[0], /z-10/);
 });
 
-test("tapping a photo opens it in the page above the grid", () => {
+test("tapping a photo opens a full-screen lightbox over the grid", () => {
   const html = renderToStaticMarkup(
     createElement(ShootDetail, {
       basePath: "/shoots/shoot-1",
@@ -156,21 +156,33 @@ test("tapping a photo opens it in the page above the grid", () => {
       media,
     }),
   );
-  assert.doesNotMatch(html, /fixed inset-0|role="dialog"|aria-modal/);
+  assert.match(html, /12 Wood View Drive/);
   const photos = html.slice(html.indexOf('id="photos"'), html.indexOf('id="floor-plans"'));
   const viewerAt = photos.indexOf("data-photo-viewer");
   const gridAt = photos.indexOf("grid-cols-3");
   assert.ok(viewerAt >= 0 && gridAt > viewerAt);
-  const viewer = photos.slice(viewerAt, gridAt);
+  const viewer = photos.slice(photos.lastIndexOf("<div", viewerAt), gridAt);
+  assert.match(viewer, /fixed inset-0/);
+  assert.match(viewer, /role="dialog"/);
+  assert.match(viewer, /aria-modal="true"/);
+  assert.match(viewer, /data-photo-backdrop=""[^>]*style="background-color:rgb\(0 0 0 \/ 0\.5\)"|style="background-color:rgb\(0 0 0 \/ 0\.5\)"[^>]*data-photo-backdrop=""/);
+  assert.doesNotMatch(viewer, /backdrop-blur/);
   assert.match(viewer, /src="\/photos\/front\.jpg"/);
   assert.match(viewer, /alt="front\.jpg"/);
+  assert.match(viewer, /object-contain/);
   assert.match(viewer, /z-10/);
-  assert.match(viewer, /aria-label="Other photos"/);
-  assert.match(viewer, /aria-label="yard\.jpg"/);
-  assert.match(viewer, /src="\/thumbs\/yard\.jpg"/);
-  assert.doesNotMatch(viewer, /aria-label="front\.jpg"/);
-  assert.match(viewer, /href="\/photos\/front\.jpg"[^>]*download="front\.jpg"|download="front\.jpg"[^>]*href="\/photos\/front\.jpg"/);
+  assert.match(viewer, /text-xl font-semibold/);
+  assert.match(viewer, /text-xs/);
+  assert.match(viewer, />front\.jpg</);
+  assert.match(viewer, />1 \/ 2</);
+  assert.match(viewer, /aria-label="Close"[^>]*href="\/shoots\/shoot-1"|href="\/shoots\/shoot-1"[^>]*aria-label="Close"/);
+  assert.match(viewer, /aria-label="Previous photo"/);
+  assert.match(viewer, /aria-label="Next photo"/);
+  assert.doesNotMatch(viewer, /aria-label="Previous photo"[^>]*hidden|hidden[^>]*aria-label="Previous photo"/);
+  assert.doesNotMatch(viewer, /aria-label="Other photos"/);
+  assert.match(viewer, /src="\/thumbs\/front\.jpg"/);
   assert.doesNotMatch(viewer, /href="\/thumbs\//);
+  assert.match(viewer, /href="\/photos\/front\.jpg"[^>]*download="front\.jpg"|download="front\.jpg"[^>]*href="\/photos\/front\.jpg"/);
   assert.match(photos, /grid-cols-3/);
   assert.match(photos, /src="\/thumbs\/front\.jpg"/);
   assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-2"/);
@@ -202,12 +214,19 @@ test("tapping a photo opens it in the page above the grid", () => {
       ],
     }),
   );
-  const nasViewer = nas.slice(nas.indexOf("data-photo-viewer"), nas.indexOf("grid-cols-3"));
-  assert.match(nasViewer, /aspect-ratio:\s*3000\s*\/\s*2000/);
+  const nasMarker = nas.indexOf("data-photo-viewer");
+  const nasViewer = nas.slice(nas.lastIndexOf("<div", nasMarker), nas.indexOf("grid-cols-3"));
+  assert.match(nasViewer, /object-contain/);
+  assert.match(nasViewer, /src="\/api\/media\/photo-a"/);
+  assert.match(nasViewer, />Full-01\.jpg</);
+  assert.match(nasViewer, />1 \/ 2</);
   assert.match(nasViewer, /href="\/api\/media\/photo-a\?download=1"/);
   assert.match(nasViewer, /download="Full-01\.jpg"/);
   assert.doesNotMatch(nasViewer, /href="[^"]*\/thumb/);
-  assert.match(nasViewer, /aria-label="Full-02\.jpg"/);
+  assert.match(nasViewer, /aria-label="Next photo"/);
+  assert.match(nasViewer, /aria-label="Close"/);
+  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.5\)/);
+  assert.doesNotMatch(nasViewer, /backdrop-blur/);
 
   const construction = renderToStaticMarkup(
     createElement(defaultTemplate.Shoot, {
@@ -224,9 +243,12 @@ test("tapping a photo opens it in the page above the grid", () => {
     construction.indexOf('id="floor-plans"'),
   );
   assert.match(constructionPhotos, /data-photo-viewer/);
+  assert.match(constructionPhotos, /role="dialog"/);
   assert.match(constructionPhotos, /src="\/photos\/front\.jpg"/);
+  assert.match(constructionPhotos, /object-contain/);
   assert.match(constructionPhotos, /grid-cols-3/);
-  assert.doesNotMatch(construction, /fixed inset-0/);
+  assert.match(construction, /14 Harbor Lane/);
+  assert.equal(construction.match(/fixed inset-0/g)?.length, 1);
 
   const episode = renderToStaticMarkup(
     createElement(podcastTemplate.Shoot, {
@@ -256,12 +278,18 @@ test("tapping a photo opens it in the page above the grid", () => {
     }),
   );
   const stills = episode.slice(episode.indexOf('id="thumbnails"'));
-  const episodeViewer = stills.slice(stills.indexOf("data-photo-viewer"), stills.indexOf("grid-cols-3"));
+  const episodeMarker = stills.indexOf("data-photo-viewer");
+  const episodeViewer = stills.slice(stills.lastIndexOf("<div", episodeMarker), stills.indexOf("grid-cols-3"));
+  assert.match(episodeViewer, /fixed inset-0/);
+  assert.match(episodeViewer, /role="dialog"/);
   assert.match(episodeViewer, /src="\/photos\/cover\.jpg"/);
-  assert.match(episodeViewer, /aria-label="guest\.jpg"/);
+  assert.match(episodeViewer, /object-contain/);
+  assert.match(episodeViewer, />cover\.jpg</);
+  assert.match(episodeViewer, /aria-label="Next photo"/);
   assert.match(episodeViewer, /href="\/photos\/cover\.jpg"/);
   assert.match(stills, /grid-cols-3/);
-  assert.doesNotMatch(episode, /fixed inset-0|role="dialog"/);
+  assert.match(episode, /Episode 4/);
+  assert.match(episode, /Jonah Hale/);
 });
 
 test("opening a floor plan shows the original file", () => {

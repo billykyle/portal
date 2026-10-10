@@ -10,6 +10,9 @@ import {
   shouldRenderPhotoSlide,
   stepPhotoIndex,
   swipeStep,
+  PREVIOUS_VIEWER_BACKDROP_OPACITY,
+  VIEWER_BACKDROP_OPACITY,
+  viewerBackdropColor,
   viewerCaption,
   viewerCountLabel,
   viewerOriginalSrc,
@@ -82,4 +85,11 @@ test("resists dragging past the first or last still", () => {
 test("splits count and filename for the stacked header", () => {
   assert.equal(viewerCountLabel(8, 38), "9 / 38");
   assert.equal(viewerCaption("Full-09.jpg", 8, 38), "9 / 38, Full-09.jpg");
+});
+
+test("lightbox backdrop is half the previous solid black overlay", () => {
+  assert.equal(PREVIOUS_VIEWER_BACKDROP_OPACITY, 1);
+  assert.equal(VIEWER_BACKDROP_OPACITY, 0.5);
+  assert.equal(VIEWER_BACKDROP_OPACITY, PREVIOUS_VIEWER_BACKDROP_OPACITY / 2);
+  assert.equal(viewerBackdropColor(), "rgb(0 0 0 / 0.5)");
 });
