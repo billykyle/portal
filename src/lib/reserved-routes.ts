@@ -24,6 +24,7 @@ export const RESERVED_CLIENT_SLUGS = [
   "images",
   "fonts",
   "choose",
+  "dev",
   "scheduling",
   "my-content",
   "forgot-password",

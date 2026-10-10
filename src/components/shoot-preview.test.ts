@@ -165,10 +165,14 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(viewer, /fixed inset-0/);
   assert.match(viewer, /role="dialog"/);
   assert.match(viewer, /aria-modal="true"/);
-  assert.match(viewer, /data-photo-backdrop=""[^>]*style="background-color:rgb\(0 0 0 \/ 0\.8\)"|style="background-color:rgb\(0 0 0 \/ 0\.8\)"[^>]*data-photo-backdrop=""/);
+  assert.match(viewer, /data-photo-backdrop=""[^>]*style="background-color:rgb\(0 0 0 \/ 0\.9\)"|style="background-color:rgb\(0 0 0 \/ 0\.9\)"[^>]*data-photo-backdrop=""/);
   assert.doesNotMatch(viewer, /backdrop-blur/);
   assert.match(viewer, /data-photo-caption=""/);
-  assert.match(viewer, /bottom:calc\(100% \+ 10px\)/);
+  assert.match(viewer, /bottom:calc\(100% \+ 16px\)/);
+  assert.match(viewer, /line-height:1\.5/);
+  assert.match(viewer, /height:100dvh/);
+  assert.match(viewer, /z-index:60/);
+  assert.match(viewer, /h-dvh/);
   assert.doesNotMatch(viewer, /top-\[max\(0\.75rem,env\(safe-area-inset-top\)\)\] bottom-3/);
   assert.match(viewer, /src="\/photos\/front\.jpg"/);
   assert.match(viewer, /alt="front\.jpg"/);
@@ -189,6 +193,21 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(photos, /grid-cols-3/);
   assert.match(photos, /src="\/thumbs\/front\.jpg"/);
   assert.match(photos, /href="\/shoots\/shoot-1\?view=photo-2"/);
+
+  const share = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/Sam-Lepore/12-Wood-View-Drive",
+      viewId: "photo-1",
+      address: "12 Wood View Drive",
+      dateLabel: "Sep 4, 2026",
+      folderName: "2026-09-04-12-wood-view",
+      media,
+    }),
+  );
+  const sharePhotos = share.slice(share.indexOf('id="photos"'), share.indexOf('id="floor-plans"'));
+  assert.match(sharePhotos, /data-photo-viewer/);
+  assert.match(sharePhotos, /aria-label="Close"[^>]*href="\/Sam-Lepore\/12-Wood-View-Drive"|href="\/Sam-Lepore\/12-Wood-View-Drive"[^>]*aria-label="Close"/);
+  assert.match(sharePhotos, /href="\/Sam-Lepore\/12-Wood-View-Drive\?view=photo-2"/);
 
   const nas = renderToStaticMarkup(
     createElement(ShootDetail, {
@@ -228,10 +247,12 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.doesNotMatch(nasViewer, /href="[^"]*\/thumb/);
   assert.match(nasViewer, /aria-label="Next photo"/);
   assert.match(nasViewer, /aria-label="Close"/);
-  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.8\)/);
+  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.9\)/);
   assert.doesNotMatch(nasViewer, /backdrop-blur/);
   assert.match(nasViewer, /data-photo-caption=""/);
-  assert.match(nasViewer, /bottom:calc\(100% \+ 10px\)/);
+  assert.match(nasViewer, /bottom:calc\(100% \+ 16px\)/);
+  assert.match(nasViewer, /line-height:1\.5/);
+  assert.match(nasViewer, /height:100dvh/);
   assert.match(nasViewer, /aspect-ratio:3000 \/ 2000/);
   assert.match(nasViewer, /min\(100cqw, calc\(100cqh \* 3000 \/ 2000\)\)/);
   assert.match(nasViewer, /container-type:size/);
@@ -887,7 +908,10 @@ test("shoot pages copy the public link and do not offer Share", () => {
 
   const publicPage = readFileSync("src/app/[clientSlug]/[shootSlug]/page.tsx", "utf8");
   assert.match(publicPage, /getPublicShoot/);
-  assert.doesNotMatch(publicPage, /getSession|getAdminSession|redirect\(/);
+  assert.match(publicPage, /viewId=\{view\}/);
+  assert.match(publicPage, /basePath=\{publicShootPath\(resolved\.client\.publicSlug, shoot\.publicSlug\)\}/);
+  assert.match(publicPage, /permanentRedirect/);
+  assert.doesNotMatch(publicPage, /getSession|getAdminSession|\bredirect\(/);
   const legacyPage = readFileSync("src/app/s/[token]/page.tsx", "utf8");
   assert.match(legacyPage, /getLegacyPublicShoot/);
   assert.match(legacyPage, /permanentRedirect/);

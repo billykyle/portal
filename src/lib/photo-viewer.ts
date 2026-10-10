@@ -55,8 +55,14 @@ export function preloadPhotoSrcs(photos: Array<Pick<ViewerPhoto, "url">>, index:
   });
 }
 
+/** Only the current photo is mounted. Neighbors are preloaded, not painted. */
 export function shouldRenderPhotoSlide(slideIndex: number, activeIndex: number) {
-  return Math.abs(slideIndex - activeIndex) <= 1;
+  return slideIndex === activeIndex;
+}
+
+/** A decoded frame may paint only when it is still the photo on screen. */
+export function shouldPaintViewerImage(requestId: string, currentId: string) {
+  return requestId === currentId;
 }
 
 /**
@@ -81,16 +87,38 @@ export function resistedDrag(deltaX: number, index: number, total: number) {
 
 /**
  * Backdrop of the full-screen photo viewer.
- * Solid black at 80% opacity. The overlay stays a flat color with no blur.
+ * Solid black at 90% opacity. Flat color, no blur, over the whole viewport.
  */
-export const VIEWER_BACKDROP_OPACITY = 0.8;
+export const VIEWER_BACKDROP_OPACITY = 0.9;
+
+/** Above the page header (z-10) and the selection bar (z-40), under the nav menu. */
+export const VIEWER_Z_INDEX = 60;
 
 export function viewerBackdropColor(opacity = VIEWER_BACKDROP_OPACITY) {
   return `rgb(0 0 0 / ${opacity})`;
 }
 
-/** Space between the filename row and the photo's rendered top edge. */
-export const VIEWER_CAPTION_GAP_PX = 10;
+/** Full-viewport layer. `100dvh` tracks the visible screen, including iOS browser chrome. */
+export function viewerLayerStyle() {
+  return {
+    position: "fixed" as const,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: "100%",
+    height: "100dvh",
+    minHeight: "100dvh",
+    zIndex: VIEWER_Z_INDEX,
+  };
+}
+
+/**
+ * Line box tall enough for `.jpg` descenders, plus a gap so the photo
+ * starts below the text instead of covering it.
+ */
+export const VIEWER_CAPTION_LINE_HEIGHT = 1.5;
+export const VIEWER_CAPTION_GAP_PX = 16;
 
 export function viewerImageRatio(width?: number | null, height?: number | null) {
   if (typeof width !== "number" || typeof height !== "number") return null;
@@ -107,6 +135,70 @@ export function viewerPhotoFrameWidth(imageWidth: number, imageHeight: number) {
   const ratio = viewerImageRatio(imageWidth, imageHeight);
   if (!ratio) return null;
   return `min(100cqw, calc(100cqh * ${ratio.width} / ${ratio.height}))`;
+}
+
+/** Largest box of this aspect that fits the stage. Same math as object-fit: contain. */
+export function containedPhotoRect(
+  stageWidth: number,
+  stageHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+) {
+  if (!(stageWidth > 0 && stageHeight > 0 && imageWidth > 0 && imageHeight > 0)) return null;
+  const scale = Math.min(stageWidth / imageWidth, stageHeight / imageHeight);
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  return {
+    width,
+    height,
+    left: (stageWidth - width) / 2,
+    top: (stageHeight - height) / 2,
+  };
+}
+
+/**
+ * Fit the photo in the stage below a reserved filename block so the image
+ * never runs into the caption. `captionBlock` is the caption height plus the gap.
+ */
+export function placeContainedPhoto(
+  stageWidth: number,
+  stageHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+  captionBlock: number,
+) {
+  const reserve = Math.max(0, captionBlock);
+  const rect = containedPhotoRect(stageWidth, stageHeight - reserve, imageWidth, imageHeight);
+  if (!rect) return null;
+  return { ...rect, top: rect.top + reserve };
+}
+
+/**
+ * Update the address bar without notifying the Next.js router.
+ * The patched `history.replaceState` restores search params and can
+ * write an older photo back over a newer tap.
+ */
+export function replaceViewerUrl(href: string) {
+  if (typeof window === "undefined") return;
+  const current = `${window.location.pathname}${window.location.search}`;
+  if (current === href) return;
+  const state = window.history.state;
+  const native = nativeHistoryReplace();
+  if (native) native.call(window.history, state, "", href);
+  else window.history.replaceState(state, "", href);
+}
+
+let nativeReplace: History["replaceState"] | null = null;
+
+function nativeHistoryReplace() {
+  if (nativeReplace) return nativeReplace;
+  if (typeof document === "undefined") return null;
+  const frame = document.createElement("iframe");
+  frame.hidden = true;
+  document.documentElement.appendChild(frame);
+  nativeReplace = frame.contentWindow?.history.replaceState ?? null;
+  frame.remove();
+  return nativeReplace;
 }
 
 export function viewerCountLabel(index: number, total: number) {
