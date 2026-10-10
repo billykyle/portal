@@ -67,6 +67,8 @@ export const shoots = pgTable("shoots", {
     .notNull()
     .references(() => clients.id, { onDelete: "cascade" }),
   publicToken: text("public_token").notNull().unique(),
+  /** Readable /s/<name> share slug. Unique case-insensitively. Capitalization is kept. */
+  publicSlug: text("public_slug").notNull(),
   shotDate: text("shot_date").notNull(),
   address: text("address").notNull(),
   slug: text("slug").notNull(),
@@ -76,6 +78,14 @@ export const shoots = pgTable("shoots", {
   dropboxUrl: text("dropbox_url"),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Retired public share slugs. A renamed shoot keeps answering at the old /s/<slug>. */
+export const shootPublicSlugAliases = pgTable("shoot_public_slug_aliases", {
+  slug: text("slug").primaryKey(),
+  shootId: uuid("shoot_id")
+    .notNull()
+    .references(() => shoots.id, { onDelete: "cascade" }),
 });
 
 /** Previous slugs for a shoot, so a renamed address still resolves. Unique per client. */

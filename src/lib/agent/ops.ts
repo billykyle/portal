@@ -203,6 +203,7 @@ export type AgentOps = {
         clientId: string;
         slug: string;
         publicToken: string;
+        publicSlug: string;
         publicUrl: string;
         portalUrl: string;
         minted: boolean;
@@ -255,6 +256,7 @@ export type ShootSummary = {
   categoryFolder: string | null;
   dropboxUrl: string | null;
   publicToken: string;
+  publicSlug: string;
   publicUrl: string;
   portalUrl: string;
   mediaCounts: { photo: number; floor_plan: number; video: number; raw_video: number; total: number };
@@ -364,7 +366,7 @@ function maintenanceNoticeDto(notice: StoredMaintenanceNotice): MaintenanceNotic
 
 function shootSummary(row: ShootRecord, items: { id: string; type: string; filename: string; sortOrder: number }[]): ShootSummary {
   const media = summarizeMedia(items);
-  const share = shootShare(row.publicToken);
+  const share = shootShare(row.publicSlug);
   return {
     id: row.id,
     clientId: row.clientId,
@@ -375,7 +377,8 @@ function shootSummary(row: ShootRecord, items: { id: string; type: string; filen
     nasRelativePath: row.nasRelativePath,
     categoryFolder: row.categoryFolder,
     dropboxUrl: row.dropboxUrl,
-    publicToken: share.publicToken,
+    publicToken: row.publicToken,
+    publicSlug: share.publicSlug,
     publicUrl: share.publicUrl,
     portalUrl: clientShootUrl(row.slug),
     mediaCounts: media.counts,
@@ -692,13 +695,14 @@ export const portalAgentOps: AgentOps = {
     if (!shared.ok) return shared;
     const found = await getShootRecord(shootId);
     if (!found.ok) return found;
-    const link = shootShare(shared.value.token);
+    const link = shootShare(shared.value.publicSlug);
     return {
       ok: true,
       shootId,
       clientId: found.value.clientId,
       slug: found.value.slug,
-      publicToken: link.publicToken,
+      publicToken: shared.value.token,
+      publicSlug: link.publicSlug,
       publicUrl: link.publicUrl,
       portalUrl: clientShootUrl(found.value.slug),
       minted: shared.value.minted,

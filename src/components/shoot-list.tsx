@@ -20,7 +20,7 @@ export type ShootListItem = {
 
 export type AdminShootListItem = ShootListItem & {
   fileCount: number;
-  publicToken: string;
+  publicUrl: string;
 };
 
 type LibraryProps = {
@@ -100,7 +100,7 @@ function AdminRow({ shoot }: { shoot: AdminShootListItem }) {
           <ChevronRight className="size-5 shrink-0 text-[#8e8e93]" />
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <CopyPublicLink token={shoot.publicToken} compact />
+          <CopyPublicLink url={shoot.publicUrl} compact />
         </div>
       </div>
     </li>

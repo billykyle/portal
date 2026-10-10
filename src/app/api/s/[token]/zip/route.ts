@@ -2,7 +2,8 @@ import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { media, shoots } from "@/lib/db/schema";
+import { media } from "@/lib/db/schema";
+import { resolvePublicShare } from "@/lib/public-share-slug";
 import { zipDownloadName } from "@/lib/download-all";
 import { selectionZipResponse } from "@/lib/selection-zip";
 import { shootFolderName } from "@/lib/media";
@@ -20,7 +21,8 @@ export async function GET(
 ) {
   const { token } = await params;
   await ensureDb();
-  const [shoot] = await db.select().from(shoots).where(eq(shoots.publicToken, token)).limit(1);
+  const resolved = await resolvePublicShare(token);
+  const shoot = resolved?.shoot ?? null;
   if (!shoot) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
@@ -66,14 +68,16 @@ export async function POST(
 ) {
   const { token } = await params;
   await ensureDb();
-  const [shoot] = await db.select().from(shoots).where(eq(shoots.publicToken, token)).limit(1);
+  const resolved = await resolvePublicShare(token);
+  const shoot = resolved?.shoot ?? null;
   const access = authorizeZipDownload({
     kind: "share",
     admin: false,
     session: null,
     accessibleClientIds: [],
-    shoot: shoot ?? null,
+    shoot,
     shareToken: token,
+    shareVia: resolved?.via,
   });
   if (!access.ok || !shoot) {
     return NextResponse.json(

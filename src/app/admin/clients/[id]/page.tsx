@@ -17,6 +17,7 @@ import { clients, media, shoots } from "@/lib/db/schema";
 import { listClientMembers } from "@/lib/user-portals";
 import { coverUrlByShoot } from "@/lib/episode-covers";
 import { formatShootDate, shootFolderName } from "@/lib/media";
+import { publicShootUrl } from "@/lib/public-link";
 import { adminShootPath } from "@/lib/shoot-slug";
 import { listClientBookingsAdmin } from "@/lib/scheduling/bookings";
 import { adminBookingHref } from "@/lib/scheduling/urls";
@@ -229,7 +230,7 @@ export default async function AdminClientPage({
                 folderName: shootFolderName(shoot.shotDate, shoot.address),
                 thumbUrl: covers.get(shoot.id) ?? null,
                 fileCount: files.length,
-                publicToken: shoot.publicToken,
+                publicUrl: publicShootUrl(shoot.publicSlug),
                 categoryFolder: shoot.categoryFolder,
               };
             })}

@@ -46,7 +46,7 @@ Webhook body:
     "id": "…",
     "shotDate": "2026-09-04",
     "address": "12 Wood View Drive",
-    "publicUrl": "http://127.0.0.1:43173/s/…",
+    "publicUrl": "http://127.0.0.1:43173/s/520-N-Rose-Lane",
     "fileCount": 83
   }
 }

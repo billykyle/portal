@@ -78,10 +78,10 @@ export function summarizeMedia(items: MediaInventoryItem[]) {
   return { counts, ready: counts.total > 0, photos, floorPlans, videos, rawVideos };
 }
 
-export function shootShare(token: string) {
+export function shootShare(slug: string) {
   return {
-    publicToken: token,
-    publicUrl: publicShootUrl(token),
+    publicSlug: slug,
+    publicUrl: publicShootUrl(slug),
   };
 }
 

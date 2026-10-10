@@ -16,7 +16,6 @@ import {
   zipScopeFolderName,
   type ZipMediaType,
 } from "@/lib/download-scope";
-import { publicShootPath } from "@/lib/public-link";
 import { shootPrimaryButtonClass, shootSecondaryButtonClass } from "@/components/shoot-buttons";
 import { useShootSelection } from "@/components/shoot-selection";
 
@@ -24,12 +23,13 @@ export function ShootActions({
   files,
   folderName,
   zipUrl,
-  shareToken,
+  shareUrl,
 }: {
   files: DownloadFile[];
   folderName: string;
   zipUrl?: string;
-  shareToken?: string;
+  /** Absolute public portal URL from PORTAL_PUBLIC_URL. */
+  shareUrl?: string;
 }) {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState<ZipJobProgress | null>(null);
@@ -41,10 +41,6 @@ export function ShootActions({
   const needsPicker = present.length > 1;
   const options = zipDownloadOptions(present);
   const selection = useShootSelection();
-
-  function publicHref() {
-    return `${window.location.origin}${publicShootPath(shareToken ?? "")}`;
-  }
 
   function report(next: ZipJobProgress) {
     setProgress(next);
@@ -111,7 +107,8 @@ export function ShootActions({
   }, [menuOpen]);
 
   async function copyLink() {
-    await navigator.clipboard.writeText(publicHref());
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
     setStatus("Link copied.");
     setProgress(null);
     window.setTimeout(() => setStatus(""), 2000);
@@ -145,10 +142,11 @@ export function ShootActions({
             </span>
           ) : null}
         </button>
-        {shareToken ? (
+        {shareUrl ? (
           <button
             type="button"
             onClick={copyLink}
+            data-url={shareUrl}
             className={shootSecondaryButtonClass}
           >
             Copy link

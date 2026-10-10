@@ -4,11 +4,11 @@ import { bookingServiceList } from "@/lib/scheduling/services";
 import type { Booking } from "@/lib/db/schema";
 
 export function clientShootSummary(
-  shoot: { id: string; shotDate: string; address: string; publicToken: string },
+  shoot: { id: string; shotDate: string; address: string; publicSlug: string },
   items: MediaInventoryItem[],
 ) {
   const media = summarizeMedia(items);
-  const share = shootShare(shoot.publicToken);
+  const share = shootShare(shoot.publicSlug);
   return {
     id: shoot.id,
     shotDate: shoot.shotDate,
@@ -21,7 +21,7 @@ export function clientShootSummary(
 }
 
 export function clientShootDetail(
-  shoot: { id: string; shotDate: string; address: string; publicToken: string },
+  shoot: { id: string; shotDate: string; address: string; publicSlug: string },
   items: MediaInventoryItem[],
 ) {
   const media = summarizeMedia(items);

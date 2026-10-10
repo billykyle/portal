@@ -238,13 +238,15 @@ test("admin shoot list has no delete control", () => {
           shotDate: "2026-09-04",
           dateLabel: "Sep 4, 2026",
           fileCount: 3,
-          publicToken: "token",
+          publicUrl: "https://portal.billy-kyle.com/s/12-Wood-View-Drive",
         },
       ],
     }),
   );
   assert.match(html, /12 Wood View Drive/);
   assert.match(html, /Copy link/);
+  assert.match(html, /data-url="https:\/\/portal\.billy-kyle\.com\/s\/12-Wood-View-Drive"/);
+  assert.doesNotMatch(html, /admin\.billy-kyle\.com/);
   assert.doesNotMatch(html, /Delete shoot/);
 });
 

@@ -28,7 +28,7 @@ export type ZipAccess =
 /**
  * Account downloads need a signed-in user who can open that client
  * (home portal or an extra BK code), or an admin.
- * Share downloads need the shoot's public token.
+ * Share downloads need the shoot's public slug, a retired slug, or the legacy token.
  */
 export function authorizeZipDownload(input: {
   kind: "account" | "share";
@@ -36,14 +36,20 @@ export function authorizeZipDownload(input: {
   session: { userId: string; clientId: string } | null;
   /** Home client plus every extra BK code on this login. */
   accessibleClientIds: readonly string[];
-  shoot: { id: string; clientId: string; publicToken: string } | null;
+  shoot: { id: string; clientId: string; publicToken: string; publicSlug?: string | null } | null;
   shareToken?: string | null;
+  /** Set when the URL key was a retired slug that already resolved to this shoot. */
+  shareVia?: "slug" | "alias" | "token";
 }): ZipAccess {
   if (!input.shoot) return { ok: false, status: 404, error: "Not found." };
   if (input.kind === "share") {
-    if (!input.shareToken || input.shareToken !== input.shoot.publicToken) {
-      return { ok: false, status: 404, error: "Not found." };
-    }
+    const key = input.shareToken ?? "";
+    const slug = input.shoot.publicSlug ?? "";
+    const matches =
+      key === input.shoot.publicToken ||
+      (slug !== "" && key.toLowerCase() === slug.toLowerCase()) ||
+      input.shareVia === "alias";
+    if (!matches) return { ok: false, status: 404, error: "Not found." };
     return { ok: true };
   }
   if (input.admin) return { ok: true };

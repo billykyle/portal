@@ -14,6 +14,7 @@ import {
   isClientHomePath,
   legacyClientHomeDestination,
 } from "@/lib/routes";
+import { resolvePublicShare } from "@/lib/public-share-slug";
 import {
   adminShootPath,
   canonicalShootForId,
@@ -52,6 +53,12 @@ export async function middleware(request: NextRequest) {
   });
   if (hostRedirect) {
     return NextResponse.redirect(hostRedirect.location, hostRedirect.status);
+  }
+
+  const publicShare = pathname.match(/^\/s\/([^/]+)$/);
+  if (publicShare) {
+    const moved = await redirectPublicShare(request, publicShare[1], search);
+    if (moved) return moved;
   }
 
   const legacyHome = legacyClientHomeDestination(pathname);
@@ -142,6 +149,13 @@ function redirectTo(request: NextRequest, path: string, search: string) {
   });
   const location = hostRedirect?.location ?? new URL(`${path}${search}`, request.url).toString();
   return NextResponse.redirect(location, 308);
+}
+
+async function redirectPublicShare(request: NextRequest, rawKey: string, search: string) {
+  await ensureDb();
+  const resolved = await resolvePublicShare(rawKey);
+  if (!resolved?.redirectTo) return null;
+  return redirectTo(request, resolved.redirectTo, search);
 }
 
 async function redirectLegacyShoot(request: NextRequest, shootId: string, search: string, admin: boolean) {

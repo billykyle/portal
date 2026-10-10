@@ -1,30 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { publicShootPath } from "@/lib/public-link";
 
 export function CopyPublicLink({
-  token,
+  url,
   compact = false,
 }: {
-  token: string;
+  url: string;
   compact?: boolean;
 }) {
   const [status, setStatus] = useState("");
 
-  function href() {
-    return `${window.location.origin}${publicShootPath(token)}`;
-  }
-
   async function copy() {
-    await navigator.clipboard.writeText(href());
+    await navigator.clipboard.writeText(url);
     setStatus("Link copied.");
     window.setTimeout(() => setStatus(""), 2000);
   }
 
   if (compact) {
     return (
-      <button type="button" onClick={copy} className="text-sm text-white">
+      <button type="button" onClick={copy} data-url={url} className="text-sm text-white">
         {status ? "Copied" : "Copy link"}
       </button>
     );
@@ -35,6 +30,7 @@ export function CopyPublicLink({
       <button
         type="button"
         onClick={copy}
+        data-url={url}
         className="flex h-12 w-full appearance-none items-center justify-center rounded-xl border-0 bg-white text-base font-medium text-black"
       >
         Copy public link
