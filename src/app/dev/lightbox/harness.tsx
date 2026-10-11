@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PhotoViewer } from "@/components/photo-viewer";
 import type { ViewerPhoto } from "@/lib/photo-viewer";
 
-const photos: ViewerPhoto[] = Array.from({ length: 40 }, (_, index) => {
+const photos: ViewerPhoto[] = Array.from({ length: 89 }, (_, index) => {
   const id = String(index + 1).padStart(2, "0");
   return {
     id,

@@ -165,10 +165,15 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(viewer, /fixed inset-0/);
   assert.match(viewer, /role="dialog"/);
   assert.match(viewer, /aria-modal="true"/);
-  assert.match(viewer, /data-photo-backdrop=""[^>]*style="background-color:rgb\(0 0 0 \/ 0\.9\)"|style="background-color:rgb\(0 0 0 \/ 0\.9\)"[^>]*data-photo-backdrop=""/);
+  assert.match(viewer, /style="background-color:rgb\(0 0 0 \/ 0\.95\);[^"]*" data-photo-backdrop=""/);
   assert.doesNotMatch(viewer, /backdrop-blur/);
   assert.match(viewer, /data-photo-caption=""/);
-  assert.match(viewer, /bottom:calc\(100% \+ 16px\)/);
+  assert.match(viewer, /margin-bottom:16px/);
+  assert.doesNotMatch(viewer, /bottom:calc\(100% \+ 16px\)/);
+  assert.match(viewer, /data-photo-reel=""/);
+  assert.match(viewer, /env\(safe-area-inset-bottom\)/);
+  assert.match(viewer, /loading="lazy"/);
+  assert.match(viewer, /aria-current="true"/);
   assert.match(viewer, /line-height:1\.5/);
   assert.match(viewer, /height:100dvh/);
   assert.match(viewer, /z-index:60/);
@@ -247,15 +252,19 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.doesNotMatch(nasViewer, /href="[^"]*\/thumb/);
   assert.match(nasViewer, /aria-label="Next photo"/);
   assert.match(nasViewer, /aria-label="Close"/);
-  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.9\)/);
+  assert.match(nasViewer, /background-color:rgb\(0 0 0 \/ 0\.95\)/);
   assert.doesNotMatch(nasViewer, /backdrop-blur/);
   assert.match(nasViewer, /data-photo-caption=""/);
-  assert.match(nasViewer, /bottom:calc\(100% \+ 16px\)/);
+  assert.match(nasViewer, /margin-bottom:16px/);
+  assert.doesNotMatch(nasViewer, /bottom:calc\(100% \+ 16px\)/);
   assert.match(nasViewer, /line-height:1\.5/);
   assert.match(nasViewer, /height:100dvh/);
   assert.match(nasViewer, /aspect-ratio:3000 \/ 2000/);
-  assert.match(nasViewer, /min\(100cqw, calc\(100cqh \* 3000 \/ 2000\)\)/);
+  assert.match(nasViewer, /min\(100cqw, calc\(\(100cqh - \(16px \+ 1lh\)\) \* 3000 \/ 2000\)\)/);
   assert.match(nasViewer, /container-type:size/);
+  const reel = nasViewer.slice(nasViewer.indexOf("data-photo-reel"));
+  const reelSrcs = [...reel.matchAll(/src="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(reelSrcs, ["/api/media/photo-a/thumb?v=abc", "/api/media/photo-b/thumb?v=def"]);
 
   const construction = renderToStaticMarkup(
     createElement(defaultTemplate.Shoot, {
