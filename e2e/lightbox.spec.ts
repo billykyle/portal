@@ -85,21 +85,31 @@ async function seated(page: Page) {
     const image = document.querySelector("[data-photo-image]");
     const header = document.querySelector("[data-photo-header]");
     const reel = document.querySelector("[data-photo-reel]");
-    if (!text || !image || !header || !reel) return null;
+    const stage = document.querySelector("[data-photo-stage]");
+    const stack = document.querySelector("[data-photo-stack]");
+    if (!text || !image || !header || !reel || !stage || !stack) return null;
     const range = document.createRange();
     range.selectNodeContents(text);
     const ink = range.getBoundingClientRect();
     const frame = image.getBoundingClientRect();
     const headerBox = header.getBoundingClientRect();
     const reelBox = reel.getBoundingClientRect();
+    const stageBox = stage.getBoundingClientRect();
+    const stackBox = stack.getBoundingClientRect();
     const style = getComputedStyle(text);
+    const padBottom = Number.parseFloat(getComputedStyle(stage).paddingBottom) || 0;
     const img = document.querySelector("[data-photo-original]") as HTMLImageElement | null;
     return {
       gap: frame.top - ink.bottom,
+      reelGap: reelBox.top - frame.bottom,
+      spaceAbove: stackBox.top - stageBox.top,
+      spaceBelow: stageBox.bottom - padBottom - stackBox.bottom,
       nameTop: ink.top,
       headerBottom: headerBox.bottom,
       imageBottom: frame.bottom,
       reelTop: reelBox.top,
+      reelBottom: reelBox.bottom,
+      viewportHeight: window.innerHeight,
       lineHeight: Number.parseFloat(style.lineHeight),
       fontSize: Number.parseFloat(style.fontSize),
       clipped: text.scrollHeight > text.clientHeight + 1,
@@ -107,6 +117,7 @@ async function seated(page: Page) {
       shown: frame.width > 0 && frame.height > 0 ? frame.width / frame.height : 0,
       width: frame.width,
       height: frame.height,
+      reelInStack: stack.contains(reel),
     };
   });
 }
@@ -114,13 +125,19 @@ async function seated(page: Page) {
 function expectSeated(
   fit: {
     gap: number;
+    reelGap: number;
+    spaceAbove: number;
+    spaceBelow: number;
     nameTop: number;
     headerBottom: number;
     imageBottom: number;
     reelTop: number;
+    reelBottom: number;
+    viewportHeight: number;
     width: number;
     height: number;
     clipped: boolean;
+    reelInStack: boolean;
   } | null,
   minWidth: number,
 ) {
@@ -128,10 +145,35 @@ function expectSeated(
   expect(fit!.gap).toBeGreaterThanOrEqual(12);
   expect(fit!.gap).toBeLessThanOrEqual(36);
   expect(fit!.nameTop).toBeGreaterThanOrEqual(fit!.headerBottom - 1);
-  expect(fit!.imageBottom).toBeLessThanOrEqual(fit!.reelTop + 1);
+  expect(fit!.reelInStack).toBe(true);
+  expect(Math.abs(fit!.reelGap - 16)).toBeLessThanOrEqual(1.5);
+  expect(fit!.spaceAbove).toBeGreaterThanOrEqual(-2);
+  expect(fit!.spaceBelow).toBeGreaterThanOrEqual(-2);
+  expect(Math.abs(fit!.spaceAbove - fit!.spaceBelow)).toBeLessThanOrEqual(2);
+  expect(fit!.reelBottom).toBeLessThanOrEqual(fit!.viewportHeight + 1);
   expect(fit!.clipped).toBe(false);
   expect(fit!.width).toBeGreaterThan(minWidth);
   expect(fit!.height).toBeGreaterThan(160);
+}
+
+async function expectReelThumbs(page: Page, width: number, height: number) {
+  const current = page.locator("[data-photo-reel] [aria-current='true']");
+  await expect
+    .poll(async () => {
+      const box = await current.boundingBox();
+      const fit = await current
+        .locator("[data-reel-thumb]")
+        .evaluate((el) => getComputedStyle(el).objectFit)
+        .catch(() => "");
+      if (!box || box.width <= 0 || box.height <= 0) return null;
+      return {
+        width: Math.abs(box.width - width) <= 1,
+        height: Math.abs(box.height - height) <= 1,
+        ratio: Math.abs(box.width / box.height - 1.5) < 0.05,
+        fit,
+      };
+    })
+    .toEqual({ width: true, height: true, ratio: true, fit: "cover" });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -145,8 +187,9 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
   const box = await viewer.boundingBox();
   expect(box).toEqual({ x: 0, y: 0, width: 393, height: 852 });
 
-  const background = await page.locator("[data-photo-backdrop]").evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(background).toBe("rgba(0, 0, 0, 0.95)");
+  await expect
+    .poll(() => page.locator("[data-photo-backdrop]").evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe("rgba(0, 0, 0, 0.95)");
   const backdrop = await page.locator("[data-photo-backdrop]").boundingBox();
   expect(backdrop).not.toBeNull();
   expect(backdrop!.x).toBeLessThanOrEqual(0);
@@ -215,6 +258,13 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
   expect(Math.abs(fit!.natural - 1.6)).toBeLessThan(0.05);
   expect(Math.abs(fit!.shown - fit!.natural)).toBeLessThan(0.05);
   expect(fit!.sideInViewer).toBe(true);
+
+  const layout = await seated(page);
+  expectSeated(layout, 300);
+  expect(layout!.spaceBelow).toBeGreaterThan(80);
+  await expectReelThumbs(page, 60, 40);
+  const stageStyle = await page.locator("[data-photo-stage]").getAttribute("style");
+  expect(stageStyle).toContain("safe-area-inset-bottom");
 
   const screen = await shot(page, "lightbox-webkit-393");
   const png = await page.screenshot();
@@ -424,8 +474,41 @@ test("filename stays seated on a desktop viewport", async ({ page }) => {
   await expect(viewer).toBeVisible();
   const box = await viewer.boundingBox();
   expect(box).toEqual({ x: 0, y: 0, width: 1440, height: 900 });
+  await expectReelThumbs(page, 96, 64);
   await exerciseReel(page, 300);
   await shot(page, "lightbox-desktop-1440");
+});
+
+test("portrait photos keep the reel on the photo on phone and desktop", async ({ page }) => {
+  await page.setViewportSize(VIEWPORT);
+  await page.goto("/dev/lightbox?shape=portrait");
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-01.jpg");
+  await expect.poll(async () => (await seated(page))?.natural ?? 0).toBeGreaterThan(0.6);
+  const phone = await seated(page);
+  expectSeated(phone, 200);
+  expect(Math.abs(phone!.natural - 1000 / 1500)).toBeLessThan(0.05);
+  expect(Math.abs(phone!.shown - phone!.natural)).toBeLessThan(0.05);
+  expect(phone!.spaceBelow).toBeGreaterThan(24);
+  await expectReelThumbs(page, 60, 40);
+  await page.getByRole("button", { name: "Next photo" }).click();
+  await expect(page.locator("[data-photo-count]")).toHaveText("2 / 89");
+  await expect(page.locator("[data-photo-reel] [aria-current='true']")).toHaveAttribute("data-reel-id", "02");
+  expectSeated(await seated(page), 200);
+  await page.locator("[data-reel-id='15']").click();
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-15.jpg");
+  await expect.poll(() => reelCenterDelta(page)).toBeLessThan(2);
+  expectSeated(await seated(page), 200);
+  await shot(page, "lightbox-portrait-393");
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(async () => (await seated(page))?.width ?? 0).toBeGreaterThan(400);
+  const desktop = await seated(page);
+  expectSeated(desktop, 300);
+  expect(Math.abs(desktop!.shown - desktop!.natural)).toBeLessThan(0.05);
+  await expectReelThumbs(page, 96, 64);
+  await expect(page.locator("[data-photo-reel] [aria-current='true']")).toHaveAttribute("data-reel-id", "15");
+  await expect.poll(() => reelCenterDelta(page)).toBeLessThan(2);
+  await shot(page, "lightbox-portrait-1440");
 });
 
 test("filename stays seated before the original loads and after the viewport changes", async ({ page }) => {

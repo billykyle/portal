@@ -171,6 +171,8 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(viewer, /margin-bottom:16px/);
   assert.doesNotMatch(viewer, /bottom:calc\(100% \+ 16px\)/);
   assert.match(viewer, /data-photo-reel=""/);
+  assert.match(viewer, /margin-top:16px/);
+  assert.match(viewer, /object-cover/);
   assert.match(viewer, /env\(safe-area-inset-bottom\)/);
   assert.match(viewer, /loading="lazy"/);
   assert.match(viewer, /aria-current="true"/);
@@ -260,11 +262,27 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(nasViewer, /line-height:1\.5/);
   assert.match(nasViewer, /height:100dvh/);
   assert.match(nasViewer, /aspect-ratio:3000 \/ 2000/);
-  assert.match(nasViewer, /min\(100cqw, calc\(\(100cqh - \(16px \+ 1lh\)\) \* 3000 \/ 2000\)\)/);
+  assert.match(
+    nasViewer,
+    /min\(100cqw, calc\(\(100cqh - \(16px \+ 1lh \+ 16px \+ var\(--reel-thumb-h\)\)\) \* 3000 \/ 2000\)\)/,
+  );
   assert.match(nasViewer, /container-type:size/);
-  const reel = nasViewer.slice(nasViewer.indexOf("data-photo-reel"));
+  assert.match(nasViewer, /margin-top:16px/);
+  assert.match(nas, /--reel-thumb-w:60px/);
+  assert.match(nas, /--reel-thumb-h:40px/);
+  assert.match(nas, /--reel-thumb-w:96px/);
+  assert.match(nas, /--reel-thumb-h:64px/);
+  const stackAt = nasViewer.indexOf("data-photo-stack");
+  const imageAt = nasViewer.indexOf("data-photo-image");
+  const reelAt = nasViewer.indexOf("data-photo-reel");
+  assert.ok(stackAt >= 0 && stackAt < imageAt && imageAt < reelAt);
+  const reel = nasViewer.slice(reelAt);
   const reelSrcs = [...reel.matchAll(/src="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(reelSrcs, ["/api/media/photo-a/thumb?v=abc", "/api/media/photo-b/thumb?v=def"]);
+  assert.match(reel, /object-cover/);
+  assert.match(reel, /width:var\(--reel-thumb-w\)/);
+  assert.match(reel, /height:var\(--reel-thumb-h\)/);
+  assert.doesNotMatch(reel, /object-contain/);
 
   const construction = renderToStaticMarkup(
     createElement(defaultTemplate.Shoot, {

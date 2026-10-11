@@ -16,17 +16,16 @@ import {
   VIEWER_CAPTION_LINE_HEIGHT,
   viewerBackdropColor,
   viewerCaption,
-  viewerCaptionReserve,
   viewerContainedFrame,
   viewerCountLabel,
   viewerImageRatio,
   viewerLayerStyle,
   viewerOriginalSrc,
   viewerPlaceholderSrc,
+  viewerReelVarsCss,
+  viewerStackReserve,
   type ViewerPhoto,
 } from "@/lib/photo-viewer";
-
-const REEL_THUMB_PX = 56;
 
 export function PhotoViewer({
   photos,
@@ -301,24 +300,39 @@ export function PhotoViewer({
         <div className="relative min-h-0 flex-1">
           <div
             ref={frameRef}
-            className="absolute inset-0 flex touch-none select-none flex-col items-center justify-center text-xl sm:text-2xl lg:text-3xl"
-            style={{ containerType: "size", lineHeight: VIEWER_CAPTION_LINE_HEIGHT }}
+            className="absolute inset-0 flex select-none flex-col items-center justify-center text-xl sm:text-2xl lg:text-3xl"
+            style={{
+              containerType: "size",
+              lineHeight: VIEWER_CAPTION_LINE_HEIGHT,
+              // Home-indicator inset. A short stack stays centered above it; a tall one stops here.
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }}
             data-photo-stage=""
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
           >
-            <div data-photo-stack="" className="flex w-full max-w-full flex-col items-center">
+            {/* Swipes land here. It is not an ancestor of the reel, so touch-action:none does not freeze the reel. */}
+            <div
+              className="absolute inset-0 z-0 touch-none"
+              aria-hidden="true"
+              data-photo-gesture=""
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            />
+            <div
+              data-photo-stack=""
+              className="pointer-events-none relative z-10 flex w-full max-w-full shrink-0 flex-col items-center"
+            >
               <Caption titleId={titleId} filename={photo.filename} countLabel={countLabel} />
               <div
                 data-photo-frame=""
                 data-photo-image=""
-                className="relative max-w-full"
+                className="relative max-w-full shrink-0"
                 style={frame ?? undefined}
               >
                 <ViewerStill photo={photo} active layout={frame ? "fill" : "intrinsic"} onReady={onReady} />
               </div>
+              <PhotoReel ref={reelRef} photos={photos} index={safeIndex} onSelect={showIndex} />
             </div>
           </div>
           <button
@@ -343,7 +357,7 @@ export function PhotoViewer({
           </button>
         </div>
       </div>
-      <PhotoReel ref={reelRef} photos={photos} index={safeIndex} onSelect={showIndex} />
+      <style>{viewerReelVarsCss()}</style>
       <p className="sr-only">{caption}</p>
     </div>
   );
@@ -404,17 +418,10 @@ function PhotoReel({
       ref={ref}
       data-photo-reel=""
       aria-label="Photos"
-      className="relative z-20 shrink-0 touch-pan-x overflow-x-auto overscroll-x-contain select-none"
-      style={{
-        paddingTop: 8,
-        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
-        touchAction: "pan-x",
-      }}
+      className="pointer-events-auto relative z-20 w-full min-w-0 shrink-0 touch-pan-x overflow-x-auto overscroll-x-contain select-none"
+      style={{ marginTop: VIEWER_CAPTION_GAP_PX, touchAction: "pan-x" }}
     >
-      <div
-        className="flex w-max gap-1.5"
-        style={{ paddingInline: `calc(50% - ${REEL_THUMB_PX / 2}px)` }}
-      >
+      <div className="flex w-max gap-1.5" style={{ paddingInline: "calc(50% - var(--reel-thumb-w) / 2)" }}>
         {photos.map((item, itemIndex) => {
           const active = itemIndex === index;
           const thumb = viewerPlaceholderSrc(item);
@@ -427,10 +434,10 @@ function PhotoReel({
               aria-label={item.filename}
               tabIndex={active ? 0 : -1}
               onClick={() => onSelect(itemIndex)}
-              className={`shrink-0 overflow-hidden border-2 bg-white/10 ${
+              className={`box-border shrink-0 overflow-hidden border-2 bg-white/10 ${
                 active ? "border-white opacity-100" : "border-transparent opacity-40"
               }`}
-              style={{ width: REEL_THUMB_PX, height: REEL_THUMB_PX }}
+              style={{ width: "var(--reel-thumb-w)", height: "var(--reel-thumb-h)" }}
             >
               {thumb ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -470,7 +477,7 @@ export function ViewerStill({
     maxWidth: "100%",
     width: "auto",
     height: "auto",
-    maxHeight: `calc(100cqh - (${viewerCaptionReserve()}))`,
+    maxHeight: `calc(100cqh - (${viewerStackReserve()}))`,
   };
 
   useEffect(() => {

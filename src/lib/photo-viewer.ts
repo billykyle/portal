@@ -120,6 +120,16 @@ export function viewerLayerStyle() {
 export const VIEWER_CAPTION_LINE_HEIGHT = 1.5;
 export const VIEWER_CAPTION_GAP_PX = 16;
 
+/**
+ * Reel thumbs are 3:2. The phone size is the default; desktop (Tailwind `lg`,
+ * 64rem) uses the larger pair. Object-fit is cover, so the box stays 3:2.
+ */
+export const VIEWER_REEL_THUMB_WIDTH_PX = 60;
+export const VIEWER_REEL_THUMB_HEIGHT_PX = 40;
+export const VIEWER_REEL_THUMB_DESKTOP_WIDTH_PX = 96;
+export const VIEWER_REEL_THUMB_DESKTOP_HEIGHT_PX = 64;
+export const VIEWER_REEL_DESKTOP_MIN = "64rem";
+
 export function viewerImageRatio(width?: number | null, height?: number | null) {
   if (typeof width !== "number" || typeof height !== "number") return null;
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
@@ -145,16 +155,36 @@ export function viewerCaptionReserve() {
   return `${VIEWER_CAPTION_GAP_PX}px + 1lh`;
 }
 
+/** The 16px gap under the photo, plus the reel thumb height. */
+export function viewerReelReserve() {
+  return `${VIEWER_CAPTION_GAP_PX}px + var(--reel-thumb-h)`;
+}
+
+/** Filename line, both 16px gaps, and the reel. The centered stack fits in this. */
+export function viewerStackReserve() {
+  return `${viewerCaptionReserve()} + ${viewerReelReserve()}`;
+}
+
+/**
+ * Phone and desktop thumb boxes. `--reel-thumb-h` is what the photo frame
+ * subtracts, so the reel stays 16px under the photo at both sizes.
+ */
+export function viewerReelVarsCss() {
+  const phone = `--reel-thumb-w:${VIEWER_REEL_THUMB_WIDTH_PX}px;--reel-thumb-h:${VIEWER_REEL_THUMB_HEIGHT_PX}px`;
+  const desktop = `--reel-thumb-w:${VIEWER_REEL_THUMB_DESKTOP_WIDTH_PX}px;--reel-thumb-h:${VIEWER_REEL_THUMB_DESKTOP_HEIGHT_PX}px`;
+  return `[data-photo-stage]{${phone}}@media (min-width:${VIEWER_REEL_DESKTOP_MIN}){[data-photo-stage]{${desktop}}}`;
+}
+
 /**
  * Photo box inside a size container. The width is the contained size after
- * leaving room for the filename, which sits in normal flow above the box.
- * Nothing measures the photo, so the name cannot jump when an image loads
- * or the iOS toolbar shows and hides.
+ * leaving room for the filename above and the reel below, which sit in normal
+ * flow in the same centered stack. Nothing measures the photo, so the name
+ * and the reel cannot jump when an image loads or the iOS toolbar shows and hides.
  */
 export function viewerContainedFrame(imageWidth: number, imageHeight: number) {
   const ratio = viewerImageRatio(imageWidth, imageHeight);
   if (!ratio) return null;
-  const reserve = viewerCaptionReserve();
+  const reserve = viewerStackReserve();
   return {
     aspectRatio: `${ratio.width} / ${ratio.height}`,
     width: `min(100cqw, calc((100cqh - (${reserve})) * ${ratio.width} / ${ratio.height}))`,

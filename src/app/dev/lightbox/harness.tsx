@@ -4,19 +4,39 @@ import { useState } from "react";
 import { PhotoViewer } from "@/components/photo-viewer";
 import type { ViewerPhoto } from "@/lib/photo-viewer";
 
-const photos: ViewerPhoto[] = Array.from({ length: 89 }, (_, index) => {
-  const id = String(index + 1).padStart(2, "0");
-  return {
-    id,
-    filename: `Full-${id}.jpg`,
-    url: `/dev/photos/${id}`,
-    thumbUrl: `/dev/photos/${id}?thumb=1`,
-    width: 1600,
-    height: 1000,
-  };
-});
+function buildPhotos(shape: "landscape" | "portrait"): ViewerPhoto[] {
+  const portrait = shape === "portrait";
+  const width = portrait ? 1000 : 1600;
+  const height = portrait ? 1500 : 1000;
+  return Array.from({ length: 89 }, (_, index) => {
+    const id = String(index + 1).padStart(2, "0");
+    const shapeQuery = portrait ? "shape=portrait" : "";
+    return {
+      id,
+      filename: `Full-${id}.jpg`,
+      url: shapeQuery ? `/dev/photos/${id}?${shapeQuery}` : `/dev/photos/${id}`,
+      thumbUrl: `/dev/photos/${id}?thumb=1${shapeQuery ? `&${shapeQuery}` : ""}`,
+      width,
+      height,
+    };
+  });
+}
 
-export function LightboxHarness({ initialId, startOpen }: { initialId: string; startOpen: boolean }) {
+const photosByShape = {
+  landscape: buildPhotos("landscape"),
+  portrait: buildPhotos("portrait"),
+};
+
+export function LightboxHarness({
+  initialId,
+  startOpen,
+  shape = "landscape",
+}: {
+  initialId: string;
+  startOpen: boolean;
+  shape?: "landscape" | "portrait";
+}) {
+  const photos = photosByShape[shape];
   const [open, setOpen] = useState(startOpen);
   return (
     <div className="min-h-[2400px] bg-black text-white">
