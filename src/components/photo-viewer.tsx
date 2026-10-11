@@ -9,12 +9,14 @@ import {
   indexOfPhoto,
   photoViewerHref,
   preloadPhotoSrcs,
+  preloadStandInSrcs,
   replaceViewerUrl,
+  shouldPaintViewerImage,
   stepPhotoIndex,
   swipeStep,
   VIEWER_CAPTION_GAP_PX,
   VIEWER_CAPTION_LINE_HEIGHT,
-  viewerBackdropColor,
+  viewerBackdropStyle,
   viewerCaption,
   viewerContainedFrame,
   viewerCountLabel,
@@ -24,6 +26,7 @@ import {
   viewerPlaceholderSrc,
   viewerReelVarsCss,
   viewerStackReserve,
+  viewerStageSrc,
   type ViewerPhoto,
 } from "@/lib/photo-viewer";
 
@@ -80,12 +83,14 @@ export function PhotoViewer({
   };
 
   const onReady = useCallback((id: string, width: number, height: number) => {
-    setNaturalRatio((current) =>
-      current && current.id === id && current.width === width && current.height === height
+    setNaturalRatio((current) => {
+      // A late decode for a photo that is no longer on screen must not resize this frame.
+      if (!shouldPaintViewerImage(id, photo?.id ?? id)) return current;
+      return current && current.id === id && current.width === width && current.height === height
         ? current
-        : { id, width, height },
-    );
-  }, []);
+        : { id, width, height };
+    });
+  }, [photo?.id]);
 
   useLayoutEffect(() => {
     // Portal onto body before paint. A disposable host gets removed during
@@ -99,14 +104,19 @@ export function PhotoViewer({
     replaceViewerUrl(photoViewerHref(basePath, photoId));
   }, [basePath, photoId]);
 
-  const preloadKey = preloadPhotoSrcs(photos, safeIndex).join("|");
+  const preloadKey = [...preloadPhotoSrcs(photos, safeIndex), ...preloadStandInSrcs(photos, safeIndex)].join("|");
   useEffect(() => {
     if (!preloadKey) return;
+    const images: HTMLImageElement[] = [];
     for (const src of preloadKey.split("|")) {
       const image = new Image();
       image.decoding = "async";
       image.src = src;
+      images.push(image);
     }
+    return () => {
+      for (const image of images) image.src = "";
+    };
   }, [preloadKey]);
 
   useLayoutEffect(() => {
@@ -262,20 +272,15 @@ export function PhotoViewer({
     <div
       ref={rootRef}
       className="fixed inset-0 z-[60] flex h-dvh min-h-dvh w-full flex-col overscroll-none"
-      style={viewerLayerStyle()}
+      style={{ ...viewerBackdropStyle(), ...viewerLayerStyle() }}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
       data-photo-viewer=""
+      data-photo-backdrop=""
       data-photo-index={safeIndex}
       data-photo-id={photo.id}
     >
-      <div
-        className="pointer-events-none absolute right-0 left-0"
-        style={{ backgroundColor: viewerBackdropColor(), top: "-20vh", bottom: "-20vh" }}
-        data-photo-backdrop=""
-        aria-hidden="true"
-      />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <header
           data-photo-header=""
@@ -327,10 +332,10 @@ export function PhotoViewer({
               <div
                 data-photo-frame=""
                 data-photo-image=""
-                className="relative max-w-full shrink-0"
+                className="relative max-w-full shrink-0 overflow-hidden"
                 style={frame ?? undefined}
               >
-                <ViewerStill photo={photo} active layout={frame ? "fill" : "intrinsic"} onReady={onReady} />
+                <ViewerStill key={photo.id} photo={photo} active layout={frame ? "fill" : "intrinsic"} onReady={onReady} />
               </div>
               <PhotoReel ref={reelRef} photos={photos} index={safeIndex} onSelect={showIndex} />
             </div>
@@ -470,9 +475,11 @@ export function ViewerStill({
   onReady?: (id: string, width: number, height: number) => void;
   layout?: "fill" | "intrinsic";
 }) {
-  const placeholder = viewerPlaceholderSrc(photo);
   const original = viewerOriginalSrc(photo);
-  const localRef = useRef<HTMLImageElement | null>(null);
+  const [readyId, setReadyId] = useState<string | null>(null);
+  const originalReady = readyId === photo.id;
+  const src = viewerStageSrc(photo, originalReady);
+  const showingOriginal = src === original;
   const limit: React.CSSProperties = {
     maxWidth: "100%",
     width: "auto",
@@ -480,62 +487,48 @@ export function ViewerStill({
     maxHeight: `calc(100cqh - (${viewerStackReserve()}))`,
   };
 
-  useEffect(() => {
-    const image = localRef.current;
-    if (!image) return;
-    let cancelled = false;
+  useLayoutEffect(() => {
+    // Decode off the DOM. WebKit keeps the previous bitmap when `src` changes
+    // on an <img> that has already painted, so this element is never that node.
+    let activeLoad = true;
+    const image = new Image();
+    image.decoding = "async";
     const publish = () => {
-      if (cancelled || !image.isConnected) return;
-      if (image.getAttribute("src") !== original) return;
+      // Cleanup runs before the next photo's effect, so a decode that finishes
+      // late cannot mark that older photo ready or report its size.
+      if (!activeLoad) return;
       if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+      setReadyId(photo.id);
       onReady?.(photo.id, image.naturalWidth, image.naturalHeight);
     };
     image.addEventListener("load", publish);
+    image.src = original;
     if (image.complete) publish();
     return () => {
-      cancelled = true;
+      activeLoad = false;
       image.removeEventListener("load", publish);
+      image.src = "";
     };
   }, [onReady, original, photo.id]);
 
-  const thumb = placeholder ? (
+  return (
+    // A new photo id mounts a new element. The previous photo is not left in the tree.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={placeholder}
-      alt=""
-      aria-hidden="true"
+      key={photo.id}
+      src={src}
+      alt={active ? photo.filename : ""}
       draggable={false}
+      decoding="async"
       data-photo-id={photo.id}
-      data-photo-thumb=""
+      data-photo-original={showingOriginal ? "" : undefined}
+      data-photo-thumb={showingOriginal ? undefined : ""}
       className={
         layout === "fill"
-          ? "pointer-events-none absolute inset-0 z-0 h-full w-full object-contain"
-          : "pointer-events-none z-0 block object-contain"
+          ? "pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
+          : "pointer-events-none relative z-10 block max-w-full object-contain"
       }
       style={layout === "fill" ? undefined : limit}
     />
-  ) : null;
-
-  return (
-    <>
-      {thumb}
-      {/* Both layers fill the current frame only. The previous photo is unmounted, not stacked. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        ref={localRef}
-        src={original}
-        alt={active ? photo.filename : ""}
-        draggable={false}
-        decoding="async"
-        data-photo-id={photo.id}
-        data-photo-original=""
-        className={
-          layout === "fill" || placeholder
-            ? "pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
-            : "pointer-events-none relative z-10 block object-contain"
-        }
-        style={layout === "fill" || placeholder ? undefined : limit}
-      />
-    </>
   );
 }

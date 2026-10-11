@@ -102,7 +102,7 @@ test("photos past the first rows do not request a preview in the initial HTML", 
   assert.equal(photos.match(/loading="eager"/g)?.length, PREVIEW_EAGER_COUNT);
 });
 
-test("opening a photo shows the original above the grid thumb", () => {
+test("the stage mounts one image, the thumb until that photo's original has decoded", () => {
   const html = renderToStaticMarkup(
     createElement(ViewerStill, {
       active: true,
@@ -115,15 +115,13 @@ test("opening a photo shows the original above the grid thumb", () => {
     }),
   );
   const images = [...html.matchAll(/<img\b[^>]*>/g)].map((match) => match[0]);
-  const srcOf = (tag: string) => tag.match(/src="([^"]*)"/)?.[1];
-  const original = images.find((tag) => srcOf(tag) === "/api/media/photo-1");
-  const preview = images.find((tag) => srcOf(tag) === "/api/media/photo-1/thumb?v=abc123");
-  assert.ok(original);
-  assert.ok(preview);
-  assert.match(original, /z-10/);
-  assert.match(preview, /z-0/);
-  assert.doesNotMatch(original, /\/thumb/);
-  assert.match(original, /alt="Full-01\.jpg"/);
+  assert.equal(images.length, 1);
+  assert.match(images[0], /src="\/api\/media\/photo-1\/thumb\?v=abc123"/);
+  assert.match(images[0], /data-photo-id="photo-1"/);
+  assert.match(images[0], /data-photo-thumb=""/);
+  assert.doesNotMatch(images[0], /data-photo-original/);
+  assert.match(images[0], /object-contain/);
+  assert.match(images[0], /alt="Full-01\.jpg"/);
 
   const grid = renderShoot();
   const photos = grid.slice(grid.indexOf('id="photos"'), grid.indexOf('id="floor-plans"'));
@@ -142,6 +140,9 @@ test("a photo with no separate thumb does not stack a preview in the viewer", ()
   const images = [...html.matchAll(/<img\b[^>]*>/g)].map((match) => match[0]);
   assert.equal(images.length, 1);
   assert.match(images[0], /src="\/photos\/front\.jpg"/);
+  assert.match(images[0], /data-photo-original=""/);
+  assert.match(images[0], /data-photo-id="photo-1"/);
+  assert.doesNotMatch(images[0], /data-photo-thumb/);
   assert.match(images[0], /z-10/);
 });
 
@@ -165,7 +166,8 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(viewer, /fixed inset-0/);
   assert.match(viewer, /role="dialog"/);
   assert.match(viewer, /aria-modal="true"/);
-  assert.match(viewer, /style="background-color:rgb\(0 0 0 \/ 0\.95\);[^"]*" data-photo-backdrop=""/);
+  assert.match(viewer, /data-photo-backdrop=""[^>]*style="[^"]*background-color:rgb\(0 0 0 \/ 0\.95\)|style="[^"]*background-color:rgb\(0 0 0 \/ 0\.95\)[^"]*"[^>]*data-photo-backdrop=""/);
+  assert.doesNotMatch(viewer, /top:-20vh|bottom:-20vh/);
   assert.doesNotMatch(viewer, /backdrop-blur/);
   assert.match(viewer, /data-photo-caption=""/);
   assert.match(viewer, /margin-bottom:16px/);
@@ -181,7 +183,9 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   assert.match(viewer, /z-index:60/);
   assert.match(viewer, /h-dvh/);
   assert.doesNotMatch(viewer, /top-\[max\(0\.75rem,env\(safe-area-inset-top\)\)\] bottom-3/);
-  assert.match(viewer, /src="\/photos\/front\.jpg"/);
+  assert.match(viewer, /data-photo-thumb=""[^>]*src="\/thumbs\/front\.jpg"|src="\/thumbs\/front\.jpg"[^>]*data-photo-thumb=""/);
+  assert.doesNotMatch(viewer, /src="\/photos\/front\.jpg"/);
+  assert.match(viewer, /data-photo-image=""[^>]*overflow-hidden|overflow-hidden[^>]*data-photo-image=""/);
   assert.match(viewer, /alt="front\.jpg"/);
   assert.match(viewer, /object-contain/);
   assert.match(viewer, /z-10/);
@@ -246,7 +250,9 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   const nasMarker = nas.indexOf("data-photo-viewer");
   const nasViewer = nas.slice(nas.lastIndexOf("<div", nasMarker), nas.indexOf("grid-cols-3"));
   assert.match(nasViewer, /object-contain/);
-  assert.match(nasViewer, /src="\/api\/media\/photo-a"/);
+  assert.match(nasViewer, /src="\/api\/media\/photo-a\/thumb\?v=abc"/);
+  assert.match(nasViewer, /data-photo-id="photo-a"/);
+  assert.doesNotMatch(nasViewer, /src="\/api\/media\/photo-a"/);
   assert.match(nasViewer, />Full-01\.jpg</);
   assert.match(nasViewer, />1 \/ 2</);
   assert.match(nasViewer, /href="\/api\/media\/photo-a\?download=1"/);
@@ -300,7 +306,9 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   );
   assert.match(constructionPhotos, /data-photo-viewer/);
   assert.match(constructionPhotos, /role="dialog"/);
-  assert.match(constructionPhotos, /src="\/photos\/front\.jpg"/);
+  assert.match(constructionPhotos, /data-photo-thumb=""/);
+  assert.match(constructionPhotos, /src="\/thumbs\/front\.jpg"/);
+  assert.doesNotMatch(constructionPhotos, /src="\/photos\/front\.jpg"/);
   assert.match(constructionPhotos, /object-contain/);
   assert.match(constructionPhotos, /grid-cols-3/);
   assert.match(construction, /14 Harbor Lane/);
@@ -338,7 +346,9 @@ test("tapping a photo opens a full-screen lightbox over the grid", () => {
   const episodeViewer = stills.slice(stills.lastIndexOf("<div", episodeMarker), stills.indexOf("grid-cols-3"));
   assert.match(episodeViewer, /fixed inset-0/);
   assert.match(episodeViewer, /role="dialog"/);
-  assert.match(episodeViewer, /src="\/photos\/cover\.jpg"/);
+  assert.match(episodeViewer, /src="\/thumbs\/cover\.jpg"/);
+  assert.match(episodeViewer, /data-photo-thumb=""/);
+  assert.doesNotMatch(episodeViewer, /src="\/photos\/cover\.jpg"/);
   assert.match(episodeViewer, /object-contain/);
   assert.match(episodeViewer, />cover\.jpg</);
   assert.match(episodeViewer, /aria-label="Next photo"/);

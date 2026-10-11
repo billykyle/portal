@@ -73,6 +73,10 @@ async function shot(page: Page, name: string) {
   return path;
 }
 
+async function viewerReady(page: Page) {
+  await page.waitForFunction(() => document.querySelector("[data-photo-viewer]")?.parentElement === document.body);
+}
+
 async function imageIds(page: Page) {
   return page.locator("[data-photo-original], [data-photo-thumb]").evaluateAll((images) =>
     images.map((image) => image.getAttribute("data-photo-id")),
@@ -226,6 +230,12 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
     )
     .toMatchObject({ clipped: false });
 
+  await expect
+    .poll(() =>
+      page.locator("[data-photo-original]").evaluate((img: HTMLImageElement) => img.naturalWidth).catch(() => 0),
+    )
+    .toBeGreaterThan(0);
+
   const fit = await page.evaluate(() => {
     const text = document.querySelector("[data-photo-filename]");
     const image = document.querySelector("[data-photo-image]");
@@ -266,12 +276,24 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
   const stageStyle = await page.locator("[data-photo-stage]").getAttribute("style");
   expect(stageStyle).toContain("safe-area-inset-bottom");
 
+  const viewerBox = await viewer.boundingBox();
+  expect(backdrop!.x).toBeLessThanOrEqual(viewerBox!.x);
+  expect(backdrop!.y).toBeLessThanOrEqual(viewerBox!.y);
+  expect(backdrop!.x + backdrop!.width).toBeGreaterThanOrEqual(viewerBox!.x + viewerBox!.width);
+  expect(backdrop!.y + backdrop!.height).toBeGreaterThanOrEqual(viewerBox!.y + viewerBox!.height);
+  const shadow = await page.locator("[data-photo-backdrop]").evaluate((el) => getComputedStyle(el).boxShadow);
+  expect(shadow).toMatch(/rgba?\(0,\s*0,\s*0/);
+  expect(shadow).not.toContain("vh");
+
   const screen = await shot(page, "lightbox-webkit-393");
   const png = await page.screenshot();
-  const pixel = pngPixel(png, 8, 132);
-  expect(pixel.r).toBeGreaterThan(6);
-  expect(pixel.r).toBeLessThan(20);
-  expect(pixel.g).toBeLessThan(8);
+  for (const x of [4, 196, 388]) {
+    const pixel = pngPixel(png, x, 132);
+    expect(pixel.r).toBeGreaterThan(6);
+    expect(pixel.r).toBeLessThan(20);
+    expect(pixel.g).toBeLessThan(8);
+    expect(pixel.b).toBeLessThan(8);
+  }
   expect(screen).toContain("lightbox-webkit-393");
 });
 
@@ -287,6 +309,7 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
   });
 
   await page.goto("/dev/lightbox");
+  await viewerReady(page);
   const next = page.getByRole("button", { name: "Next photo" });
   for (let step = 0; step < 10; step += 1) {
     await next.click();
@@ -295,9 +318,7 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
     await expect(page.locator("[data-photo-count]")).toHaveText(`${step + 2} / 89`);
     await expect(page.locator("[data-photo-index]")).toHaveAttribute("data-photo-index", String(step + 1));
     const ids = await imageIds(page);
-    expect(ids.length).toBeGreaterThan(0);
-    expect(ids.length).toBeLessThanOrEqual(2);
-    expect(new Set(ids)).toEqual(new Set([label]));
+    expect(ids).toEqual([label]);
   }
 
   await page.evaluate(() => {
@@ -306,7 +327,7 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
   });
   await expect(page.locator("[data-photo-filename]")).toHaveText("Full-21.jpg");
   await expect(page.locator("[data-photo-count]")).toHaveText("21 / 89");
-  expect(new Set(await imageIds(page))).toEqual(new Set(["21"]));
+  expect(await imageIds(page)).toEqual(["21"]);
 
   await expect
     .poll(() =>
@@ -319,7 +340,7 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
 
   releaseSlow?.();
   await page.waitForTimeout(400);
-  expect(new Set(await imageIds(page))).toEqual(new Set(["21"]));
+  expect(await imageIds(page)).toEqual(["21"]);
   const painted = await page.locator("[data-photo-image]").screenshot();
   const box = await page.locator("[data-photo-image]").boundingBox();
   const color = pngPixel(painted, (box?.width ?? 10) / 2, (box?.height ?? 10) / 2);
@@ -331,13 +352,100 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
   await shot(page, "lightbox-after-rapid-taps");
 });
 
+test("thirty rapid taps and swipes never leave the previous photo on screen", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.route("**/dev/photos/**", async (route) => {
+    const url = new URL(route.request().url());
+    // Slow-3G latency for originals. Thumbs stay immediate so the stand-in can paint.
+    if (!url.searchParams.has("thumb")) await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
+
+  await page.goto("/dev/lightbox");
+  await viewerReady(page);
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-01.jpg");
+
+  const show = async (n: number) => {
+    const label = String(n).padStart(2, "0");
+    const previous = n - 1;
+    await expect(page.locator("[data-photo-filename]")).toHaveText(`Full-${label}.jpg`);
+    await expect(page.locator("[data-photo-count]")).toHaveText(`${n} / 89`);
+    await expect(page.locator("[data-photo-image] img")).toHaveCount(1);
+    const img = page.locator("[data-photo-image] img");
+    await expect(img).toHaveAttribute("data-photo-id", label);
+    const src = await img.getAttribute("src");
+    expect(src).toContain(`/dev/photos/${label}`);
+    expect(src).not.toContain(`/dev/photos/${String(previous).padStart(2, "0")}`);
+    const reused = await img.evaluate((node) => {
+      const holder = window as unknown as { __stageImg?: Element };
+      const same = holder.__stageImg === node;
+      holder.__stageImg = node;
+      return Boolean(holder.__stageImg && same);
+    });
+    expect(reused).toBe(false);
+    await expect(page.locator("[data-photo-image]")).toHaveCSS("overflow", "hidden");
+    await expect(page.locator(`[data-photo-image] img[data-photo-id="${String(previous).padStart(2, "0")}"]`)).toHaveCount(0);
+
+    const frame = await page.locator("[data-photo-image]").boundingBox();
+    expect(frame).not.toBeNull();
+    const png = await page.screenshot();
+    const color = pngPixel(png, frame!.x + frame!.width / 2, frame!.y + frame!.height / 2);
+    const gap = pngPixel(png, frame!.x + frame!.width / 2, frame!.y + frame!.height + 4);
+    const red = n * 6;
+    const stale = previous * 6;
+    if (Math.abs(color.r - stale) <= 2 && Math.abs(color.b - 40) <= 8) {
+      throw new Error(`main area still shows photo ${previous} (rgb ${color.r},${color.g},${color.b}) at index ${n}`);
+    }
+    if (Math.abs(color.r - red) > 2) {
+      await expect
+        .poll(async () => {
+          const next = await page.locator("[data-photo-image]").screenshot();
+          const box = await page.locator("[data-photo-image]").boundingBox();
+          return pngPixel(next, (box?.width ?? 2) / 2, (box?.height ?? 2) / 2).r;
+        })
+        .toBeGreaterThanOrEqual(red - 2);
+    }
+    expect(gap.b).toBeLessThan(15);
+    expect(gap.g).toBeLessThan(15);
+    if (n === 13) await shot(page, "lightbox-rapid-after");
+  };
+
+  const next = page.getByRole("button", { name: "Next photo" });
+  for (let n = 2; n <= 31; n += 1) {
+    await next.click();
+    await show(n);
+  }
+
+  const stage = await page.locator("[data-photo-stage]").boundingBox();
+  expect(stage).not.toBeNull();
+  for (let n = 32; n <= 41; n += 1) {
+    const y = stage!.y + stage!.height * 0.42;
+    await page.mouse.move(stage!.x + stage!.width - 90, y);
+    await page.mouse.down();
+    await page.mouse.move(stage!.x + 70, y, { steps: 8 });
+    await page.mouse.up();
+    await show(n);
+  }
+
+  await page.waitForTimeout(1200);
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-41.jpg");
+  await expect(page.locator("[data-photo-image] img")).toHaveCount(1);
+  await expect(page.locator("[data-photo-image] img")).toHaveAttribute("data-photo-id", "41");
+  const settled = await page.locator("[data-photo-image]").screenshot();
+  const settledBox = await page.locator("[data-photo-image]").boundingBox();
+  const settledColor = pngPixel(settled, (settledBox?.width ?? 2) / 2, (settledBox?.height ?? 2) / 2);
+  expect(Math.abs(settledColor.r - 41 * 6)).toBeLessThanOrEqual(2);
+  expect(Math.abs(settledColor.b - 40)).toBeLessThanOrEqual(8);
+});
+
 test("one arrow tap moves exactly one photo", async ({ page }) => {
   await page.goto("/dev/lightbox?at=28");
+  await viewerReady(page);
   await expect(page.locator("[data-photo-count]")).toHaveText("28 / 89");
   await page.getByRole("button", { name: "Next photo" }).click();
   await expect(page.locator("[data-photo-filename]")).toHaveText("Full-29.jpg");
   await expect(page.locator("[data-photo-count]")).toHaveText("29 / 89");
-  expect(new Set(await imageIds(page))).toEqual(new Set(["29"]));
+  expect(await imageIds(page)).toEqual(["29"]);
 });
 
 test("vertical swipes do not scroll the page or move the lightbox, horizontal swipes change photos", async ({
@@ -356,6 +464,14 @@ test("vertical swipes do not scroll the page or move the lightbox, horizontal sw
   const viewer = page.locator("[data-photo-viewer]");
   await expect(viewer).toBeVisible();
   const opened = await viewer.boundingBox();
+  const backdrop = await page.locator("[data-photo-backdrop]").boundingBox();
+  expect(backdrop!.x).toBeLessThanOrEqual(opened!.x);
+  expect(backdrop!.y).toBeLessThanOrEqual(opened!.y);
+  expect(backdrop!.x + backdrop!.width).toBeGreaterThanOrEqual(opened!.x + opened!.width);
+  expect(backdrop!.y + backdrop!.height).toBeGreaterThanOrEqual(opened!.y + opened!.height);
+  const dimmed = pngPixel(await page.screenshot(), 8, 132);
+  expect(dimmed.r).toBeGreaterThan(6);
+  expect(dimmed.r).toBeLessThan(20);
   expect(opened?.x).toBe(0);
   expect(opened?.y).toBe(0);
   expect(opened?.width).toBe(393);
@@ -399,11 +515,14 @@ async function reelCenterDelta(page: Page) {
 }
 
 async function exerciseReel(page: Page, minWidth: number) {
+  await viewerReady(page);
   await expect(page.locator("[data-reel-thumb]")).toHaveCount(89);
   const srcs = await page.locator("[data-reel-thumb]").evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("src")),
   );
   expect(srcs.every((src) => src?.includes("thumb=1"))).toBe(true);
+  await expect(page.locator("[data-photo-image] img")).toHaveCount(1);
+  await expect.poll(() => page.locator("[data-photo-original]").count()).toBe(1);
   const mainSrc = await page.locator("[data-photo-original]").getAttribute("src");
   expect(mainSrc).not.toContain("thumb");
 
