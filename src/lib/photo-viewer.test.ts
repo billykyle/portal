@@ -19,6 +19,8 @@ import {
   VIEWER_Z_INDEX,
   viewerBackdropColor,
   viewerCaption,
+  viewerCaptionReserve,
+  viewerContainedFrame,
   viewerCountLabel,
   viewerImageRatio,
   viewerLayerStyle,
@@ -104,9 +106,9 @@ test("splits count and filename for the stacked header", () => {
   assert.equal(viewerCaption("Full-09.jpg", 8, 38), "9 / 38, Full-09.jpg");
 });
 
-test("lightbox backdrop is solid 90% black with no blur", () => {
-  assert.equal(VIEWER_BACKDROP_OPACITY, 0.9);
-  assert.equal(viewerBackdropColor(), "rgb(0 0 0 / 0.9)");
+test("lightbox backdrop is solid 95% black with no blur", () => {
+  assert.equal(VIEWER_BACKDROP_OPACITY, 0.95);
+  assert.equal(viewerBackdropColor(), "rgb(0 0 0 / 0.95)");
   assert.equal(VIEWER_Z_INDEX, 60);
   assert.deepEqual(viewerLayerStyle(), {
     position: "fixed",
@@ -138,6 +140,18 @@ test("filename line box sits fully above an object-contain frame", () => {
     "min(100cqw, calc(100cqh * 1080 / 1620))",
   );
   assert.equal(viewerPhotoFrameWidth(0, 100), null);
+  assert.equal(viewerCaptionReserve(), "16px + 1lh");
+  assert.deepEqual(viewerContainedFrame(3000, 2000), {
+    aspectRatio: "3000 / 2000",
+    width: "min(100cqw, calc((100cqh - (16px + 1lh)) * 3000 / 2000))",
+    maxWidth: "100%",
+  });
+  assert.deepEqual(viewerContainedFrame(1080, 1620), {
+    aspectRatio: "1080 / 1620",
+    width: "min(100cqw, calc((100cqh - (16px + 1lh)) * 1080 / 1620))",
+    maxWidth: "100%",
+  });
+  assert.equal(viewerContainedFrame(0, 100), null);
 
   const landscape = placeContainedPhoto(390, 700, 1600, 1000, 48);
   assert.ok(landscape);

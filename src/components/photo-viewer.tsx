@@ -8,7 +8,6 @@ import {
   clampPhotoIndex,
   indexOfPhoto,
   photoViewerHref,
-  placeContainedPhoto,
   preloadPhotoSrcs,
   replaceViewerUrl,
   stepPhotoIndex,
@@ -17,14 +16,17 @@ import {
   VIEWER_CAPTION_LINE_HEIGHT,
   viewerBackdropColor,
   viewerCaption,
+  viewerCaptionReserve,
+  viewerContainedFrame,
   viewerCountLabel,
   viewerImageRatio,
   viewerLayerStyle,
   viewerOriginalSrc,
-  viewerPhotoFrameWidth,
   viewerPlaceholderSrc,
   type ViewerPhoto,
 } from "@/lib/photo-viewer";
+
+const REEL_THUMB_PX = 56;
 
 export function PhotoViewer({
   photos,
@@ -38,15 +40,13 @@ export function PhotoViewer({
   const titleId = useId();
   const closeRef = useRef<HTMLAnchorElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
-  const captionRef = useRef<HTMLDivElement>(null);
+  const reelRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   // Index is the only source of truth. initialId seeds it and is not applied again:
   // the URL mirrors the index, and a late router restore must not skip or rewind a tap.
   const [index, setIndex] = useState(() => indexOfPhoto(photos, initialId));
   const [portalReady, setPortalReady] = useState(false);
   const [naturalRatio, setNaturalRatio] = useState<{ id: string; width: number; height: number } | null>(null);
-  const [stageSize, setStageSize] = useState<{ width: number; height: number } | null>(null);
-  const [captionHeight, setCaptionHeight] = useState(0);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -70,21 +70,14 @@ export function PhotoViewer({
   const renderedRatio =
     photo && naturalRatio?.id === photo.id ? viewerImageRatio(naturalRatio.width, naturalRatio.height) : null;
   const ratio = renderedRatio ?? metaRatio;
-  const frameWidth = ratio ? viewerPhotoFrameWidth(ratio.width, ratio.height) : null;
-  const placed =
-    stageSize && ratio && captionHeight > 0
-      ? placeContainedPhoto(
-          stageSize.width,
-          stageSize.height,
-          ratio.width,
-          ratio.height,
-          captionHeight + VIEWER_CAPTION_GAP_PX,
-        )
-      : null;
-  const layoutMode = placed ? "pixels" : "css";
+  const frame = ratio ? viewerContainedFrame(ratio.width, ratio.height) : null;
 
   const stepBy = (direction: -1 | 1) => {
     setIndex((current) => stepPhotoIndex(current, photos.length, direction));
+  };
+
+  const showIndex = (next: number) => {
+    setIndex(clampPhotoIndex(next, photos.length));
   };
 
   const onReady = useCallback((id: string, width: number, height: number) => {
@@ -117,27 +110,25 @@ export function PhotoViewer({
     }
   }, [preloadKey]);
 
-  useEffect(() => {
-    const stage = frameRef.current;
-    const captionNode = captionRef.current;
-    if (!stage) return;
-    const measure = () => {
-      const box = stage.getBoundingClientRect();
-      const width = Math.round(box.width);
-      const height = Math.round(box.height);
-      setStageSize((current) =>
-        current && current.width === width && current.height === height ? current : { width, height },
+  useLayoutEffect(() => {
+    const reel = reelRef.current;
+    if (!reel || !photoId) return;
+    const center = () => {
+      const thumb = [...reel.querySelectorAll<HTMLElement>("[data-reel-id]")].find(
+        (node) => node.dataset.reelId === photoId,
       );
-      if (!captionNode) return;
-      const nextHeight = Math.round(captionNode.getBoundingClientRect().height);
-      setCaptionHeight((current) => (current === nextHeight ? current : nextHeight));
+      if (!thumb) return;
+      const reelBox = reel.getBoundingClientRect();
+      const thumbBox = thumb.getBoundingClientRect();
+      const delta = thumbBox.left + thumbBox.width / 2 - (reelBox.left + reelBox.width / 2);
+      if (Math.abs(delta) < 1) return;
+      reel.scrollTo({ left: reel.scrollLeft + delta, behavior: "auto" });
     };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(stage);
-    if (captionNode) observer.observe(captionNode);
+    center();
+    const observer = new ResizeObserver(center);
+    observer.observe(reel);
     return () => observer.disconnect();
-  }, [portalReady, photoId, layoutMode]);
+  }, [photoId, portalReady]);
 
   useLayoutEffect(() => {
     if (!portalReady) return;
@@ -157,12 +148,13 @@ export function PhotoViewer({
       bodyWidth: body.style.width,
     };
     // Freeze the scrolled page in place. The viewer is position:fixed, so it
-    // stays on the viewport while body is pinned.
+    // stays on the viewport while body is pinned. touch-action stays alone:
+    // `none` on body would also freeze the reel, because it intersects with
+    // every descendant.
     root.style.overflow = "hidden";
     root.style.overscrollBehavior = "none";
     body.style.overflow = "hidden";
     body.style.overscrollBehavior = "none";
-    body.style.touchAction = "none";
     body.style.position = "fixed";
     body.style.top = `-${scrollY}px`;
     body.style.left = "0";
@@ -170,6 +162,8 @@ export function PhotoViewer({
     body.style.width = "100%";
 
     const stopGesture = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && reelRef.current?.contains(target)) return;
       if (event.cancelable) event.preventDefault();
     };
     // Non-passive so a vertical swipe cannot scroll the page under the fixed layer.
@@ -265,14 +259,10 @@ export function PhotoViewer({
 
   if (!photo) return null;
 
-  const captionStyle = {
-    lineHeight: VIEWER_CAPTION_LINE_HEIGHT,
-  };
-
   const layer = (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-[60] flex h-dvh min-h-dvh w-full touch-none flex-col overflow-hidden overscroll-none"
+      className="fixed inset-0 z-[60] flex h-dvh min-h-dvh w-full flex-col overscroll-none"
       style={viewerLayerStyle()}
       role="dialog"
       aria-modal="true"
@@ -282,13 +272,16 @@ export function PhotoViewer({
       data-photo-id={photo.id}
     >
       <div
-        className="absolute inset-0"
-        style={{ backgroundColor: viewerBackdropColor() }}
+        className="pointer-events-none absolute right-0 left-0"
+        style={{ backgroundColor: viewerBackdropColor(), top: "-20vh", bottom: "-20vh" }}
         data-photo-backdrop=""
         aria-hidden="true"
       />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <header className="relative flex shrink-0 items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+        <header
+          data-photo-header=""
+          className="relative flex shrink-0 items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3"
+        >
           <a
             ref={closeRef}
             href={closeHref}
@@ -305,63 +298,28 @@ export function PhotoViewer({
             Download
           </a>
         </header>
-        <div className="relative min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
+        <div className="relative min-h-0 flex-1">
           <div
             ref={frameRef}
-            className="absolute inset-0 touch-none select-none"
-            style={{ containerType: "size" }}
+            className="absolute inset-0 flex touch-none select-none flex-col items-center justify-center text-xl sm:text-2xl lg:text-3xl"
+            style={{ containerType: "size", lineHeight: VIEWER_CAPTION_LINE_HEIGHT }}
             data-photo-stage=""
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
           >
-            {placed ? (
-              <>
-                <Caption
-                  ref={captionRef}
-                  titleId={titleId}
-                  filename={photo.filename}
-                  countLabel={countLabel}
-                  style={{
-                    ...captionStyle,
-                    top: placed.top - VIEWER_CAPTION_GAP_PX - captionHeight,
-                  }}
-                />
-                <div
-                  data-photo-frame=""
-                  data-photo-image=""
-                  className="absolute z-10 overflow-hidden"
-                  style={{ left: placed.left, top: placed.top, width: placed.width, height: placed.height }}
-                >
-                  <ViewerStill key={photo.id} photo={photo} active onReady={onReady} />
-                </div>
-              </>
-            ) : (
+            <div data-photo-stack="" className="flex w-full max-w-full flex-col items-center">
+              <Caption titleId={titleId} filename={photo.filename} countLabel={countLabel} />
               <div
                 data-photo-frame=""
-                className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
-                style={
-                  frameWidth && ratio
-                    ? { aspectRatio: `${ratio.width} / ${ratio.height}`, width: frameWidth }
-                    : { width: "100%", height: "100%" }
-                }
+                data-photo-image=""
+                className="relative max-w-full"
+                style={frame ?? undefined}
               >
-                <Caption
-                  ref={captionRef}
-                  titleId={titleId}
-                  filename={photo.filename}
-                  countLabel={countLabel}
-                  style={{
-                    ...captionStyle,
-                    bottom: `calc(100% + ${VIEWER_CAPTION_GAP_PX}px)`,
-                  }}
-                />
-                <div data-photo-image="" className="absolute inset-0 overflow-hidden">
-                  <ViewerStill key={photo.id} photo={photo} active onReady={onReady} />
-                </div>
+                <ViewerStill photo={photo} active layout={frame ? "fill" : "intrinsic"} onReady={onReady} />
               </div>
-            )}
+            </div>
           </div>
           <button
             type="button"
@@ -385,6 +343,7 @@ export function PhotoViewer({
           </button>
         </div>
       </div>
+      <PhotoReel ref={reelRef} photos={photos} index={safeIndex} onSelect={showIndex} />
       <p className="sr-only">{caption}</p>
     </div>
   );
@@ -394,38 +353,33 @@ export function PhotoViewer({
 }
 
 function Caption({
-  ref,
   titleId,
   filename,
   countLabel,
-  style,
 }: {
-  ref: React.Ref<HTMLDivElement>;
   titleId: string;
   filename: string;
   countLabel: string;
-  style: React.CSSProperties;
 }) {
   return (
     <div
-      ref={ref}
       data-photo-caption=""
-      className="pointer-events-none absolute left-1/2 z-30 flex w-max max-w-[calc(100cqw-13rem)] -translate-x-1/2 items-center justify-center gap-2"
-      style={style}
+      className="flex w-full max-w-full shrink-0 items-center justify-center gap-2 px-4"
+      style={{ marginBottom: VIEWER_CAPTION_GAP_PX }}
       aria-live="polite"
     >
       <p
         id={titleId}
         data-photo-filename=""
         title={filename}
-        className="min-w-0 truncate text-center text-xl font-semibold text-white sm:text-2xl lg:text-3xl"
+        className="m-0 min-w-0 truncate text-center text-xl font-semibold text-white sm:text-2xl lg:text-3xl"
         style={{ lineHeight: VIEWER_CAPTION_LINE_HEIGHT }}
       >
         {filename}
       </p>
       <p
         data-photo-count=""
-        className="shrink-0 text-xs text-white/70 tabular-nums sm:text-sm"
+        className="m-0 shrink-0 text-xs text-white/70 tabular-nums sm:text-sm"
         style={{ lineHeight: VIEWER_CAPTION_LINE_HEIGHT }}
       >
         {countLabel}
@@ -434,18 +388,90 @@ function Caption({
   );
 }
 
+function PhotoReel({
+  ref,
+  photos,
+  index,
+  onSelect,
+}: {
+  ref: React.Ref<HTMLDivElement>;
+  photos: ViewerPhoto[];
+  index: number;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div
+      ref={ref}
+      data-photo-reel=""
+      aria-label="Photos"
+      className="relative z-20 shrink-0 touch-pan-x overflow-x-auto overscroll-x-contain select-none"
+      style={{
+        paddingTop: 8,
+        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+        touchAction: "pan-x",
+      }}
+    >
+      <div
+        className="flex w-max gap-1.5"
+        style={{ paddingInline: `calc(50% - ${REEL_THUMB_PX / 2}px)` }}
+      >
+        {photos.map((item, itemIndex) => {
+          const active = itemIndex === index;
+          const thumb = viewerPlaceholderSrc(item);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              data-reel-id={item.id}
+              aria-current={active ? "true" : undefined}
+              aria-label={item.filename}
+              tabIndex={active ? 0 : -1}
+              onClick={() => onSelect(itemIndex)}
+              className={`shrink-0 overflow-hidden border-2 bg-white/10 ${
+                active ? "border-white opacity-100" : "border-transparent opacity-40"
+              }`}
+              style={{ width: REEL_THUMB_PX, height: REEL_THUMB_PX }}
+            >
+              {thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={thumb}
+                  alt=""
+                  draggable={false}
+                  decoding="async"
+                  loading={active ? "eager" : "lazy"}
+                  data-reel-thumb=""
+                  className="pointer-events-none h-full w-full object-cover"
+                />
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ViewerStill({
   photo,
   active,
   onReady,
+  layout = "fill",
 }: {
   photo: ViewerPhoto;
   active: boolean;
   onReady?: (id: string, width: number, height: number) => void;
+  layout?: "fill" | "intrinsic";
 }) {
   const placeholder = viewerPlaceholderSrc(photo);
   const original = viewerOriginalSrc(photo);
   const localRef = useRef<HTMLImageElement | null>(null);
+  const limit: React.CSSProperties = {
+    maxWidth: "100%",
+    width: "auto",
+    height: "auto",
+    maxHeight: `calc(100cqh - (${viewerCaptionReserve()}))`,
+  };
 
   useEffect(() => {
     const image = localRef.current;
@@ -465,20 +491,27 @@ export function ViewerStill({
     };
   }, [onReady, original, photo.id]);
 
+  const thumb = placeholder ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={placeholder}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      data-photo-id={photo.id}
+      data-photo-thumb=""
+      className={
+        layout === "fill"
+          ? "pointer-events-none absolute inset-0 z-0 h-full w-full object-contain"
+          : "pointer-events-none z-0 block object-contain"
+      }
+      style={layout === "fill" ? undefined : limit}
+    />
+  ) : null;
+
   return (
     <>
-      {placeholder ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={placeholder}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          data-photo-id={photo.id}
-          data-photo-thumb=""
-          className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain"
-        />
-      ) : null}
+      {thumb}
       {/* Both layers fill the current frame only. The previous photo is unmounted, not stacked. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -489,7 +522,12 @@ export function ViewerStill({
         decoding="async"
         data-photo-id={photo.id}
         data-photo-original=""
-        className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
+        className={
+          layout === "fill" || placeholder
+            ? "pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
+            : "pointer-events-none relative z-10 block object-contain"
+        }
+        style={layout === "fill" || placeholder ? undefined : limit}
       />
     </>
   );

@@ -74,9 +74,64 @@ async function shot(page: Page, name: string) {
 }
 
 async function imageIds(page: Page) {
-  return page.locator("[data-photo-viewer] img").evaluateAll((images) =>
+  return page.locator("[data-photo-original], [data-photo-thumb]").evaluateAll((images) =>
     images.map((image) => image.getAttribute("data-photo-id")),
   );
+}
+
+async function seated(page: Page) {
+  return page.evaluate(() => {
+    const text = document.querySelector("[data-photo-filename]");
+    const image = document.querySelector("[data-photo-image]");
+    const header = document.querySelector("[data-photo-header]");
+    const reel = document.querySelector("[data-photo-reel]");
+    if (!text || !image || !header || !reel) return null;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const ink = range.getBoundingClientRect();
+    const frame = image.getBoundingClientRect();
+    const headerBox = header.getBoundingClientRect();
+    const reelBox = reel.getBoundingClientRect();
+    const style = getComputedStyle(text);
+    const img = document.querySelector("[data-photo-original]") as HTMLImageElement | null;
+    return {
+      gap: frame.top - ink.bottom,
+      nameTop: ink.top,
+      headerBottom: headerBox.bottom,
+      imageBottom: frame.bottom,
+      reelTop: reelBox.top,
+      lineHeight: Number.parseFloat(style.lineHeight),
+      fontSize: Number.parseFloat(style.fontSize),
+      clipped: text.scrollHeight > text.clientHeight + 1,
+      natural: img && img.naturalWidth > 0 ? img.naturalWidth / img.naturalHeight : 0,
+      shown: frame.width > 0 && frame.height > 0 ? frame.width / frame.height : 0,
+      width: frame.width,
+      height: frame.height,
+    };
+  });
+}
+
+function expectSeated(
+  fit: {
+    gap: number;
+    nameTop: number;
+    headerBottom: number;
+    imageBottom: number;
+    reelTop: number;
+    width: number;
+    height: number;
+    clipped: boolean;
+  } | null,
+  minWidth: number,
+) {
+  expect(fit).not.toBeNull();
+  expect(fit!.gap).toBeGreaterThanOrEqual(12);
+  expect(fit!.gap).toBeLessThanOrEqual(36);
+  expect(fit!.nameTop).toBeGreaterThanOrEqual(fit!.headerBottom - 1);
+  expect(fit!.imageBottom).toBeLessThanOrEqual(fit!.reelTop + 1);
+  expect(fit!.clipped).toBe(false);
+  expect(fit!.width).toBeGreaterThan(minWidth);
+  expect(fit!.height).toBeGreaterThan(160);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -91,10 +146,16 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
   expect(box).toEqual({ x: 0, y: 0, width: 393, height: 852 });
 
   const background = await page.locator("[data-photo-backdrop]").evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(background).toBe("rgba(0, 0, 0, 0.9)");
+  expect(background).toBe("rgba(0, 0, 0, 0.95)");
+  const backdrop = await page.locator("[data-photo-backdrop]").boundingBox();
+  expect(backdrop).not.toBeNull();
+  expect(backdrop!.x).toBeLessThanOrEqual(0);
+  expect(backdrop!.y).toBeLessThanOrEqual(0);
+  expect(backdrop!.x + backdrop!.width).toBeGreaterThanOrEqual(393);
+  expect(backdrop!.y + backdrop!.height).toBeGreaterThanOrEqual(852);
 
   await expect(page.locator("[data-photo-filename]")).toHaveText("Full-01.jpg");
-  await expect(page.locator("[data-photo-count]")).toHaveText("1 / 40");
+  await expect(page.locator("[data-photo-count]")).toHaveText("1 / 89");
 
   await expect
     .poll(async () =>
@@ -157,10 +218,10 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
 
   const screen = await shot(page, "lightbox-webkit-393");
   const png = await page.screenshot();
-  const pixel = pngPixel(png, 200, 132);
-  expect(pixel.r).toBeGreaterThan(8);
-  expect(pixel.r).toBeLessThan(60);
-  expect(pixel.g).toBeLessThan(20);
+  const pixel = pngPixel(png, 8, 132);
+  expect(pixel.r).toBeGreaterThan(6);
+  expect(pixel.r).toBeLessThan(20);
+  expect(pixel.g).toBeLessThan(8);
   expect(screen).toContain("lightbox-webkit-393");
 });
 
@@ -181,7 +242,7 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
     await next.click();
     const label = String(step + 2).padStart(2, "0");
     await expect(page.locator("[data-photo-filename]")).toHaveText(`Full-${label}.jpg`);
-    await expect(page.locator("[data-photo-count]")).toHaveText(`${step + 2} / 40`);
+    await expect(page.locator("[data-photo-count]")).toHaveText(`${step + 2} / 89`);
     await expect(page.locator("[data-photo-index]")).toHaveAttribute("data-photo-index", String(step + 1));
     const ids = await imageIds(page);
     expect(ids.length).toBeGreaterThan(0);
@@ -194,7 +255,7 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
     for (let tap = 0; tap < 10; tap += 1) button?.click();
   });
   await expect(page.locator("[data-photo-filename]")).toHaveText("Full-21.jpg");
-  await expect(page.locator("[data-photo-count]")).toHaveText("21 / 40");
+  await expect(page.locator("[data-photo-count]")).toHaveText("21 / 89");
   expect(new Set(await imageIds(page))).toEqual(new Set(["21"]));
 
   await expect
@@ -215,15 +276,17 @@ test("ten rapid next taps stay in lockstep and a late image cannot cover the cur
   expect(color.r).toBeGreaterThanOrEqual(21 * 6 - 2);
   expect(color.r).toBeLessThanOrEqual(21 * 6 + 2);
 
+  await expect.poll(async () => (await seated(page))?.gap ?? -1).toBeGreaterThanOrEqual(12);
+  expectSeated(await seated(page), 300);
   await shot(page, "lightbox-after-rapid-taps");
 });
 
 test("one arrow tap moves exactly one photo", async ({ page }) => {
   await page.goto("/dev/lightbox?at=28");
-  await expect(page.locator("[data-photo-count]")).toHaveText("28 / 40");
+  await expect(page.locator("[data-photo-count]")).toHaveText("28 / 89");
   await page.getByRole("button", { name: "Next photo" }).click();
   await expect(page.locator("[data-photo-filename]")).toHaveText("Full-29.jpg");
-  await expect(page.locator("[data-photo-count]")).toHaveText("29 / 40");
+  await expect(page.locator("[data-photo-count]")).toHaveText("29 / 89");
   expect(new Set(await imageIds(page))).toEqual(new Set(["29"]));
 });
 
@@ -260,15 +323,129 @@ test("vertical swipes do not scroll the page or move the lightbox, horizontal sw
   const stayed = await viewer.boundingBox();
   expect(stayed).toEqual(opened);
 
-  await expect(page.locator("[data-photo-count]")).toHaveText("1 / 40");
+  await expect(page.locator("[data-photo-count]")).toHaveText("1 / 89");
   const stage = await page.locator("[data-photo-stage]").boundingBox();
   expect(stage).not.toBeNull();
   await page.mouse.move(stage!.x + stage!.width - 90, stage!.y + stage!.height / 2);
   await page.mouse.down();
   await page.mouse.move(stage!.x + 70, stage!.y + stage!.height / 2, { steps: 12 });
   await page.mouse.up();
-  await expect(page.locator("[data-photo-count]")).toHaveText("2 / 40");
+  await expect(page.locator("[data-photo-count]")).toHaveText("2 / 89");
   await expect(page.locator("[data-photo-filename]")).toHaveText("Full-02.jpg");
   const afterSwipe = await viewer.boundingBox();
   expect(afterSwipe).toEqual(opened);
+  expectSeated(await seated(page), 300);
+});
+
+async function reelCenterDelta(page: Page) {
+  return page.evaluate(() => {
+    const reel = document.querySelector("[data-photo-reel]");
+    const thumb = reel?.querySelector("[aria-current='true']");
+    if (!reel || !thumb) return null;
+    const reelBox = reel.getBoundingClientRect();
+    const thumbBox = thumb.getBoundingClientRect();
+    return Math.abs(thumbBox.left + thumbBox.width / 2 - (reelBox.left + reelBox.width / 2));
+  });
+}
+
+async function exerciseReel(page: Page, minWidth: number) {
+  await expect(page.locator("[data-reel-thumb]")).toHaveCount(89);
+  const srcs = await page.locator("[data-reel-thumb]").evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute("src")),
+  );
+  expect(srcs.every((src) => src?.includes("thumb=1"))).toBe(true);
+  const mainSrc = await page.locator("[data-photo-original]").getAttribute("src");
+  expect(mainSrc).not.toContain("thumb");
+
+  for (let step = 0; step < 20; step += 1) {
+    const id = String(step + 1).padStart(2, "0");
+    await expect(page.locator("[data-photo-count]")).toHaveText(`${step + 1} / 89`);
+    await expect(page.locator("[data-photo-reel] [aria-current='true']")).toHaveAttribute("data-reel-id", id);
+    expectSeated(await seated(page), minWidth);
+    await expect.poll(() => reelCenterDelta(page)).toBeLessThan(2);
+    await page.getByRole("button", { name: "Next photo" }).click();
+  }
+
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-21.jpg");
+  expectSeated(await seated(page), minWidth);
+  await expect.poll(() => reelCenterDelta(page)).toBeLessThan(2);
+
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator("[data-photo-count]")).toHaveText("22 / 89");
+  await expect(page.locator("[data-photo-reel] [aria-current='true']")).toHaveAttribute("data-reel-id", "22");
+  expectSeated(await seated(page), minWidth);
+  await expect.poll(() => reelCenterDelta(page)).toBeLessThan(2);
+
+  await page.locator("[data-photo-reel]").evaluate((el) => {
+    el.scrollLeft = 520;
+  });
+  await expect(page.locator("[data-photo-count]")).toHaveText("22 / 89");
+  expect(await reelCenterDelta(page)).toBeGreaterThan(20);
+
+  await page.locator("[data-reel-id='40']").click();
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-40.jpg");
+  await expect(page.locator("[data-photo-count]")).toHaveText("40 / 89");
+  await expect(page.locator("[data-photo-reel] [aria-current='true']")).toHaveCount(1);
+  await expect.poll(() => reelCenterDelta(page)).toBeLessThan(2);
+  expectSeated(await seated(page), minWidth);
+
+  const paint = await page.locator("[data-photo-reel] [aria-current='true']").evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { opacity: style.opacity, border: style.borderTopColor };
+  });
+  expect(paint.opacity).toBe("1");
+  expect(paint.border).toBe("rgb(255, 255, 255)");
+  const dim = await page.locator("[data-reel-id='39']").evaluate((el) => Number(getComputedStyle(el).opacity));
+  expect(dim).toBeLessThan(0.6);
+
+  const gestures = await page.evaluate(() => {
+    const reel = document.querySelector("[data-photo-reel]");
+    const stage = document.querySelector("[data-photo-stage]");
+    const reelEvent = new WheelEvent("wheel", { deltaX: 40, bubbles: true, cancelable: true });
+    reel?.dispatchEvent(reelEvent);
+    const stageEvent = new WheelEvent("wheel", { deltaY: 40, bubbles: true, cancelable: true });
+    stage?.dispatchEvent(stageEvent);
+    return { reel: reelEvent.defaultPrevented, stage: stageEvent.defaultPrevented };
+  });
+  expect(gestures.reel).toBe(false);
+  expect(gestures.stage).toBe(true);
+}
+
+test("filename stays above the photo across 20 navigations and the reel follows", async ({ page }) => {
+  await page.goto("/dev/lightbox");
+  await exerciseReel(page, 300);
+  await shot(page, "lightbox-reel-jumped");
+});
+
+test("filename stays seated on a desktop viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/dev/lightbox");
+  const viewer = page.locator("[data-photo-viewer]");
+  await expect(viewer).toBeVisible();
+  const box = await viewer.boundingBox();
+  expect(box).toEqual({ x: 0, y: 0, width: 1440, height: 900 });
+  await exerciseReel(page, 300);
+  await shot(page, "lightbox-desktop-1440");
+});
+
+test("filename stays seated before the original loads and after the viewport changes", async ({ page }) => {
+  await page.route("**/dev/photos/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (!url.searchParams.has("thumb")) await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+  await page.goto("/dev/lightbox", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-photo-filename]")).toHaveText("Full-01.jpg");
+  expectSeated(await seated(page), 300);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  expectSeated(await seated(page), 300);
+  await page.setViewportSize({ width: 393, height: 700 });
+  expectSeated(await seated(page), 280);
+
+  await expect
+    .poll(() => page.locator("[data-photo-original]").evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  expectSeated(await seated(page), 280);
+  expect((await seated(page))!.nameTop).toBeGreaterThan((await seated(page))!.headerBottom);
 });

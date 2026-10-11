@@ -1,7 +1,7 @@
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const n = Number(id);
-  if (!Number.isInteger(n) || n < 1 || n > 40) {
+  if (!Number.isInteger(n) || n < 1 || n > 89) {
     return new Response("Not found", { status: 404 });
   }
   const red = n * 6;

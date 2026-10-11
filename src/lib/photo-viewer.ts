@@ -87,9 +87,9 @@ export function resistedDrag(deltaX: number, index: number, total: number) {
 
 /**
  * Backdrop of the full-screen photo viewer.
- * Solid black at 90% opacity. Flat color, no blur, over the whole viewport.
+ * Black at 95% opacity. Flat color, no blur, over the whole viewport.
  */
-export const VIEWER_BACKDROP_OPACITY = 0.9;
+export const VIEWER_BACKDROP_OPACITY = 0.95;
 
 /** Above the page header (z-10) and the selection bar (z-40), under the nav menu. */
 export const VIEWER_Z_INDEX = 60;
@@ -135,6 +135,31 @@ export function viewerPhotoFrameWidth(imageWidth: number, imageHeight: number) {
   const ratio = viewerImageRatio(imageWidth, imageHeight);
   if (!ratio) return null;
   return `min(100cqw, calc(100cqh * ${ratio.width} / ${ratio.height}))`;
+}
+
+/**
+ * Caption line plus the gap, in a size container whose font matches the filename.
+ * `1lh` is that line, so the reserve stays correct when the type size changes.
+ */
+export function viewerCaptionReserve() {
+  return `${VIEWER_CAPTION_GAP_PX}px + 1lh`;
+}
+
+/**
+ * Photo box inside a size container. The width is the contained size after
+ * leaving room for the filename, which sits in normal flow above the box.
+ * Nothing measures the photo, so the name cannot jump when an image loads
+ * or the iOS toolbar shows and hides.
+ */
+export function viewerContainedFrame(imageWidth: number, imageHeight: number) {
+  const ratio = viewerImageRatio(imageWidth, imageHeight);
+  if (!ratio) return null;
+  const reserve = viewerCaptionReserve();
+  return {
+    aspectRatio: `${ratio.width} / ${ratio.height}`,
+    width: `min(100cqw, calc((100cqh - (${reserve})) * ${ratio.width} / ${ratio.height}))`,
+    maxWidth: "100%",
+  };
 }
 
 /** Largest box of this aspect that fits the stage. Same math as object-fit: contain. */
