@@ -47,10 +47,31 @@ export function viewerPlaceholderSrc(photo: Pick<ViewerPhoto, "url" | "thumbUrl"
   return thumb;
 }
 
+/**
+ * What the stage `<img>` may paint. The original is shown only after that
+ * photo's file has decoded. Until then the cached thumb fills the same box.
+ * A photo with no separate thumb has nothing else to show, so the original
+ * URL is used and the new element stays blank until it decodes.
+ */
+export function viewerStageSrc(photo: Pick<ViewerPhoto, "url" | "thumbUrl">, originalReady: boolean) {
+  if (originalReady) return viewerOriginalSrc(photo);
+  return viewerPlaceholderSrc(photo) ?? viewerOriginalSrc(photo);
+}
+
 /** Neighbor slides preload the original, the same URL Download uses. */
 export function preloadPhotoSrcs(photos: Array<Pick<ViewerPhoto, "url">>, index: number) {
   return preloadPhotoIndexes(index, photos.length).flatMap((next) => {
     const src = photos[next]?.url;
+    return src ? [src] : [];
+  });
+}
+
+/** Neighbor thumbs, so the next tap already has a decoded stand-in. */
+export function preloadStandInSrcs(photos: Array<Pick<ViewerPhoto, "url" | "thumbUrl">>, index: number) {
+  return preloadPhotoIndexes(index, photos.length).flatMap((next) => {
+    const photo = photos[next];
+    if (!photo) return [];
+    const src = viewerPlaceholderSrc(photo);
     return src ? [src] : [];
   });
 }
@@ -96,6 +117,20 @@ export const VIEWER_Z_INDEX = 60;
 
 export function viewerBackdropColor(opacity = VIEWER_BACKDROP_OPACITY) {
   return `rgb(0 0 0 / ${opacity})`;
+}
+
+/**
+ * Paint for the viewer layer itself. The color covers that element's border
+ * box, so the wash cannot miss the layer the way a `vh`-positioned child can
+ * on iOS (the visual viewport and `vh` diverge once the page is scroll-locked).
+ * The shadow is the same color outside the box, over the browser-chrome band.
+ */
+export function viewerBackdropStyle() {
+  const color = viewerBackdropColor();
+  return {
+    backgroundColor: color,
+    boxShadow: `0 0 0 100vmax ${color}`,
+  };
 }
 
 /** Full-viewport layer. `100dvh` tracks the visible screen, including iOS browser chrome. */

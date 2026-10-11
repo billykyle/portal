@@ -8,6 +8,7 @@ import {
   placeContainedPhoto,
   preloadPhotoIndexes,
   preloadPhotoSrcs,
+  preloadStandInSrcs,
   resistedDrag,
   shouldPaintViewerImage,
   shouldRenderPhotoSlide,
@@ -18,6 +19,7 @@ import {
   VIEWER_CAPTION_LINE_HEIGHT,
   VIEWER_Z_INDEX,
   viewerBackdropColor,
+  viewerBackdropStyle,
   viewerCaption,
   viewerCaptionReserve,
   viewerContainedFrame,
@@ -35,6 +37,7 @@ import {
   viewerPhotoFrameWidth,
   viewerOriginalSrc,
   viewerPlaceholderSrc,
+  viewerStageSrc,
 } from "./photo-viewer";
 
 const photos = [{ id: "a" }, { id: "b" }, { id: "c" }];
@@ -75,8 +78,17 @@ test("lightbox and neighbor preload use the original, not the grid thumb", () =>
   assert.equal(viewerPlaceholderSrc(stills[0]), "/api/media/a/thumb?v=111");
   assert.equal(viewerPlaceholderSrc({ url: "/api/media/a", thumbUrl: "/api/media/a" }), null);
   assert.equal(viewerPlaceholderSrc(stills[3]), null);
+  assert.equal(viewerStageSrc(stills[0], false), "/api/media/a/thumb?v=111");
+  assert.equal(viewerStageSrc(stills[0], true), "/api/media/a");
+  assert.equal(viewerStageSrc(stills[3], false), "/api/media/d");
+  assert.equal(viewerStageSrc({ url: "/api/media/a", thumbUrl: "/api/media/a" }, false), "/api/media/a");
   assert.deepEqual(preloadPhotoSrcs(stills, 0), ["/api/media/b", "/api/media/c"]);
   assert.deepEqual(preloadPhotoSrcs(stills, 1), ["/api/media/a", "/api/media/c", "/api/media/d"]);
+  assert.deepEqual(preloadStandInSrcs(stills, 0), ["/api/media/b/thumb?v=222", "/api/media/c/thumb?v=333"]);
+  assert.deepEqual(preloadStandInSrcs(stills, 1), [
+    "/api/media/a/thumb?v=111",
+    "/api/media/c/thumb?v=333",
+  ]);
 });
 
 test("only the current photo is mounted", () => {
@@ -117,6 +129,10 @@ test("splits count and filename for the stacked header", () => {
 test("lightbox backdrop is solid 95% black with no blur", () => {
   assert.equal(VIEWER_BACKDROP_OPACITY, 0.95);
   assert.equal(viewerBackdropColor(), "rgb(0 0 0 / 0.95)");
+  const backdrop = viewerBackdropStyle();
+  assert.equal(backdrop.backgroundColor, "rgb(0 0 0 / 0.95)");
+  assert.equal(backdrop.boxShadow, "0 0 0 100vmax rgb(0 0 0 / 0.95)");
+  assert.doesNotMatch(backdrop.boxShadow, /vh|dvh|lvh/);
   assert.equal(VIEWER_Z_INDEX, 60);
   assert.deepEqual(viewerLayerStyle(), {
     position: "fixed",
