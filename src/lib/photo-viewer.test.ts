@@ -21,6 +21,14 @@ import {
   viewerCaption,
   viewerCaptionReserve,
   viewerContainedFrame,
+  viewerReelReserve,
+  viewerReelVarsCss,
+  viewerStackReserve,
+  VIEWER_REEL_DESKTOP_MIN,
+  VIEWER_REEL_THUMB_DESKTOP_HEIGHT_PX,
+  VIEWER_REEL_THUMB_DESKTOP_WIDTH_PX,
+  VIEWER_REEL_THUMB_HEIGHT_PX,
+  VIEWER_REEL_THUMB_WIDTH_PX,
   viewerCountLabel,
   viewerImageRatio,
   viewerLayerStyle,
@@ -141,14 +149,27 @@ test("filename line box sits fully above an object-contain frame", () => {
   );
   assert.equal(viewerPhotoFrameWidth(0, 100), null);
   assert.equal(viewerCaptionReserve(), "16px + 1lh");
+  assert.equal(viewerReelReserve(), "16px + var(--reel-thumb-h)");
+  assert.equal(viewerStackReserve(), "16px + 1lh + 16px + var(--reel-thumb-h)");
+  assert.equal(VIEWER_REEL_THUMB_WIDTH_PX / VIEWER_REEL_THUMB_HEIGHT_PX, 3 / 2);
+  assert.equal(VIEWER_REEL_THUMB_DESKTOP_WIDTH_PX / VIEWER_REEL_THUMB_DESKTOP_HEIGHT_PX, 3 / 2);
+  assert.equal(VIEWER_REEL_THUMB_WIDTH_PX, 60);
+  assert.equal(VIEWER_REEL_THUMB_HEIGHT_PX, 40);
+  assert.ok(VIEWER_REEL_THUMB_DESKTOP_WIDTH_PX > VIEWER_REEL_THUMB_WIDTH_PX);
+  assert.ok(VIEWER_REEL_THUMB_DESKTOP_HEIGHT_PX > VIEWER_REEL_THUMB_HEIGHT_PX);
+  assert.equal(VIEWER_REEL_DESKTOP_MIN, "64rem");
+  assert.match(viewerReelVarsCss(), /--reel-thumb-w:60px/);
+  assert.match(viewerReelVarsCss(), /--reel-thumb-h:40px/);
+  assert.match(viewerReelVarsCss(), /--reel-thumb-w:96px/);
+  assert.match(viewerReelVarsCss(), /--reel-thumb-h:64px/);
   assert.deepEqual(viewerContainedFrame(3000, 2000), {
     aspectRatio: "3000 / 2000",
-    width: "min(100cqw, calc((100cqh - (16px + 1lh)) * 3000 / 2000))",
+    width: "min(100cqw, calc((100cqh - (16px + 1lh + 16px + var(--reel-thumb-h))) * 3000 / 2000))",
     maxWidth: "100%",
   });
   assert.deepEqual(viewerContainedFrame(1080, 1620), {
     aspectRatio: "1080 / 1620",
-    width: "min(100cqw, calc((100cqh - (16px + 1lh)) * 1080 / 1620))",
+    width: "min(100cqw, calc((100cqh - (16px + 1lh + 16px + var(--reel-thumb-h))) * 1080 / 1620))",
     maxWidth: "100%",
   });
   assert.equal(viewerContainedFrame(0, 100), null);
