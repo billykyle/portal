@@ -312,6 +312,7 @@ export function PhotoViewer({
             {/* Swipes land here. It is not an ancestor of the reel, so touch-action:none does not freeze the reel. */}
             <div
               className="absolute inset-0 z-0 touch-none"
+              aria-hidden="true"
               data-photo-gesture=""
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}

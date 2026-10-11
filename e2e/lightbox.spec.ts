@@ -157,13 +157,23 @@ function expectSeated(
 }
 
 async function expectReelThumbs(page: Page, width: number, height: number) {
-  const box = await page.locator("[data-photo-reel] [aria-current='true']").boundingBox();
-  expect(box).not.toBeNull();
-  expect(Math.abs(box!.width - width)).toBeLessThanOrEqual(1);
-  expect(Math.abs(box!.height - height)).toBeLessThanOrEqual(1);
-  expect(Math.abs(box!.width / box!.height - 1.5)).toBeLessThan(0.05);
-  const fit = await page.locator("[data-reel-thumb]").first().evaluate((el) => getComputedStyle(el).objectFit);
-  expect(fit).toBe("cover");
+  const current = page.locator("[data-photo-reel] [aria-current='true']");
+  await expect
+    .poll(async () => {
+      const box = await current.boundingBox();
+      const fit = await current
+        .locator("[data-reel-thumb]")
+        .evaluate((el) => getComputedStyle(el).objectFit)
+        .catch(() => "");
+      if (!box || box.width <= 0 || box.height <= 0) return null;
+      return {
+        width: Math.abs(box.width - width) <= 1,
+        height: Math.abs(box.height - height) <= 1,
+        ratio: Math.abs(box.width / box.height - 1.5) < 0.05,
+        fit,
+      };
+    })
+    .toEqual({ width: true, height: true, ratio: true, fit: "cover" });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -177,8 +187,9 @@ test("covers the viewport and keeps the filename above the photo", async ({ page
   const box = await viewer.boundingBox();
   expect(box).toEqual({ x: 0, y: 0, width: 393, height: 852 });
 
-  const background = await page.locator("[data-photo-backdrop]").evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(background).toBe("rgba(0, 0, 0, 0.95)");
+  await expect
+    .poll(() => page.locator("[data-photo-backdrop]").evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe("rgba(0, 0, 0, 0.95)");
   const backdrop = await page.locator("[data-photo-backdrop]").boundingBox();
   expect(backdrop).not.toBeNull();
   expect(backdrop!.x).toBeLessThanOrEqual(0);
