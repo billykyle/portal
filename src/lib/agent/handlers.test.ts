@@ -718,6 +718,77 @@ test("list_clients includes agent access status", async () => {
   assert.equal((result.data as { clients: { agentAccess: boolean }[] }).clients[0].agentAccess, true);
 });
 
+test("update_client_user forwards role and clears a blank value", async () => {
+  const user = {
+    id: "u1",
+    clientId: "c1",
+    email: "sam@example.com",
+    firstName: "Sam",
+    lastName: "Lepore",
+    phone: null,
+    company: null,
+    role: "agent" as string | null,
+    roleNeedsReassignment: false,
+    createdAt: "2026-09-04T00:00:00.000Z",
+  };
+  let seen: string | null | undefined = "unset";
+  const set = await runAgentTool(
+    "update_client_user",
+    { clientId: "c1", userId: "u1", role: "agent" },
+    stubOps({
+      async updateUser(input) {
+        seen = input.role;
+        return { ok: true, user: { ...user, role: input.role ?? null } };
+      },
+    }),
+  );
+  assert.equal(set.ok, true);
+  assert.equal(seen, "agent");
+  if (set.ok) assert.equal((set.data as { user: { role: string | null } }).user.role, "agent");
+
+  let cleared: string | null | undefined = "unset";
+  const empty = await runAgentTool(
+    "update_client_user",
+    { clientId: "c1", userId: "u1", role: "" },
+    stubOps({
+      async updateUser(input) {
+        cleared = input.role;
+        return { ok: true, user: { ...user, role: null } };
+      },
+    }),
+  );
+  assert.equal(empty.ok, true);
+  assert.equal(cleared, null);
+
+  let omitted: string | null | undefined = "unset";
+  const stay = await runAgentTool(
+    "update_client_user",
+    { clientId: "c1", userId: "u1", firstName: "Sam" },
+    stubOps({
+      async updateUser(input) {
+        omitted = input.role;
+        return { ok: true, user };
+      },
+    }),
+  );
+  assert.equal(stay.ok, true);
+  assert.equal(omitted, undefined);
+
+  let calls = 0;
+  const bad = await runAgentTool(
+    "update_client_user",
+    { clientId: "c1", userId: "u1", role: 4 },
+    stubOps({
+      async updateUser() {
+        calls += 1;
+        return { ok: true, user };
+      },
+    }),
+  );
+  assert.equal(bad.ok, false);
+  assert.equal(calls, 0);
+});
+
 test("agent tools do not reintroduce delivery tracking or attach-shoot", () => {
   const source = [
     readFileSync("src/lib/agent/tools.ts", "utf8"),

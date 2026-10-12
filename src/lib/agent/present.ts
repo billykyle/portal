@@ -33,6 +33,9 @@ export type PublicUserInput = {
   phone: string | null;
   createdAt: Date;
   passwordHash?: string;
+  /** Role on the client this row is listed for. Null is blank. */
+  role?: string | null;
+  roleNeedsReassignment?: boolean;
 };
 
 /** Login rows never leave the process with a password hash. */
@@ -45,6 +48,8 @@ export function toPublicUser(user: PublicUserInput, company: string | null) {
     lastName: user.lastName,
     phone: user.phone,
     company,
+    role: user.role ?? null,
+    roleNeedsReassignment: Boolean(user.roleNeedsReassignment),
     createdAt: user.createdAt.toISOString(),
   };
 }

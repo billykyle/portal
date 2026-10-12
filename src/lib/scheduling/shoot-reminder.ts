@@ -1,4 +1,5 @@
-import { shootNotificationRecipients } from "@/lib/client-contact";
+import { shootNotificationRecipients, type ShootMailMember } from "@/lib/client-contact";
+import type { ClientCategory } from "@/lib/client-category";
 import { bookingNotifyEmail } from "@/lib/email";
 import {
   EMAIL_FONT_STACK,
@@ -78,6 +79,9 @@ export function reminderRecipients(
     clientEmail?: string | null;
     primaryEmail?: string | null;
     loginEmails?: readonly (string | null | undefined)[] | null;
+    members?: readonly ShootMailMember[] | null;
+    category?: ClientCategory | null;
+    contactUserId?: string | null;
     notes?: string | null;
   },
   notifyEmail: string | null = bookingNotifyEmail(),
@@ -86,6 +90,9 @@ export function reminderRecipients(
     clientEmail: input.clientEmail,
     primaryEmail: input.primaryEmail,
     loginEmails: input.loginEmails,
+    members: input.members,
+    category: input.category,
+    contactUserId: input.contactUserId,
     notes: input.notes,
     notifyEmail,
   });

@@ -40,7 +40,8 @@ Webhook body:
     "id": "…",
     "displayName": "Sam Lepore",
     "inviteCode": "BK00004",
-    "primaryEmail": "sam@example.com"
+    "primaryEmail": "sam@example.com",
+    "recipients": ["sam@example.com"]
   },
   "shoot": {
     "id": "…",
@@ -52,7 +53,7 @@ Webhook body:
 }
 ```
 
-`event` is `shoot.ready`. Set `PORTAL_PUBLIC_URL` so `publicUrl` is an absolute link. Leave `DELIVERY_WEBHOOK_URL` empty to skip the POST. Resend (`RESEND_API_KEY`) sends password-reset and booking-confirmation mail. It is optional and unrelated to delivery / Pepper.
+`event` is `shoot.ready`. `client.recipients` is who should get the delivery email. `primaryEmail` is the first of those addresses, which is what a hook that only reads one address will use. For a category with no roles that is still the real primary contact, or every real login when the primary is a `@pending.local` placeholder. For Real Estate it is Team Lead, Assistant, and a primary address that is not a login. Agent and a blank role are left off, because a delivered folder is not tied to a booking. If nobody qualifies, the portal skips the POST. Set `PORTAL_PUBLIC_URL` so `publicUrl` is an absolute link. Leave `DELIVERY_WEBHOOK_URL` empty to skip the POST. Resend (`RESEND_API_KEY`) sends password-reset and booking-confirmation mail. It does not send this delivery email.
 
 ## Run locally
 
@@ -159,7 +160,8 @@ Auth is `Authorization: Bearer $PORTAL_AGENT_API_KEY` (not `ADMIN_PASSWORD`). Fl
 Open a client from admin. Invite `BK#####` is the client key and is never edited.
 
 - **Client info** — change display name, primary contact email, company, and internal notes, then **Save client**. Those persist to Postgres. Do not rename someone whose NAS folder still uses the old name — sync matches by display name and would create a new BK code.
-- **Teammate logins** — each email/password account that redeemed the invite. **Edit profile** changes the same Account fields (first name, last name, company, phone, and sign-in email). Company is the shared client company. The sign-in email is the login; it is separate from Primary contact email. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
+- **Teammate logins** — each email/password account that redeemed the invite, including a login that added this BK code as an extra code. **Role** is a dropdown on that row (blank, plus the roles for this client's Portal Category). Billy sets it. The client cannot. It starts blank. Real Estate roles are Team Lead, Assistant, and Agent. Construction, Podcast, Commercial, and Other have none yet — add them in `MEMBER_ROLES_BY_CATEGORY`. A role saved under another category shows as needing reassignment and is treated as blank for mail once the new category has roles. **Edit profile** changes the same Account fields (first name, last name, company, phone, and sign-in email). Company is the shared client company. The sign-in email is the login; it is separate from Primary contact email. **Remove** deletes that login only. The client and invite stay. They can sign up again with the same BK code.
+- **Shoot email** — confirmed, changes, cancelled, on hold, and the 6:00am day-of reminder. Categories with no roles still mail every signed-up login, the real primary contact, and addresses in Notes. Real Estate uses the role: Team Lead and Assistant get every shoot for that client, Agent only the shoots they booked or are attached to (`bookings.createdByUserId`), and a blank role gets none unless that login is the booker or attached contact. Notes addresses, `@pending.local` filtering, and leaving Billy off the client copy stay.
 - **Delete client** — destructive. Type the invite code and `DELETE`. This removes the client record, every teammate login under it, and all attached shoots and photos. If the NAS folder is still there, the next sync creates a new BK code for that name.
 
 Use **Remove** on a teammate when you only need to kick one person. Use **Delete client** when the whole BK record should go away.

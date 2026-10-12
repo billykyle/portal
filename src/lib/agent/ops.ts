@@ -12,7 +12,7 @@ import {
 } from "@/lib/admin/shoots";
 import { readManualNasSync, startManualNasSync } from "@/lib/admin/sync";
 import type { NasSyncJobPublic, NasSyncStart } from "@/lib/nas-sync-job";
-import { listUsersForClient, removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
+import { listUsersForClient, removeClientUserRecord, setClientMemberRole, updateClientUserRecord } from "@/lib/admin/users";
 import { addExtraInviteCode } from "@/lib/user-portals";
 import {
   clientMatchesQuery,
@@ -31,6 +31,7 @@ import {
   revokePortalAgentTokens,
 } from "@/lib/client-agent/connections";
 import type { ClientCategory } from "@/lib/client-category";
+import { memberRoleNeedsReassignment } from "@/lib/member-role";
 import { maintenanceIsLive } from "@/lib/maintenance";
 import {
   clearMaintenanceNotice,
@@ -78,7 +79,10 @@ export type ClientAgentConnection = {
   lastUsedAt: string | null;
 };
 
-export type ClientDetail = ClientSummary & { notes: string | null };
+export type ClientDetail = ClientSummary & {
+  notes: string | null;
+  users?: ReturnType<typeof toPublicUser>[];
+};
 
 export type BookingDto = {
   id: string;
@@ -128,6 +132,8 @@ export type AgentOps = {
     email?: string;
     company?: string;
     addInviteCode?: string;
+    /** Omit to leave the role. Null or "" clears it. */
+    role?: string | null;
   }): Promise<{ ok: true; user: ReturnType<typeof toPublicUser> } | { ok: false; error: string }>;
   removeUser(input: { clientId: string; userId: string }): Promise<
     { ok: true; user: { id: string; email: string } } | { ok: false; error: string }
@@ -321,6 +327,24 @@ function detailFrom(
   return { ...summaryFrom(client, counts), notes: client.notes };
 }
 
+function publicMembers(
+  client: { id: string; company: string | null; category: ClientCategory },
+  rows: Awaited<ReturnType<typeof listUsersForClient>>,
+) {
+  if (!rows.ok) return [];
+  return rows.value.users.map((user) =>
+    toPublicUser(
+      {
+        ...user,
+        clientId: client.id,
+        role: user.memberRole,
+        roleNeedsReassignment: memberRoleNeedsReassignment(client.category, user.memberRole),
+      },
+      client.company,
+    ),
+  );
+}
+
 function bookingDto(row: Booking, clientName: string, inviteCode: string): BookingDto {
   return {
     id: row.id,
@@ -399,8 +423,8 @@ export const portalAgentOps: AgentOps = {
   async getClient(input) {
     const found = await findClient(input);
     if (!found.ok) return found;
-    const counts = await clientCounts();
-    return { ok: true, client: detailFrom(found.value, counts) };
+    const [counts, listed] = await Promise.all([clientCounts(), listUsersForClient(found.value.id)]);
+    return { ok: true, client: { ...detailFrom(found.value, counts), users: publicMembers(found.value, listed) } };
   },
 
   async createClient(input) {
@@ -439,12 +463,7 @@ export const portalAgentOps: AgentOps = {
   async listUsers({ clientId }) {
     const listed = await listUsersForClient(clientId);
     if (!listed.ok) return listed;
-    return {
-      ok: true,
-      users: listed.value.users.map((user) =>
-        toPublicUser({ ...user, clientId: listed.value.client.id }, listed.value.client.company),
-      ),
-    };
+    return { ok: true, users: publicMembers(listed.value.client, listed) };
   },
 
   async updateUser(input) {
@@ -462,11 +481,32 @@ export const portalAgentOps: AgentOps = {
       companyName: input.company ?? listed.value.client.company,
     });
     if (!saved.ok) return { ok: false, error: saved.error };
+    let role = current.memberRole;
+    if (input.role !== undefined) {
+      const assigned = await setClientMemberRole({
+        clientId: input.clientId,
+        userId: input.userId,
+        role: input.role,
+      });
+      if (!assigned.ok) return assigned;
+      role = assigned.role;
+    }
     if (input.addInviteCode) {
       const added = await addExtraInviteCode({ userId: input.userId, code: input.addInviteCode });
       if (!added.ok) return { ok: false, error: added.error };
     }
-    return { ok: true, user: toPublicUser({ ...saved.value, clientId: input.clientId }, saved.company) };
+    return {
+      ok: true,
+      user: toPublicUser(
+        {
+          ...saved.value,
+          clientId: input.clientId,
+          role,
+          roleNeedsReassignment: memberRoleNeedsReassignment(listed.value.client.category, role),
+        },
+        saved.company,
+      ),
+    };
   },
 
   async removeUser(input) {

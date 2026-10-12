@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { isUuid } from "@/lib/admin/ids";
 import { primaryBookingContact } from "@/lib/client-contact";
+import type { ClientCategory } from "@/lib/client-category";
 import { db } from "@/lib/db";
-import { bookings, clients } from "@/lib/db/schema";
+import { bookings, clientMemberRoles, clients } from "@/lib/db/schema";
 import { directoryLogins } from "@/lib/user-portals";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 import { confirmedTwilightDayTaken } from "./bookings";
@@ -47,6 +48,7 @@ export type BookingClientLogin = {
   lastName: string | null;
   phone: string | null;
   createdAt: Date;
+  role?: string | null;
 };
 
 export type BookingClientRecord = {
@@ -55,6 +57,7 @@ export type BookingClientRecord = {
   displayName: string;
   company: string | null;
   primaryEmail: string;
+  category?: ClientCategory;
   logins: BookingClientLogin[];
 };
 
@@ -305,6 +308,9 @@ export async function createOverrideBooking(
       clientEmail: contact?.email || client.primaryEmail,
       primaryEmail: client.primaryEmail,
       loginEmails: client.logins.map((row) => row.email),
+      members: client.logins.map((row) => ({ userId: row.userId, email: row.email, role: row.role ?? null })),
+      category: client.category ?? null,
+      contactUserId: contact?.login?.userId ?? null,
       clientName: client.displayName,
       address: address.address,
       services: services.services,
@@ -429,6 +435,9 @@ export async function createQueuedBooking(
       clientEmail: contact?.email || client.primaryEmail,
       primaryEmail: client.primaryEmail,
       loginEmails: client.logins.map((row) => row.email),
+      members: client.logins.map((row) => ({ userId: row.userId, email: row.email, role: row.role ?? null })),
+      category: client.category ?? null,
+      contactUserId: contact?.login?.userId ?? null,
       firstName: contact?.login?.firstName ?? null,
       clientName: client.displayName,
       address: address.address,
@@ -475,10 +484,18 @@ function calendarStatus(
 export function defaultOverrideBookingDeps(): OverrideBookingDeps {
   return {
     async listClients() {
-      const [clientRows, loginRows] = await Promise.all([
+      const [clientRows, loginRows, roleRows] = await Promise.all([
         db.select().from(clients),
         directoryLogins(),
+        db
+          .select({
+            userId: clientMemberRoles.userId,
+            clientId: clientMemberRoles.clientId,
+            role: clientMemberRoles.role,
+          })
+          .from(clientMemberRoles),
       ]);
+      const roleByMember = new Map(roleRows.map((row) => [`${row.clientId}:${row.userId}`, row.role]));
       const logins = new Map<string, BookingClientLogin[]>();
       for (const login of loginRows) {
         const list = logins.get(login.clientId) ?? [];
@@ -489,6 +506,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
           lastName: login.lastName,
           phone: login.phone,
           createdAt: login.createdAt,
+          role: roleByMember.get(`${login.clientId}:${login.userId}`) ?? null,
         });
         logins.set(login.clientId, list);
       }
@@ -498,6 +516,7 @@ export function defaultOverrideBookingDeps(): OverrideBookingDeps {
         displayName: client.displayName,
         company: client.company,
         primaryEmail: client.primaryEmail,
+        category: client.category,
         logins: logins.get(client.id) ?? [],
       }));
     },

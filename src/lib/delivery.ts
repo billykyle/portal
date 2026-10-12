@@ -9,6 +9,8 @@ export type DeliveryPayload = {
     displayName: string;
     inviteCode: string;
     primaryEmail: string;
+    /** Addresses Pepper should mail. Role rules choose this list for Real Estate. */
+    recipients: string[];
   };
   shoot: {
     id: string;
@@ -24,14 +26,17 @@ export function buildDeliveryPayload(input: {
   client: { id: string; displayName: string; inviteCode: string; primaryEmail: string; publicSlug: string };
   shoot: { id: string; shotDate: string; address: string; publicSlug: string };
   fileCount: number;
+  recipients?: readonly string[];
 }): DeliveryPayload {
+  const recipients = input.recipients?.length ? [...input.recipients] : [input.client.primaryEmail];
   return {
     event: input.event,
     client: {
       id: input.client.id,
       displayName: input.client.displayName,
       inviteCode: input.client.inviteCode,
-      primaryEmail: input.client.primaryEmail,
+      primaryEmail: recipients[0] ?? input.client.primaryEmail,
+      recipients,
     },
     shoot: {
       id: input.shoot.id,

@@ -6,7 +6,9 @@ import { AdminHeader } from "@/components/admin-header";
 import { AdminSection } from "@/components/admin-section";
 import { DeleteClientForm } from "@/components/forms/delete-client-form";
 import { EditClientForm } from "@/components/forms/edit-client-form";
+import { MemberRoleForm } from "@/components/forms/member-role-form";
 import { RemoveUserForm } from "@/components/forms/remove-user-form";
+import { categoryUsesMemberRoles } from "@/lib/member-role";
 import { formMeasureClass, pageHeadingWrapClass, pageStackClass, PhoneShell } from "@/components/phone-shell";
 import { BookingList, QueuedBookingList } from "@/components/booking-list";
 import { contentTemplate } from "@/components/templates/registry";
@@ -49,13 +51,15 @@ export default async function AdminClientPage({
     bookingCancelled?: string;
     agentSaved?: string;
     agentRevoked?: string;
+    roleSaved?: string;
   }>;
 }) {
   if (!(await getAdminSession())) {
     redirect("/admin");
   }
   const { id } = await params;
-  const { error, saved, userRemoved, detached, bookingCancelled, agentSaved, agentRevoked } = await searchParams;
+  const { error, saved, userRemoved, detached, bookingCancelled, agentSaved, agentRevoked, roleSaved } =
+    await searchParams;
   await ensureDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!client) {
@@ -104,6 +108,7 @@ export default async function AdminClientPage({
         {bookingCancelled ? <p className="mt-3 text-sm text-white">Booking cancelled.</p> : null}
         {agentSaved ? <p className="mt-3 text-sm text-white">Agent access saved.</p> : null}
         {agentRevoked ? <p className="mt-3 text-sm text-white">Agent disconnected.</p> : null}
+        {roleSaved ? <p className="mt-3 text-sm text-white">Role saved.</p> : null}
       </header>
       <div className={pageStackClass}>
         <AdminSection id="client:info" label="Client info" defaultOpen={false} remember={false}>
@@ -152,7 +157,14 @@ export default async function AdminClientPage({
             )}
           </div>
         </AdminSection>
-        <AdminSection id="client:logins" label="Teammate logins" defaultOpen={false} remember={false}>
+        <AdminSection id="client:logins" label="Teammate logins" defaultOpen={Boolean(roleSaved)} remember={false}>
+            {categoryUsesMemberRoles(client.category) ? (
+              <p className="mb-2 text-sm text-[#8e8e93]">
+                Roles decide shoot email. Blank gets none until you assign one. The client cannot set this.
+              </p>
+            ) : (
+              <p className="mb-2 text-sm text-[#8e8e93]">This category has no roles yet. Everyone signed up still gets shoot email.</p>
+            )}
             {teammateRows.length === 0 ? (
               <p className="text-sm text-[#8e8e93]">No one has redeemed this invite yet.</p>
             ) : (
@@ -174,6 +186,12 @@ export default async function AdminClientPage({
                       {user.clientId !== client.id && user.signupInviteCode ? (
                         <p className="text-xs text-[#8e8e93]">Signed up with {user.signupInviteCode}</p>
                       ) : null}
+                      <MemberRoleForm
+                        clientId={client.id}
+                        userId={user.id}
+                        category={client.category}
+                        role={user.memberRole}
+                      />
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <Link

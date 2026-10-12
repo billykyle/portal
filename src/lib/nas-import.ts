@@ -2,10 +2,12 @@ import { randomUUID } from "crypto";
 import { and, eq, ilike } from "drizzle-orm";
 import {
   alertUndeliverableClientEmail,
-  deliverableClientEmails,
+  deliveryNoticeRecipients,
   NAS_IMPORT_INVITE_NOTE,
   skippedPlaceholderDeliveryWarning,
 } from "./client-contact";
+import { bookingNotifyEmail } from "./email";
+import { categoryUsesMemberRoles } from "./member-role";
 import { db } from "./db";
 import { clients, media, shoots } from "./db/schema";
 import { listMemberUsers } from "./user-portals";
@@ -410,20 +412,27 @@ export async function syncNasShare(options?: {
       if (!becameReady) continue;
       result.ready += 1;
       const members = await listMemberUsers(client.id);
-      const recipients = deliverableClientEmails({
-        preferred: client.primaryEmail,
+      const recipients = deliveryNoticeRecipients({
+        category: client.category,
         primaryEmail: client.primaryEmail,
-        loginEmails: members.map((row) => row.email),
+        members: members.map((row) => ({ userId: row.id, email: row.email, role: row.memberRole })),
+        notifyEmail: bookingNotifyEmail(),
       });
-      if (recipients.length === 0 && isPendingClientEmail(client.primaryEmail)) {
-        const message = skippedPlaceholderDeliveryWarning({
-          displayName: client.displayName,
-          inviteCode: client.inviteCode,
-          primaryEmail: client.primaryEmail,
-          where: nasRelativePath,
-        });
-        result.warnings.push(message);
-        await alertUndeliverableClientEmail(message);
+      if (recipients.length === 0) {
+        const message = categoryUsesMemberRoles(client.category)
+          ? `Skipped delivery notice for ${nasRelativePath}: ${client.displayName} (${client.inviteCode}) has no Team Lead, Assistant, or other address selected for shoot email.`
+          : isPendingClientEmail(client.primaryEmail)
+            ? skippedPlaceholderDeliveryWarning({
+                displayName: client.displayName,
+                inviteCode: client.inviteCode,
+                primaryEmail: client.primaryEmail,
+                where: nasRelativePath,
+              })
+            : "";
+        if (message) {
+          result.warnings.push(message);
+          if (!categoryUsesMemberRoles(client.category)) await alertUndeliverableClientEmail(message);
+        }
         continue;
       }
       try {
@@ -433,6 +442,7 @@ export async function syncNasShare(options?: {
             client: { ...client, primaryEmail: recipients[0] ?? client.primaryEmail },
             shoot,
             fileCount: mediaResult.total,
+            recipients,
           }),
         );
       } catch (error) {

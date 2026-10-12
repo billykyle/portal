@@ -9,7 +9,7 @@ import {
   findClient,
   updateClientRecord,
 } from "@/lib/admin/clients";
-import { removeClientUserRecord, updateClientUserRecord } from "@/lib/admin/users";
+import { removeClientUserRecord, setClientMemberRole, updateClientUserRecord } from "@/lib/admin/users";
 import { addExtraInviteCode, removeExtraInviteCode } from "@/lib/user-portals";
 import { getAdminSession } from "@/lib/admin-auth";
 import {
@@ -158,6 +158,23 @@ export async function updateUserProfile(formData: FormData) {
   revalidatePath(CLIENT_HOME);
   revalidatePath(CLIENT_LIBRARY);
   redirect(userProfilePath(clientId, userId, { saved: "1" }));
+}
+
+export async function updateMemberRole(formData: FormData) {
+  if (!(await getAdminSession())) {
+    redirect("/admin");
+  }
+  const clientId = String(formData.get("clientId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const raw = formData.get("role");
+  const role = raw == null || String(raw).trim() === "" ? null : String(raw).trim();
+  const saved = await setClientMemberRole({ clientId, userId, role });
+  if (!saved.ok) {
+    redirect(clientAdminPath(clientId, { error: saved.error }));
+  }
+  revalidatePath("/admin/clients");
+  revalidatePath(clientAdminPath(clientId));
+  redirect(clientAdminPath(clientId, { roleSaved: "1" }));
 }
 
 export async function removeUser(formData: FormData) {

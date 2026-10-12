@@ -53,6 +53,25 @@ export const userClients = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.clientId] })],
 );
 
+/**
+ * Role of one login on one client. Home signups and extra BK codes both land here.
+ * No row means the role is blank. The text stays when the category changes so
+ * admin can see a role that needs reassignment.
+ */
+export const clientMemberRoles = pgTable(
+  "client_member_roles",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.clientId] })],
+);
+
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")

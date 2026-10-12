@@ -942,6 +942,43 @@ test("booking mail includes every login, the primary contact, and notes in one T
   }
 });
 
+test("real estate booking mail uses roles and still copies notes", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.BOOKING_NOTIFY_EMAIL;
+  const calls: Array<{ to: string[]; text?: string }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)) as { to: string[]; text?: string });
+    return new Response(JSON.stringify({ id: "msg_1" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const result = await sendBookingConfirmation({
+      ...sampleInput(),
+      clientEmail: "agent@compass.com",
+      primaryEmail: "office@compass.com",
+      category: "real_estate",
+      contactUserId: "agent",
+      members: [
+        { userId: "lead", email: "lead@compass.com", role: "team_lead" },
+        { userId: "agent", email: "agent@compass.com", role: "agent" },
+        { userId: "other", email: "other@compass.com", role: "agent" },
+        { userId: "blank", email: "blank@compass.com", role: null },
+      ],
+      notes: "cc alex@agency.com",
+      viaAgent: true,
+    });
+    assert.equal(result.client.sent, true);
+    assert.deepEqual(calls[0]?.to, ["lead@compass.com", "agent@compass.com", "office@compass.com", "alex@agency.com"]);
+    assert.equal(calls[0]?.to.includes("other@compass.com"), false);
+    assert.equal(calls[0]?.to.includes("blank@compass.com"), false);
+    const clientCall = calls.find((call) => call.to.includes("lead@compass.com"));
+    assert.equal(clientCall?.to.includes("billy@billyhere.com"), false);
+    assert.match(clientCall?.text ?? "", /booked through an agent/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("booking mail falls back to real logins and never posts a placeholder", async () => {
   process.env.RESEND_API_KEY = "re_test";
   delete process.env.BOOKING_NOTIFY_EMAIL;

@@ -1,8 +1,12 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { isUuid } from "@/lib/admin/ids";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, users, type User } from "@/lib/db/schema";
+import { clientMemberRoles, clients, users, type User } from "@/lib/db/schema";
+import {
+  memberRoleNeedsReassignment,
+  parseMemberRoleForCategory,
+} from "@/lib/member-role";
 import { parseAccountProfile, parseLoginEmail } from "@/lib/signup-fields";
 import { listMemberUsers, removeExtraInviteCode, userBelongsToClient } from "@/lib/user-portals";
 
@@ -99,4 +103,52 @@ export async function removeClientUserRecord(input: {
   }
   await db.delete(users).where(eq(users.id, userId));
   return { ok: true, email: user.email, detached: false };
+}
+
+/** Admin-only. Blank clears the row. A role must be one this client's category lists. */
+export async function setClientMemberRole(input: {
+  clientId?: string | null;
+  userId?: string | null;
+  role?: string | null;
+}): Promise<{ ok: true; role: string | null } | { ok: false; error: string }> {
+  await ensureDb();
+  const clientId = String(input.clientId ?? "").trim();
+  const userId = String(input.userId ?? "").trim();
+  if (!clientId || !userId || !isUuid(clientId) || !isUuid(userId)) {
+    return { ok: false, error: "User was not found on this client." };
+  }
+  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+  if (!client) return { ok: false, error: "Client was not found." };
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user || !(await userBelongsToClient(user.id, clientId))) {
+    return { ok: false, error: "User was not found on this client." };
+  }
+
+  const [current] = await db
+    .select({ role: clientMemberRoles.role })
+    .from(clientMemberRoles)
+    .where(and(eq(clientMemberRoles.userId, userId), eq(clientMemberRoles.clientId, clientId)))
+    .limit(1);
+  const requested = input.role == null ? "" : String(input.role).trim();
+  if (requested && memberRoleNeedsReassignment(client.category, requested)) {
+    if (requested === (current?.role ?? "")) return { ok: true, role: current?.role ?? requested };
+    return { ok: false, error: "That role is not used for this category. Clear it or pick a listed role." };
+  }
+
+  const parsed = parseMemberRoleForCategory(client.category, requested);
+  if (!parsed.ok) return parsed;
+  if (!parsed.role) {
+    await db
+      .delete(clientMemberRoles)
+      .where(and(eq(clientMemberRoles.userId, userId), eq(clientMemberRoles.clientId, clientId)));
+    return { ok: true, role: null };
+  }
+  await db
+    .insert(clientMemberRoles)
+    .values({ userId, clientId, role: parsed.role })
+    .onConflictDoUpdate({
+      target: [clientMemberRoles.userId, clientMemberRoles.clientId],
+      set: { role: parsed.role },
+    });
+  return { ok: true, role: parsed.role };
 }

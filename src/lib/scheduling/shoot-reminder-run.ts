@@ -3,6 +3,8 @@ import { emailConfigured, sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { bookings, clients, users } from "@/lib/db/schema";
+import type { ClientCategory } from "@/lib/client-category";
+import type { ShootMailMember } from "@/lib/client-contact";
 import { memberEmailsForClients } from "@/lib/user-portals";
 import { schedulingHours } from "@/lib/scheduling/config";
 import { bookingServiceList } from "@/lib/scheduling/services";
@@ -31,6 +33,9 @@ export type ReminderCandidate = {
   clientEmail: string | null;
   primaryEmail: string | null;
   loginEmails: string[];
+  members?: ShootMailMember[];
+  category?: ClientCategory | null;
+  contactUserId?: string | null;
   thread: BookingEmailThread | null;
 };
 
@@ -82,6 +87,9 @@ export async function deliverDueReminders(
       clientEmail: booking.clientEmail,
       primaryEmail: booking.primaryEmail,
       loginEmails: booking.loginEmails,
+      members: booking.members,
+      category: booking.category,
+      contactUserId: booking.contactUserId,
       notes: booking.notes,
     });
     if (recipients.length === 0) {
@@ -129,6 +137,7 @@ async function loadReminderCandidates(now: Date): Promise<ReminderCandidate[]> {
     .select({
       booking: bookings,
       primaryEmail: clients.primaryEmail,
+      category: clients.category,
       creatorEmail: users.email,
     })
     .from(bookings)
@@ -146,10 +155,14 @@ async function loadReminderCandidates(now: Date): Promise<ReminderCandidate[]> {
   const clientIds = [...new Set(rows.map((row) => row.booking.clientId))];
   const logins = await memberEmailsForClients(clientIds);
   const loginsByClient = new Map<string, string[]>();
+  const membersByClient = new Map<string, ShootMailMember[]>();
   for (const login of logins) {
-    const list = loginsByClient.get(login.clientId) ?? [];
-    list.push(login.email);
-    loginsByClient.set(login.clientId, list);
+    const emails = loginsByClient.get(login.clientId) ?? [];
+    emails.push(login.email);
+    loginsByClient.set(login.clientId, emails);
+    const members = membersByClient.get(login.clientId) ?? [];
+    members.push({ userId: login.userId, email: login.email, role: login.role });
+    membersByClient.set(login.clientId, members);
   }
 
   return rows.flatMap((row) => {
@@ -167,6 +180,9 @@ async function loadReminderCandidates(now: Date): Promise<ReminderCandidate[]> {
     clientEmail: row.creatorEmail,
     primaryEmail: row.primaryEmail,
     loginEmails: loginsByClient.get(row.booking.clientId) ?? [],
+    members: membersByClient.get(row.booking.clientId) ?? [],
+    category: row.category,
+    contactUserId: row.booking.createdByUserId,
     thread: row.booking.clientEmailMessageId
       ? {
           inReplyTo: row.booking.clientEmailMessageId,
