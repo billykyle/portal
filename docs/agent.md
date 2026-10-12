@@ -59,15 +59,15 @@ No local clone and no stdio process. The portal deployment is the server.
 | Tool | What it does |
 | --- | --- |
 | `list_clients` | Invite code, display name, company, primary email, notes summary, category, `agentAccess`, user count, shoot count. Optional `query`. Optional `sort`: `code-desc` (highest BK code first), `code-asc` or `code` (BK00001 upward), `name-asc`, `name-desc`, `company` (blank company last), `newest`, `oldest`, `shoots` (most first). Omit `sort` to keep the existing listing order. |
-| `get_client` | One client by id or invite code (`BK#####`), including full notes and `agentAccess`. |
+| `get_client` | One client by id or invite code (`BK#####`), including full notes, `agentAccess`, and `users`. Each user has `role` (`null` when blank) and `roleNeedsReassignment`. |
 | `set_client_agent_access` | Turn Agent access on or off. `client` is a client id or BK code (`clientId` / `inviteCode` also work). `enabled` is `true` or `false`. `false` revokes every token for that client immediately. |
 | `list_client_agent_connections` | Connected agents for one client: `tokenId`, `agentName`, `approvedBy`, `connectedAt`, `lastUsedAt`. |
 | `revoke_client_agent_connection` | Revoke one connection. Requires the client and `tokenId` from the list. Does not change the Agent access toggle. |
 | `create_client` | Create the next BK code. Display name and primary email required. Optional company and notes. |
 | `update_client` | Update display name, primary email, company, notes. Omitted fields stay. |
 | `delete_client` | **Destructive.** Deletes the client, logins, shoots, and photos. Requires `clientId` and `confirmInviteCode`. |
-| `list_client_users` | Teammate logins. No password hashes. |
-| `update_client_user` | Name, phone, sign-in email, and the shared client company. Omitted fields stay. |
+| `list_client_users` | Teammate logins, including extra BK codes. Each user has `role` for this client (`null` when blank) and `roleNeedsReassignment`. No password hashes. |
+| `update_client_user` | Name, phone, sign-in email, the shared client company, and `role`. Omitted fields stay. `role` null or empty clears it. Real Estate accepts `team_lead`, `assistant`, or `agent`. Other categories reject a role. The client cannot set it. |
 | `remove_client_user` | **Destructive.** Removes one login. Requires `clientId` and `userId`. The invite stays. |
 | `sync_from_nas` | **Start Sync from NAS.** Manual only. Returns immediately with `{ status: "started" \| "already_running", job, recoveredStaleJobId }`. Does not wait for the share walk. `already_running` is the current job, not an error. Same job row as the admin button. No attach-shoot form. |
 | `get_nas_sync_status` | Poll one job (`jobId`) or the latest job. `{ job, recoveredStale }`. `job.status` is `running`, `done`, or `failed`. `job.summary` and `job.finishedAt` are set when the walk finishes. `summary` includes clients and shoots added or removed, media counts, and warnings. A running job with no heartbeat for 3 minutes is marked failed (`recoveredStale: true`) so a new sync can start. |
@@ -81,6 +81,8 @@ No local clone and no stdio process. The portal deployment is the server.
 | `list_client_shoots` | Shoots for a client: date, address, media counts by type, `ready` (imported media exists), public `/s/[token]` URL. |
 | `get_shoot` | Metadata plus media inventory (ids and filenames for photos, floor plans, and videos). Not file bytes. |
 | `get_shoot_share_link` | Stable public URL on `https://portal.billy-kyle.com/s/[token]`. Does not rotate an existing token. |
+
+Shoot email (confirmed, changes, cancelled, on hold, the 6:00am reminder, and the delivery webhook's `recipients`) follows the client's category. Categories with no roles still mail every signed-up user, the real primary contact, and Notes addresses. Real Estate uses each login's `role`: `team_lead` and `assistant` get every shoot, `agent` only when `createdByUserId` is that login, and a blank role gets none unless that login is the booker or the attached contact. Notes addresses, `@pending.local` filtering, and leaving Billy off client copies stay.
 
 `ready` is derived from imported media counts. NAS sync only keeps shoots that have files, and the portal does not store a separate delivery flag for agents to toggle.
 

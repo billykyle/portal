@@ -143,6 +143,9 @@ export async function runAgentTool(
       const clientId = text(args.clientId).trim();
       const userId = text(args.userId).trim();
       if (!clientId || !userId) return { ok: false, error: "Client id and user id are required." };
+      if (Object.prototype.hasOwnProperty.call(args, "role") && args.role != null && typeof args.role !== "string") {
+        return { ok: false, error: "Role was not found." };
+      }
       const result = await ops.updateUser({
         clientId,
         userId,
@@ -152,6 +155,11 @@ export async function runAgentTool(
         email: optionalText(args.email),
         company: optionalText(args.company),
         addInviteCode: optionalText(args.addInviteCode),
+        role: Object.prototype.hasOwnProperty.call(args, "role")
+          ? args.role == null || String(args.role).trim() === ""
+            ? null
+            : String(args.role).trim()
+          : undefined,
       });
       if (!result.ok) return result;
       return {

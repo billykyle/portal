@@ -5,6 +5,7 @@ import {
   NAS_IMPORT_INVITE_NOTE,
   backfillPlaceholderClient,
   deliverableClientEmails,
+  deliveryNoticeRecipients,
   inviteRedeemClientUpdate,
   prepareDeliverableBookingEmail,
   primaryBookingContact,
@@ -149,6 +150,141 @@ test("shoot recipients are every login, the real primary, and notes, once", () =
       notifyEmail: "billy@billyhere.com",
     }),
     ["billy@billyhere.com", "office@example.com"],
+  );
+});
+
+test("real estate shoot mail follows roles and still keeps notes, placeholders, and Billy's copy out", () => {
+  const members = [
+    { userId: "lead", email: "lead@compass.com", role: "team_lead" },
+    { userId: "assist", email: "assist@compass.com", role: "assistant" },
+    { userId: "agent", email: "agent@compass.com", role: "agent" },
+    { userId: "blank", email: "blank@compass.com", role: null },
+    { userId: "old", email: "old@compass.com", role: "team_lead" },
+    { userId: "guest", email: "guest@pending.local", role: "team_lead" },
+  ];
+  assert.deepEqual(
+    shootNotificationRecipients({
+      category: "real_estate",
+      members,
+      contactUserId: "agent",
+      clientEmail: "agent@compass.com",
+      primaryEmail: "blank@compass.com",
+      notes: "cc alex@agency.com and blank@compass.com and billy@billyhere.com",
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["lead@compass.com", "assist@compass.com", "agent@compass.com", "old@compass.com", "alex@agency.com", "blank@compass.com"],
+  );
+
+  const otherShoot = shootNotificationRecipients({
+    category: "real_estate",
+    members,
+    contactUserId: "lead",
+    clientEmail: "lead@compass.com",
+    primaryEmail: "office@compass.com",
+    notifyEmail: "billy@billyhere.com",
+  });
+  assert.deepEqual(otherShoot, ["lead@compass.com", "assist@compass.com", "old@compass.com", "office@compass.com"]);
+  assert.equal(otherShoot.includes("agent@compass.com"), false);
+  assert.equal(otherShoot.includes("blank@compass.com"), false);
+
+  assert.deepEqual(
+    shootNotificationRecipients({
+      category: "real_estate",
+      members,
+      contactUserId: "blank",
+      clientEmail: "blank@compass.com",
+      primaryEmail: "blank@compass.com",
+      notifyEmail: "billy@billyhere.com",
+    }).filter((email) => email === "blank@compass.com"),
+    ["blank@compass.com"],
+  );
+
+  const stale = members.map((member) => (member.userId === "old" ? { ...member, role: "not_a_role" } : member));
+  const staleMail = shootNotificationRecipients({
+    category: "real_estate",
+    members: stale,
+    contactUserId: "lead",
+    clientEmail: "lead@compass.com",
+    notifyEmail: "billy@billyhere.com",
+  });
+  assert.equal(staleMail.includes("old@compass.com"), false);
+
+  assert.deepEqual(
+    shootNotificationRecipients({
+      category: "real_estate",
+      members: [
+        { userId: "billy", email: "billy@billyhere.com", role: "team_lead" },
+        { userId: "lead", email: "lead@compass.com", role: "team_lead" },
+      ],
+      contactUserId: "lead",
+      clientEmail: "lead@compass.com",
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["lead@compass.com"],
+  );
+  assert.deepEqual(
+    shootNotificationRecipients({
+      category: "real_estate",
+      members: [{ userId: "billy", email: "billy@billyhere.com", role: null }],
+      contactUserId: "billy",
+      clientEmail: "Billy@BillyHere.com",
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["billy@billyhere.com"],
+  );
+});
+
+test("a category with no roles still emails every signed-up login", () => {
+  const members = [
+    { userId: "a", email: "a@build.com", role: "team_lead" },
+    { userId: "b", email: "b@build.com", role: null },
+  ];
+  assert.deepEqual(
+    shootNotificationRecipients({
+      category: "construction",
+      members,
+      loginEmails: members.map((member) => member.email),
+      contactUserId: "a",
+      clientEmail: "a@build.com",
+      primaryEmail: "office@build.com",
+      notes: "cc extra@build.com",
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["a@build.com", "b@build.com", "office@build.com", "extra@build.com"],
+  );
+});
+
+test("delivery notices use roles only when the category has them", () => {
+  const members = [
+    { userId: "lead", email: "lead@compass.com", role: "team_lead" },
+    { userId: "agent", email: "agent@compass.com", role: "agent" },
+    { userId: "blank", email: "blank@compass.com", role: null },
+  ];
+  assert.deepEqual(
+    deliveryNoticeRecipients({
+      category: "real_estate",
+      primaryEmail: "blank@compass.com",
+      members,
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["lead@compass.com"],
+  );
+  assert.deepEqual(
+    deliveryNoticeRecipients({
+      category: "podcast",
+      primaryEmail: "office@show.com",
+      members,
+      notifyEmail: "billy@billyhere.com",
+    }),
+    ["office@show.com"],
+  );
+  assert.deepEqual(
+    deliveryNoticeRecipients({
+      category: "podcast",
+      primaryEmail: "guest@pending.local",
+      members: [{ userId: "a", email: "guest@pending.local", role: null }, { userId: "b", email: "host@show.com", role: null }],
+    }),
+    ["host@show.com"],
   );
 });
 

@@ -67,9 +67,21 @@
  *    update emails include Add to calendar (ICS attachment + signed ICS
  *    URL, plus a Google Calendar template link). Cancelled client mail
  *    omits that CTA. Billy’s notify emails never include it.
- *    The same client To list (every signed-up user, the real primary
- *    contact, and Notes addresses, deduped) is used for confirm, change,
- *    cancel, queue hold, and the 6:00am ET day-of reminder. Billy's notify
+ *    The same client To list is used for confirm, change, cancel, queue
+ *    hold, the 6:00am ET day-of reminder, and the delivery webhook's
+ *    recipient list. Categories with no member roles (Construction,
+ *    Podcast, Commercial, Other) keep the old list: every signed-up user,
+ *    the real primary contact, and Notes addresses, deduped. Real Estate
+ *    uses the role on each login for that client (`client_member_roles`).
+ *    Team Lead and Assistant get every shoot. Agent gets a shoot only when
+ *    `bookings.createdByUserId` is that login (the booker, or the primary
+ *    contact an admin booking attaches). A blank role gets no shoot email
+ *    unless that same id is theirs, so the booker still gets their own
+ *    mail. A stored role that the current category does not list is blank
+ *    for this filter. A primary address that is not a signed-up login is
+ *    still included. Notes addresses are still included. The NAS delivery
+ *    hook has no booking, so Agent and blank are not on that recipient
+ *    list. Billy's notify
  *    and sync-issue mail are not copied to them. A lockbox code in Notes is
  *    the only notes text copied into the calendar title, exactly as typed.
  *    When `calendarEventId` is present, also DELETE the Work calendar event

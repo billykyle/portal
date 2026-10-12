@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
-import { clients, userClients, users, type User } from "@/lib/db/schema";
+import { clientMemberRoles, clients, userClients, users, type User } from "@/lib/db/schema";
 import { isInviteCode, normalizeInviteCode } from "@/lib/invite";
 
 export type UserPortal = {
@@ -94,9 +94,25 @@ export async function userBelongsToClient(userId: string, clientId: string) {
   return portals.some((portal) => portal.id === clientId);
 }
 
-export async function listMemberUsers(clientId: string): Promise<User[]> {
+export type MemberUser = User & { memberRole: string | null };
+
+async function rolesForClients(clientIds: readonly string[]) {
+  const ids = [...new Set(clientIds)];
+  if (ids.length === 0) return new Map<string, string>();
+  const rows = await db
+    .select({
+      userId: clientMemberRoles.userId,
+      clientId: clientMemberRoles.clientId,
+      role: clientMemberRoles.role,
+    })
+    .from(clientMemberRoles)
+    .where(inArray(clientMemberRoles.clientId, ids));
+  return new Map(rows.map((row) => [`${row.clientId}:${row.userId}`, row.role]));
+}
+
+export async function listMemberUsers(clientId: string): Promise<MemberUser[]> {
   await ensureDb();
-  const [home, extras] = await Promise.all([
+  const [home, extras, roles] = await Promise.all([
     db.select().from(users).where(eq(users.clientId, clientId)).orderBy(desc(users.createdAt)),
     db
       .select({ user: users })
@@ -104,6 +120,7 @@ export async function listMemberUsers(clientId: string): Promise<User[]> {
       .innerJoin(users, eq(users.id, userClients.userId))
       .where(eq(userClients.clientId, clientId))
       .orderBy(desc(userClients.createdAt)),
+    rolesForClients([clientId]),
   ]);
   const seen = new Set(home.map((user) => user.id));
   const merged = [...home];
@@ -112,7 +129,10 @@ export async function listMemberUsers(clientId: string): Promise<User[]> {
     seen.add(row.user.id);
     merged.push(row.user);
   }
-  return merged;
+  return merged.map((user) => ({
+    ...user,
+    memberRole: roles.get(`${clientId}:${user.id}`) ?? null,
+  }));
 }
 
 export async function listClientMembers(clientId: string) {
@@ -167,31 +187,32 @@ export async function directoryLogins(): Promise<DirectoryLogin[]> {
   return [...home, ...extras.filter((row) => !seen.has(`${row.clientId}:${row.userId}`))];
 }
 
-/** Login emails for these clients only. Home logins first, then extra BK codes, one row per address. */
+/** Logins for these clients only. Home logins first, then extra BK codes, one row per address. */
 export async function memberEmailsForClients(clientIds: readonly string[]) {
   const ids = [...new Set(clientIds)];
-  if (ids.length === 0) return [] as { clientId: string; email: string }[];
+  if (ids.length === 0) return [] as { clientId: string; userId: string; email: string; role: string | null }[];
   await ensureDb();
-  const [home, extras] = await Promise.all([
+  const [home, extras, roles] = await Promise.all([
     db
-      .select({ clientId: users.clientId, email: users.email })
+      .select({ clientId: users.clientId, userId: users.id, email: users.email })
       .from(users)
       .where(inArray(users.clientId, ids))
       .orderBy(asc(users.createdAt)),
     db
-      .select({ clientId: userClients.clientId, email: users.email })
+      .select({ clientId: userClients.clientId, userId: users.id, email: users.email })
       .from(userClients)
       .innerJoin(users, eq(users.id, userClients.userId))
       .where(inArray(userClients.clientId, ids))
       .orderBy(asc(userClients.createdAt)),
+    rolesForClients(ids),
   ]);
   const seen = new Set<string>();
-  const rows: { clientId: string; email: string }[] = [];
+  const rows: { clientId: string; userId: string; email: string; role: string | null }[] = [];
   for (const login of [...home, ...extras]) {
     const key = `${login.clientId}:${login.email}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push(login);
+    rows.push({ ...login, role: roles.get(`${login.clientId}:${login.userId}`) ?? null });
   }
   return rows;
 }

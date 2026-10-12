@@ -49,7 +49,7 @@ Scoped to the approved BK code. No admin tools, no prices, no other clients.
 | `modify_booking` | Upcoming or queued bookings, same rules as the client form. |
 | `cancel_booking` | Upcoming confirmed bookings only. |
 
-Shoot emails for these bookings include one line: "This shoot was booked through an agent." The email does not name the agent.
+Shoot emails for these bookings include one line: "This shoot was booked through an agent." The email does not name the agent. Who receives it follows the client's member roles. The approving login is `createdByUserId`, so an Agent still gets the shoots they book, and a blank role still gets that confirmation. Team Lead and Assistant on a Real Estate client get every shoot. Categories with no roles still mail every signed-up member.
 
 Each token is limited to 60 calls per minute. Every tool call is written to the activity log on the admin client page.
 

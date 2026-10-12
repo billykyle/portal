@@ -57,6 +57,15 @@ async function createTables() {
   `;
   await sql`CREATE INDEX IF NOT EXISTS user_clients_client_idx ON user_clients (client_id)`;
   await sql`
+    CREATE TABLE IF NOT EXISTS client_member_roles (
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      role text NOT NULL,
+      PRIMARY KEY (user_id, client_id)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_member_roles_client_idx ON client_member_roles (client_id)`;
+  await sql`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,

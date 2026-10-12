@@ -11,7 +11,10 @@ import {
   deliverableClientEmails,
   reportSkippedPlaceholder,
   shootNotificationRecipients,
+  type ShootMailMember,
 } from "@/lib/client-contact";
+import type { ClientCategory } from "@/lib/client-category";
+import { categoryUsesMemberRoles } from "@/lib/member-role";
 import {
   bookingNotifyEmail,
   emailConfigured,
@@ -62,6 +65,10 @@ export type BookingConfirmationInput = {
   clientRecipients?: string[];
   loginEmails?: readonly (string | null | undefined)[] | null;
   primaryEmail?: string | null;
+  members?: readonly ShootMailMember[] | null;
+  category?: ClientCategory | null;
+  /** `bookings.createdByUserId`: booker, or the primary contact an admin booking attaches. */
+  contactUserId?: string | null;
   clientName?: string | null;
   firstName?: string | null;
   bookingId?: string | null;
@@ -126,9 +133,24 @@ type BookingMailDelivery = {
   loginEmails?: readonly (string | null | undefined)[] | null;
   primaryEmail?: string | null;
   notes?: string | null;
+  members?: readonly ShootMailMember[] | null;
+  category?: ClientCategory | null;
+  contactUserId?: string | null;
 };
 
 function bookingClientRecipients(input: BookingMailDelivery) {
+  if (input.category && input.members && categoryUsesMemberRoles(input.category)) {
+    return shootNotificationRecipients({
+      clientEmail: input.clientEmail,
+      primaryEmail: input.primaryEmail,
+      loginEmails: input.loginEmails,
+      members: input.members,
+      category: input.category,
+      contactUserId: input.contactUserId,
+      notes: input.notes,
+      notifyEmail: bookingNotifyEmail(),
+    });
+  }
   if (input.clientRecipients != null) {
     return shootNotificationRecipients({
       clientEmail: input.clientRecipients.length === 0 ? null : input.clientEmail,

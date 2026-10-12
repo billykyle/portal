@@ -107,6 +107,26 @@ test("reminder recipients are the client and notes addresses, never notify or pl
   ]);
 });
 
+test("reminder recipients follow real estate roles and still copy notes", () => {
+  const recipients = reminderRecipients(
+    {
+      category: "real_estate",
+      contactUserId: "agent",
+      clientEmail: "agent@compass.com",
+      primaryEmail: "office@compass.com",
+      members: [
+        { userId: "lead", email: "lead@compass.com", role: "team_lead" },
+        { userId: "agent", email: "agent@compass.com", role: "agent" },
+        { userId: "other", email: "other@compass.com", role: "agent" },
+        { userId: "blank", email: "blank@compass.com", role: null },
+      ],
+      notes: "cc alex@example.com",
+    },
+    "billy@billyhere.com",
+  );
+  assert.deepEqual(recipients, ["lead@compass.com", "agent@compass.com", "office@compass.com", "alex@example.com"]);
+});
+
 test("the reminder is a threaded reply with the address, access line, and manage links", () => {
   const message = buildShootReminder({
     bookingId: "booking-1",
