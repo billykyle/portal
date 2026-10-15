@@ -16,6 +16,7 @@ import {
   muxSubmitBudget,
   muxStaticDownloadUrl,
   nasDownloadLooksPublic,
+  nasFallbackUrl,
   nasOriginalAllowed,
   playerMode,
   publicMuxStatus,
@@ -114,11 +115,15 @@ test("Mux NAS pulls stay behind a sync and only run overnight", () => {
 
 test("player and download modes fall back when Mux is missing or still working", () => {
   assert.equal(playerMode(null), "deferred");
-  assert.equal(playerMode({ ...ready, status: "preparing", token: null, downloadUrl: null }), "processing");
-  assert.equal(playerMode({ ...ready, status: "preparing" }), "processing");
+  assert.equal(playerMode({ ...ready, status: "preparing", token: null, downloadUrl: null }), "deferred");
+  assert.equal(playerMode({ ...ready, status: "preparing" }), "deferred");
   assert.equal(playerMode(ready), "mux");
-  assert.equal(playerMode({ ...ready, status: "errored" }), "mux");
-  assert.equal(playerMode({ ...ready, status: "errored", token: null, downloadUrl: null }), "poster");
+  assert.equal(playerMode({ ...ready, token: null }), "deferred");
+  assert.equal(playerMode({ ...ready, playbackId: null }), "deferred");
+  assert.equal(playerMode({ ...ready, status: "errored" }), "deferred");
+  assert.equal(playerMode({ ...ready, status: "errored", token: null, downloadUrl: null }), "deferred");
+  assert.equal(nasFallbackUrl("/api/media/clip"), "/api/media/clip?fallback=1");
+  assert.equal(nasFallbackUrl("/api/media/clip?rendition=720"), "/api/media/clip?rendition=720&fallback=1");
   assert.equal(downloadMode(null), "native");
   assert.equal(downloadMode(ready), "mux");
   assert.equal(downloadMode({ ...ready, downloadUrl: null, staticStatus: "preparing" }), "preparing");
@@ -128,11 +133,12 @@ test("player and download modes fall back when Mux is missing or still working",
   assert.equal(isZipExcludedVideo("photo"), false);
 });
 
-test("a Mux video is not streamed from the NAS, and its poster and size come from Mux", () => {
+test("only a ready Mux video stays off the NAS until Play or a player error", () => {
   assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "ready", download: false }), false);
-  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "errored", muxAssetId: null, download: false }), false);
-  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "preparing", download: false }), false);
-  assert.equal(nasOriginalAllowed({ type: "video", muxAssetId: "asset", muxStatus: null, download: false }), false);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "ready", download: false, fallback: true }), true);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "errored", muxAssetId: "asset", download: false }), true);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "preparing", download: false }), true);
+  assert.equal(nasOriginalAllowed({ type: "video", muxAssetId: "asset", muxStatus: null, download: false }), true);
   assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "errored", download: true }), true);
   assert.equal(nasOriginalAllowed({ type: "video", muxStatus: null, muxAssetId: null, download: false }), true);
   assert.equal(nasOriginalAllowed({ type: "raw_video", download: false }), true);
@@ -152,6 +158,9 @@ test("a Mux video is not streamed from the NAS, and its poster and size come fro
   assert.doesNotMatch(player, /preload="metadata"/);
   assert.match(player, /preload="none"/);
   assert.match(player, /thumbnail-token/);
+  assert.match(player, /addEventListener\("error"/);
+  assert.match(player, /nasFallbackUrl/);
+  assert.match(mediaRoute, /fallback/);
   assert.doesNotMatch(player, /dimensions`, \{ cache: "no-store" \}/);
   assert.doesNotMatch(dimensions, /ensureVideoDisplaySize/);
   assert.match(mediaRoute, /nasOriginalAllowed/);

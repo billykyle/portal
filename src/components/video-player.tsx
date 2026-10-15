@@ -3,7 +3,7 @@
 import { Play } from "lucide-react";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { downloadHref } from "@/lib/download-all";
-import { downloadMode, playerMode, type MuxPlaybackView } from "@/lib/mux-policy";
+import { downloadMode, nasFallbackUrl, playerMode, type MuxPlaybackView } from "@/lib/mux-policy";
 import {
   availableQualities,
   resolvePlaybackQuality,
@@ -50,15 +50,17 @@ export function VideoPlayer({
   const [size, setSize] = useState<VideoDisplaySize | null>(() => (width && height ? { width, height } : null));
   const [failedRendition, setFailedRendition] = useState(false);
   const [started, setStarted] = useState(false);
+  const [nasFallback, setNasFallback] = useState(false);
   const [polled, setPolled] = useState<{ source: MuxPlaybackView | null | undefined; value: MuxPlaybackView } | null>(null);
   const view = polled && polled.source === mux ? polled.value : (mux ?? null);
 
-  const mode = playerMode(view);
+  const mode = nasFallback || started ? "deferred" : playerMode(view);
   const save = downloadMode(view);
   const available = availableQualities(renditions);
   const resolved = failedRendition ? "original" : resolvePlaybackQuality("auto", available);
-  const playUrl =
+  const fileUrl =
     resolved === "original" ? url : (renditions.find((item) => item.quality === resolved)?.url ?? url);
+  const playUrl = nasFallbackUrl(fileUrl);
   const stored = width && height ? { width, height } : null;
 
   function rememberSize(next: VideoDisplaySize, persist: boolean) {
@@ -77,7 +79,7 @@ export function VideoPlayer({
   });
 
   useEffect(() => {
-    if (mode !== "processing" && save !== "preparing") return;
+    if (save !== "preparing") return;
     let cancel = false;
     const tick = () => {
       void fetch(`/api/media/${id}/mux`, { cache: "no-store" })
@@ -94,7 +96,7 @@ export function VideoPlayer({
       cancel = true;
       window.clearInterval(timer);
     };
-  }, [id, mode, mux, save]);
+  }, [id, mux, save]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -119,7 +121,14 @@ export function VideoPlayer({
         if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return;
         reportRef.current({ width: video.videoWidth, height: video.videoHeight });
       };
+      const onError = () => {
+        if (cancel) return;
+        cancel = true;
+        setNasFallback(true);
+        setStarted(true);
+      };
       player.addEventListener("loadedmetadata", onMeta);
+      player.addEventListener("error", onError);
       host.replaceChildren(player);
     });
     return () => {
@@ -128,7 +137,7 @@ export function VideoPlayer({
   }, [filename, mode, view?.playbackId, view?.posterUrl, view?.storyboardToken, view?.thumbnailToken, view?.token]);
 
   useEffect(() => {
-    if (size || !view?.posterUrl || (mode !== "mux" && mode !== "processing" && mode !== "poster")) return;
+    if (size || !view?.posterUrl || mode !== "mux") return;
     const img = new Image();
     let cancel = false;
     img.onload = () => {
@@ -149,12 +158,6 @@ export function VideoPlayer({
     video.load();
     void video.play().catch(() => undefined);
   }, [mode, playUrl, started]);
-
-  function onPosterLoad(event: SyntheticEvent<HTMLImageElement>) {
-    const img = event.currentTarget;
-    if (img.naturalWidth <= 0 || img.naturalHeight <= 0) return;
-    setSize((current) => current ?? { width: img.naturalWidth, height: img.naturalHeight });
-  }
 
   function onLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget;
@@ -183,19 +186,6 @@ export function VideoPlayer({
             data-playback-id={view.playbackId}
             className="block h-full w-full bg-black"
           />
-        ) : mode === "processing" ? (
-          <div role="status" className="relative flex h-full min-h-24 items-center justify-center bg-black px-4 text-sm text-[#c7c7cc]">
-            {view?.posterUrl ? (
-              <img src={view.posterUrl} alt="" className="absolute inset-0 h-full w-full object-contain" onLoad={onPosterLoad} />
-            ) : null}
-            <span className="relative">Processing</span>
-          </div>
-        ) : mode === "poster" ? (
-          <div className="relative h-full min-h-24 bg-black">
-            {view?.posterUrl ? (
-              <img src={view.posterUrl} alt="" className="block h-full w-full object-contain" onLoad={onPosterLoad} />
-            ) : null}
-          </div>
         ) : (
           <div className="relative h-full w-full">
             <video
@@ -204,7 +194,7 @@ export function VideoPlayer({
               controlsList="nodownload"
               playsInline
               preload="none"
-              poster={thumbUrl || undefined}
+              poster={view?.status ? undefined : thumbUrl || undefined}
               aria-label={filename}
               className="block h-full w-full bg-black object-contain"
               onLoadedMetadata={onLoadedMetadata}
