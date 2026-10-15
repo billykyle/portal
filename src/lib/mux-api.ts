@@ -112,6 +112,11 @@ export function muxAssetError(asset: MuxAsset) {
   return messages.join(" ") || null;
 }
 
+export async function muxListSigningKeys() {
+  const body = await muxFetch<MuxData<MuxSigningKey[]>>("/system/v1/signing-keys");
+  return body.data ?? [];
+}
+
 export async function muxCreateSigningKey() {
   const body = await muxFetch<MuxData<MuxSigningKey>>("/system/v1/signing-keys", { method: "POST", body: {} });
   if (!body.data?.id || !body.data.private_key) throw new MuxApiError(500, "Mux did not return a signing key.");
