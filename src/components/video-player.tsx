@@ -1,14 +1,16 @@
 "use client";
 
+import { Play } from "lucide-react";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { downloadHref } from "@/lib/download-all";
 import { downloadMode, playerMode, type MuxPlaybackView } from "@/lib/mux-policy";
 import {
   availableQualities,
-  playbackSourceType,
   resolvePlaybackQuality,
   shouldReportDisplaySize,
   videoFrameStyle,
   videoTileStyle,
+  type VideoDisplaySize,
   type VideoQuality,
 } from "@/lib/video-playback";
 
@@ -18,6 +20,7 @@ export function VideoPlayer({
   id,
   url,
   filename,
+  thumbUrl,
   width,
   height,
   renditions = [],
@@ -29,6 +32,7 @@ export function VideoPlayer({
   id: string;
   url: string;
   filename: string;
+  thumbUrl?: string | null;
   width?: number | null;
   height?: number | null;
   renditions?: PlayerRendition[];
@@ -41,8 +45,11 @@ export function VideoPlayer({
 }) {
   const reportedRef = useRef(false);
   const hostRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState(() => (width && height ? { width, height } : null));
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const reportRef = useRef<(next: VideoDisplaySize) => void>(() => undefined);
+  const [size, setSize] = useState<VideoDisplaySize | null>(() => (width && height ? { width, height } : null));
   const [failedRendition, setFailedRendition] = useState(false);
+  const [started, setStarted] = useState(false);
   const [polled, setPolled] = useState<{ source: MuxPlaybackView | null | undefined; value: MuxPlaybackView } | null>(null);
   const view = polled && polled.source === mux ? polled.value : (mux ?? null);
 
@@ -53,6 +60,21 @@ export function VideoPlayer({
   const playUrl =
     resolved === "original" ? url : (renditions.find((item) => item.quality === resolved)?.url ?? url);
   const stored = width && height ? { width, height } : null;
+
+  function rememberSize(next: VideoDisplaySize, persist: boolean) {
+    setSize((current) => (persist ? next : (current ?? next)));
+    if (!persist || reportedRef.current || !url.startsWith("/api/media/") || !shouldReportDisplaySize(stored, next)) return;
+    reportedRef.current = true;
+    void fetch(`/api/media/${id}/dimensions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(next),
+    }).catch(() => undefined);
+  }
+
+  useEffect(() => {
+    reportRef.current = (next) => rememberSize(next, true);
+  });
 
   useEffect(() => {
     if (mode !== "processing" && save !== "preparing") return;
@@ -83,47 +105,69 @@ export function VideoPlayer({
       const player = document.createElement("mux-player");
       player.setAttribute("playback-id", view.playbackId ?? "");
       player.setAttribute("playback-token", view.token ?? "");
+      if (view.thumbnailToken) player.setAttribute("thumbnail-token", view.thumbnailToken);
+      if (view.storyboardToken) player.setAttribute("storyboard-token", view.storyboardToken);
+      if (view.posterUrl) player.setAttribute("poster", view.posterUrl);
       player.setAttribute("stream-type", "on-demand");
       player.setAttribute("accent-color", "#ffffff");
       player.style.display = "block";
       player.style.width = "100%";
       player.style.height = "100%";
       player.setAttribute("aria-label", filename);
+      const onMeta = () => {
+        const video = player.shadowRoot?.querySelector("video");
+        if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return;
+        reportRef.current({ width: video.videoWidth, height: video.videoHeight });
+      };
+      player.addEventListener("loadedmetadata", onMeta);
       host.replaceChildren(player);
     });
     return () => {
       cancel = true;
     };
-  }, [filename, mode, view?.playbackId, view?.token]);
+  }, [filename, mode, view?.playbackId, view?.posterUrl, view?.storyboardToken, view?.thumbnailToken, view?.token]);
 
   useEffect(() => {
-    if (size || !url.startsWith("/api/media/")) return;
+    if (size || !view?.posterUrl || (mode !== "mux" && mode !== "processing" && mode !== "poster")) return;
+    const img = new Image();
     let cancel = false;
-    void fetch(`/api/media/${id}/dimensions`, { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: { width?: number; height?: number } | null) => {
-        if (cancel || !data?.width || !data.height) return;
-        setSize((current) => current ?? { width: data.width as number, height: data.height as number });
-      })
-      .catch(() => undefined);
+    img.onload = () => {
+      if (cancel || img.naturalWidth <= 0 || img.naturalHeight <= 0) return;
+      setSize((current) => current ?? { width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = view.posterUrl;
     return () => {
       cancel = true;
     };
-  }, [id, size, url]);
+  }, [mode, size, view?.posterUrl]);
+
+  useEffect(() => {
+    if (mode !== "deferred" || !started) return;
+    const video = videoRef.current;
+    if (!video || video.getAttribute("src") === playUrl) return;
+    video.setAttribute("src", playUrl);
+    video.load();
+    void video.play().catch(() => undefined);
+  }, [mode, playUrl, started]);
+
+  function onPosterLoad(event: SyntheticEvent<HTMLImageElement>) {
+    const img = event.currentTarget;
+    if (img.naturalWidth <= 0 || img.naturalHeight <= 0) return;
+    setSize((current) => current ?? { width: img.naturalWidth, height: img.naturalHeight });
+  }
 
   function onLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget;
     if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
-    const next = { width: video.videoWidth, height: video.videoHeight };
-    setSize(next);
-    if (!reportedRef.current && url.startsWith("/api/media/") && shouldReportDisplaySize(stored, next)) {
-      reportedRef.current = true;
-      void fetch(`/api/media/${id}/dimensions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(next),
-      }).catch(() => undefined);
-    }
+    rememberSize({ width: video.videoWidth, height: video.videoHeight }, true);
+  }
+
+  function startPlayback() {
+    setStarted(true);
+    const video = videoRef.current;
+    if (!video) return;
+    if (!video.getAttribute("src")) video.setAttribute("src", playUrl);
+    void video.play().catch(() => undefined);
   }
 
   return (
@@ -140,25 +184,45 @@ export function VideoPlayer({
             className="block h-full w-full bg-black"
           />
         ) : mode === "processing" ? (
-          <div role="status" className="flex h-full min-h-24 items-center justify-center px-4 text-sm text-[#c7c7cc]">
-            Processing
+          <div role="status" className="relative flex h-full min-h-24 items-center justify-center bg-black px-4 text-sm text-[#c7c7cc]">
+            {view?.posterUrl ? (
+              <img src={view.posterUrl} alt="" className="absolute inset-0 h-full w-full object-contain" onLoad={onPosterLoad} />
+            ) : null}
+            <span className="relative">Processing</span>
+          </div>
+        ) : mode === "poster" ? (
+          <div className="relative h-full min-h-24 bg-black">
+            {view?.posterUrl ? (
+              <img src={view.posterUrl} alt="" className="block h-full w-full object-contain" onLoad={onPosterLoad} />
+            ) : null}
           </div>
         ) : (
-          <video
-            key={playUrl}
-            controls
-            controlsList="nodownload"
-            playsInline
-            preload="metadata"
-            aria-label={filename}
-            className="block h-full w-full bg-black object-contain"
-            onLoadedMetadata={onLoadedMetadata}
-            onError={() => {
-              if (resolved !== "original") setFailedRendition(true);
-            }}
-          >
-            <source src={playUrl} type={playbackSourceType(resolved === "original" ? filename : `${filename}.mp4`)} />
-          </video>
+          <div className="relative h-full w-full">
+            <video
+              ref={videoRef}
+              controls
+              controlsList="nodownload"
+              playsInline
+              preload="none"
+              poster={thumbUrl || undefined}
+              aria-label={filename}
+              className="block h-full w-full bg-black object-contain"
+              onLoadedMetadata={onLoadedMetadata}
+              onError={() => {
+                if (resolved !== "original") setFailedRendition(true);
+              }}
+            />
+            {started ? null : (
+              <button
+                type="button"
+                aria-label={`Play ${filename}`}
+                className="absolute inset-0 flex items-center justify-center text-white"
+                onClick={startPlayback}
+              >
+                <Play className="size-8 rounded-full bg-black/60 p-2" aria-hidden />
+              </button>
+            )}
+          </div>
         )}
       </div>
       {caption ? (
@@ -194,7 +258,7 @@ export function VideoDownload({
     return <span className={`${className} text-[#8e8e93]`}>Preparing download</span>;
   }
   return (
-    <a href={url} download={filename} className={className}>
+    <a href={downloadHref(url)} download={filename} className={className}>
       Download
     </a>
   );

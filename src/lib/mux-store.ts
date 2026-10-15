@@ -4,7 +4,8 @@ import { ensureDb } from "./db/ensure";
 import { media, muxConfig } from "./db/schema";
 import { staticRenditionStatus, type MuxAsset } from "./mux-api";
 import { muxPlaybackLinks } from "./mux-sign";
-import { publicMuxStatus, type MuxPlaybackView } from "./mux-policy";
+import { muxDisplaySize, publicMuxStatus, type MuxPlaybackView } from "./mux-policy";
+import { saveDisplaySize } from "./video-store";
 
 export { publicMuxStatus };
 
@@ -156,6 +157,8 @@ export async function rememberMuxAsset(
       muxUpdatedAt: new Date(),
     })
     .where(eq(media.id, id));
+  const size = muxDisplaySize(asset);
+  if (size) await saveDisplaySize(id, size, "fill");
 }
 
 export async function rememberMuxFailure(id: string, message: string) {
@@ -173,6 +176,7 @@ export async function applyMuxAssetUpdate(input: {
   playbackId?: string | null;
   staticStatus?: string | null;
   error?: string | null;
+  displaySize?: { width: number; height: number } | null;
 }) {
   await ensureDb();
   const patch: {
@@ -190,9 +194,17 @@ export async function applyMuxAssetUpdate(input: {
   if (input.assetId) patch.muxAssetId = input.assetId;
   if (input.staticStatus) patch.muxStaticStatus = input.staticStatus;
   if (input.error !== undefined) patch.muxError = input.error;
+  const size = input.displaySize ?? null;
+  const rememberSize = async (ids: string[]) => {
+    if (!size) return;
+    for (const id of ids) await saveDisplaySize(id, size, "fill");
+  };
   if (input.passthrough) {
     const updated = await db.update(media).set(patch).where(eq(media.id, input.passthrough)).returning({ id: media.id });
-    if (updated.length > 0) return updated.length;
+    if (updated.length > 0) {
+      await rememberSize(updated.map((row) => row.id));
+      return updated.length;
+    }
   }
   if (input.assetId) {
     const updated = await db
@@ -200,6 +212,7 @@ export async function applyMuxAssetUpdate(input: {
       .set(patch)
       .where(eq(media.muxAssetId, input.assetId))
       .returning({ id: media.id });
+    await rememberSize(updated.map((row) => row.id));
     return updated.length;
   }
   return 0;
@@ -243,7 +256,10 @@ async function playbackView(
       : null;
   let token: string | null = null;
   let downloadUrl: string | null = null;
-  if (status === "ready" && row.muxPlaybackId && signing) {
+  let posterUrl: string | null = null;
+  let thumbnailToken: string | null = null;
+  let storyboardToken: string | null = null;
+  if (row.muxPlaybackId && signing) {
     try {
       const links = await muxPlaybackLinks({
         playbackId: row.muxPlaybackId,
@@ -254,6 +270,9 @@ async function playbackView(
       });
       token = links.token;
       downloadUrl = links.downloadUrl;
+      posterUrl = links.posterUrl;
+      thumbnailToken = links.thumbnailToken;
+      storyboardToken = links.storyboardToken;
     } catch (error) {
       console.error("Mux playback token failed", row.id, error instanceof Error ? error.message : error);
     }
@@ -264,6 +283,9 @@ async function playbackView(
     token,
     downloadUrl,
     staticStatus,
+    posterUrl,
+    thumbnailToken,
+    storyboardToken,
   };
 }
 

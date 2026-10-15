@@ -20,9 +20,11 @@ If the NAS URL is not reachable without the share cookie, ingest does not create
 
 ## Playback and downloads
 
-The shoot page and video tiles mount Mux Player when the asset is ready and a playback token exists. `Processing` is shown until then, and the page polls `GET /api/media/{id}/mux`. If Mux errors, or there is no Mux row yet, the page falls back to the existing player (a lighter NAS rendition when one exists, otherwise the original).
+The shoot page, the admin shoot page, and video tiles mount Mux Player when a playback token exists. The poster is a signed Mux thumbnail and the display size comes from the Mux video track, then from the player once it has loaded. The page does not request the NAS original or `GET /api/media/{id}/dimensions` for a video Mux already knows about, including one that is still preparing or marked errored. `Processing` is shown until playback is ready, and the page polls `GET /api/media/{id}/mux`.
 
-Per-clip **Download** uses `https://stream.mux.com/{playbackId}/highest.mp4` with a signed token. While the MP4 is still preparing, the control says **Preparing download**.
+A finished video Mux has never seen, and every raw clip, shows its thumbnail. The file URL is attached only after Play. **Download** is the control that reads the NAS original, and that link uses `?download=1`. A Mux-tracked file returns 404 for any other read, so a player cannot fall back to the NAS on page load.
+
+Per-clip **Download** uses `https://stream.mux.com/{playbackId}/highest.mp4` with a signed token when that MP4 is ready. While it is still preparing, the control says **Preparing download**. If Mux has no MP4, Download saves the NAS original.
 
 Shoot zips contain photos and floor plans only. Finished video and raw video are left out, and the zip includes `VIDEOS.txt` when any video was omitted. A video-only shoot does not start a zip. Select download zips two or more stills and saves each video on its own.
 

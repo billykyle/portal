@@ -1,4 +1,5 @@
 import { muxAssetError, signedPlaybackId, staticRenditionStatus, type MuxAsset } from "./mux-api";
+import { muxDisplaySize } from "./mux-policy";
 import { applyMuxAssetUpdate } from "./mux-store";
 
 type MuxEvent = {
@@ -19,6 +20,7 @@ export async function applyMuxEvent(event: MuxEvent) {
       playbackId: signedPlaybackId(data),
       staticStatus: staticRenditionStatus(data),
       error: status === "errored" ? muxAssetError(data) : null,
+      displaySize: muxDisplaySize(data),
     });
   }
   if (type.startsWith("video.asset.static_rendition.")) {

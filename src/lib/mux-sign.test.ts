@@ -53,6 +53,18 @@ test("playback tokens accept a base64 PKCS1 private key", async () => {
   const verified = await jwtVerify(token, await importSPKI(spki, "RS256"), { audience: "v" });
   assert.equal(verified.payload.sub, "play-2");
   assert.equal(verified.protectedHeader.kid, "key-2");
+  assert.equal(verified.payload.aud, "v");
+});
+
+test("poster and storyboard tokens use their own audience", async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const spki = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const key = await importSPKI(spki, "RS256");
+  const poster = await signMuxPlaybackToken({ playbackId: "play-3", keyId: "key-3", privateKey: pem, audience: "t" });
+  const storyboard = await signMuxPlaybackToken({ playbackId: "play-3", keyId: "key-3", privateKey: pem, audience: "s" });
+  assert.equal((await jwtVerify(poster, key, { audience: "t" })).payload.aud, "t");
+  assert.equal((await jwtVerify(storyboard, key, { audience: "s" })).payload.aud, "s");
 });
 
 test("webhook signatures use the raw body and a short tolerance", () => {

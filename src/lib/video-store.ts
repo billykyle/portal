@@ -67,6 +67,8 @@ export async function listVideosMissingDimensions(limit: number) {
     FROM media
     WHERE type = 'video'
       AND width IS NULL
+      AND mux_asset_id IS NULL
+      AND mux_status IS NULL
       AND nas_relative_path LIKE '/%'
     ORDER BY filename
     LIMIT ${limit}

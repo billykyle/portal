@@ -1,6 +1,12 @@
 import { createHmac, createPrivateKey, timingSafeEqual } from "crypto";
 import { SignJWT } from "jose";
-import { MUX_PLAYBACK_TTL_SECONDS, MUX_SOURCE_TTL_SECONDS, muxDownloadStem, muxStaticDownloadUrl } from "./mux-policy";
+import {
+  MUX_PLAYBACK_TTL_SECONDS,
+  MUX_SOURCE_TTL_SECONDS,
+  muxDownloadStem,
+  muxPosterUrl,
+  muxStaticDownloadUrl,
+} from "./mux-policy";
 
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
 
@@ -68,6 +74,8 @@ export async function signMuxPlaybackToken(input: {
   privateKey: string;
   ttlSeconds?: number;
   download?: string;
+  /** `v` plays the video, `t` is the poster, `s` is the seek storyboard. */
+  audience?: "v" | "t" | "s";
 }) {
   const key = muxPrivateKey(input.privateKey);
   const claims: Record<string, string> = { kid: input.keyId };
@@ -75,7 +83,7 @@ export async function signMuxPlaybackToken(input: {
   return new SignJWT(claims)
     .setProtectedHeader({ alg: "RS256", kid: input.keyId, typ: "JWT" })
     .setSubject(input.playbackId)
-    .setAudience("v")
+    .setAudience(input.audience ?? "v")
     .setExpirationTime(`${input.ttlSeconds ?? MUX_PLAYBACK_TTL_SECONDS}s`)
     .sign(key);
 }
@@ -87,24 +95,25 @@ export async function muxPlaybackLinks(input: {
   privateKey: string;
   staticReady: boolean;
 }) {
-  const token = await signMuxPlaybackToken({
-    playbackId: input.playbackId,
-    keyId: input.keyId,
-    privateKey: input.privateKey,
-  });
+  const sign = (audience: "v" | "t" | "s", download?: string) =>
+    signMuxPlaybackToken({
+      playbackId: input.playbackId,
+      keyId: input.keyId,
+      privateKey: input.privateKey,
+      audience,
+      download,
+    });
+  const [token, thumbnailToken, storyboardToken] = await Promise.all([sign("v"), sign("t"), sign("s")]);
   const downloadUrl = input.staticReady
-    ? muxStaticDownloadUrl(
-        input.playbackId,
-        await signMuxPlaybackToken({
-          playbackId: input.playbackId,
-          keyId: input.keyId,
-          privateKey: input.privateKey,
-          download: muxDownloadStem(input.filename),
-        }),
-        input.filename,
-      )
+    ? muxStaticDownloadUrl(input.playbackId, await sign("v", muxDownloadStem(input.filename)), input.filename)
     : null;
-  return { token, downloadUrl };
+  return {
+    token,
+    downloadUrl,
+    thumbnailToken,
+    storyboardToken,
+    posterUrl: muxPosterUrl(input.playbackId, thumbnailToken),
+  };
 }
 
 export function verifyMuxWebhook(rawBody: string, header: string | null, secret: string, nowMs = Date.now()) {
