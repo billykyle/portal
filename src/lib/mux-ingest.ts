@@ -236,17 +236,15 @@ export async function forgetMuxForShoot(shootId: string) {
 
 async function runMuxRows(rows: MuxMediaRow[], force: boolean) {
   const videos: MuxVideoResult[] = [];
-  let cursor = 0;
-  async function worker() {
-    for (;;) {
-      const index = cursor;
-      cursor += 1;
-      const row = rows[index];
-      if (!row) return;
-      videos[index] = await runOne(row, force);
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (!row) continue;
+    const result = await runOne(row, force);
+    videos[index] = result;
+    if (result.action === "submit" || result.action === "refresh") {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
     }
   }
-  await Promise.all([worker(), worker(), worker()]);
   return videos;
 }
 
