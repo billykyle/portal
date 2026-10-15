@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ShootMedia } from "@/components/shoot-detail";
 import { isShootGalleryType } from "@/lib/media";
 import type { PlayerRendition } from "@/components/video-player";
+import type { MuxPlaybackView } from "@/lib/mux-policy";
 
 export type TemplateClient = {
   displayName: string;
@@ -35,6 +36,7 @@ export type TemplateMedia = {
   byteSize?: number | null;
   sortOrder: number;
   renditions?: PlayerRendition[];
+  mux?: MuxPlaybackView | null;
 };
 
 export type TemplateLibraryProps = {
@@ -83,6 +85,7 @@ export function galleryMedia(media: TemplateMedia[]): ShootMedia[] {
         height: item.height,
         byteSize: item.byteSize,
         renditions: item.renditions,
+        mux: item.mux,
       },
     ];
   });

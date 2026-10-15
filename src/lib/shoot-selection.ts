@@ -1,4 +1,5 @@
 import { isUuid } from "@/lib/admin/ids";
+import { isZipExcludedVideo } from "@/lib/mux-policy";
 
 /** Enough for a full shoot folder. A longer list is refused instead of building a huge zip. */
 export const SELECTION_ID_LIMIT = 500;
@@ -19,6 +20,21 @@ export function selectionDownloadKind(count: number): "none" | "file" | "zip" {
   if (count <= 0) return "none";
   if (count === 1) return "file";
   return "zip";
+}
+
+/**
+ * Stills of two or more stay in one zip. Finished and raw video download one file at a time
+ * so a large movie never holds a Vercel function open.
+ */
+export function planSelectionDownload<T extends { id: string; type?: string }>(items: readonly T[]) {
+  const videos = items.filter((item) => isZipExcludedVideo(item.type));
+  const stills = items.filter((item) => !isZipExcludedVideo(item.type));
+  return {
+    stills,
+    videos,
+    zipStillIds: stills.length > 1 ? stills.map((item) => item.id) : [],
+    direct: [...(stills.length === 1 ? stills : []), ...videos],
+  };
 }
 
 export type ZipAccess =

@@ -684,23 +684,36 @@ async function withNasDownloadRetries<T>(run: () => Promise<T>): Promise<T> {
   throw lastError instanceof Error ? lastError : new Error("NAS download failed.");
 }
 
+async function shareDownloadTarget(config: NasConfig, cookie: string, nasPath: string) {
+  const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
+    method: "POST",
+    headers: jsonHeaders(config, cookie),
+    body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
+    cache: "no-store",
+  });
+  const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
+  if (taskBody.code !== 200 || !taskBody.data?.result) {
+    throw new Error(taskBody.msg || "NAS download task failed.");
+  }
+  const downloadUrl = new URL(`${apiBase(config)}/filemgr/shareDownloadFile`);
+  downloadUrl.searchParams.set("coding", "true");
+  downloadUrl.searchParams.set("share_id", config.shareId);
+  downloadUrl.searchParams.set("password", config.password);
+  downloadUrl.searchParams.set("task_id", taskBody.data.result);
+  return downloadUrl.toString();
+}
+
+/**
+ * A short-lived UGOS download URL. Mux fetches this itself after a redirect,
+ * so the video bytes never pass through a Vercel function body.
+ */
+export async function createNasShareDownloadUrl(nasPath: string) {
+  return withCookie((config, cookie) => shareDownloadTarget(config, cookie, nasPath));
+}
+
 async function openNasDownload(nasPath: string, rangeHeader?: string | null) {
   return withCookie(async (config, cookie) => {
-    const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
-      method: "POST",
-      headers: jsonHeaders(config, cookie),
-      body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
-      cache: "no-store",
-    });
-    const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
-    if (taskBody.code !== 200 || !taskBody.data?.result) {
-      throw new Error(taskBody.msg || "NAS download task failed.");
-    }
-    const downloadUrl = new URL(`${apiBase(config)}/filemgr/shareDownloadFile`);
-    downloadUrl.searchParams.set("coding", "true");
-    downloadUrl.searchParams.set("share_id", config.shareId);
-    downloadUrl.searchParams.set("password", config.password);
-    downloadUrl.searchParams.set("task_id", taskBody.data.result);
+    const downloadUrl = await shareDownloadTarget(config, cookie, nasPath);
     const headers: Record<string, string> = { ...(mediaHeaders(config, cookie) as Record<string, string>) };
     if (rangeHeader) headers.Range = rangeHeader;
     const res = await fetch(downloadUrl, { headers, cache: "no-store" });

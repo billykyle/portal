@@ -4,8 +4,9 @@ import { ListRowPreview } from "@/components/list-row-preview";
 import { useSectionLayout } from "@/components/section-layout";
 import { SelectionMark, useShootSelection } from "@/components/shoot-selection";
 import { PHOTO_GRID } from "@/components/still-layout";
-import { VideoPlayer, type PlayerRendition } from "@/components/video-player";
+import { VideoDownload, VideoPlayer, type PlayerRendition } from "@/components/video-player";
 import { listPreviewSrc } from "@/lib/list-preview";
+import type { MuxPlaybackView } from "@/lib/mux-policy";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 
 export type VideoLayoutItem = {
@@ -16,6 +17,7 @@ export type VideoLayoutItem = {
   width?: number | null;
   height?: number | null;
   renditions?: PlayerRendition[];
+  mux?: MuxPlaybackView | null;
 };
 
 /** Same column counts as photo tiles. Each clip keeps its own height. */
@@ -73,13 +75,17 @@ function VideoList({ items }: { items: VideoLayoutItem[] }) {
                     width={item.width}
                     height={item.height}
                     renditions={item.renditions}
+                    mux={item.mux}
                     caption={false}
                   />
                 </div>
               </details>
-              <a href={item.url} download={item.filename} className="flex h-12 shrink-0 items-center text-white">
-                Download
-              </a>
+              <VideoDownload
+                url={item.url}
+                filename={item.filename}
+                mux={item.mux}
+                className="flex h-12 shrink-0 items-center text-white"
+              />
             </div>
           </li>
         );
@@ -113,6 +119,7 @@ export function VideoLayout({
           width={item.width}
           height={item.height}
           renditions={item.renditions}
+          mux={item.mux}
           showDownload={!selecting}
         />
         {selecting ? (
@@ -142,6 +149,7 @@ export function VideoLayout({
               width={item.width}
               height={item.height}
               renditions={item.renditions}
+              mux={item.mux}
               showDownload={!selecting}
               tile
             />

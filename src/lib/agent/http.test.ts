@@ -53,6 +53,9 @@ function stubOps(): AgentOps {
     setClientAgentAccess: fail,
     listClientAgentConnections: fail,
     revokeClientAgentConnection: fail,
+    backfillMuxVideos: async () => {
+      throw new Error("unexpected op");
+    },
   };
 }
 
@@ -142,6 +145,7 @@ test("mcp endpoint lists tools and calls list_clients over stateless JSON", asyn
     "cancel_booking",
     "list_client_shoots",
     "get_shoot",
+    "backfill_mux_videos",
     "get_shoot_share_link",
     "get_maintenance_notice",
     "set_maintenance_notice",

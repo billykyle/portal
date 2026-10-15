@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { media } from "@/lib/db/schema";
 import { publicShootZipPath } from "@/lib/download-all";
 import { formatShootDate, isShootGalleryType, resolveMediaThumbUrl, resolveMediaUrl, shootFolderName } from "@/lib/media";
+import { muxPlaybackById } from "@/lib/mux-store";
 import { videoPlaybackById } from "@/lib/video-store";
 import { publicShootPath, publicShootUrl } from "@/lib/public-link";
 import { getPublicShoot } from "@/lib/public-shoot";
@@ -59,7 +60,7 @@ export default async function PublicShootPage({
     .from(media)
     .where(eq(media.shootId, shoot.id))
     .orderBy(asc(media.sortOrder));
-  const playback = await videoPlaybackById(files);
+  const [playback, mux] = await Promise.all([videoPlaybackById(files), muxPlaybackById(files)]);
   const jar = await cookies();
   const closedSectionIds = [...parseClosedShootSections(jar.get(SHOOT_SECTIONS_COOKIE)?.value)];
   const listSectionIds = [...parseListShootSections(jar.get(SHOOT_LAYOUT_COOKIE)?.value)];
@@ -89,6 +90,7 @@ export default async function PublicShootPage({
               height: item.height,
               byteSize: item.byteSize,
               renditions: playback.get(item.id) ?? [],
+              mux: mux.get(item.id) ?? null,
             },
           ];
         })}

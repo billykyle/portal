@@ -82,6 +82,11 @@ Set these on the Vercel project for **Production** and **Preview**. Generate rea
 | `NAS_STILLS_FOLDERS` | `Final,Photos` | First match under each shoot wins for photos. Floor Plan, Video, and Raw Video folders, plus `.mov`/`.mp4` at the shoot root, are imported separately. |
 | `NAS_CACHE_DIR` | `/tmp/nas-cache` | Optional on Vercel — the app already defaults to `/tmp/nas-cache` when `VERCEL=1`. Ephemeral scratch only. Grid previews are stored in Postgres (`media_thumbs`) so the next isolate does not re-download them from the NAS. |
 | `NAS_FS_ROOT` | unset on Vercel | Only on the machine that runs `npm run nas:renditions`. Local folder of the mounted share. Vercel does not transcode video. |
+| `MUX_TOKEN_ID` | Mux access token id | Already set for Production and Preview. Video API access. |
+| `MUX_TOKEN_SECRET` | Mux access token secret | Already set for Production and Preview. |
+| `MUX_SIGNING_KEY_ID` | optional | Signed playback key id. The app creates one when the token has System write. |
+| `MUX_SIGNING_KEY` | optional | Base64 PKCS8 private key from Mux, shown once. Env overrides the copy stored in Postgres. |
+| `MUX_WEBHOOK_SECRET` | optional | Signing secret for `POST /api/mux/webhook`. The app creates the webhook when it can. |
 | `NAS_FS_PREFIX` | unset on Vercel | NAS path prefix that sits above `NAS_FS_ROOT`. See README, "Video shape and lighter playback". |
 | `CRON_SECRET` | long random string | Vercel sends `Authorization: Bearer $CRON_SECRET` to `/api/cron/shoot-reminders`. Required or that cron gets 401. |
 | `DELIVERY_WEBHOOK_URL` | empty or Pepper URL | Optional. POST `shoot.ready` when a NAS shoot first has files. |

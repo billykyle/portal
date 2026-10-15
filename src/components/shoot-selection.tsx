@@ -2,21 +2,24 @@
 
 import { Check } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import {
-  downloadOriginalFile,
-  downloadZipFromPost,
-  type DownloadFile,
-} from "@/components/download-controls";
+import { downloadOriginalFile, downloadZipFromPost } from "@/components/download-controls";
 import { shootPrimaryButtonClass, shootSecondaryButtonClass } from "@/components/shoot-buttons";
 import { formatZipStatus, type ZipJobProgress } from "@/lib/download-all";
 import {
+  planSelectionDownload,
   selectionCountLabel,
-  selectionDownloadKind,
   toggleSelectedId,
 } from "@/lib/shoot-selection";
 import { cn } from "@/lib/utils";
 
-export type ShootSelectionItem = DownloadFile & { id: string };
+export type ShootSelectionItem = {
+  id: string;
+  url: string;
+  filename: string;
+  type?: string;
+  downloadUrl?: string | null;
+  downloadPending?: boolean;
+};
 
 type ShootSelectionApi = {
   selecting: boolean;
@@ -88,24 +91,34 @@ export function ShootSelection({
 
   async function downloadSelected() {
     const picked = items.filter((item) => selected.has(item.id));
-    const kind = selectionDownloadKind(picked.length);
-    if (kind === "none" || pending) return;
-    if (kind === "file") {
-      downloadOriginalFile(picked[0]);
+    const plan = planSelectionDownload(picked);
+    if ((plan.zipStillIds.length === 0 && plan.direct.length === 0) || pending) return;
+    const waiting = plan.direct.filter((item) => item.downloadPending && !item.downloadUrl);
+    const ready = plan.direct.filter((item) => !(item.downloadPending && !item.downloadUrl));
+    if (plan.zipStillIds.length === 0 && ready.length === 0) {
+      setStatus(waiting.length > 0 ? "Preparing download." : "Download failed. Try again, or Download a single file.");
       return;
     }
+    for (const item of ready) {
+      downloadOriginalFile({
+        url: item.downloadUrl || item.url,
+        filename: item.filename,
+      });
+    }
+    if (waiting.length > 0) setStatus("Preparing download.");
+    if (plan.zipStillIds.length === 0) return;
     if (!zipUrl) {
       setStatus("Download failed. Try again, or Download a single file.");
       return;
     }
     setPending(true);
     setPhase("preparing");
-    setStatus("");
+    if (waiting.length === 0) setStatus("");
     try {
       await downloadZipFromPost(
         zipUrl,
         folderName,
-        picked.map((item) => item.id),
+        plan.zipStillIds,
         (progress: ZipJobProgress) => {
           setPhase(progress.state === "preparing" ? "preparing" : "downloading");
           setStatus(formatZipStatus(progress));

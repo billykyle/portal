@@ -39,7 +39,9 @@ import {
 } from "./nas-folder";
 import { createPublicToken } from "./public-link";
 import { allocateClientShareSlug, allocatePublicShareSlug, syncClientShareSlug, syncPublicShareSlug } from "./public-share-slug";
+import { muxIngestDecision } from "./mux-policy";
 import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
+import { forgetMuxAssets, forgetMuxForShoot, submitMuxForImported } from "./mux-ingest";
 
 export type NasSyncResult = {
   skipped: boolean;
@@ -105,30 +107,51 @@ export async function importNasStills(
     if (options.required) {
       throw new Error(`No photos, floor plans, video, or raw video under ${shootFolderPath}.`);
     }
-    return { imported: 0, updated: 0, removed: 0, total: 0 };
+    return { imported: 0, updated: 0, removed: 0, total: 0, muxMediaIds: [] as string[], removedMuxAssetIds: [] as string[] };
   }
   // Match by filename. Path, sort, type, url, and byte size are written from the NAS listing, not read back.
   const existing = await db
     .select({
       id: media.id,
       filename: media.filename,
+      type: media.type,
+      muxAssetId: media.muxAssetId,
+      muxStatus: media.muxStatus,
+      muxStaticStatus: media.muxStaticStatus,
+      muxSourcePath: media.muxSourcePath,
+      muxSourceBytes: media.muxSourceBytes,
     })
     .from(media)
     .where(eq(media.shootId, shootId));
   if (files.length === 0) {
+    const removedMuxAssetIds = existing.flatMap((prev) => (prev.muxAssetId ? [prev.muxAssetId] : []));
     for (const prev of existing) {
       await db.delete(media).where(eq(media.id, prev.id));
     }
-    return { imported: 0, updated: 0, removed: existing.length, total: 0 };
+    return { imported: 0, updated: 0, removed: existing.length, total: 0, muxMediaIds: [] as string[], removedMuxAssetIds };
   }
   const byName = new Map(existing.map((row) => [row.filename, row]));
   const seen = new Set<string>();
   const rows = [];
+  const muxMediaIds: string[] = [];
   let updated = 0;
   let sortOrder = 1;
   for (const file of files) {
     seen.add(file.name);
     const prev = byName.get(file.name);
+    const bytes = file.size > 0 ? file.size : null;
+    const decision = muxIngestDecision(
+      {
+        type: file.type,
+        assetId: prev?.muxAssetId ?? null,
+        status: prev?.muxStatus ?? null,
+        staticStatus: prev?.muxStaticStatus ?? null,
+        sourcePath: prev?.muxSourcePath ?? null,
+        sourceBytes: prev?.muxSourceBytes ?? null,
+      },
+      { path: file.path, bytes },
+    );
+    if (decision === "submit") muxMediaIds.push(prev?.id ?? "");
     if (prev) {
       await db
         .update(media)
@@ -143,6 +166,7 @@ export async function importNasStills(
       updated += 1;
     } else {
       const id = randomUUID();
+      if (decision === "submit") muxMediaIds[muxMediaIds.length - 1] = id;
       rows.push({
         id,
         shootId,
@@ -160,13 +184,22 @@ export async function importNasStills(
     await db.insert(media).values(rows);
   }
   let removed = 0;
+  const removedMuxAssetIds: string[] = [];
   for (const filename of mediaFilenamesMissingFromNas(existing, seen)) {
     const prev = byName.get(filename);
     if (!prev) continue;
+    if (prev.muxAssetId) removedMuxAssetIds.push(prev.muxAssetId);
     await db.delete(media).where(eq(media.id, prev.id));
     removed += 1;
   }
-  return { imported: rows.length, updated, removed, total: files.length };
+  return {
+    imported: rows.length,
+    updated,
+    removed,
+    total: files.length,
+    muxMediaIds: muxMediaIds.filter(Boolean),
+    removedMuxAssetIds,
+  };
 }
 
 export async function resolveShootFolder(nasRelativePath: string) {
@@ -371,6 +404,7 @@ export async function syncNasShare(options?: {
           )
           .limit(1);
         if (empty) {
+          await forgetMuxForShoot(empty.id);
           await db.delete(shoots).where(eq(shoots.id, empty.id));
           result.shootsRemoved += 1;
           result.warnings.push(
@@ -397,10 +431,23 @@ export async function syncNasShare(options?: {
         await db.select({ id: media.id }).from(media).where(eq(media.shootId, shoot.id))
       ).length;
       const mediaResult = await importNasStills(shoot.id, shootFolderPath, { files: deliverables });
+      if (mediaResult.removedMuxAssetIds.length > 0) {
+        await forgetMuxAssets(mediaResult.removedMuxAssetIds);
+      }
+      if (mediaResult.muxMediaIds.length > 0) {
+        try {
+          const mux = await submitMuxForImported(mediaResult.muxMediaIds);
+          result.warnings.push(...mux.warnings);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Mux ingest failed.";
+          result.warnings.push(`Mux ingest failed for ${parsed.address}: ${message}`);
+        }
+      }
       result.mediaImported += mediaResult.imported;
       result.mediaUpdated += mediaResult.updated;
       result.mediaRemoved += mediaResult.removed;
       if (mediaResult.total === 0) {
+        await forgetMuxForShoot(shoot.id);
         await db.delete(shoots).where(eq(shoots.id, shoot.id));
         seenShootIds.delete(shoot.id);
         result.shootsRemoved += 1;
@@ -485,6 +532,7 @@ export async function syncNasShare(options?: {
   const portalShoots = await db.select().from(shoots);
   for (const shoot of portalShoots) {
     if (seenShootIds.has(shoot.id)) continue;
+    await forgetMuxForShoot(shoot.id);
     await db.delete(shoots).where(eq(shoots.id, shoot.id));
     result.shootsRemoved += 1;
     result.warnings.push(

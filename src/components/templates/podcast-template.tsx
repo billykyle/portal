@@ -17,6 +17,7 @@ import { groupPodcastFiles, parseEpisodeIdentity } from "@/lib/podcast-episode";
 import { groupShootsByCategoryFolder } from "@/lib/shoot-categories";
 import { PREVIEW_EAGER_COUNT } from "@/lib/preview-queue";
 import { shootSectionLayout } from "@/lib/shoot-layout";
+import { downloadMode } from "@/lib/mux-policy";
 import { shootSectionStartsOpen } from "@/lib/shoot-sections";
 
 const SECTIONS = {
@@ -137,7 +138,14 @@ function PodcastShoot({
 
   return (
     <ShootSelection
-      items={media.map((item) => ({ id: item.id, url: item.url, filename: item.filename }))}
+      items={media.map((item) => ({
+        id: item.id,
+        url: item.url,
+        filename: item.filename,
+        type: item.type,
+        downloadUrl: item.mux?.downloadUrl ?? null,
+        downloadPending: item.type === "video" && downloadMode(item.mux) === "preparing",
+      }))}
       zipUrl={zipUrl}
       folderName={folderName}
     >

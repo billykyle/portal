@@ -8,6 +8,7 @@ import { zipDownloadName } from "@/lib/download-all";
 import { selectionZipResponse } from "@/lib/selection-zip";
 import { shootFolderName } from "@/lib/media";
 import { authorizeZipDownload } from "@/lib/shoot-selection";
+import { partitionZipFiles } from "@/lib/download-scope";
 import { approxZipSourceBytes, scopeZipRequest, streamShootZip } from "@/lib/shoot-zip";
 import { trackShootZipJob } from "@/lib/zip-jobs";
 
@@ -42,18 +43,20 @@ export async function GET(
     if (scoped.files.length === 0) {
       return NextResponse.json({ error: "This shoot has no files of that type." }, { status: 404 });
     }
-    const approxBytes = await approxZipSourceBytes(scoped.files);
+    const parted = partitionZipFiles(scoped.files);
+    const approxBytes = await approxZipSourceBytes(parted.files);
     const tracking = await trackShootZipJob({
       jobId: new URL(request.url).searchParams.get("job"),
       shootId: shoot.id,
-      filesTotal: scoped.files.length,
+      filesTotal: Math.max(parted.files.length, parted.note ? 1 : 0),
       filename: zipDownloadName(scoped.folderName),
     });
     return streamShootZip({
-      files: scoped.files,
+      files: parted.files,
       folderName: scoped.folderName,
       origin,
       approxBytes,
+      note: parted.note,
       ...tracking,
     });
   } catch (error) {

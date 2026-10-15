@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   filterFilesByZipTypes,
   parseZipTypesParam,
+  partitionZipFiles,
   presentMediaTypes,
   withZipTypes,
   zipDownloadOptions,
@@ -53,12 +54,13 @@ test("raw video is its own zip scope after finished video", () => {
     filterFilesByZipTypes(withRaw, ["video"]).map((file) => file.filename),
     ["walk.mp4"],
   );
-  assert.deepEqual(zipDownloadOptions(["photo", "video", "raw_video"]), [
-    { id: "all", label: "Everything" },
-    { id: "photo", label: "Photos" },
-    { id: "video", label: "Video" },
-    { id: "raw_video", label: "Raw video" },
-  ]);
+  assert.deepEqual(zipDownloadOptions(["photo", "video", "raw_video"]), [{ id: "photo", label: "Photos" }]);
+  assert.deepEqual(zipDownloadOptions(["video", "raw_video"]), []);
+  const parted = partitionZipFiles(withRaw);
+  assert.deepEqual(parted.files.map((file) => file.filename), ["Full-01.jpg", "plan.svg"]);
+  assert.deepEqual(parted.omitted.map((file) => file.filename), ["walk.mp4", "Raw Video/A001.mov"]);
+  assert.match(parted.note?.text ?? "", /up to 1080p/);
+  assert.equal(partitionZipFiles([{ filename: "a.jpg", type: "photo" }]).note, null);
   assert.equal(
     zipScopeFolderName("2026-09-04 - 12 Wood View Drive", ["raw_video"], ["photo", "raw_video"]),
     "2026-09-04 - 12 Wood View Drive - Raw video",

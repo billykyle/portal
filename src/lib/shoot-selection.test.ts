@@ -10,6 +10,7 @@ import {
   filesForSelection,
   parseSelectionIdList,
   readSelectionIds,
+  planSelectionDownload,
   selectionCountLabel,
   selectionDownloadKind,
   toggleSelectedId,
@@ -41,6 +42,20 @@ test("count label and download kind", () => {
   assert.equal(selectionDownloadKind(0), "none");
   assert.equal(selectionDownloadKind(1), "file");
   assert.equal(selectionDownloadKind(2), "zip");
+});
+
+test("selection zips stills and downloads videos one at a time", () => {
+  const plan = planSelectionDownload([
+    { id: FILE_A, type: "photo" },
+    { id: FILE_B, type: "photo" },
+    { id: FILE_C, type: "video" },
+    { id: "raw", type: "raw_video" },
+  ]);
+  assert.deepEqual(plan.zipStillIds, [FILE_A, FILE_B]);
+  assert.deepEqual(plan.direct.map((item) => item.id), [FILE_C, "raw"]);
+  const one = planSelectionDownload([{ id: FILE_A, type: "video" }]);
+  assert.deepEqual(one.zipStillIds, []);
+  assert.deepEqual(one.direct.map((item) => item.id), [FILE_A]);
 });
 
 test("account zip allows admin, the current portal, and an extra BK code", () => {
