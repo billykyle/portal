@@ -22,9 +22,7 @@ If the NAS URL is not reachable without the share cookie, ingest does not create
 
 ## Playback and downloads
 
-The shoot page, the admin shoot page, and video tiles mount Mux Player when a playback token exists. The poster is a signed Mux thumbnail and the display size comes from the Mux video track, then from the player once it has loaded. The page does not request the NAS original or `GET /api/media/{id}/dimensions` for a video Mux already knows about, including one that is still preparing or marked errored. `Processing` is shown until playback is ready, and the page polls `GET /api/media/{id}/mux`.
-
-A finished video Mux has never seen, and every raw clip, shows its thumbnail. The file URL is attached only after Play. **Download** is the control that reads the NAS original, and that link uses `?download=1`. A Mux-tracked file returns 404 for any other read, so a player cannot fall back to the NAS on page load.
+The shoot page, the admin shoot page, and video tiles mount Mux Player only when `mux_status` is `ready` and a signed playback token exists. Preparing, errored, and not-yet-sent videos use the NAS player: `preload="none"`, no file URL until Play. If Mux Player fires an error, that tile swaps to the same NAS player and only then requests the file (`?fallback=1`). The page does not request the NAS original on load. A ready video still returns 404 unless the read is Download (`?download=1`) or this playback fallback (`?fallback=1`). The poster for a ready video is a signed Mux thumbnail, and the display size comes from the Mux video track, then from the player once it has loaded. The page does not `GET /api/media/{id}/dimensions` for a video Mux already knows about.
 
 Per-clip **Download** uses `https://stream.mux.com/{playbackId}/highest.mp4` with a signed token when that MP4 is ready. While it is still preparing, the control says **Preparing download**. If Mux has no MP4, Download saves the NAS original.
 

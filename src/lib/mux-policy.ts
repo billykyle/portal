@@ -117,29 +117,40 @@ export function muxIngestDecision(
   return "skip";
 }
 
-export function playerMode(mux: MuxPlaybackView | null | undefined): "mux" | "processing" | "poster" | "deferred" {
-  if (mux?.status === "preparing") return "processing";
-  if (mux?.playbackId && mux?.token) return "mux";
-  if (mux?.status === "ready" || mux?.status === "errored") return "poster";
+/** Mux Player only when Mux itself says the asset is ready and we can sign it. */
+export function playerMode(mux: MuxPlaybackView | null | undefined): "mux" | "deferred" {
+  if (mux?.status === "ready" && mux.playbackId && mux.token) return "mux";
   return "deferred";
 }
 
 /**
- * A Mux-tracked video is never streamed from the NAS.
- * `download=1` is the explicit Download control. Playback of a file Mux has
- * never seen is still allowed, and the player withholds that URL until Play.
+ * A ready Mux video stays on Mux until Download or the player asks for the NAS file.
+ * Preparing, errored, and not-yet-sent videos play from the NAS after Play.
+ * `fallback=1` is that explicit play, including when a ready Mux player errors.
  */
 export function nasOriginalAllowed(input: {
   type: string;
   muxAssetId?: string | null;
   muxStatus?: string | null;
   download: boolean;
+  fallback?: boolean;
 }) {
   if (input.type !== "video") return true;
-  if (input.download) return true;
-  if (input.muxAssetId) return false;
-  if (input.muxStatus === "preparing" || input.muxStatus === "ready" || input.muxStatus === "errored") return false;
+  if (input.download || input.fallback) return true;
+  if (input.muxStatus === "ready") return false;
   return true;
+}
+
+/** Media URL the NAS player requests after Play, or after Mux Player errors. */
+export function nasFallbackUrl(url: string) {
+  const hashAt = url.indexOf("#");
+  const hash = hashAt >= 0 ? url.slice(hashAt) : "";
+  const base = hashAt >= 0 ? url.slice(0, hashAt) : url;
+  const queryAt = base.indexOf("?");
+  const path = queryAt >= 0 ? base.slice(0, queryAt) : base;
+  const params = new URLSearchParams(queryAt >= 0 ? base.slice(queryAt + 1) : "");
+  params.set("fallback", "1");
+  return `${path}?${params.toString()}${hash}`;
 }
 
 export function muxPosterUrl(playbackId: string, token: string) {

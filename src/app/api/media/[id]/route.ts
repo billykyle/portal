@@ -23,12 +23,14 @@ export async function GET(
   }
   const url = new URL(request.url);
   const download = url.searchParams.get("download") === "1";
+  const fallback = url.searchParams.get("fallback") === "1";
   if (
     !nasOriginalAllowed({
       type: item.type,
       muxAssetId: item.muxAssetId,
       muxStatus: item.muxStatus,
       download,
+      fallback,
     })
   ) {
     return NextResponse.json(

@@ -484,8 +484,8 @@ test("a ready Mux video plays from Mux and a processing video does not stream th
           type: "video",
           mux: {
             status: "preparing",
-            playbackId: null,
-            token: null,
+            playbackId: "playback-wait",
+            token: "signed-token",
             downloadUrl: null,
             staticStatus: "preparing",
           },
@@ -494,9 +494,11 @@ test("a ready Mux video plays from Mux and a processing video does not stream th
     }),
   );
   const waiting = processing.slice(processing.indexOf('id="video"'));
-  assert.match(waiting, /Processing/);
+  assert.match(waiting, /<video\b[^>]*preload="none"/);
+  assert.match(waiting, /aria-label="Play 107 Louis Drive\.mov"/);
   assert.match(waiting, /Preparing download/);
-  assert.doesNotMatch(waiting, /<video\b|<source /);
+  assert.doesNotMatch(waiting, /data-mux-player|data-playback-id|<source /);
+  assert.doesNotMatch(waiting, /\ssrc="\/api\/media\/vid-wait"/);
   assert.doesNotMatch(waiting, /href="\/api\/media\/vid-wait"/);
 });
 
@@ -516,19 +518,23 @@ test("an errored Mux video does not request the NAS file on the page", () => {
           thumbUrl: "/api/media/vid-err/thumb",
           mux: {
             status: "errored",
-            playbackId: null,
-            token: null,
+            playbackId: "playback-err",
+            token: "signed-token",
             downloadUrl: null,
-            staticStatus: "preparing",
+            staticStatus: "errored",
+            posterUrl: "https://image.mux.com/playback-err/thumbnail.jpg?token=thumb",
           },
         },
       ],
     }),
   );
   const video = html.slice(html.indexOf('id="video"'));
-  assert.doesNotMatch(video, /<video\b|<source\b/);
+  assert.match(video, /<video\b[^>]*preload="none"/);
+  assert.match(video, /aria-label="Play 107 Louis Drive\.mov"/);
+  assert.doesNotMatch(video, /data-mux-player|data-playback-id="playback-err"|<source\b/);
   assert.doesNotMatch(video, /src="\/api\/media\/vid-err\/thumb"/);
   assert.doesNotMatch(video, /\ssrc="\/api\/media\/vid-err"/);
+  assert.doesNotMatch(video, /fallback=1/);
   assert.match(video, /href="\/api\/media\/vid-err\?download=1"/);
 });
 
