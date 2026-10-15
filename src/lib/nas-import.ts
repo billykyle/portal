@@ -41,7 +41,7 @@ import { createPublicToken } from "./public-link";
 import { allocateClientShareSlug, allocatePublicShareSlug, syncClientShareSlug, syncPublicShareSlug } from "./public-share-slug";
 import { muxIngestDecision } from "./mux-policy";
 import { allocateShootSlug, syncShootSlug } from "./shoot-slug";
-import { forgetMuxAssets, forgetMuxForShoot, submitMuxForImported } from "./mux-ingest";
+import { forgetMuxAssets, forgetMuxForShoot } from "./mux-ingest";
 
 export type NasSyncResult = {
   skipped: boolean;
@@ -325,6 +325,7 @@ export async function syncNasShare(options?: {
   const result: NasSyncResult = { ...EMPTY_SYNC, warnings: [] };
   let clientsSeen = 0;
   let shootsSeen = 0;
+  let muxDeferred = 0;
   const report = async (progress: NasSyncProgress) => {
     if (!options?.onProgress) return;
     await options.onProgress(progress);
@@ -434,15 +435,9 @@ export async function syncNasShare(options?: {
       if (mediaResult.removedMuxAssetIds.length > 0) {
         await forgetMuxAssets(mediaResult.removedMuxAssetIds);
       }
-      if (mediaResult.muxMediaIds.length > 0) {
-        try {
-          const mux = await submitMuxForImported(mediaResult.muxMediaIds);
-          result.warnings.push(...mux.warnings);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Mux ingest failed.";
-          result.warnings.push(`Mux ingest failed for ${parsed.address}: ${message}`);
-        }
-      }
+      // Creating Mux assets here waits on the Mux API and makes Mux pull originals
+      // while the walk still needs the NAS. The backfill sends those files later.
+      muxDeferred += mediaResult.muxMediaIds.filter((id) => id).length;
       result.mediaImported += mediaResult.imported;
       result.mediaUpdated += mediaResult.updated;
       result.mediaRemoved += mediaResult.removed;
@@ -526,6 +521,7 @@ export async function syncNasShare(options?: {
 
   if (!shouldPruneShootsMissingFromNas(clientFolders.length)) {
     result.warnings.push("Share listed 0 client folders; skipped orphan shoot prune.");
+    noteDeferredMux(result, muxDeferred);
     return result;
   }
 
@@ -540,5 +536,14 @@ export async function syncNasShare(options?: {
     );
   }
 
+  noteDeferredMux(result, muxDeferred);
   return result;
+}
+
+function noteDeferredMux(result: NasSyncResult, count: number) {
+  if (count <= 0) return;
+  const noun = count === 1 ? "video" : "videos";
+  result.warnings.push(
+    `Left ${count} finished ${noun} for Mux backfill so this sync would not pull originals off the NAS.`,
+  );
 }

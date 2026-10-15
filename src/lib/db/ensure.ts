@@ -182,6 +182,12 @@ async function createTables() {
     )
   `;
   await sql`
+    CREATE TABLE IF NOT EXISTS mux_nas_pulls (
+      media_id text PRIMARY KEY,
+      acquired_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
     CREATE TABLE IF NOT EXISTS mux_backfill_jobs (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       status text NOT NULL,

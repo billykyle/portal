@@ -243,6 +243,23 @@ export async function recoverNasSyncJobIfStale(job: NasSyncJobRecord): Promise<{
   return { job: next ?? job, recoveredStale: true };
 }
 
+/** True while a walk still owns the lock and its heartbeat is fresh. */
+export async function nasSyncIsActive() {
+  await ensureNasSyncJobsTable();
+  const rows = await sql<JobSqlRow[]>`
+    SELECT
+      id, status, source, phase, detail, clients_seen, shoots_seen, summary, error,
+      started_at, updated_at, finished_at, now() AS db_now
+    FROM nas_sync_jobs
+    WHERE status = 'running'
+    ORDER BY started_at DESC
+    LIMIT 1
+  `;
+  const job = rows[0] ? mapJob(rows[0]) : null;
+  if (!job) return false;
+  return !isNasSyncStale(job.updatedAt, job.dbNow);
+}
+
 export async function nasSyncJobIsRunning(id: string) {
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM nas_sync_jobs WHERE id = ${id} AND status = 'running' LIMIT 1
