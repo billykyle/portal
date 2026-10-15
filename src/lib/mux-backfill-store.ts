@@ -47,6 +47,11 @@ function parseReport(value: string | null): MuxBackfillReport | null {
   }
 }
 
+function asDate(value: Date | string) {
+  if (value instanceof Date) return value;
+  return new Date(value);
+}
+
 function mapJob(row: JobRow): MuxBackfillJobRecord {
   return {
     id: row.id,
@@ -55,10 +60,10 @@ function mapJob(row: JobRow): MuxBackfillJobRecord {
     force: row.force,
     report: parseReport(row.report),
     error: row.error,
-    startedAt: row.started_at,
-    updatedAt: row.updated_at,
-    finishedAt: row.finished_at,
-    dbNow: row.db_now,
+    startedAt: asDate(row.started_at),
+    updatedAt: asDate(row.updated_at),
+    finishedAt: row.finished_at ? asDate(row.finished_at) : null,
+    dbNow: asDate(row.db_now),
   };
 }
 

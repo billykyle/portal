@@ -54,7 +54,8 @@ export function createPortalMcpServer(ops: AgentOps) {
       } catch (error) {
         console.error(`agent ${name} failed`, error);
         console.info(`agent ${name} error`);
-        return toolResult("The tool failed.", true);
+        const message = error instanceof Error && error.message.trim() ? error.message.trim() : "The tool failed.";
+        return toolResult(message.slice(0, 500), true);
       }
     });
   };
