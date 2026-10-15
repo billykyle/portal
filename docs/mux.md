@@ -30,7 +30,7 @@ Shoot zips contain photos and floor plans only. Finished video and raw video are
 
 `get_shoot` includes `mux` on each finished video: `status`, `assetId`, `playbackId`, `staticStatus`, `error`.
 
-`backfill_mux_videos` lists Mux assets (a harmless credential check), creates a signing key and webhook when the token has System write, then submits videos. Optional `shootId`. `force` replaces an existing asset.
+`backfill_mux_videos` lists Mux assets (a harmless credential check) and creates a signing key and webhook when the token has System write. That setup is in the response. If the token cannot create them, status is `blocked` and the message says what to add in the Mux dashboard. Otherwise ingest continues after the response. Call again with `reportOnly: true` until `job.status` is `done`. `job.report` then has how many videos were sent and each video's status. Optional `shootId`. `force` replaces an existing asset.
 
 ## What Billy sets in Mux
 

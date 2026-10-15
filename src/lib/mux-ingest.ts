@@ -130,6 +130,7 @@ export async function nasDirectFetchWorks(nasPath: string, fetchImpl: typeof fet
     headers: { Range: "bytes=0-0" },
     redirect: "follow",
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
   const type = res.headers.get("content-type");
   await res.body?.cancel().catch(() => undefined);

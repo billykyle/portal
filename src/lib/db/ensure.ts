@@ -182,6 +182,19 @@ async function createTables() {
     )
   `;
   await sql`
+    CREATE TABLE IF NOT EXISTS mux_backfill_jobs (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      status text NOT NULL,
+      shoot_id text,
+      force boolean NOT NULL DEFAULT false,
+      report text,
+      error text,
+      started_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      finished_at timestamptz
+    )
+  `;
+  await sql`
     CREATE TABLE IF NOT EXISTS media_renditions (
       media_id uuid NOT NULL REFERENCES media(id) ON DELETE CASCADE,
       quality text NOT NULL,

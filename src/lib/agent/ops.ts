@@ -25,7 +25,7 @@ import {
   type BookingWhen,
 } from "@/lib/agent/present";
 import { db } from "@/lib/db";
-import { backfillMuxVideos as runMuxBackfill } from "@/lib/mux-ingest";
+import { startMuxBackfill } from "@/lib/mux-backfill";
 import {
   listConnectedAgents,
   revokeOneAgentToken,
@@ -237,7 +237,11 @@ export type AgentOps = {
   revokeClientAgentConnection(input: ClientAgentAccessInput & { tokenId: string }): Promise<
     { ok: true; clientId: string; tokenId: string } | { ok: false; error: string }
   >;
-  backfillMuxVideos(input: { shootId?: string; force?: boolean }): Promise<import("@/lib/mux-ingest").MuxBackfillReport>;
+  backfillMuxVideos(input: {
+    shootId?: string;
+    force?: boolean;
+    reportOnly?: boolean;
+  }): Promise<import("@/lib/mux-backfill").MuxBackfillStart>;
 };
 
 export type ClientAgentAccessInput = {
@@ -820,6 +824,10 @@ export const portalAgentOps: AgentOps = {
   },
 
   async backfillMuxVideos(input) {
-    return runMuxBackfill({ shootId: input.shootId, force: input.force });
+    return startMuxBackfill({
+      shootId: input.shootId,
+      force: input.force,
+      reportOnly: input.reportOnly,
+    });
   },
 };

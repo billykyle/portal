@@ -39,6 +39,7 @@ async function muxFetch<T>(path: string, init: { method?: string; body?: unknown
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   const text = await res.text();
   let parsed: unknown = null;

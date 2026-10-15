@@ -790,31 +790,20 @@ test("update_client_user forwards role and clears a blank value", async () => {
   assert.equal(calls, 0);
 });
 
-test("backfill_mux_videos forwards shoot id and force", async () => {
-  let seen: { shootId?: string; force?: boolean } | null = null;
+test("backfill_mux_videos forwards shoot id, force, and reportOnly", async () => {
+  let seen: { shootId?: string; force?: boolean; reportOnly?: boolean } | null = null;
   const result = await runAgentTool(
     "backfill_mux_videos",
-    { shootId: "shoot-1", force: true },
+    { shootId: "shoot-1", force: true, reportOnly: true },
     stubOps({
       async backfillMuxVideos(input) {
         seen = input;
-        return {
-          credentials: { ok: true, listed: 0 },
-          signing: { source: "database" },
-          webhook: { source: "database", address: "https://portal.billy-kyle.com/api/mux/webhook" },
-          directNasFetch: true,
-          considered: 1,
-          submitted: 0,
-          refreshed: 0,
-          skipped: 1,
-          failed: 0,
-          videos: [],
-        };
+        return { status: "idle", job: null };
       },
     }),
   );
   assert.equal(result.ok, true);
-  assert.deepEqual(seen, { shootId: "shoot-1", force: true });
+  assert.deepEqual(seen, { shootId: "shoot-1", force: true, reportOnly: true });
 });
 
 test("agent tools do not reintroduce delivery tracking or attach-shoot", () => {
