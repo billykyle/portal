@@ -12,7 +12,15 @@ import {
   signedPlaybackId,
   staticRenditionStatus,
 } from "./mux-api";
-import { muxIngestDecision, muxSubmitBudget, nasDownloadLooksPublic, type MuxIngestAction } from "./mux-policy";
+import {
+  MUX_INGEST_OVERNIGHT_REASON,
+  MUX_INGEST_SYNC_REASON,
+  muxIngestAllowedAt,
+  muxIngestDecision,
+  muxSubmitBudget,
+  nasDownloadLooksPublic,
+  type MuxIngestAction,
+} from "./mux-policy";
 import { nasSyncIsActive } from "./nas-sync-store";
 import { muxCredentials, muxDashboardSteps, muxSourceUrl, muxWebhookAddress } from "./mux-sign";
 import {
@@ -160,8 +168,9 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
   }
   const setup = await ensureMuxSetup();
   const rows = await listFinishedVideos(input.shootId);
-  if (await nasSyncIsActive()) {
-    const videos = rows.map((row) => resultOf(row, "deferred", "A NAS sync is running."));
+  const paused = await muxIngestPause();
+  if (paused) {
+    const videos = rows.map((row) => resultOf(row, "deferred", paused));
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
   }
   const preparing = input.shootId
@@ -169,6 +178,11 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
     : rows.filter((row) => row.muxStatus === "preparing").length;
   if (preparing > 0) {
     const videos = await runMuxRows(rows, input.force === true, preparing);
+    return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
+  }
+  const pausedBeforeNas = await muxIngestPause();
+  if (pausedBeforeNas) {
+    const videos = rows.map((row) => resultOf(row, "deferred", pausedBeforeNas));
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
   }
   const sample = rows.find((row) => row.nasRelativePath?.startsWith("/"));
@@ -226,12 +240,28 @@ export async function forgetMuxForShoot(shootId: string) {
   await forgetMuxAssets(ids);
 }
 
+/** Sync wins over the clock. Either one stops ingest before the next NAS read. */
+async function muxIngestPause(now = new Date()) {
+  if (await nasSyncIsActive()) return MUX_INGEST_SYNC_REASON;
+  if (!muxIngestAllowedAt(now)) return MUX_INGEST_OVERNIGHT_REASON;
+  return null;
+}
+
 async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number) {
   const videos: MuxVideoResult[] = [];
   let submitted = 0;
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
     if (!row) continue;
+    const pause = await muxIngestPause();
+    if (pause) {
+      for (let rest = index; rest < rows.length; rest += 1) {
+        const pending = rows[rest];
+        if (!pending) continue;
+        videos[rest] = resultOf(pending, "deferred", pause);
+      }
+      return videos;
+    }
     const decision = muxIngestDecision(
       {
         type: row.type,

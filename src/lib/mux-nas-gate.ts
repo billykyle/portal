@@ -1,5 +1,5 @@
 import { sql } from "./db";
-import { MUX_NAS_PULL_LEASE_MS, muxSourceDecision } from "./mux-policy";
+import { MUX_NAS_PULL_LEASE_MS, muxIngestAllowedAt, muxIngestClosedRetryAfterSeconds, muxSourceDecision } from "./mux-policy";
 import { isNasSyncStale } from "./nas-sync-job";
 import { ensureNasSyncJobsTable } from "./nas-sync-store";
 
@@ -36,6 +36,9 @@ function asDate(value: Date | string) {
 export async function grantMuxNasPull(mediaId: string) {
   await ensureNasSyncJobsTable();
   await ensureMuxNasPulls();
+  const now = new Date();
+  const ingestAllowed = muxIngestAllowedAt(now);
+  const closedRetryAfter = muxIngestClosedRetryAfterSeconds(now);
   const leaseSeconds = Math.round(MUX_NAS_PULL_LEASE_MS / 1000);
   return sql.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(${MUX_NAS_LOCK})`;
@@ -55,6 +58,8 @@ export async function grantMuxNasPull(mediaId: string) {
     const pulls = await tx<{ media_id: string }[]>`SELECT media_id FROM mux_nas_pulls`;
     const decision = muxSourceDecision({
       syncActive,
+      ingestAllowed,
+      closedRetryAfter,
       activePulls: pulls.length,
       thisMediaAlreadyPulling: pulls.some((row) => row.media_id === mediaId),
     });

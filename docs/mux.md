@@ -10,9 +10,9 @@ The client download is that web MP4, up to 1080p, and Mux does not upscale. It i
 
 ## Ingest
 
-NAS sync does not send video to Mux. A sync that waits on Mux, or that runs while Mux is copying many originals off the share, loses its heartbeat and the lock is cleared. New and changed files are left for `backfill_mux_videos`. That backfill will not start while a sync is running, and it creates at most one asset per run while any video is still preparing.
+NAS sync does not send video to Mux. A sync that waits on Mux, or that runs while Mux is copying many originals off the share, loses its heartbeat and the lock is cleared. New and changed files are left for `backfill_mux_videos`. Ingest runs only from 11pm to 6am Eastern. A NAS sync stops it immediately, including in the middle of a run and including a file that already started. Outside that window, and whenever a sync is running, the backfill does not start. A run still creates at most one asset while any video is preparing.
 
-Mux is given `https://portal.billy-kyle.com/api/mux/source/{mediaId}?exp&sig`. That route checks a 12-hour HMAC, then 302s Mux at a fresh NAS download URL. It does not stream the file, and it does not probe the NAS on every request. While a sync is running, or while another original is already being copied, the route returns 503 with `Retry-After` and does not touch the share. The same file may keep its lease and finish. Ingest still checks once, before creating an asset, that the share URL returns media without the share cookie.
+Mux is given `https://portal.billy-kyle.com/api/mux/source/{mediaId}?exp&sig`. That route checks a 12-hour HMAC, then 302s Mux at a fresh NAS download URL. It does not stream the file, and it does not probe the NAS on every request. During the day, while a sync is running, or while another original is already being copied, the route returns 503 with `Retry-After` and does not touch the share. Ingest still checks once, before creating an asset, that the share URL returns media without the share cookie.
 
 Unchanged files (same path, and the same byte size when both sizes are known, and not errored) are skipped when the asset and the static rendition are ready. A preparing asset, or a ready asset whose MP4 is not ready, is refreshed with a GET. `force` creates a new asset, still only one per run when another pull is open.
 
@@ -34,7 +34,7 @@ Shoot zips contain photos and floor plans only. Finished video and raw video are
 
 `get_shoot` includes `mux` on each finished video: `status`, `assetId`, `playbackId`, `staticStatus`, `error`.
 
-`backfill_mux_videos` lists Mux assets (a harmless credential check) and creates a signing key and webhook when the token has System write. That setup is in the response. If the token cannot create them, status is `blocked` and the message says what to add in the Mux dashboard. If a NAS sync is running, status is `deferred` and ingest does not start. Otherwise ingest continues after the response, one new NAS download at a time. Call again with `reportOnly: true` until `job.status` is `done`. `job.report` then has how many videos were sent, how many were deferred, and each video's status. Optional `shootId`. `force` replaces an existing asset, still one new download at a time.
+`backfill_mux_videos` lists Mux assets (a harmless credential check) and creates a signing key and webhook when the token has System write. That setup is in the response. If the token cannot create them, status is `blocked` and the message says what to add in the Mux dashboard. If a NAS sync is running, or it is outside 11pm to 6am Eastern, status is `deferred` and ingest does not start. Otherwise ingest continues after the response, one new NAS download at a time, and stops as soon as a sync starts. Call again with `reportOnly: true` until `job.status` is `done`. `job.report` then has how many videos were sent, how many were deferred, and each video's status. Optional `shootId`. `force` replaces an existing asset, still one new download at a time.
 
 ## What Billy sets in Mux
 
