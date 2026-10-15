@@ -40,6 +40,21 @@ test("playback tokens are signed for one playback id and can include a download 
   assert.equal(verified.protectedHeader.kid, "key-1");
 });
 
+test("playback tokens accept a base64 PKCS1 private key", async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const pem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+  const spki = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const token = await signMuxPlaybackToken({
+    playbackId: "play-2",
+    keyId: "key-2",
+    privateKey: Buffer.from(pem).toString("base64"),
+    ttlSeconds: 60,
+  });
+  const verified = await jwtVerify(token, await importSPKI(spki, "RS256"), { audience: "v" });
+  assert.equal(verified.payload.sub, "play-2");
+  assert.equal(verified.protectedHeader.kid, "key-2");
+});
+
 test("webhook signatures use the raw body and a short tolerance", () => {
   const secret = "whsec";
   const body = '{"type":"video.asset.ready"}';

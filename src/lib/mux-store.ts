@@ -244,15 +244,19 @@ async function playbackView(
   let token: string | null = null;
   let downloadUrl: string | null = null;
   if (status === "ready" && row.muxPlaybackId && signing) {
-    const links = await muxPlaybackLinks({
-      playbackId: row.muxPlaybackId,
-      filename,
-      keyId: signing.keyId,
-      privateKey: signing.privateKey,
-      staticReady: staticStatus === "ready",
-    });
-    token = links.token;
-    downloadUrl = links.downloadUrl;
+    try {
+      const links = await muxPlaybackLinks({
+        playbackId: row.muxPlaybackId,
+        filename,
+        keyId: signing.keyId,
+        privateKey: signing.privateKey,
+        staticReady: staticStatus === "ready",
+      });
+      token = links.token;
+      downloadUrl = links.downloadUrl;
+    } catch (error) {
+      console.error("Mux playback token failed", row.id, error instanceof Error ? error.message : error);
+    }
   }
   return {
     status,
