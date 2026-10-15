@@ -9,6 +9,8 @@ import {
   preloadPhotoIndexes,
   preloadPhotoSrcs,
   preloadStandInSrcs,
+  REEL_THUMB_RADIUS,
+  reelThumbInInitialWindow,
   resistedDrag,
   shouldPaintViewerImage,
   shouldRenderPhotoSlide,
@@ -41,6 +43,17 @@ import {
 } from "./photo-viewer";
 
 const photos = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+test("the reel's first HTML only includes thumbs next to the open photo", () => {
+  assert.equal(REEL_THUMB_RADIUS, 1);
+  assert.equal(reelThumbInInitialWindow(5, 5), true);
+  assert.equal(reelThumbInInitialWindow(4, 5), true);
+  assert.equal(reelThumbInInitialWindow(6, 5), true);
+  assert.equal(reelThumbInInitialWindow(3, 5), false);
+  assert.equal(reelThumbInInitialWindow(0, 0), true);
+  assert.equal(reelThumbInInitialWindow(1, 0), true);
+  assert.equal(reelThumbInInitialWindow(2, 0), false);
+});
 
 test("builds a view query and a close href", () => {
   assert.equal(photoViewerHref("/shoots/1", "abc"), "/shoots/1?view=abc");

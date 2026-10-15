@@ -957,6 +957,36 @@ test("shoot pages copy the public link and do not offer Share", () => {
   assert.doesNotMatch(middleware, /pathname\.startsWith\("\/s"\)/);
 });
 
+test("opening the lightbox does not request every reel thumbnail", () => {
+  const many: ShootMedia[] = Array.from({ length: 12 }, (_, index) => ({
+    id: `photo-${index}`,
+    url: `/api/media/photo-${index}`,
+    thumbUrl: `/api/media/photo-${index}/thumb?v=${index}`,
+    filename: `Full-${index}.jpg`,
+    type: "photo",
+  }));
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/s/token",
+      viewId: "photo-5",
+      address: "309 Southbank Road",
+      dateLabel: "Oct 13, 2026",
+      folderName: "2026-10-13 - 309 Southbank Road",
+      media: many,
+    }),
+  );
+  const viewer = html.slice(html.indexOf("data-photo-viewer"));
+  const reel = viewer.slice(viewer.indexOf("data-photo-reel"), viewer.indexOf("grid-cols-3"));
+  const reelSrcs = [...reel.matchAll(/src="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(reelSrcs, [
+    "/api/media/photo-4/thumb?v=4",
+    "/api/media/photo-5/thumb?v=5",
+    "/api/media/photo-6/thumb?v=6",
+  ]);
+  assert.doesNotMatch(reel, /photo-0\/thumb/);
+  assert.doesNotMatch(reel, /photo-11\/thumb/);
+});
+
 test("floor plan tiles stay square", () => {
   const html = renderShoot();
   const plans = html.slice(html.indexOf('id="floor-plans"'));

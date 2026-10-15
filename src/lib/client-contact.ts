@@ -168,20 +168,30 @@ export function shootNotificationRecipients(input: {
   return all.filter((email) => email !== notify || email === booker);
 }
 
+export type DeliveryNoticeContact = {
+  userId?: string | null;
+  email?: string | null;
+  notes?: string | null;
+};
+
 /**
  * Who Pepper should mail when a shoot folder first has files.
  * Categories with no roles keep the old choice: the real primary address, or
  * every real login when that address is still a placeholder.
- * Categories with roles use the same role list as a shoot email, with no
- * booking contact, so only Team Lead, Assistant, and a primary address that
- * is not a login are included. A delivered folder is not tied to
- * `createdByUserId`, so Agent and blank do not get it.
+ * Categories with roles use the same list as the other shoot emails. Team
+ * Lead and Assistant get every delivery. Agent gets it when a matching
+ * booking's `createdByUserId` is that login (they booked it, or they are the
+ * primary contact an admin booking attaches). A blank role gets it only in
+ * that same case. A primary address that is not a login is still included.
+ * Notes on the matched booking are included. With no matching booking, Agent
+ * and blank are left off.
  */
 export function deliveryNoticeRecipients(input: {
   category: ClientCategory;
   primaryEmail?: string | null;
   members: readonly ShootMailMember[];
   notifyEmail?: string | null;
+  contacts?: readonly DeliveryNoticeContact[] | null;
 }) {
   if (!categoryUsesMemberRoles(input.category)) {
     return deliverableClientEmails({
@@ -190,12 +200,23 @@ export function deliveryNoticeRecipients(input: {
       loginEmails: input.members.map((member) => member.email),
     });
   }
-  return shootNotificationRecipients({
-    primaryEmail: input.primaryEmail,
-    members: input.members,
-    category: input.category,
-    notifyEmail: input.notifyEmail,
-  });
+  const contacts = (input.contacts ?? []).filter(
+    (contact) => contact.userId || contact.email || contact.notes,
+  );
+  const rounds = contacts.length > 0 ? contacts : [null];
+  return uniqueEmails(
+    rounds.flatMap((contact) =>
+      shootNotificationRecipients({
+        primaryEmail: input.primaryEmail,
+        members: input.members,
+        category: input.category,
+        notifyEmail: input.notifyEmail,
+        contactUserId: contact?.userId,
+        clientEmail: contact?.email,
+        notes: contact?.notes,
+      }),
+    ),
+  );
 }
 
 /**

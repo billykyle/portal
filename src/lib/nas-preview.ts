@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import type postgres from "postgres";
 import { getSql } from "./db";
 import { shareSessionMatchesRelay } from "./nas-relay";
+import { THUMB_JOB_LOCK_SECONDS, THUMB_NAS_CONCURRENCY, ThumbnailNotReady } from "./thumb-status";
 
 /** size_type=1 thumbs are ~40KB. Reject anything that looks like a full original. */
 export const MAX_PREVIEW_BYTES = 1_500_000;
@@ -298,17 +299,37 @@ async function writeStoredPreview(mediaId: string, nasPath: string, bytes: Buffe
   `;
 }
 
-async function claimPreviewJob(mediaId: string) {
+async function claimPreviewJob(mediaId: string): Promise<"claimed" | "busy" | "full"> {
   await ensurePreviewSchema();
-  const rows = await getSql()`
+  const sql = getSql();
+  const rows = await sql<{ media_id: string }[]>`
     INSERT INTO media_thumb_jobs (media_id, locked_at)
-    VALUES (${mediaId}::uuid, now())
+    SELECT ${mediaId}::uuid, now()
+    WHERE (
+      SELECT count(*)::int
+      FROM media_thumb_jobs
+      WHERE locked_at >= now() - (${THUMB_JOB_LOCK_SECONDS} * interval '1 second')
+        AND media_id <> ${mediaId}::uuid
+    ) < ${THUMB_NAS_CONCURRENCY}
     ON CONFLICT (media_id) DO UPDATE
       SET locked_at = now()
-      WHERE media_thumb_jobs.locked_at < now() - interval '2 minutes'
+      WHERE media_thumb_jobs.locked_at < now() - (${THUMB_JOB_LOCK_SECONDS} * interval '1 second')
+        AND (
+          SELECT count(*)::int
+          FROM media_thumb_jobs AS inflight
+          WHERE inflight.locked_at >= now() - (${THUMB_JOB_LOCK_SECONDS} * interval '1 second')
+            AND inflight.media_id <> ${mediaId}::uuid
+        ) < ${THUMB_NAS_CONCURRENCY}
     RETURNING media_id
   `;
-  return rows.length > 0 ? "claimed" : "busy";
+  if (rows.length > 0) return "claimed";
+  const busy = await sql`
+    SELECT 1 AS ok
+    FROM media_thumb_jobs
+    WHERE media_id = ${mediaId}::uuid
+      AND locked_at >= now() - (${THUMB_JOB_LOCK_SECONDS} * interval '1 second')
+  `;
+  return busy.length > 0 ? "busy" : "full";
 }
 
 async function previewJobBusy(mediaId: string) {
@@ -316,7 +337,7 @@ async function previewJobBusy(mediaId: string) {
     SELECT 1 AS ok
     FROM media_thumb_jobs
     WHERE media_id = ${mediaId}::uuid
-      AND locked_at >= now() - interval '2 minutes'
+      AND locked_at >= now() - (${THUMB_JOB_LOCK_SECONDS} * interval '1 second')
   `;
   return rows.length > 0;
 }
@@ -364,14 +385,65 @@ export async function listPhotoPreviewBackfill(limit: number) {
 }
 
 /**
- * Serve a stored small preview, or fetch one and keep it. Parallel requests
- * for the same photo wait on the in-flight job instead of each hitting the NAS.
+ * Grid route. A stored preview is served. Anything else — another fetch in
+ * flight, the NAS cap, "still generating", a timeout — is not-ready.
+ * The database connection is not held while the NAS is called: the claim
+ * query finishes, then the fetch, then the write.
+ */
+async function ensureFastPreview(input: {
+  mediaId: string;
+  nasPath: string;
+  loadBytes: () => Promise<{ bytes: Buffer; contentType: string }>;
+}): Promise<StoredPreview> {
+  try {
+    const existing = await readStoredPreview(input.mediaId, input.nasPath);
+    if (existing) return existing;
+  } catch (error) {
+    if (error instanceof PreviewStoreUnavailable) throw new ThumbnailNotReady();
+    throw error;
+  }
+
+  let ownsJob = false;
+  try {
+    const claim = await claimPreviewJob(input.mediaId);
+    if (claim !== "claimed") throw new ThumbnailNotReady();
+    ownsJob = true;
+    const raced = await readStoredPreview(input.mediaId, input.nasPath);
+    if (raced) return raced;
+    const loaded = acceptLoaded(await input.loadBytes());
+    try {
+      await writeStoredPreview(input.mediaId, input.nasPath, loaded.bytes, loaded.contentType);
+    } catch (error) {
+      console.error("Could not store shoot preview:", error);
+    }
+    return loaded;
+  } catch (error) {
+    if (error instanceof ThumbnailNotReady) throw error;
+    if (error instanceof PreviewStoreUnavailable) throw new ThumbnailNotReady();
+    throw error;
+  } finally {
+    if (ownsJob) {
+      try {
+        await releasePreviewJob(input.mediaId);
+      } catch (error) {
+        console.error("Could not release preview job:", error);
+      }
+    }
+  }
+}
+
+/**
+ * Serve a stored small preview, or fetch one and keep it.
+ * `wait: false` is the grid route: a busy job or a full NAS cap returns
+ * not-ready at once. The warm script still waits on the in-flight job.
  */
 export async function ensureStoredPreview(input: {
   mediaId: string;
   nasPath: string;
   loadBytes: () => Promise<{ bytes: Buffer; contentType: string }>;
+  wait?: boolean;
 }): Promise<StoredPreview> {
+  if (input.wait === false) return ensureFastPreview(input);
   try {
     const existing = await readStoredPreview(input.mediaId, input.nasPath);
     if (existing) return existing;
@@ -383,10 +455,12 @@ export async function ensureStoredPreview(input: {
   let ownsJob = false;
   try {
     const claim = await claimPreviewJob(input.mediaId);
+    if (claim === "full") throw new ThumbnailNotReady();
     if (claim === "busy") {
       const waited = await waitForStoredPreview(input.mediaId, input.nasPath);
       if (waited) return waited;
       const retry = await claimPreviewJob(input.mediaId);
+      if (retry === "full") throw new ThumbnailNotReady();
       if (retry === "busy") {
         const waitedAgain = await waitForStoredPreview(input.mediaId, input.nasPath);
         if (waitedAgain) return waitedAgain;
@@ -404,6 +478,7 @@ export async function ensureStoredPreview(input: {
     }
     return loaded;
   } catch (error) {
+    if (error instanceof ThumbnailNotReady) throw error;
     if (error instanceof PreviewStoreUnavailable) return acceptLoaded(await input.loadBytes());
     throw error;
   } finally {

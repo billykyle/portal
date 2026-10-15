@@ -82,7 +82,7 @@ No local clone and no stdio process. The portal deployment is the server.
 | `get_shoot` | Metadata plus media inventory (ids and filenames for photos, floor plans, and videos). Not file bytes. |
 | `get_shoot_share_link` | Stable public URL on `https://portal.billy-kyle.com/s/[token]`. Does not rotate an existing token. |
 
-Shoot email (confirmed, changes, cancelled, on hold, the 6:00am reminder, and the delivery webhook's `recipients`) follows the client's category. Categories with no roles still mail every signed-up user, the real primary contact, and Notes addresses. Real Estate uses each login's `role`: `team_lead` and `assistant` get every shoot, `agent` only when `createdByUserId` is that login, and a blank role gets none unless that login is the booker or the attached contact. Notes addresses, `@pending.local` filtering, and leaving Billy off client copies stay.
+Shoot email (confirmed, changes, cancelled, on hold, the 6:00am reminder, and the delivery webhook's `recipients`) follows the client's category. Categories with no roles still mail every signed-up user, the real primary contact, and Notes addresses. Real Estate uses each login's `role`: `team_lead` and `assistant` get every shoot, `agent` only when `createdByUserId` is that login, and a blank role gets none unless that login is the booker or the attached contact. The delivery notice finds that booking by the folder address and the Eastern shoot date. Notes addresses, `@pending.local` filtering, and leaving Billy off client copies stay.
 
 `ready` is derived from imported media counts. NAS sync only keeps shoots that have files, and the portal does not store a separate delivery flag for agents to toggle.
 

@@ -66,6 +66,17 @@ export function preloadPhotoSrcs(photos: Array<Pick<ViewerPhoto, "url">>, index:
   });
 }
 
+/**
+ * Reel thumbs drawn in the first HTML. The rest wait until they scroll near,
+ * and they share the grid's fetch slot, so opening a lightbox cannot request
+ * every file at once.
+ */
+export const REEL_THUMB_RADIUS = 1;
+
+export function reelThumbInInitialWindow(itemIndex: number, activeIndex: number) {
+  return Math.abs(itemIndex - activeIndex) <= REEL_THUMB_RADIUS;
+}
+
 /** Neighbor thumbs, so the next tap already has a decoded stand-in. */
 export function preloadStandInSrcs(photos: Array<Pick<ViewerPhoto, "url" | "thumbUrl">>, index: number) {
   return preloadPhotoIndexes(index, photos.length).flatMap((next) => {
