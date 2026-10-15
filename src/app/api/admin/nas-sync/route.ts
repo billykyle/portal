@@ -5,8 +5,8 @@ import { readManualNasSync, startManualNasSync } from "@/lib/admin/sync";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** The walk continues in `after()` on this route, up to the platform limit. */
-export const maxDuration = 300;
+/** The walk continues in `after()` on this route. 300s is not enough for the full share. */
+export const maxDuration = 800;
 
 export async function POST() {
   if (!(await getAdminSession())) {

@@ -3,7 +3,8 @@ import { portalAgentOps } from "@/lib/agent/ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+/** Sync from NAS continues in `after()` on this route. The share walk needs the longer limit. */
+export const maxDuration = 800;
 
 async function handle(request: Request) {
   return handleAgentMcp(request, portalAgentOps);

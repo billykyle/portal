@@ -67,7 +67,9 @@ test("admin and MCP start the same job and do not wait on the walk", () => {
   assert.match(admin, /after\(/);
   assert.match(admin, /kickoffNasSync/);
   assert.doesNotMatch(admin, /await kicked\.done/);
-  assert.match(route, /maxDuration = 300/);
+  assert.match(route, /maxDuration = 800/);
+  const mcp = readFileSync("src/app/api/agent/mcp/route.ts", "utf8");
+  assert.match(mcp, /maxDuration = 800/);
   assert.match(route, /startManualNasSync\("admin"\)/);
   assert.match(tools, /get_nas_sync_status/);
   assert.match(tools, /already_running/);
