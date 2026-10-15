@@ -9,6 +9,7 @@ import {
   toPublicMuxBackfillJob,
 } from "./mux-backfill-store";
 import { backfillMuxVideos, ensureMuxSetup, type MuxBackfillReport } from "./mux-ingest";
+import { MUX_INGEST_OVERNIGHT_REASON, MUX_INGEST_SYNC_REASON, muxIngestAllowedAt } from "./mux-policy";
 import { nasSyncIsActive } from "./nas-sync-store";
 
 export type MuxBackfillStart =
@@ -54,11 +55,10 @@ export async function startMuxBackfill(input: {
 }): Promise<MuxBackfillStart> {
   if (input.reportOnly) return readMuxBackfill();
   if (await nasSyncIsActive()) {
-    return {
-      status: "deferred",
-      job: null,
-      reason: "A NAS sync is running, so Mux will not pull files until it finishes.",
-    };
+    return { status: "deferred", job: null, reason: MUX_INGEST_SYNC_REASON };
+  }
+  if (!muxIngestAllowedAt(new Date())) {
+    return { status: "deferred", job: null, reason: MUX_INGEST_OVERNIGHT_REASON };
   }
   const setup = await ensureMuxSetup();
   if (muxSetupBlocksIngest(setup)) return { status: "blocked", report: blockedReport(setup) };

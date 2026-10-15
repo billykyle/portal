@@ -15,6 +15,13 @@ export type MuxIngestAction = "skip" | "submit" | "refresh";
 export const MUX_NAS_PULL_LEASE_MS = 8 * 60 * 1000;
 /** Ask Mux to wait this long when a NAS sync is using the share. */
 export const MUX_SOURCE_RETRY_AFTER_SECONDS = 60;
+/** Ingest may pull originals only from 11pm until 6am Eastern. */
+export const MUX_INGEST_TIME_ZONE = "America/New_York";
+export const MUX_INGEST_OPEN_HOUR = 23;
+export const MUX_INGEST_CLOSE_HOUR = 6;
+export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pull files until it finishes.";
+export const MUX_INGEST_OVERNIGHT_REASON =
+  "Mux ingest runs from 11pm to 6am Eastern. It waits during the day so a NAS sync can use the share.";
 
 /**
  * How many new assets this backfill may create.
@@ -26,17 +33,48 @@ export function muxSubmitBudget(input: { preparing: number; alreadySubmitted: nu
   return 1;
 }
 
+type ZonedClock = { hour: number; minute: number; second: number };
+
+function zonedClock(now: Date, timeZone = MUX_INGEST_TIME_ZONE): ZonedClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? "0");
+  return { hour: read("hour"), minute: read("minute"), second: read("second") };
+}
+
+/** True from 11:00pm through 5:59am Eastern, including both EST and EDT. */
+export function muxIngestAllowedAt(now: Date) {
+  const { hour } = zonedClock(now);
+  return hour >= MUX_INGEST_OPEN_HOUR || hour < MUX_INGEST_CLOSE_HOUR;
+}
+
+/** How long Mux should wait before asking for a file outside the overnight window. */
+export function muxIngestClosedRetryAfterSeconds(now: Date) {
+  if (muxIngestAllowedAt(now)) return 0;
+  const { hour, minute, second } = zonedClock(now);
+  const until = (MUX_INGEST_OPEN_HOUR - hour) * 3600 - minute * 60 - second;
+  return Math.max(MUX_SOURCE_RETRY_AFTER_SECONDS, until);
+}
+
 /**
  * The source route is the only way Mux reaches the NAS.
- * A running sync wins. A download that already holds the lease may finish.
- * Every other file gets 503 so Mux retries later instead of opening another original.
+ * A running sync wins immediately, day or night. Outside 11pm–6am Eastern
+ * every file waits. Overnight, one download may finish and the rest retry.
  */
 export function muxSourceDecision(input: {
   syncActive: boolean;
+  ingestAllowed: boolean;
+  closedRetryAfter: number;
   activePulls: number;
   thisMediaAlreadyPulling: boolean;
 }): { allow: true } | { allow: false; retryAfter: number } {
   if (input.syncActive) return { allow: false, retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS };
+  if (!input.ingestAllowed) return { allow: false, retryAfter: Math.max(MUX_SOURCE_RETRY_AFTER_SECONDS, input.closedRetryAfter) };
   if (input.thisMediaAlreadyPulling) return { allow: true };
   if (input.activePulls > 0) return { allow: false, retryAfter: 30 };
   return { allow: true };
