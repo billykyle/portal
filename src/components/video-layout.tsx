@@ -72,6 +72,7 @@ function VideoList({ items }: { items: VideoLayoutItem[] }) {
                     id={item.id}
                     url={item.url}
                     filename={item.filename}
+                    thumbUrl={item.thumbUrl}
                     width={item.width}
                     height={item.height}
                     renditions={item.renditions}
@@ -116,6 +117,7 @@ export function VideoLayout({
           id={item.id}
           url={item.url}
           filename={item.filename}
+          thumbUrl={item.thumbUrl}
           width={item.width}
           height={item.height}
           renditions={item.renditions}
@@ -146,6 +148,7 @@ export function VideoLayout({
               id={item.id}
               url={item.url}
               filename={item.filename}
+              thumbUrl={item.thumbUrl}
               width={item.width}
               height={item.height}
               renditions={item.renditions}

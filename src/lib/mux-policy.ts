@@ -17,6 +17,10 @@ export type MuxPlaybackView = {
   token: string | null;
   downloadUrl: string | null;
   staticStatus: "preparing" | "ready" | "errored" | "skipped" | null;
+  /** Signed Mux thumbnail. The page uses this poster instead of a NAS frame. */
+  posterUrl?: string | null;
+  thumbnailToken?: string | null;
+  storyboardToken?: string | null;
 };
 
 export function muxIngestDecision(
@@ -44,11 +48,46 @@ export function muxIngestDecision(
   return "skip";
 }
 
-export function playerMode(mux: MuxPlaybackView | null | undefined): "mux" | "processing" | "native" {
-  if (!mux?.status) return "native";
-  if (mux.status === "ready" && mux.playbackId && mux.token) return "mux";
-  if (mux.status === "preparing") return "processing";
-  return "native";
+export function playerMode(mux: MuxPlaybackView | null | undefined): "mux" | "processing" | "poster" | "deferred" {
+  if (mux?.status === "preparing") return "processing";
+  if (mux?.playbackId && mux?.token) return "mux";
+  if (mux?.status === "ready" || mux?.status === "errored") return "poster";
+  return "deferred";
+}
+
+/**
+ * A Mux-tracked video is never streamed from the NAS.
+ * `download=1` is the explicit Download control. Playback of a file Mux has
+ * never seen is still allowed, and the player withholds that URL until Play.
+ */
+export function nasOriginalAllowed(input: {
+  type: string;
+  muxAssetId?: string | null;
+  muxStatus?: string | null;
+  download: boolean;
+}) {
+  if (input.type !== "video") return true;
+  if (input.download) return true;
+  if (input.muxAssetId) return false;
+  if (input.muxStatus === "preparing" || input.muxStatus === "ready" || input.muxStatus === "errored") return false;
+  return true;
+}
+
+export function muxPosterUrl(playbackId: string, token: string) {
+  const url = new URL(`https://image.mux.com/${playbackId}/thumbnail.jpg`);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+/** Pixel size Mux stored for the video track. Aspect ratio alone is not a size. */
+export function muxDisplaySize(asset: {
+  tracks?: Array<{ type?: string; max_width?: number | null; max_height?: number | null; width?: number | null; height?: number | null }> | null;
+}): { width: number; height: number } | null {
+  const track = asset.tracks?.find((item) => item.type === "video");
+  const width = Number(track?.max_width || track?.width || 0);
+  const height = Number(track?.max_height || track?.height || 0);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 16 || height < 16) return null;
+  return { width: Math.round(width), height: Math.round(height) };
 }
 
 export function downloadMode(mux: MuxPlaybackView | null | undefined): "mux" | "preparing" | "native" {

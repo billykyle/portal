@@ -3,12 +3,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media } from "@/lib/db/schema";
-import { ensureVideoDisplaySize } from "@/lib/video-dimensions";
 import { saveDisplaySize } from "@/lib/video-store";
 import { shouldReportDisplaySize } from "@/lib/video-playback";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 15;
 export const dynamic = "force-dynamic";
 
 function noStore(body: unknown, status = 200) {
@@ -25,16 +24,8 @@ export async function GET(
   if (!item || item.type !== "video") {
     return noStore({ error: "Not found." }, 404);
   }
-  if (item.width && item.height) {
-    return noStore({ width: item.width, height: item.height });
-  }
-  try {
-    const size = await ensureVideoDisplaySize(item.id, item.nasRelativePath);
-    return noStore({ width: size?.width ?? null, height: size?.height ?? null });
-  } catch (error) {
-    console.error(`Video dimensions failed for ${item.filename}:`, error);
-    return noStore({ width: null, height: null });
-  }
+  // Stored size only. Probing the NAS file here held the page open for a minute.
+  return noStore({ width: item.width ?? null, height: item.height ?? null });
 }
 
 export async function POST(

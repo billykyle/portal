@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   downloadMode,
   isZipExcludedVideo,
+  muxDisplaySize,
   muxDownloadStem,
   muxIngestDecision,
+  muxPosterUrl,
   muxStaticDownloadUrl,
   nasDownloadLooksPublic,
+  nasOriginalAllowed,
   playerMode,
   publicMuxStatus,
   videoOmissionNote,
@@ -46,10 +50,12 @@ test("ingest skips non-video, unchanged ready files, and refreshes unfinished as
 });
 
 test("player and download modes fall back when Mux is missing or still working", () => {
-  assert.equal(playerMode(null), "native");
+  assert.equal(playerMode(null), "deferred");
   assert.equal(playerMode({ ...ready, status: "preparing", token: null, downloadUrl: null }), "processing");
+  assert.equal(playerMode({ ...ready, status: "preparing" }), "processing");
   assert.equal(playerMode(ready), "mux");
-  assert.equal(playerMode({ ...ready, status: "errored", token: null, downloadUrl: null }), "native");
+  assert.equal(playerMode({ ...ready, status: "errored" }), "mux");
+  assert.equal(playerMode({ ...ready, status: "errored", token: null, downloadUrl: null }), "poster");
   assert.equal(downloadMode(null), "native");
   assert.equal(downloadMode(ready), "mux");
   assert.equal(downloadMode({ ...ready, downloadUrl: null, staticStatus: "preparing" }), "preparing");
@@ -57,6 +63,35 @@ test("player and download modes fall back when Mux is missing or still working",
   assert.equal(isZipExcludedVideo("video"), true);
   assert.equal(isZipExcludedVideo("raw_video"), true);
   assert.equal(isZipExcludedVideo("photo"), false);
+});
+
+test("a Mux video is not streamed from the NAS, and its poster and size come from Mux", () => {
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "ready", download: false }), false);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "errored", muxAssetId: null, download: false }), false);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "preparing", download: false }), false);
+  assert.equal(nasOriginalAllowed({ type: "video", muxAssetId: "asset", muxStatus: null, download: false }), false);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: "errored", download: true }), true);
+  assert.equal(nasOriginalAllowed({ type: "video", muxStatus: null, muxAssetId: null, download: false }), true);
+  assert.equal(nasOriginalAllowed({ type: "raw_video", download: false }), true);
+  const poster = new URL(muxPosterUrl("play", "thumb-token"));
+  assert.equal(poster.origin, "https://image.mux.com");
+  assert.equal(poster.pathname, "/play/thumbnail.jpg");
+  assert.equal(poster.searchParams.get("token"), "thumb-token");
+  assert.deepEqual(muxDisplaySize({ tracks: [{ type: "video", max_width: 1920, max_height: 1080 }] }), {
+    width: 1920,
+    height: 1080,
+  });
+  assert.equal(muxDisplaySize({ tracks: [{ type: "video" }] }), null);
+  assert.equal(muxDisplaySize({}), null);
+  const player = readFileSync(new URL("../components/video-player.tsx", import.meta.url), "utf8");
+  const dimensions = readFileSync(new URL("../app/api/media/[id]/dimensions/route.ts", import.meta.url), "utf8");
+  const mediaRoute = readFileSync(new URL("../app/api/media/[id]/route.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(player, /preload="metadata"/);
+  assert.match(player, /preload="none"/);
+  assert.match(player, /thumbnail-token/);
+  assert.doesNotMatch(player, /dimensions`, \{ cache: "no-store" \}/);
+  assert.doesNotMatch(dimensions, /ensureVideoDisplaySize/);
+  assert.match(mediaRoute, /nasOriginalAllowed/);
 });
 
 test("download names and the zip note stay short and do not claim the original", () => {

@@ -428,13 +428,15 @@ test("shoot video uses an in-page player with a browser-playable type", () => {
   const video = html.slice(html.indexOf('id="video"'));
   assert.match(video, /<video\b[^>]*controls/);
   assert.match(video, /playsInline|playsinline/);
-  assert.match(video, /preload="metadata"/);
-  assert.match(video, /<source[^>]*src="\/api\/media\/vid-1"/);
-  assert.match(video, /type="video\/mp4"/);
+  assert.match(video, /preload="none"/);
+  assert.match(video, /aria-label="Play 188 33rd Street\.mov"/);
+  assert.doesNotMatch(video, /<source\b/);
+  assert.doesNotMatch(video, /\ssrc="\/api\/media\/vid-1"/);
+  assert.doesNotMatch(video, /preload="metadata"/);
   assert.doesNotMatch(video, /video\/quicktime/);
   assert.doesNotMatch(video, /aspect-video/);
   assert.doesNotMatch(video, /Playback quality|1080p|720p|>Original</);
-  assert.match(video, /href="\/api\/media\/vid-1"/);
+  assert.match(video, /href="\/api\/media\/vid-1\?download=1"/);
   assert.doesNotMatch(video, /href="[^"]*rendition=/);
 });
 
@@ -498,6 +500,38 @@ test("a ready Mux video plays from Mux and a processing video does not stream th
   assert.doesNotMatch(waiting, /href="\/api\/media\/vid-wait"/);
 });
 
+test("an errored Mux video does not request the NAS file on the page", () => {
+  const html = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "107 Louis Drive",
+      dateLabel: "Oct 9, 2026",
+      folderName: "2026-10-09-107-louis",
+      media: [
+        {
+          id: "vid-err",
+          url: "/api/media/vid-err",
+          filename: "107 Louis Drive.mov",
+          type: "video",
+          thumbUrl: "/api/media/vid-err/thumb",
+          mux: {
+            status: "errored",
+            playbackId: null,
+            token: null,
+            downloadUrl: null,
+            staticStatus: "preparing",
+          },
+        },
+      ],
+    }),
+  );
+  const video = html.slice(html.indexOf('id="video"'));
+  assert.doesNotMatch(video, /<video\b|<source\b/);
+  assert.doesNotMatch(video, /src="\/api\/media\/vid-err\/thumb"/);
+  assert.doesNotMatch(video, /\ssrc="\/api\/media\/vid-err"/);
+  assert.match(video, /href="\/api\/media\/vid-err\?download=1"/);
+});
+
 test("videos play at their own ratio and default to a lighter rendition", () => {
   const html = renderToStaticMarkup(
     createElement(ShootDetail, {
@@ -536,10 +570,10 @@ test("videos play at their own ratio and default to a lighter rendition", () => 
   assert.match(video, /width:\s*100%/);
   assert.match(video, /grid-cols-3 gap-1\.5 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5 2xl:grid-cols-6 min-w-0 items-start/);
   assert.doesNotMatch(video, /78dvh|grid-cols-2|aspect-video/);
-  assert.match(video, /<source[^>]*src="\/api\/media\/tall\?rendition=720"/);
-  assert.match(video, /<source[^>]*src="\/api\/media\/wide\?rendition=720"/);
-  assert.match(video, /href="\/api\/media\/tall"/);
-  assert.match(video, /href="\/api\/media\/wide"/);
+  assert.match(video, /preload="none"/);
+  assert.doesNotMatch(video, /<source\b|rendition=/);
+  assert.match(video, /href="\/api\/media\/tall\?download=1"/);
+  assert.match(video, /href="\/api\/media\/wide\?download=1"/);
   assert.doesNotMatch(video, /href="[^"]*rendition=/);
   assert.doesNotMatch(video, /<select|Playback quality|1080p|>Original</);
   const photos = html.indexOf('id="photos"');
@@ -636,13 +670,14 @@ test("raw video is a last section with a jump link, and it is hidden when absent
   assert.match(raw, />Raw video</);
   assert.match(raw, /2 files · 4\.2 GB/);
   assert.doesNotMatch(html.slice(0, html.indexOf('id="raw-video"')), /files ·/);
-  assert.match(raw, /<source[^>]*src="\/api\/media\/raw-1"/);
-  assert.match(raw, /<source[^>]*src="\/api\/media\/raw-2"/);
-  assert.match(raw, /href="\/api\/media\/raw-1"/);
-  assert.match(raw, /href="\/api\/media\/raw-2"/);
+  assert.doesNotMatch(raw, /<source\b/);
+  assert.match(raw, /preload="none"/);
+  assert.match(raw, /href="\/api\/media\/raw-1\?download=1"/);
+  assert.match(raw, /href="\/api\/media\/raw-2\?download=1"/);
   assert.doesNotMatch(raw, /rendition=|Playback quality|<select|>Original</);
   const finished = html.slice(html.indexOf('id="video"'), html.indexOf('id="raw-video"'));
-  assert.match(finished, /src="\/api\/media\/vid-1\?rendition=720"/);
+  assert.match(finished, /poster="\/api\/media\/vid-1\/thumb"/);
+  assert.doesNotMatch(finished, /<source\b|rendition=/);
   assert.doesNotMatch(renderShoot(), /Raw video|id="raw-video"/);
 });
 
@@ -806,8 +841,9 @@ test("list view is rows for stills and a playable file row for video", () => {
   assert.doesNotMatch(video, /size-12/);
   assert.match(video, /src="\/api\/media\/vid-1\/thumb"/);
   assert.match(video, /<video\b[^>]*controls/);
-  assert.match(video, /<source[^>]*src="\/api\/media\/vid-1\?rendition=720"/);
-  assert.match(video, /href="\/api\/media\/vid-1"/);
+  assert.match(video, /preload="none"/);
+  assert.doesNotMatch(video, /<source\b|rendition=/);
+  assert.match(video, /href="\/api\/media\/vid-1\?download=1"/);
   assert.doesNotMatch(video, /lg:grid-cols-2|href="[^"]*rendition=/);
 
   const raw = html.slice(html.indexOf('id="raw-video"'));
@@ -819,8 +855,9 @@ test("list view is rows for stills and a playable file row for video", () => {
   assert.match(raw, /2 files · 4\.2 GB/);
   assert.match(raw, />Raw Video\/A001\.mov</);
   assert.match(raw, />Play</);
-  assert.match(raw, /<source[^>]*src="\/api\/media\/raw-1"/);
-  assert.match(raw, /href="\/api\/media\/raw-1"/);
+  assert.doesNotMatch(raw, /<source\b/);
+  assert.match(raw, /preload="none"/);
+  assert.match(raw, /href="\/api\/media\/raw-1\?download=1"/);
   assert.doesNotMatch(raw, /lg:grid-cols-2|rendition=/);
 
   const empty = renderToStaticMarkup(

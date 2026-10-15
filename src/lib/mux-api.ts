@@ -18,6 +18,13 @@ export type MuxAsset = {
   passthrough?: string | null;
   errors?: { type?: string; messages?: string[] };
   playback_ids?: Array<{ id: string; policy: string }>;
+  tracks?: Array<{
+    type?: string;
+    max_width?: number | null;
+    max_height?: number | null;
+    width?: number | null;
+    height?: number | null;
+  }>;
   static_renditions?: {
     files?: Array<{ id?: string; status?: string; resolution?: string; name?: string }>;
   };

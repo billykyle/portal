@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media } from "@/lib/db/schema";
 import { isNasFilePath, nasEnabled, proxyNasFile } from "@/lib/nas";
+import { nasOriginalAllowed } from "@/lib/mux-policy";
 import { isVideoQuality, renditionFilename, selectServedVideo } from "@/lib/video-renditions";
 import { listVideoRenditions } from "@/lib/video-store";
 
@@ -22,6 +23,19 @@ export async function GET(
   }
   const url = new URL(request.url);
   const download = url.searchParams.get("download") === "1";
+  if (
+    !nasOriginalAllowed({
+      type: item.type,
+      muxAssetId: item.muxAssetId,
+      muxStatus: item.muxStatus,
+      download,
+    })
+  ) {
+    return NextResponse.json(
+      { error: "This video plays through Mux." },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const requested = url.searchParams.get("rendition");
   const range = request.headers.get("range");
   if (!download && isVideoQuality(requested) && item.type === "video" && nasEnabled()) {
