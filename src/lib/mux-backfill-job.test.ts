@@ -59,5 +59,7 @@ test("mux backfill returns setup before the NAS ingest continues", () => {
   const ingest = readFileSync(new URL("./mux-ingest.ts", import.meta.url), "utf8");
   assert.doesNotMatch(ingest, /worker\(\), worker\(\), worker\(\)/);
   assert.match(ingest, /setTimeout\(resolve, 1100\)/);
+  assert.match(ingest, /muxSubmitBudget/);
+  assert.match(ingest, /nasSyncIsActive/);
   assert.match(tools, /reportOnly/);
 });

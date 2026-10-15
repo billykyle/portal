@@ -184,6 +184,12 @@ export const muxConfig = pgTable("mux_config", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** One Mux original copy at a time. The source route refuses other files while a row is fresh. */
+export const muxNasPulls = pgTable("mux_nas_pulls", {
+  mediaId: text("media_id").primaryKey(),
+  acquiredAt: timestamp("acquired_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 /** One running Mux backfill. The report is stored when the background ingest finishes. */
 export const muxBackfillJobs = pgTable("mux_backfill_jobs", {
   id: uuid("id").defaultRandom().primaryKey(),

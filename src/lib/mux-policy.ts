@@ -11,6 +11,37 @@ export const MUX_STATIC_NAME = "highest.mp4";
 
 export type MuxIngestAction = "skip" | "submit" | "refresh";
 
+/** One granted Mux download keeps the NAS for this long before another file may start. */
+export const MUX_NAS_PULL_LEASE_MS = 8 * 60 * 1000;
+/** Ask Mux to wait this long when a NAS sync is using the share. */
+export const MUX_SOURCE_RETRY_AFTER_SECONDS = 60;
+
+/**
+ * How many new assets this backfill may create.
+ * A preparing asset may still be copying the original off the NAS, so a second
+ * create has to wait. One create per run keeps the rest of the catalog from piling on.
+ */
+export function muxSubmitBudget(input: { preparing: number; alreadySubmitted: number }) {
+  if (input.preparing > 0 || input.alreadySubmitted > 0) return 0;
+  return 1;
+}
+
+/**
+ * The source route is the only way Mux reaches the NAS.
+ * A running sync wins. A download that already holds the lease may finish.
+ * Every other file gets 503 so Mux retries later instead of opening another original.
+ */
+export function muxSourceDecision(input: {
+  syncActive: boolean;
+  activePulls: number;
+  thisMediaAlreadyPulling: boolean;
+}): { allow: true } | { allow: false; retryAfter: number } {
+  if (input.syncActive) return { allow: false, retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS };
+  if (input.thisMediaAlreadyPulling) return { allow: true };
+  if (input.activePulls > 0) return { allow: false, retryAfter: 30 };
+  return { allow: true };
+}
+
 export type MuxPlaybackView = {
   status: "preparing" | "ready" | "errored" | null;
   playbackId: string | null;

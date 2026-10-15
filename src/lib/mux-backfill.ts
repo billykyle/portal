@@ -9,9 +9,11 @@ import {
   toPublicMuxBackfillJob,
 } from "./mux-backfill-store";
 import { backfillMuxVideos, ensureMuxSetup, type MuxBackfillReport } from "./mux-ingest";
+import { nasSyncIsActive } from "./nas-sync-store";
 
 export type MuxBackfillStart =
   | { status: "blocked"; report: MuxBackfillReport }
+  | { status: "deferred"; job: null; reason: string }
   | { status: "started" | "already_running"; job: MuxBackfillJobPublic }
   | { status: "idle"; job: null; recoveredStale?: boolean }
   | { status: "running" | "done" | "failed"; job: MuxBackfillJobPublic; recoveredStale?: boolean };
@@ -25,6 +27,7 @@ function blockedReport(setup: Awaited<ReturnType<typeof ensureMuxSetup>>): MuxBa
     refreshed: 0,
     skipped: 0,
     failed: 0,
+    deferred: 0,
     videos: [],
   };
 }
@@ -50,6 +53,13 @@ export async function startMuxBackfill(input: {
   reportOnly?: boolean;
 }): Promise<MuxBackfillStart> {
   if (input.reportOnly) return readMuxBackfill();
+  if (await nasSyncIsActive()) {
+    return {
+      status: "deferred",
+      job: null,
+      reason: "A NAS sync is running, so Mux will not pull files until it finishes.",
+    };
+  }
   const setup = await ensureMuxSetup();
   if (muxSetupBlocksIngest(setup)) return { status: "blocked", report: blockedReport(setup) };
   const claimed = await claimMuxBackfillJob({

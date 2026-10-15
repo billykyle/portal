@@ -6,8 +6,11 @@ import {
   isZipExcludedVideo,
   muxDisplaySize,
   muxDownloadStem,
+  MUX_SOURCE_RETRY_AFTER_SECONDS,
   muxIngestDecision,
   muxPosterUrl,
+  muxSourceDecision,
+  muxSubmitBudget,
   muxStaticDownloadUrl,
   nasDownloadLooksPublic,
   nasOriginalAllowed,
@@ -47,6 +50,37 @@ test("ingest skips non-video, unchanged ready files, and refreshes unfinished as
   );
   assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: null }), "skip");
   assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: 10 }, true), "submit");
+});
+
+test("Mux NAS pulls stay behind a sync and never stack", () => {
+  assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 0 }), 1);
+  assert.equal(muxSubmitBudget({ preparing: 2, alreadySubmitted: 0 }), 0);
+  assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 1 }), 0);
+  assert.deepEqual(muxSourceDecision({ syncActive: true, activePulls: 0, thisMediaAlreadyPulling: false }), {
+    allow: false,
+    retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS,
+  });
+  assert.deepEqual(muxSourceDecision({ syncActive: false, activePulls: 1, thisMediaAlreadyPulling: false }), {
+    allow: false,
+    retryAfter: 30,
+  });
+  assert.deepEqual(muxSourceDecision({ syncActive: false, activePulls: 1, thisMediaAlreadyPulling: true }), {
+    allow: true,
+  });
+  assert.deepEqual(muxSourceDecision({ syncActive: true, activePulls: 1, thisMediaAlreadyPulling: true }), {
+    allow: false,
+    retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS,
+  });
+  const source = readFileSync(new URL("../app/api/mux/source/[id]/route.ts", import.meta.url), "utf8");
+  const sync = readFileSync(new URL("./nas-import.ts", import.meta.url), "utf8");
+  const backfill = readFileSync(new URL("./mux-backfill.ts", import.meta.url), "utf8");
+  assert.match(source, /grantMuxNasPull/);
+  assert.doesNotMatch(source, /nasDirectFetchWorks/);
+  assert.match(source, /retry-after/);
+  assert.doesNotMatch(sync, /submitMuxForImported/);
+  assert.match(sync, /Left \$\{count\} finished/);
+  assert.match(backfill, /nasSyncIsActive/);
+  assert.match(backfill, /status: "deferred"/);
 });
 
 test("player and download modes fall back when Mux is missing or still working", () => {

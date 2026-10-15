@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media } from "@/lib/db/schema";
 import { createNasShareDownloadUrl } from "@/lib/nas";
-import { nasDirectFetchWorks } from "@/lib/mux-ingest";
+import { grantMuxNasPull } from "@/lib/mux-nas-gate";
 import { verifyMuxSource } from "@/lib/mux-sign";
 
 export const runtime = "nodejs";
@@ -21,11 +21,11 @@ async function redirectToNas(id: string, request: Request) {
   if (!item || item.type !== "video" || !item.nasRelativePath?.startsWith("/")) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
-  const direct = await nasDirectFetchWorks(item.nasRelativePath);
-  if (!direct) {
+  const grant = await grantMuxNasPull(item.id);
+  if (!grant.allow) {
     return NextResponse.json(
-      { error: "The NAS download URL is not reachable without the share cookie." },
-      { status: 502 },
+      { error: "The NAS is busy. Mux can retry this file." },
+      { status: 503, headers: { "retry-after": String(grant.retryAfter), "cache-control": "no-store" } },
     );
   }
   const target = await createNasShareDownloadUrl(item.nasRelativePath);

@@ -12,7 +12,8 @@ import {
   signedPlaybackId,
   staticRenditionStatus,
 } from "./mux-api";
-import { muxIngestDecision, nasDownloadLooksPublic, type MuxIngestAction } from "./mux-policy";
+import { muxIngestDecision, muxSubmitBudget, nasDownloadLooksPublic, type MuxIngestAction } from "./mux-policy";
+import { nasSyncIsActive } from "./nas-sync-store";
 import { muxCredentials, muxDashboardSteps, muxSourceUrl, muxWebhookAddress } from "./mux-sign";
 import {
   listFinishedVideos,
@@ -31,7 +32,7 @@ export type MuxVideoResult = {
   id: string;
   shootId: string;
   filename: string;
-  action: MuxIngestAction | "failed";
+  action: MuxIngestAction | "failed" | "deferred";
   status: string | null;
   staticStatus: string | null;
   assetId: string | null;
@@ -49,6 +50,7 @@ export type MuxBackfillReport = {
   refreshed: number;
   skipped: number;
   failed: number;
+  deferred: number;
   videos: MuxVideoResult[];
 };
 
@@ -152,11 +154,23 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
       refreshed: 0,
       skipped: 0,
       failed: 0,
+      deferred: 0,
       videos: [],
     };
   }
   const setup = await ensureMuxSetup();
   const rows = await listFinishedVideos(input.shootId);
+  if (await nasSyncIsActive()) {
+    const videos = rows.map((row) => resultOf(row, "deferred", "A NAS sync is running."));
+    return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
+  }
+  const preparing = input.shootId
+    ? (await listFinishedVideos()).filter((row) => row.muxStatus === "preparing").length
+    : rows.filter((row) => row.muxStatus === "preparing").length;
+  if (preparing > 0) {
+    const videos = await runMuxRows(rows, input.force === true, preparing);
+    return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
+  }
   const sample = rows.find((row) => row.nasRelativePath?.startsWith("/"));
   let directNasFetch: boolean | null = null;
   if (sample?.nasRelativePath) {
@@ -173,6 +187,7 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
         refreshed: 0,
         skipped: 0,
         failed: rows.length,
+        deferred: 0,
         videos: rows.map((row) => resultOf(row, "failed", message)),
       };
     }
@@ -187,35 +202,12 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
       refreshed: 0,
       skipped: 0,
       failed: rows.length,
+      deferred: 0,
       videos: rows.map((row) => resultOf(row, "failed", message)),
     };
   }
-  const videos = await runMuxRows(rows, input.force === true);
+  const videos = await runMuxRows(rows, input.force === true, preparing);
   return { ...setup, directNasFetch, ...countVideos(videos), videos };
-}
-
-export async function submitMuxForImported(ids: readonly string[]) {
-  if (ids.length === 0 || !muxCredentials()) return { submitted: 0, failed: 0, warnings: [] as string[] };
-  const rows = (await listFinishedVideos()).filter((row) => ids.includes(row.id));
-  const sample = rows.find((row) => row.nasRelativePath?.startsWith("/"));
-  if (sample?.nasRelativePath) {
-    const direct = await nasDirectFetchWorks(sample.nasRelativePath);
-    if (!direct) {
-      return {
-        submitted: 0,
-        failed: rows.length,
-        warnings: ["Mux ingest skipped: the NAS download URL is not reachable without the share cookie."],
-      };
-    }
-  }
-  await ensureMuxSetup();
-  const videos = await runMuxRows(rows, false);
-  const failed = videos.filter((row) => row.action === "failed");
-  return {
-    submitted: videos.filter((row) => row.action === "submit").length,
-    failed: failed.length,
-    warnings: failed.map((row) => `Mux ingest failed for ${row.filename}: ${row.error ?? "unknown error"}`),
-  };
 }
 
 export async function forgetMuxAssets(assetIds: readonly string[]) {
@@ -234,13 +226,31 @@ export async function forgetMuxForShoot(shootId: string) {
   await forgetMuxAssets(ids);
 }
 
-async function runMuxRows(rows: MuxMediaRow[], force: boolean) {
+async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number) {
   const videos: MuxVideoResult[] = [];
+  let submitted = 0;
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
     if (!row) continue;
+    const decision = muxIngestDecision(
+      {
+        type: row.type,
+        assetId: row.muxAssetId,
+        status: row.muxStatus,
+        staticStatus: row.muxStaticStatus,
+        sourcePath: row.muxSourcePath,
+        sourceBytes: row.muxSourceBytes,
+      },
+      { path: row.nasRelativePath ?? "", bytes: row.byteSize },
+      force,
+    );
+    if (decision === "submit" && muxSubmitBudget({ preparing, alreadySubmitted: submitted }) < 1) {
+      videos[index] = resultOf(row, "deferred", "Waiting so Mux does not pull another file from the NAS.");
+      continue;
+    }
     const result = await runOne(row, force);
     videos[index] = result;
+    if (result.action === "submit") submitted += 1;
     if (result.action === "submit" || result.action === "refresh") {
       await new Promise((resolve) => setTimeout(resolve, 1100));
     }
@@ -326,5 +336,6 @@ function countVideos(videos: MuxVideoResult[]) {
     refreshed: videos.filter((row) => row.action === "refresh").length,
     skipped: videos.filter((row) => row.action === "skip").length,
     failed: videos.filter((row) => row.action === "failed").length,
+    deferred: videos.filter((row) => row.action === "deferred").length,
   };
 }
