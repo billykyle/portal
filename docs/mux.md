@@ -4,9 +4,9 @@ Finished shoot video plays through Mux. The NAS stays the source of truth and ke
 
 ## Cost
 
-Assets are created at `video_quality: basic` (720p cap) with one standard static rendition, `highest`. Standard renditions bill storage and delivery. They do not add encode minutes. Explicit 720p or 1080p static renditions are advanced and are not used. Master access, captions, plus, and premium are off.
+Assets are created at `video_quality: basic` with `max_resolution_tier: 1080p` and one standard static rendition, `highest`. Basic input is free. The standard MP4 is free to generate. Storage and delivery are billed at the resolution tier. Explicit 720p or 1080p static renditions are advanced and add a per-minute preparation charge, so they are not used. Master access, captions, plus, and premium are off.
 
-The client download is that web MP4 (up to 720p), not the NAS original. Originals stay on the share for Billy.
+The client download is that web MP4, up to 1080p, and Mux does not upscale. It is not the NAS original. Originals stay on the share. A 4K download means setting `max_resolution_tier` to `2160p`. That stays on basic (still free to encode) and raises storage and delivery to the 4K rates. It is still not the camera original.
 
 ## Ingest
 

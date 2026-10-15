@@ -5,7 +5,7 @@
 
 export const MUX_PLAYBACK_TTL_SECONDS = 12 * 60 * 60;
 export const MUX_SOURCE_TTL_SECONDS = 12 * 60 * 60;
-/** Basic quality caps at 720p. One standard "highest" MP4, no advanced rendition encode. */
+/** Basic quality, free encode, capped at 1080p. One standard "highest" MP4. */
 export const MUX_VIDEO_QUALITY = "basic";
 export const MUX_STATIC_NAME = "highest.mp4";
 
@@ -83,7 +83,7 @@ export function videoOmissionNote(filenames: readonly string[]) {
   return [
     "These videos are not in this zip.",
     "A full-length movie cannot finish inside the download, so each video downloads on its own from the shoot page.",
-    "That download is a web-quality MP4 (up to 720p). The full-quality original stays on the NAS.",
+    "That download is a web-quality MP4 (up to 1080p). The full-quality original stays on the NAS.",
     "",
     ...filenames,
     "",

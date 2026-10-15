@@ -73,6 +73,7 @@ export async function muxCreateAsset(input: { url: string; passthrough: string }
       inputs: [{ url: input.url }],
       playback_policies: ["signed"],
       video_quality: MUX_VIDEO_QUALITY,
+      max_resolution_tier: "1080p",
       static_renditions: [{ resolution: "highest" }],
       passthrough: input.passthrough,
       meta: { external_id: input.passthrough },
@@ -110,11 +111,6 @@ export function staticRenditionStatus(asset: MuxAsset) {
 export function muxAssetError(asset: MuxAsset) {
   const messages = asset.errors?.messages?.filter(Boolean) ?? [];
   return messages.join(" ") || null;
-}
-
-export async function muxListSigningKeys() {
-  const body = await muxFetch<MuxData<MuxSigningKey[]>>("/system/v1/signing-keys");
-  return body.data ?? [];
 }
 
 export async function muxCreateSigningKey() {

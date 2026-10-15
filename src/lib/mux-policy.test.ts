@@ -66,7 +66,7 @@ test("download names and the zip note stay short and do not claim the original",
   assert.equal(url.pathname, "/play/highest.mp4");
   assert.equal(url.searchParams.get("token"), "tok");
   assert.equal(url.searchParams.get("download"), "tour");
-  assert.match(videoOmissionNote(["a.mov"]), /up to 720p/);
+  assert.match(videoOmissionNote(["a.mov"]), /up to 1080p/);
   assert.match(videoOmissionNote(["a.mov"]), /a\.mov/);
   assert.equal(nasDownloadLooksPublic(206, "video/mp4"), true);
   assert.equal(nasDownloadLooksPublic(200, "application/json"), false);

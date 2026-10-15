@@ -59,7 +59,7 @@ test("raw video is its own zip scope after finished video", () => {
   const parted = partitionZipFiles(withRaw);
   assert.deepEqual(parted.files.map((file) => file.filename), ["Full-01.jpg", "plan.svg"]);
   assert.deepEqual(parted.omitted.map((file) => file.filename), ["walk.mp4", "Raw Video/A001.mov"]);
-  assert.match(parted.note?.text ?? "", /up to 720p/);
+  assert.match(parted.note?.text ?? "", /up to 1080p/);
   assert.equal(partitionZipFiles([{ filename: "a.jpg", type: "photo" }]).note, null);
   assert.equal(
     zipScopeFolderName("2026-09-04 - 12 Wood View Drive", ["raw_video"], ["photo", "raw_video"]),
