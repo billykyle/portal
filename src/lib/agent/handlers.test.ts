@@ -790,8 +790,8 @@ test("update_client_user forwards role and clears a blank value", async () => {
   assert.equal(calls, 0);
 });
 
-test("backfill_mux_videos forwards shoot id, force, and reportOnly", async () => {
-  let seen: { shootId?: string; force?: boolean; reportOnly?: boolean } | null = null;
+test("backfill_mux_videos forwards shoot id, force, reportOnly, and allowDaytime", async () => {
+  let seen: { shootId?: string; force?: boolean; reportOnly?: boolean; allowDaytime?: boolean } | null = null;
   const result = await runAgentTool(
     "backfill_mux_videos",
     { shootId: "shoot-1", force: true, reportOnly: true },
@@ -803,7 +803,20 @@ test("backfill_mux_videos forwards shoot id, force, and reportOnly", async () =>
     }),
   );
   assert.equal(result.ok, true);
-  assert.deepEqual(seen, { shootId: "shoot-1", force: true, reportOnly: true });
+  assert.deepEqual(seen, { shootId: "shoot-1", force: true, reportOnly: true, allowDaytime: false });
+
+  const daytime = await runAgentTool(
+    "backfill_mux_videos",
+    { allowDaytime: true },
+    stubOps({
+      async backfillMuxVideos(input) {
+        seen = input;
+        return { status: "idle", job: null };
+      },
+    }),
+  );
+  assert.equal(daytime.ok, true);
+  assert.deepEqual(seen, { shootId: undefined, force: false, reportOnly: false, allowDaytime: true });
 });
 
 test("agent tools do not reintroduce delivery tracking or attach-shoot", () => {

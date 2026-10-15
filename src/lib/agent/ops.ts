@@ -241,6 +241,7 @@ export type AgentOps = {
     shootId?: string;
     force?: boolean;
     reportOnly?: boolean;
+    allowDaytime?: boolean;
   }): Promise<import("@/lib/mux-backfill").MuxBackfillStart>;
 };
 
@@ -828,6 +829,7 @@ export const portalAgentOps: AgentOps = {
       shootId: input.shootId,
       force: input.force,
       reportOnly: input.reportOnly,
+      allowDaytime: input.allowDaytime,
     });
   },
 };

@@ -12,6 +12,7 @@ export type MuxBackfillJobPublic = {
   status: MuxBackfillJobStatus;
   shootId: string | null;
   force: boolean;
+  allowDaytime: boolean;
   report: MuxBackfillReport | null;
   error: string | null;
   startedAt: string;

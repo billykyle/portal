@@ -12,9 +12,11 @@ import {
   signedPlaybackId,
   staticRenditionStatus,
 } from "./mux-api";
+import { noteDaytimeMuxPull } from "./mux-nas-gate";
 import {
   MUX_INGEST_OVERNIGHT_REASON,
   MUX_INGEST_SYNC_REASON,
+  muxBackfillMayStart,
   muxIngestAllowedAt,
   muxIngestDecision,
   muxSubmitBudget,
@@ -151,7 +153,9 @@ export async function nasDirectFetchWorks(nasPath: string, fetchImpl: typeof fet
   return nasDownloadLooksPublic(res.status, type);
 }
 
-export async function backfillMuxVideos(input: { shootId?: string; force?: boolean } = {}): Promise<MuxBackfillReport> {
+export async function backfillMuxVideos(
+  input: { shootId?: string; force?: boolean; allowDaytime?: boolean } = {},
+): Promise<MuxBackfillReport> {
   if (!muxCredentials()) {
     return {
       ...EMPTY_SETUP,
@@ -168,7 +172,8 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
   }
   const setup = await ensureMuxSetup();
   const rows = await listFinishedVideos(input.shootId);
-  const paused = await muxIngestPause();
+  const allowDaytime = input.allowDaytime === true;
+  const paused = await muxIngestPause(allowDaytime);
   if (paused) {
     const videos = rows.map((row) => resultOf(row, "deferred", paused));
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
@@ -177,10 +182,10 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
     ? (await listFinishedVideos()).filter((row) => row.muxStatus === "preparing").length
     : rows.filter((row) => row.muxStatus === "preparing").length;
   if (preparing > 0) {
-    const videos = await runMuxRows(rows, input.force === true, preparing);
+    const videos = await runMuxRows(rows, input.force === true, preparing, allowDaytime);
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
   }
-  const pausedBeforeNas = await muxIngestPause();
+  const pausedBeforeNas = await muxIngestPause(allowDaytime);
   if (pausedBeforeNas) {
     const videos = rows.map((row) => resultOf(row, "deferred", pausedBeforeNas));
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
@@ -220,7 +225,7 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
       videos: rows.map((row) => resultOf(row, "failed", message)),
     };
   }
-  const videos = await runMuxRows(rows, input.force === true, preparing);
+  const videos = await runMuxRows(rows, input.force === true, preparing, allowDaytime);
   return { ...setup, directNasFetch, ...countVideos(videos), videos };
 }
 
@@ -240,20 +245,20 @@ export async function forgetMuxForShoot(shootId: string) {
   await forgetMuxAssets(ids);
 }
 
-/** Sync wins over the clock. Either one stops ingest before the next NAS read. */
-async function muxIngestPause(now = new Date()) {
-  if (await nasSyncIsActive()) return MUX_INGEST_SYNC_REASON;
-  if (!muxIngestAllowedAt(now)) return MUX_INGEST_OVERNIGHT_REASON;
-  return null;
+/** Sync wins over the clock and over an explicit daytime run. */
+async function muxIngestPause(allowDaytime: boolean, now = new Date()) {
+  const syncActive = await nasSyncIsActive();
+  if (muxBackfillMayStart({ syncActive, overnight: muxIngestAllowedAt(now), allowDaytime })) return null;
+  return syncActive ? MUX_INGEST_SYNC_REASON : MUX_INGEST_OVERNIGHT_REASON;
 }
 
-async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number) {
+async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number, allowDaytime: boolean) {
   const videos: MuxVideoResult[] = [];
   let submitted = 0;
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
     if (!row) continue;
-    const pause = await muxIngestPause();
+    const pause = await muxIngestPause(allowDaytime);
     if (pause) {
       for (let rest = index; rest < rows.length; rest += 1) {
         const pending = rows[rest];
@@ -278,7 +283,7 @@ async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number
       videos[index] = resultOf(row, "deferred", "Waiting so Mux does not pull another file from the NAS.");
       continue;
     }
-    const result = await runOne(row, force);
+    const result = await runOne(row, force, allowDaytime);
     videos[index] = result;
     if (result.action === "submit") submitted += 1;
     if (result.action === "submit" || result.action === "refresh") {
@@ -288,7 +293,7 @@ async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number
   return videos;
 }
 
-async function runOne(row: MuxMediaRow, force: boolean): Promise<MuxVideoResult> {
+async function runOne(row: MuxMediaRow, force: boolean, allowDaytime: boolean): Promise<MuxVideoResult> {
   const next = { path: row.nasRelativePath ?? "", bytes: row.byteSize };
   const action = muxIngestDecision(
     {
@@ -305,6 +310,7 @@ async function runOne(row: MuxMediaRow, force: boolean): Promise<MuxVideoResult>
   try {
     if (action === "skip") return resultOf(row, "skip", null);
     if (action === "refresh" && row.muxAssetId) {
+      if (allowDaytime) await noteDaytimeMuxPull(row.id);
       const asset = await muxGetAsset(row.muxAssetId);
       await rememberMuxAsset(row.id, asset, { path: row.muxSourcePath ?? next.path, bytes: row.muxSourceBytes });
       return resultOf(
@@ -321,6 +327,7 @@ async function runOne(row: MuxMediaRow, force: boolean): Promise<MuxVideoResult>
     }
     if (!next.path.startsWith("/")) return resultOf(row, "failed", "This video has no NAS path.");
     const previous = row.muxAssetId;
+    if (allowDaytime) await noteDaytimeMuxPull(row.id);
     await rememberMuxSubmit(row.id, { sourcePath: next.path, sourceBytes: next.bytes });
     const asset = await muxCreateAsset({ url: muxSourceUrl(row.id), passthrough: row.id });
     await rememberMuxAsset(row.id, asset, next);
