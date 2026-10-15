@@ -121,22 +121,15 @@ export async function muxCreateSigningKey() {
 }
 
 export async function muxListWebhooks() {
-  const body = await muxFetch<MuxData<MuxWebhook[]>>("/video/v1/webhooks");
+  const body = await muxFetch<MuxData<MuxWebhook[]>>("/system/v1/webhooks");
   return body.data ?? [];
 }
 
 export async function muxCreateWebhook(address = muxWebhookAddress()) {
-  let body: MuxData<MuxWebhook>;
-  try {
-    body = await muxFetch<MuxData<MuxWebhook>>("/video/v1/webhooks", {
-      method: "POST",
-      body: { url: address, address },
-    });
-  } catch (error) {
-    if (!(error instanceof MuxApiError) || error.status !== 400) throw error;
-    const field = /address/i.test(error.message) ? { url: address } : { address };
-    body = await muxFetch<MuxData<MuxWebhook>>("/video/v1/webhooks", { method: "POST", body: field });
-  }
+  const body = await muxFetch<MuxData<MuxWebhook>>("/system/v1/webhooks", {
+    method: "POST",
+    body: { address },
+  });
   if (!body.data?.id || !body.data.signing_secret) throw new MuxApiError(500, "Mux did not return a webhook secret.");
   return { id: body.data.id, secret: body.data.signing_secret, address };
 }
