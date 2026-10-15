@@ -1,5 +1,5 @@
-import { createHmac, timingSafeEqual } from "crypto";
-import { importPKCS8, SignJWT } from "jose";
+import { createHmac, createPrivateKey, timingSafeEqual } from "crypto";
+import { SignJWT } from "jose";
 import { MUX_PLAYBACK_TTL_SECONDS, MUX_SOURCE_TTL_SECONDS, muxDownloadStem, muxStaticDownloadUrl } from "./mux-policy";
 
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
@@ -58,6 +58,10 @@ export function decodeMuxPrivateKey(value: string) {
   return decoded;
 }
 
+export function muxPrivateKey(value: string) {
+  return createPrivateKey(decodeMuxPrivateKey(value));
+}
+
 export async function signMuxPlaybackToken(input: {
   playbackId: string;
   keyId: string;
@@ -65,7 +69,7 @@ export async function signMuxPlaybackToken(input: {
   ttlSeconds?: number;
   download?: string;
 }) {
-  const key = await importPKCS8(decodeMuxPrivateKey(input.privateKey), "RS256");
+  const key = muxPrivateKey(input.privateKey);
   const claims: Record<string, string> = { kid: input.keyId };
   if (input.download) claims.download = input.download;
   return new SignJWT(claims)
