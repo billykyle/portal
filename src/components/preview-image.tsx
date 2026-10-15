@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { THUMB_RETRY_LIMIT, thumbRetryDelayMs, withThumbRetry } from "@/lib/thumb-retry";
+import { useState } from "react";
+import { ThumbImage } from "@/components/retrying-thumb";
 
-/** Card and poster image. Lazy until it is near, then retries while the NAS wakes. */
+/** Card and poster image. A neutral box until the thumbnail is ready, then the image. */
 export function PreviewImage({
   src,
   alt,
@@ -18,16 +18,7 @@ export function PreviewImage({
   quiet?: boolean;
   className?: string;
 }) {
-  const timerRef = useRef<number | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const [waiting, setWaiting] = useState(false);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    };
-  }, []);
 
   if (failed) {
     if (quiet) return null;
@@ -38,31 +29,14 @@ export function PreviewImage({
     );
   }
 
-  if (waiting) {
-    return <div className="h-full w-full bg-[#1c1c1e]" />;
-  }
-
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={withThumbRetry(src, attempt)}
+    <ThumbImage
+      src={src}
       alt={alt}
-      loading={eager ? "eager" : "lazy"}
-      decoding="async"
+      eager={eager}
       className={className}
-      onError={() => {
-        if (attempt < THUMB_RETRY_LIMIT) {
-          if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-          setWaiting(true);
-          timerRef.current = window.setTimeout(() => {
-            timerRef.current = null;
-            setWaiting(false);
-            setAttempt((current) => current + 1);
-          }, thumbRetryDelayMs(attempt));
-          return;
-        }
-        setFailed(true);
-      }}
+      placeholderClassName="block h-full w-full bg-[#1c1c1e]"
+      onExhausted={() => setFailed(true)}
     />
   );
 }

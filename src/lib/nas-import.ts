@@ -9,7 +9,8 @@ import {
 import { bookingNotifyEmail } from "./email";
 import { categoryUsesMemberRoles } from "./member-role";
 import { db } from "./db";
-import { clients, media, shoots } from "./db/schema";
+import { bookings, clients, media, shoots, users } from "./db/schema";
+import { bookingsForDeliveredShoot } from "./delivery-match";
 import { listMemberUsers } from "./user-portals";
 import { isPendingClientEmail } from "./signup-fields";
 import { formatInviteCode, parseInviteSequence } from "./invite";
@@ -412,11 +413,27 @@ export async function syncNasShare(options?: {
       if (!becameReady) continue;
       result.ready += 1;
       const members = await listMemberUsers(client.id);
+      const bookingRows = await db
+        .select({
+          address: bookings.address,
+          startsAt: bookings.startsAt,
+          status: bookings.status,
+          userId: bookings.createdByUserId,
+          email: users.email,
+          notes: bookings.notes,
+        })
+        .from(bookings)
+        .leftJoin(users, eq(users.id, bookings.createdByUserId))
+        .where(eq(bookings.clientId, client.id));
       const recipients = deliveryNoticeRecipients({
         category: client.category,
         primaryEmail: client.primaryEmail,
         members: members.map((row) => ({ userId: row.id, email: row.email, role: row.memberRole })),
         notifyEmail: bookingNotifyEmail(),
+        contacts: bookingsForDeliveredShoot(
+          { address: shoot.address, shotDate: shoot.shotDate },
+          bookingRows,
+        ),
       });
       if (recipients.length === 0) {
         const message = categoryUsesMemberRoles(client.category)

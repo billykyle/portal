@@ -26,6 +26,7 @@ import {
   readFreshShareSession,
 } from "./nas-preview";
 import { isVercelRuntime } from "./runtime";
+import { isThumbnailGeneratingBody, THUMB_REQUEST_TIMEOUT_MS, ThumbnailNotReady } from "./thumb-status";
 
 export { isNasFilePath, nasEnabled } from "./nas-flags";
 
@@ -578,6 +579,7 @@ async function fetchNasThumbnailBytes(nasPath: string, timeoutMs: number) {
     const type = res.headers.get("content-type") ?? "";
     if (type.includes("application/json") || type.includes("text/") || !res.ok) {
       const body = await res.text();
+      if (isThumbnailGeneratingBody(body)) throw new ThumbnailNotReady();
       throw new Error(`NAS thumbnail failed: ${body.slice(0, 180)}`);
     }
     const bytes = await readCappedBytes(res, MAX_PREVIEW_BYTES);
@@ -594,30 +596,41 @@ async function fetchNasThumbnailBytes(nasPath: string, timeoutMs: number) {
   });
 }
 
-/** Small NAS thumbnail bytes. Disk cache is same-isolate scratch; Postgres is durable. */
-export async function loadNasThumbnailBytes(nasPath: string) {
+async function readThumbCache(nasPath: string) {
   const hit = await cachedFile("thumbs", `${nasPath}#t1`, "jpg");
-  if (hit) {
+  if (!hit) return null;
+  try {
+    const bytes = await readFile(/* turbopackIgnore: true */ hit);
+    const contentType = acceptedPreview("image/jpeg", bytes.length);
+    if (contentType) return { bytes, contentType };
+  } catch {
+    /* Refetch when the scratch file is unreadable or a full-size original. */
+  }
+  return null;
+}
+
+/**
+ * Small NAS thumbnail bytes. Disk cache is same-isolate scratch; Postgres is durable.
+ * `request` is the grid route: one short try, then ThumbnailNotReady. The warm
+ * script still waits out a disk spin-up.
+ */
+export async function loadNasThumbnailBytes(nasPath: string, options?: { request?: boolean }) {
+  const cached = await readThumbCache(nasPath);
+  if (cached) return cached;
+
+  if (options?.request) {
     try {
-      const bytes = await readFile(/* turbopackIgnore: true */ hit);
-      const contentType = acceptedPreview("image/jpeg", bytes.length);
-      if (contentType) return { bytes, contentType };
-    } catch {
-      /* Refetch when the scratch file is unreadable or a full-size original. */
+      return await fetchNasThumbnailBytes(nasPath, THUMB_REQUEST_TIMEOUT_MS);
+    } catch (error) {
+      if (error instanceof ThumbnailNotReady) throw error;
+      if (isNasUnreachableError(error)) throw new ThumbnailNotReady();
+      throw error;
     }
   }
 
   return queueNasThumbnail(async () => {
-    const again = await cachedFile("thumbs", `${nasPath}#t1`, "jpg");
-    if (again) {
-      try {
-        const bytes = await readFile(/* turbopackIgnore: true */ again);
-        const contentType = acceptedPreview("image/jpeg", bytes.length);
-        if (contentType) return { bytes, contentType };
-      } catch {
-        /* The winner of the queue writes the scratch file; otherwise refetch. */
-      }
-    }
+    const again = await readThumbCache(nasPath);
+    if (again) return again;
     return withThumbSpinup((timeoutMs) => fetchNasThumbnailBytes(nasPath, timeoutMs), {
       onWake: pokeThumbnailWake,
     });

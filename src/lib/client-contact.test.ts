@@ -254,6 +254,72 @@ test("a category with no roles still emails every signed-up login", () => {
   );
 });
 
+test("an agent gets the delivery notice for a shoot they booked or are attached to", () => {
+  const members = [
+    { userId: "lead", email: "lead@compass.com", role: "team_lead" },
+    { userId: "assist", email: "assist@compass.com", role: "assistant" },
+    { userId: "melissa", email: "melissa.oeth@compass.com", role: "agent" },
+    { userId: "other", email: "other.agent@compass.com", role: "agent" },
+    { userId: "blank", email: "blank@compass.com", role: null },
+  ];
+  assert.deepEqual(
+    deliveryNoticeRecipients({
+      category: "real_estate",
+      primaryEmail: "office@compass.com",
+      members,
+      notifyEmail: "billy@billyhere.com",
+      contacts: [{ userId: "melissa", email: "melissa.oeth@compass.com", notes: "cc desk@compass.com" }],
+    }),
+    [
+      "lead@compass.com",
+      "assist@compass.com",
+      "melissa.oeth@compass.com",
+      "office@compass.com",
+      "desk@compass.com",
+    ],
+  );
+
+  const otherShoot = deliveryNoticeRecipients({
+    category: "real_estate",
+    primaryEmail: "office@compass.com",
+    members,
+    notifyEmail: "billy@billyhere.com",
+    contacts: [{ userId: "other", email: "other.agent@compass.com" }],
+  });
+  assert.equal(otherShoot.includes("melissa.oeth@compass.com"), false);
+  assert.equal(otherShoot.includes("other.agent@compass.com"), true);
+  assert.equal(otherShoot.includes("blank@compass.com"), false);
+  assert.equal(otherShoot.includes("office@compass.com"), true);
+
+  assert.deepEqual(
+    deliveryNoticeRecipients({
+      category: "real_estate",
+      primaryEmail: "office@compass.com",
+      members,
+      notifyEmail: "billy@billyhere.com",
+      contacts: [{ userId: "blank", email: "blank@compass.com" }],
+    }).filter((email) => email === "blank@compass.com"),
+    ["blank@compass.com"],
+  );
+
+  const both = deliveryNoticeRecipients({
+    category: "real_estate",
+    primaryEmail: "melissa.oeth@compass.com",
+    members,
+    notifyEmail: "billy@billyhere.com",
+    contacts: [
+      { userId: "melissa", email: "melissa.oeth@compass.com", notes: "cc desk@compass.com" },
+      { userId: "other", email: "other.agent@compass.com", notes: "cc second@compass.com" },
+    ],
+  });
+  assert.equal(both.includes("melissa.oeth@compass.com"), true);
+  assert.equal(both.includes("other.agent@compass.com"), true);
+  assert.equal(both.includes("desk@compass.com"), true);
+  assert.equal(both.includes("second@compass.com"), true);
+  assert.equal(both.filter((email) => email === "lead@compass.com").length, 1);
+  assert.equal(both.includes("billy@billyhere.com"), false);
+});
+
 test("delivery notices use roles only when the category has them", () => {
   const members = [
     { userId: "lead", email: "lead@compass.com", role: "team_lead" },

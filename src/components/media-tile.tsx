@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { ThumbImage } from "@/components/retrying-thumb";
 import { SelectionMark, useShootSelection } from "@/components/shoot-selection";
-import { acquirePreviewSlot, PREVIEW_NEAR_MARGIN } from "@/lib/preview-queue";
-import { THUMB_RETRY_LIMIT, thumbRetryDelayMs, withThumbRetry } from "@/lib/thumb-retry";
 
 export function MediaTile({
   id,
@@ -26,110 +25,27 @@ export function MediaTile({
   /** In the first HTML so the opening rows start before hydration. */
   eager?: boolean;
 }) {
-  const frameRef = useRef<HTMLElement>(null);
-  const releaseRef = useRef<(() => void) | null>(null);
-  const retryTimerRef = useRef<number | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const [manualRetry, setManualRetry] = useState(0);
   const [failed, setFailed] = useState(false);
-  const [waiting, setWaiting] = useState(false);
-  const [near, setNear] = useState(eager);
-  const [slotReady, setSlotReady] = useState(eager);
-  const bypassSlot = eager && attempt === 0 && manualRetry === 0 && !waiting;
+  const [manualRetry, setManualRetry] = useState(0);
   const aspectClass = ratio === "3/2" ? "aspect-[3/2]" : "aspect-square";
   const fitClass = contain ? "object-contain p-1" : "object-cover";
-
-  useEffect(() => {
-    if (near) return;
-    const node = frameRef.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
-      setNear(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setNear(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: PREVIEW_NEAR_MARGIN },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [near]);
-
-  useEffect(() => {
-    return () => {
-      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (bypassSlot || !near || waiting) return;
-    let cancelled = false;
-    let release: (() => void) | null = null;
-    void acquirePreviewSlot().then((done) => {
-      if (cancelled) {
-        done();
-        return;
-      }
-      release = done;
-      releaseRef.current = done;
-      setSlotReady(true);
-    });
-    return () => {
-      cancelled = true;
-      release?.();
-      if (releaseRef.current === release) releaseRef.current = null;
-      setSlotReady(false);
-    };
-  }, [bypassSlot, near, waiting, attempt, manualRetry]);
-
-  function finishSlot() {
-    releaseRef.current?.();
-    releaseRef.current = null;
-  }
-
-  const showImage = near && !failed && !waiting && (bypassSlot || slotReady);
   const selection = useShootSelection();
   const selecting = Boolean(selection?.selecting && id);
   const selected = Boolean(id && selection?.selected.has(id));
-  const image = showImage ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      key={attempt + manualRetry}
-      src={withThumbRetry(src, attempt + manualRetry)}
+  const image = failed ? null : (
+    <ThumbImage
+      key={manualRetry}
+      src={src}
       alt=""
-      loading={eager ? "eager" : "lazy"}
-      decoding="async"
-      onLoad={finishSlot}
-      onError={() => {
-        if (attempt < THUMB_RETRY_LIMIT) {
-          if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
-          finishSlot();
-          setWaiting(true);
-          retryTimerRef.current = window.setTimeout(() => {
-            retryTimerRef.current = null;
-            setWaiting(false);
-            setAttempt((current) => current + 1);
-          }, thumbRetryDelayMs(attempt));
-          return;
-        }
-        finishSlot();
-        setFailed(true);
-      }}
+      eager={eager}
       className={`${aspectClass} w-full ${fitClass}`}
+      placeholderClassName={`${aspectClass} block w-full`}
+      onExhausted={() => setFailed(true)}
     />
-  ) : (
-    <div className={`${aspectClass} w-full`} />
   );
 
   return (
-    <figure
-      ref={frameRef}
-      className={`relative overflow-hidden rounded-lg ${contain ? "bg-white" : "bg-[#111]"}`}
-    >
+    <figure className={`relative overflow-hidden rounded-lg ${contain ? "bg-white" : "bg-[#111]"}`}>
       {selecting ? (
         <button
           type="button"
@@ -153,11 +69,7 @@ export function MediaTile({
         <button
           type="button"
           onClick={() => {
-            if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
-            retryTimerRef.current = null;
-            setWaiting(false);
             setFailed(false);
-            setAttempt(0);
             setManualRetry((current) => current + 1);
           }}
           className={`${aspectClass} flex w-full flex-col items-center justify-center gap-1 bg-[#1c1c1e] px-2 text-center text-[11px] leading-tight text-[#8e8e93]`}

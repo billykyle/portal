@@ -79,9 +79,10 @@
  *    unless that same id is theirs, so the booker still gets their own
  *    mail. A stored role that the current category does not list is blank
  *    for this filter. A primary address that is not a signed-up login is
- *    still included. Notes addresses are still included. The NAS delivery
- *    hook has no booking, so Agent and blank are not on that recipient
- *    list. Billy's notify
+ *    still included. Notes addresses are still included. The delivery
+ *    notice uses the same list. It matches the folder to the confirmed
+ *    booking with that address and Eastern shoot date, so Agent and a
+ *    blank role are included when `createdByUserId` is theirs. Billy's notify
  *    and sync-issue mail are not copied to them. A lockbox code in Notes is
  *    the only notes text copied into the calendar title, exactly as typed.
  *    When `calendarEventId` is present, also DELETE the Work calendar event

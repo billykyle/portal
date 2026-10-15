@@ -4,10 +4,10 @@ import { CLIENT_BOOKING_FLAGS, modifyClientAgentBooking, selectOfferedClientSlot
 import type { OfferedSlot } from "@/lib/scheduling/availability";
 
 const slot: OfferedSlot = {
-  start: "2026-10-14T14:00:00.000Z",
-  end: "2026-10-14T14:45:00.000Z",
-  dateKey: "2026-10-14",
-  dateLabel: "Wed, Oct 14",
+  start: "2026-10-21T14:00:00.000Z",
+  end: "2026-10-21T14:45:00.000Z",
+  dateKey: "2026-10-21",
+  dateLabel: "Wed, Oct 21",
   timeLabel: "10:00–10:45 AM",
   driveSecondsFromPrior: 0,
 };
@@ -32,7 +32,7 @@ test("client slot selection rejects a time that is not offered and a past start"
   const past = selectOfferedClientSlot({
     slots: [slot],
     startsAt: slot.start,
-    now: new Date("2026-10-14T15:00:00.000Z"),
+    now: new Date("2026-10-21T15:00:00.000Z"),
     timeZone: "America/New_York",
   });
   assert.equal(past.ok, false);

@@ -3,13 +3,15 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ThumbImage } from "@/components/retrying-thumb";
 import { downloadHref } from "@/lib/download-all";
+import { THUMB_RETRY_LIMIT, thumbRetryDelayWithJitter, withThumbRetry } from "@/lib/thumb-retry";
 import {
   clampPhotoIndex,
   indexOfPhoto,
   photoViewerHref,
   preloadPhotoSrcs,
-  preloadStandInSrcs,
+  reelThumbInInitialWindow,
   replaceViewerUrl,
   shouldPaintViewerImage,
   stepPhotoIndex,
@@ -104,7 +106,7 @@ export function PhotoViewer({
     replaceViewerUrl(photoViewerHref(basePath, photoId));
   }, [basePath, photoId]);
 
-  const preloadKey = [...preloadPhotoSrcs(photos, safeIndex), ...preloadStandInSrcs(photos, safeIndex)].join("|");
+  const preloadKey = preloadPhotoSrcs(photos, safeIndex).join("|");
   useEffect(() => {
     if (!preloadKey) return;
     const images: HTMLImageElement[] = [];
@@ -445,15 +447,15 @@ function PhotoReel({
               style={{ width: "var(--reel-thumb-w)", height: "var(--reel-thumb-h)" }}
             >
               {thumb ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <ThumbImage
                   src={thumb}
                   alt=""
-                  draggable={false}
-                  decoding="async"
+                  eager={reelThumbInInitialWindow(itemIndex, index)}
                   loading={active ? "eager" : "lazy"}
-                  data-reel-thumb=""
+                  reel
+                  draggable={false}
                   className="pointer-events-none h-full w-full object-cover"
+                  placeholderClassName="pointer-events-none block h-full w-full bg-white/10"
                 />
               ) : null}
             </button>
@@ -477,8 +479,13 @@ export function ViewerStill({
 }) {
   const original = viewerOriginalSrc(photo);
   const [readyId, setReadyId] = useState<string | null>(null);
+  const [thumbAttempt, setThumbAttempt] = useState(0);
+  const [thumbWaiting, setThumbWaiting] = useState(false);
+  const [thumbGaveUp, setThumbGaveUp] = useState(false);
+  const thumbTimerRef = useRef<number | null>(null);
   const originalReady = readyId === photo.id;
-  const src = viewerStageSrc(photo, originalReady);
+  const stage = viewerStageSrc(photo, originalReady);
+  const src = !originalReady && thumbAttempt > 0 ? withThumbRetry(stage, thumbAttempt) : stage;
   const showingOriginal = src === original;
   const limit: React.CSSProperties = {
     maxWidth: "100%",
@@ -486,6 +493,12 @@ export function ViewerStill({
     height: "auto",
     maxHeight: `calc(100cqh - (${viewerStackReserve()}))`,
   };
+
+  useEffect(() => {
+    return () => {
+      if (thumbTimerRef.current !== null) window.clearTimeout(thumbTimerRef.current);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     // Decode off the DOM. WebKit keeps the previous bitmap when `src` changes
@@ -511,6 +524,21 @@ export function ViewerStill({
     };
   }, [onReady, original, photo.id]);
 
+  if (!originalReady && (thumbWaiting || thumbGaveUp)) {
+    return (
+      <div
+        data-photo-id={photo.id}
+        data-photo-thumb=""
+        className={
+          layout === "fill"
+            ? "pointer-events-none absolute inset-0 z-10 bg-white/10"
+            : "pointer-events-none relative z-10 bg-white/10"
+        }
+        style={layout === "fill" ? undefined : limit}
+      />
+    );
+  }
+
   return (
     // A new photo id mounts a new element. The previous photo is not left in the tree.
     // eslint-disable-next-line @next/next/no-img-element
@@ -529,6 +557,21 @@ export function ViewerStill({
           : "pointer-events-none relative z-10 block max-w-full object-contain"
       }
       style={layout === "fill" ? undefined : limit}
+      onError={() => {
+        if (showingOriginal) return;
+        if (thumbAttempt >= THUMB_RETRY_LIMIT) {
+          setThumbGaveUp(true);
+          return;
+        }
+        if (thumbTimerRef.current !== null) window.clearTimeout(thumbTimerRef.current);
+        setThumbWaiting(true);
+        const delay = thumbRetryDelayWithJitter(thumbAttempt, Math.random());
+        thumbTimerRef.current = window.setTimeout(() => {
+          thumbTimerRef.current = null;
+          setThumbWaiting(false);
+          setThumbAttempt((current) => current + 1);
+        }, delay);
+      }}
     />
   );
 }
