@@ -1,3 +1,5 @@
+import { isZipExcludedVideo, videoOmissionNote } from "./mux-policy";
+
 export const ZIP_MEDIA_TYPES = ["photo", "floor_plan", "video", "raw_video"] as const;
 export type ZipMediaType = (typeof ZIP_MEDIA_TYPES)[number];
 
@@ -47,15 +49,35 @@ export function zipScopeFolderName(
   return `${folderName} - ${types.map((type) => zipTypeLabel(type)).join(" + ")}`;
 }
 
+/** Photos and floor plans stay in the zip. Video is downloaded on its own. */
+export function zipStillTypes(present: readonly ZipMediaType[]) {
+  return present.filter((type) => !isZipExcludedVideo(type));
+}
+
 export function zipDownloadOptions(present: ZipMediaType[]) {
+  const stills = zipStillTypes(present);
   const options: Array<{ id: "all" | ZipMediaType; label: string }> = [];
-  if (present.length > 1) {
+  if (stills.length > 1) {
     options.push({ id: "all", label: "Everything" });
   }
-  for (const type of present) {
+  for (const type of stills) {
     options.push({ id: type, label: zipTypeLabel(type) });
   }
   return options;
+}
+
+export function partitionZipFiles<T extends { type?: string; filename: string }>(files: readonly T[]) {
+  const included: T[] = [];
+  const omitted: T[] = [];
+  for (const file of files) {
+    if (isZipExcludedVideo(file.type)) omitted.push(file);
+    else included.push(file);
+  }
+  const note =
+    omitted.length > 0
+      ? { filename: "VIDEOS.txt", text: videoOmissionNote(omitted.map((file) => file.filename)) }
+      : null;
+  return { files: included, omitted, note };
 }
 
 export function withZipTypes(zipUrl: string, types: ZipMediaType[] | "all") {

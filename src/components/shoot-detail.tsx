@@ -8,6 +8,7 @@ import { ShootSectionNav } from "@/components/shoot-section-nav";
 import { StillLayout } from "@/components/still-layout";
 import { VideoLayout } from "@/components/video-layout";
 import type { PlayerRendition } from "@/components/video-player";
+import { downloadMode, type MuxPlaybackView } from "@/lib/mux-policy";
 import { isPdfFilename, mediaLabel, mediaSectionId } from "@/lib/media";
 import { photoViewerHref } from "@/lib/photo-viewer";
 import { shootSectionLayout } from "@/lib/shoot-layout";
@@ -23,6 +24,7 @@ export type ShootMedia = {
   height?: number | null;
   byteSize?: number | null;
   renditions?: PlayerRendition[];
+  mux?: MuxPlaybackView | null;
 };
 
 export function ShootDetail({
@@ -74,7 +76,14 @@ export function ShootDetail({
 
   return (
     <ShootSelection
-      items={media.map((item) => ({ id: item.id, url: item.url, filename: item.filename }))}
+      items={media.map((item) => ({
+        id: item.id,
+        url: item.url,
+        filename: item.filename,
+        type: item.type,
+        downloadUrl: item.mux?.downloadUrl ?? null,
+        downloadPending: item.type === "video" && downloadMode(item.mux) === "preparing",
+      }))}
       zipUrl={zipUrl}
       folderName={folderName}
     >

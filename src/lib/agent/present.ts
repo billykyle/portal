@@ -1,3 +1,4 @@
+import { publicMuxStatus } from "@/lib/mux-policy";
 import { publicShootUrl } from "@/lib/public-link";
 
 export function notesSummary(notes: string | null | undefined, max = 140) {
@@ -59,6 +60,11 @@ export type MediaInventoryItem = {
   type: string;
   filename: string;
   sortOrder: number;
+  muxAssetId?: string | null;
+  muxPlaybackId?: string | null;
+  muxStatus?: string | null;
+  muxStaticStatus?: string | null;
+  muxError?: string | null;
 };
 
 export function summarizeMedia(items: MediaInventoryItem[]) {
@@ -71,7 +77,21 @@ export function summarizeMedia(items: MediaInventoryItem[]) {
       .map(({ id, filename, sortOrder }) => ({ id, filename, sortOrder }));
   const photos = pick("photo");
   const floorPlans = pick("floor_plan");
-  const videos = pick("video");
+  const videos = sorted
+    .filter((item) => item.type === "video")
+    .map((item) => ({
+      id: item.id,
+      filename: item.filename,
+      sortOrder: item.sortOrder,
+      mux: publicMuxStatus({
+        type: "video",
+        muxAssetId: item.muxAssetId ?? null,
+        muxPlaybackId: item.muxPlaybackId ?? null,
+        muxStatus: item.muxStatus ?? null,
+        muxStaticStatus: item.muxStaticStatus ?? null,
+        muxError: item.muxError ?? null,
+      }),
+    }));
   const rawVideos = pick("raw_video");
   const counts = {
     photo: photos.length,

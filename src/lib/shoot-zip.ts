@@ -7,6 +7,7 @@ import { uniqueZipEntryName, zipDownloadName } from "./download-all";
 import {
   filterFilesByZipTypes,
   parseZipTypesParam,
+  partitionZipFiles,
   presentMediaTypes,
   zipScopeFolderName,
 } from "./download-scope";
@@ -106,6 +107,7 @@ export function streamStoredZip(options: {
   entries: StoredZipEntry[];
   folderName: string;
   approxBytes?: number | null;
+  note?: { filename: string; text: string } | null;
   onFile?: (info: { filesDone: number; filesTotal: number; bytes: number }) => void | Promise<void>;
   onDone?: () => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
@@ -177,6 +179,9 @@ export function streamStoredZip(options: {
       );
     });
   }
+  if (options.note) {
+    zip.addBuffer(Buffer.from(options.note.text), options.note.filename, { compress: false });
+  }
   zip.end();
 
   const stream = Readable.toWeb(output) as ReadableStream<Uint8Array>;
@@ -198,6 +203,7 @@ export function streamSelectionZip(options: {
   folderName: string;
   origin: string;
   approxBytes?: number | null;
+  note?: { filename: string; text: string } | null;
   onFile?: (info: { filesDone: number; filesTotal: number; bytes: number }) => void | Promise<void>;
   onDone?: () => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
@@ -209,6 +215,7 @@ export function streamSelectionZip(options: {
     })),
     folderName: options.folderName,
     approxBytes: options.approxBytes,
+    note: options.note,
     onFile: options.onFile,
     onDone: options.onDone,
     onError: options.onError,
@@ -220,6 +227,7 @@ export function streamShootZip(options: {
   folderName: string;
   origin: string;
   approxBytes?: number | null;
+  note?: { filename: string; text: string } | null;
   onFile?: (info: { filesDone: number; filesTotal: number; bytes: number }) => void | Promise<void>;
   onDone?: () => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
@@ -241,6 +249,9 @@ export function streamShootZip(options: {
           filesTotal: options.files.length,
           bytes: packed,
         });
+      }
+      if (options.note) {
+        zip.addBuffer(Buffer.from(options.note.text), options.note.filename, { compress: false });
       }
       zip.end();
     } catch (error) {

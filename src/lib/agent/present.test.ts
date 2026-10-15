@@ -64,11 +64,26 @@ test("media inventory counts types and treats an empty shoot as not ready", () =
   assert.deepEqual(summary.rawVideos, []);
   const withRaw = summarizeMedia([
     { id: "r1", type: "raw_video", filename: "Raw Video/A001.mov", sortOrder: 2 },
-    { id: "v1", type: "video", filename: "walk.mp4", sortOrder: 1 },
+    {
+      id: "v1",
+      type: "video",
+      filename: "walk.mp4",
+      sortOrder: 1,
+      muxStatus: "preparing",
+      muxAssetId: "asset-1",
+      muxStaticStatus: "preparing",
+    },
   ]);
   assert.equal(withRaw.counts.raw_video, 1);
   assert.equal(withRaw.counts.video, 1);
   assert.deepEqual(withRaw.rawVideos.map((item) => item.filename), ["Raw Video/A001.mov"]);
+  assert.deepEqual(withRaw.videos[0]?.mux, {
+    status: "preparing",
+    assetId: "asset-1",
+    playbackId: null,
+    staticStatus: "preparing",
+    error: null,
+  });
   assert.equal(summarizeMedia([]).ready, false);
 });
 

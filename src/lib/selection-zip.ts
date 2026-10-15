@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { zipDownloadName } from "@/lib/download-all";
 import { shootFolderName } from "@/lib/media";
 import { filesForSelection, readSelectionIds } from "@/lib/shoot-selection";
+import { partitionZipFiles } from "@/lib/download-scope";
 import { approxZipSourceBytes, streamSelectionZip, type ZipSourceFile } from "@/lib/shoot-zip";
 import { trackShootZipJob } from "@/lib/zip-jobs";
 
@@ -24,18 +25,20 @@ export async function selectionZipResponse(
 
   try {
     const folderName = shootFolderName(shoot.shotDate, shoot.address);
-    const approxBytes = await approxZipSourceBytes(picked.files);
+    const parted = partitionZipFiles(picked.files);
+    const approxBytes = await approxZipSourceBytes(parted.files);
     const tracking = await trackShootZipJob({
       jobId: new URL(request.url).searchParams.get("job"),
       shootId: shoot.id,
-      filesTotal: picked.files.length,
+      filesTotal: Math.max(parted.files.length, parted.note ? 1 : 0),
       filename: zipDownloadName(folderName),
     });
     return streamSelectionZip({
-      files: picked.files,
+      files: parted.files,
       folderName,
       origin: new URL(request.url).origin,
       approxBytes,
+      note: parted.note,
       ...tracking,
     });
   } catch (error) {

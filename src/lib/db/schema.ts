@@ -160,6 +160,28 @@ export const media = pgTable("media", {
   height: integer("height"),
   byteSize: bigint("byte_size", { mode: "number" }),
   sortOrder: integer("sort_order").notNull().default(0),
+  /** Mux asset for finished video. Null for photos and raw clips. */
+  muxAssetId: text("mux_asset_id"),
+  muxPlaybackId: text("mux_playback_id"),
+  /** preparing, ready, or errored. Null until the file is sent to Mux. */
+  muxStatus: text("mux_status"),
+  /** preparing, ready, errored, or skipped. The MP4 download waits on ready. */
+  muxStaticStatus: text("mux_static_status"),
+  muxError: text("mux_error"),
+  /** NAS path and size at the last successful ingest. Unchanged files are not sent again. */
+  muxSourcePath: text("mux_source_path"),
+  muxSourceBytes: bigint("mux_source_bytes", { mode: "number" }),
+  muxUpdatedAt: timestamp("mux_updated_at", { withTimezone: true }),
+});
+
+/** One row. Signing key and webhook secret, created with the Mux API when the token allows it. */
+export const muxConfig = pgTable("mux_config", {
+  id: text("id").primaryKey(),
+  signingKeyId: text("signing_key_id"),
+  signingKeyPrivate: text("signing_key_private"),
+  webhookId: text("webhook_id"),
+  webhookSecret: text("webhook_secret"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const bookingStatusEnum = pgEnum("booking_status", ["requested", "confirmed", "cancelled", "queued"]);

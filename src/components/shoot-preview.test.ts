@@ -438,6 +438,66 @@ test("shoot video uses an in-page player with a browser-playable type", () => {
   assert.doesNotMatch(video, /href="[^"]*rendition=/);
 });
 
+test("a ready Mux video plays from Mux and a processing video does not stream the NAS file", () => {
+  const ready = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "107 Louis Drive",
+      dateLabel: "Oct 9, 2026",
+      folderName: "2026-10-09-107-louis",
+      media: [
+        {
+          id: "vid-mux",
+          url: "/api/media/vid-mux",
+          filename: "107 Louis Drive.mov",
+          type: "video",
+          width: 1920,
+          height: 1080,
+          mux: {
+            status: "ready",
+            playbackId: "playback-1",
+            token: "signed-token",
+            downloadUrl: "https://stream.mux.com/playback-1/highest.mp4?token=dl&download=107%20Louis%20Drive",
+            staticStatus: "ready",
+          },
+        },
+      ],
+    }),
+  );
+  const readyVideo = ready.slice(ready.indexOf('id="video"'));
+  assert.match(readyVideo, /data-playback-id="playback-1"/);
+  assert.doesNotMatch(readyVideo, /<source /);
+  assert.match(readyVideo, /href="https:\/\/stream\.mux\.com\/playback-1\/highest\.mp4/);
+  const processing = renderToStaticMarkup(
+    createElement(ShootDetail, {
+      basePath: "/shoots/shoot-1",
+      address: "107 Louis Drive",
+      dateLabel: "Oct 9, 2026",
+      folderName: "2026-10-09-107-louis",
+      media: [
+        {
+          id: "vid-wait",
+          url: "/api/media/vid-wait",
+          filename: "107 Louis Drive.mov",
+          type: "video",
+          mux: {
+            status: "preparing",
+            playbackId: null,
+            token: null,
+            downloadUrl: null,
+            staticStatus: "preparing",
+          },
+        },
+      ],
+    }),
+  );
+  const waiting = processing.slice(processing.indexOf('id="video"'));
+  assert.match(waiting, /Processing/);
+  assert.match(waiting, /Preparing download/);
+  assert.doesNotMatch(waiting, /<video\b|<source /);
+  assert.doesNotMatch(waiting, /href="\/api\/media\/vid-wait"/);
+});
+
 test("videos play at their own ratio and default to a lighter rendition", () => {
   const html = renderToStaticMarkup(
     createElement(ShootDetail, {

@@ -123,6 +123,11 @@ export async function listShootMedia(shootId: string) {
       type: media.type,
       filename: media.filename,
       sortOrder: media.sortOrder,
+      muxAssetId: media.muxAssetId,
+      muxPlaybackId: media.muxPlaybackId,
+      muxStatus: media.muxStatus,
+      muxStaticStatus: media.muxStaticStatus,
+      muxError: media.muxError,
     })
     .from(media)
     .where(eq(media.shootId, shootId));

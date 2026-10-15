@@ -38,8 +38,9 @@ export function ShootActions({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const present = presentMediaTypes(files);
-  const needsPicker = present.length > 1;
   const options = zipDownloadOptions(present);
+  const needsPicker = options.length > 1;
+  const videosAside = present.some((type) => type === "video" || type === "raw_video");
   const selection = useShootSelection();
 
   function report(next: ZipJobProgress) {
@@ -78,11 +79,12 @@ export function ShootActions({
   function onDownloadClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
     if (pending || files.length === 0) return;
+    if (options.length === 0) return;
     if (needsPicker) {
       setMenuOpen((open) => !open);
       return;
     }
-    void startDownload("all");
+    void startDownload(options[0].id);
   }
 
   useEffect(() => {
@@ -129,7 +131,7 @@ export function ShootActions({
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onDownloadClick}
-            disabled={pending || files.length === 0}
+            disabled={pending || options.length === 0}
           aria-haspopup={needsPicker ? "menu" : undefined}
           aria-expanded={needsPicker ? menuOpen : undefined}
           aria-controls={needsPicker ? menuId : undefined}
@@ -192,6 +194,12 @@ export function ShootActions({
             />
           </div>
         </div>
+      ) : null}
+      {options.length === 0 && videosAside ? (
+        <p className="text-xs text-[#8e8e93]">Each video downloads from its own row.</p>
+      ) : null}
+      {options.length > 0 && videosAside ? (
+        <p className="text-xs text-[#8e8e93]">Videos download one at a time. This zip is photos and floor plans.</p>
       ) : null}
       {status ? <p className="text-xs text-[#8e8e93]">{status}</p> : null}
       {pending && progress && (progress.state === "preparing" || progress.state === "downloading") ? (

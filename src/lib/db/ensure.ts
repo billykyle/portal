@@ -163,6 +163,24 @@ async function createTables() {
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS width integer`;
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS height integer`;
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS byte_size bigint`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_asset_id text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_playback_id text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_status text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_static_status text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_error text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_source_path text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_source_bytes bigint`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_updated_at timestamptz`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS mux_config (
+      id text PRIMARY KEY,
+      signing_key_id text,
+      signing_key_private text,
+      webhook_id text,
+      webhook_secret text,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
   await sql`
     CREATE TABLE IF NOT EXISTS media_renditions (
       media_id uuid NOT NULL REFERENCES media(id) ON DELETE CASCADE,

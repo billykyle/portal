@@ -25,6 +25,7 @@ import {
   type BookingWhen,
 } from "@/lib/agent/present";
 import { db } from "@/lib/db";
+import { backfillMuxVideos as runMuxBackfill } from "@/lib/mux-ingest";
 import {
   listConnectedAgents,
   revokeOneAgentToken,
@@ -236,6 +237,7 @@ export type AgentOps = {
   revokeClientAgentConnection(input: ClientAgentAccessInput & { tokenId: string }): Promise<
     { ok: true; clientId: string; tokenId: string } | { ok: false; error: string }
   >;
+  backfillMuxVideos(input: { shootId?: string; force?: boolean }): Promise<import("@/lib/mux-ingest").MuxBackfillReport>;
 };
 
 export type ClientAgentAccessInput = {
@@ -272,7 +274,18 @@ export type ShootSummary = {
 export type ShootDetail = ShootSummary & {
   photos: { id: string; filename: string; sortOrder: number }[];
   floorPlans: { id: string; filename: string; sortOrder: number }[];
-  videos: { id: string; filename: string; sortOrder: number }[];
+  videos: {
+    id: string;
+    filename: string;
+    sortOrder: number;
+    mux: {
+      status: string | null;
+      assetId: string | null;
+      playbackId: string | null;
+      staticStatus: string | null;
+      error: string | null;
+    } | null;
+  }[];
   rawVideos: { id: string; filename: string; sortOrder: number }[];
 };
 
@@ -804,5 +817,9 @@ export const portalAgentOps: AgentOps = {
     const removed = await revokeOneAgentToken(found.value.id, tokenId);
     if (!removed) return { ok: false, error: "Connected agent was not found." };
     return { ok: true, clientId: found.value.id, tokenId };
+  },
+
+  async backfillMuxVideos(input) {
+    return runMuxBackfill({ shootId: input.shootId, force: input.force });
   },
 };

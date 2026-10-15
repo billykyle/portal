@@ -441,6 +441,15 @@ export async function runAgentTool(
         revalidate: refresh(`/admin/clients/${result.clientId}`),
       };
     }
+    case "backfill_mux_videos": {
+      const shootId = optionalText(args.shootId);
+      const force = args.force === true;
+      const result = await ops.backfillMuxVideos({
+        shootId: shootId || undefined,
+        force,
+      });
+      return { ok: true, data: result, revalidate: [] };
+    }
     case "get_shoot_share_link": {
       const shootId = text(args.shootId).trim();
       if (!shootId) return { ok: false, error: "Shoot id is required." };
