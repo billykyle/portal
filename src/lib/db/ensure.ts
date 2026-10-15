@@ -193,19 +193,11 @@ async function createTables() {
       status text NOT NULL,
       shoot_id text,
       force boolean NOT NULL DEFAULT false,
-      allow_daytime boolean NOT NULL DEFAULT false,
       report text,
       error text,
       started_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now(),
       finished_at timestamptz
-    )
-  `;
-  await sql`ALTER TABLE mux_backfill_jobs ADD COLUMN IF NOT EXISTS allow_daytime boolean NOT NULL DEFAULT false`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS mux_daytime_grants (
-      media_id text PRIMARY KEY,
-      expires_at timestamptz NOT NULL
     )
   `;
   await sql`

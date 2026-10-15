@@ -62,6 +62,6 @@ test("mux backfill returns setup before the NAS ingest continues", () => {
   assert.match(ingest, /muxSubmitBudget/);
   assert.match(ingest, /nasSyncIsActive/);
   assert.match(tools, /reportOnly/);
-  assert.match(tools, /allowDaytime/);
-  assert.match(backfill, /allowDaytime/);
+  assert.doesNotMatch(tools, /allowDaytime|11pm to 6am/);
+  assert.doesNotMatch(backfill, /allowDaytime|muxIngestAllowedAt/);
 });
