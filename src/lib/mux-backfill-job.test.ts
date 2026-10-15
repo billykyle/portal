@@ -55,5 +55,9 @@ test("mux backfill returns setup before the NAS ingest continues", () => {
   assert.match(api, /AbortSignal\.timeout\(15_000\)/);
   assert.match(api, /\/system\/v1\/webhooks/);
   assert.doesNotMatch(api, /\/video\/v1\/webhooks/);
+  assert.match(api, /error\.status !== 429/);
+  const ingest = readFileSync(new URL("./mux-ingest.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(ingest, /worker\(\), worker\(\), worker\(\)/);
+  assert.match(ingest, /setTimeout\(resolve, 1100\)/);
   assert.match(tools, /reportOnly/);
 });

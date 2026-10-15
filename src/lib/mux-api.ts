@@ -26,10 +26,21 @@ export type MuxAsset = {
 export type MuxSigningKey = { id: string; private_key?: string };
 export type MuxWebhook = { id: string; url?: string; address?: string; signing_secret?: string };
 
-async function muxFetch<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const creds = muxCredentials();
-  if (!creds) throw new MuxApiError(0, "Mux tokens are not set.");
-  const auth = Buffer.from(`${creds.id}:${creds.secret}`).toString("base64");
+function muxErrorMessage(parsed: unknown, text: string, status: number) {
+  const record =
+    parsed && typeof parsed === "object"
+      ? (parsed as { error?: { messages?: string[]; message?: string }; errors?: string[] })
+      : null;
+  return (
+    record?.error?.messages?.filter(Boolean).join(" ") ||
+    record?.error?.message ||
+    record?.errors?.filter(Boolean).join(" ") ||
+    text.slice(0, 240) ||
+    `Mux returned ${status}.`
+  );
+}
+
+async function muxFetchOnce<T>(path: string, init: { method?: string; body?: unknown }, auth: string): Promise<T> {
   const res = await fetch(`https://api.mux.com${path}`, {
     method: init.method ?? "GET",
     headers: {
@@ -50,16 +61,22 @@ async function muxFetch<T>(path: string, init: { method?: string; body?: unknown
       parsed = null;
     }
   }
-  if (!res.ok) {
-    const record = parsed && typeof parsed === "object" ? (parsed as { error?: { messages?: string[]; message?: string } }) : null;
-    const message =
-      record?.error?.messages?.filter(Boolean).join(" ") ||
-      record?.error?.message ||
-      text.slice(0, 240) ||
-      `Mux returned ${res.status}.`;
-    throw new MuxApiError(res.status, message);
-  }
+  if (!res.ok) throw new MuxApiError(res.status, muxErrorMessage(parsed, text, res.status));
   return parsed as T;
+}
+
+async function muxFetch<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const creds = muxCredentials();
+  if (!creds) throw new MuxApiError(0, "Mux tokens are not set.");
+  const auth = Buffer.from(`${creds.id}:${creds.secret}`).toString("base64");
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await muxFetchOnce<T>(path, init, auth);
+    } catch (error) {
+      if (!(error instanceof MuxApiError) || error.status !== 429 || attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+    }
+  }
 }
 
 export async function muxListAssets(limit = 1) {
