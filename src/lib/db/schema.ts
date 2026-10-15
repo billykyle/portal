@@ -184,6 +184,12 @@ export const muxConfig = pgTable("mux_config", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** One file a daytime backfill handed to Mux. The source route allows that file until this expires. */
+export const muxDaytimeGrants = pgTable("mux_daytime_grants", {
+  mediaId: text("media_id").primaryKey(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 /** One Mux original copy at a time. The source route refuses other files while a row is fresh. */
 export const muxNasPulls = pgTable("mux_nas_pulls", {
   mediaId: text("media_id").primaryKey(),
@@ -196,6 +202,7 @@ export const muxBackfillJobs = pgTable("mux_backfill_jobs", {
   status: text("status").notNull(),
   shootId: text("shoot_id"),
   force: boolean("force").notNull().default(false),
+  allowDaytime: boolean("allow_daytime").notNull().default(false),
   report: text("report"),
   error: text("error"),
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),

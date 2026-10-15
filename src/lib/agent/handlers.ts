@@ -445,10 +445,12 @@ export async function runAgentTool(
       const shootId = optionalText(args.shootId);
       const force = args.force === true;
       const reportOnly = args.reportOnly === true;
+      const allowDaytime = args.allowDaytime === true;
       const result = await ops.backfillMuxVideos({
         shootId: shootId || undefined,
         force,
         reportOnly,
+        allowDaytime,
       });
       return { ok: true, data: result, revalidate: [] };
     }

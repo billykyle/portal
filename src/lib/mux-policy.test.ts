@@ -8,9 +8,11 @@ import {
   muxDownloadStem,
   MUX_INGEST_OVERNIGHT_REASON,
   MUX_SOURCE_RETRY_AFTER_SECONDS,
+  muxBackfillMayStart,
   muxIngestAllowedAt,
   muxIngestClosedRetryAfterSeconds,
   muxIngestDecision,
+  muxSourceIngestAllowed,
   muxPosterUrl,
   muxSourceDecision,
   muxSubmitBudget,
@@ -108,9 +110,20 @@ test("Mux NAS pulls stay behind a sync and only run overnight", () => {
   assert.match(sync, /Left \$\{count\} finished/);
   assert.match(backfill, /nasSyncIsActive/);
   assert.match(backfill, /muxIngestAllowedAt/);
+  assert.match(backfill, /allowDaytime/);
   assert.match(backfill, /status: "deferred"/);
   const ingest = readFileSync(new URL("./mux-ingest.ts", import.meta.url), "utf8");
+  const gate = readFileSync(new URL("./mux-nas-gate.ts", import.meta.url), "utf8");
   assert.match(ingest, /muxIngestPause/);
+  assert.match(ingest, /noteDaytimeMuxPull/);
+  assert.match(gate, /mux_daytime_grants/);
+  assert.equal(muxBackfillMayStart({ syncActive: true, overnight: true, allowDaytime: true }), false);
+  assert.equal(muxBackfillMayStart({ syncActive: false, overnight: false, allowDaytime: false }), false);
+  assert.equal(muxBackfillMayStart({ syncActive: false, overnight: false, allowDaytime: true }), true);
+  assert.equal(muxBackfillMayStart({ syncActive: false, overnight: true, allowDaytime: false }), true);
+  assert.equal(muxSourceIngestAllowed({ overnight: false, daytimeGrant: false }), false);
+  assert.equal(muxSourceIngestAllowed({ overnight: false, daytimeGrant: true }), true);
+  assert.equal(muxSourceIngestAllowed({ overnight: true, daytimeGrant: false }), true);
 });
 
 test("player and download modes fall back when Mux is missing or still working", () => {

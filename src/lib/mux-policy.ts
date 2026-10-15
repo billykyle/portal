@@ -53,6 +53,20 @@ export function muxIngestAllowedAt(now: Date) {
   return hour >= MUX_INGEST_OPEN_HOUR || hour < MUX_INGEST_CLOSE_HOUR;
 }
 
+/**
+ * The backfill may start only overnight, unless this call passes allowDaytime.
+ * A running NAS sync always waits, including an explicit daytime run.
+ */
+export function muxBackfillMayStart(input: { syncActive: boolean; overnight: boolean; allowDaytime: boolean }) {
+  if (input.syncActive) return false;
+  return input.overnight || input.allowDaytime;
+}
+
+/** The source route is open overnight, or for a file this daytime run already handed to Mux. */
+export function muxSourceIngestAllowed(input: { overnight: boolean; daytimeGrant: boolean }) {
+  return input.overnight || input.daytimeGrant;
+}
+
 /** How long Mux should wait before asking for a file outside the overnight window. */
 export function muxIngestClosedRetryAfterSeconds(now: Date) {
   if (muxIngestAllowedAt(now)) return 0;
