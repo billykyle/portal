@@ -90,7 +90,7 @@ async function ensureSigningKey() {
     return { source: "created", message: undefined };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create a Mux signing key.";
-    if (error instanceof MuxApiError && (error.status === 401 || error.status === 403)) {
+    if (muxSetupForbidden(error)) {
       return { source: "missing", message: `${message} ${muxDashboardSteps()}` };
     }
     return { source: "missing", message };
@@ -117,11 +117,15 @@ async function ensureWebhook() {
     return { source: "created", address, message: undefined };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create the Mux webhook.";
-    if (error instanceof MuxApiError && (error.status === 401 || error.status === 403)) {
+    if (muxSetupForbidden(error)) {
       return { source: "missing", message: `${message} ${muxDashboardSteps()}`, address };
     }
     return { source: "missing", message, address };
   }
+}
+
+function muxSetupForbidden(error: unknown) {
+  return error instanceof MuxApiError && (error.status === 401 || error.status === 403 || error.status === 404);
 }
 
 export async function nasDirectFetchWorks(nasPath: string, fetchImpl: typeof fetch = fetch) {
