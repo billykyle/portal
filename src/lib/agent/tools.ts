@@ -351,10 +351,11 @@ export function createPortalMcpServer(ops: AgentOps) {
   );
   register(
     "backfill_mux_videos",
-    "Send finished shoot videos to Mux for playback and a web MP4 download. Omit shootId to cover every shoot. Unchanged files are skipped. force replaces the Mux asset even when the NAS file has not changed. The response includes whether the Mux token can list assets, signing-key and webhook setup, whether Mux can fetch the NAS URL directly, and one row per video. Raw video is not ingested. Does not email anyone.",
+    "Send finished shoot videos to Mux for playback and a web MP4 download. Omit shootId to cover every shoot. Unchanged files are skipped. force replaces the Mux asset even when the NAS file has not changed. Setup runs before the response: status blocked means the token cannot list assets or cannot create the signing key or webhook, and report.signing.message or report.webhook.message says what to create in the Mux dashboard. status started means setup succeeded and ingest continues in the background. Call again with reportOnly true to read the latest job without starting another. When job.status is done, job.report has submitted, refreshed, skipped, failed, directNasFetch, and one row per video. A running job is not started twice. Raw video is not ingested. Does not email anyone.",
     {
       shootId: z.string().optional().describe("Limit the backfill to one shoot UUID."),
       force: z.boolean().optional().describe("Replace existing Mux assets even when the file is unchanged."),
+      reportOnly: z.boolean().optional().describe("Read the latest backfill job and do not start another."),
     },
     write,
   );

@@ -184,6 +184,19 @@ export const muxConfig = pgTable("mux_config", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** One running Mux backfill. The report is stored when the background ingest finishes. */
+export const muxBackfillJobs = pgTable("mux_backfill_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  status: text("status").notNull(),
+  shootId: text("shoot_id"),
+  force: boolean("force").notNull().default(false),
+  report: text("report"),
+  error: text("error"),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
 export const bookingStatusEnum = pgEnum("booking_status", ["requested", "confirmed", "cancelled", "queued"]);
 
 export const bookings = pgTable("bookings", {

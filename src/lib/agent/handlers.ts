@@ -444,9 +444,11 @@ export async function runAgentTool(
     case "backfill_mux_videos": {
       const shootId = optionalText(args.shootId);
       const force = args.force === true;
+      const reportOnly = args.reportOnly === true;
       const result = await ops.backfillMuxVideos({
         shootId: shootId || undefined,
         force,
+        reportOnly,
       });
       return { ok: true, data: result, revalidate: [] };
     }
