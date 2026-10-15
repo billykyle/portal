@@ -6,13 +6,8 @@ import {
   isZipExcludedVideo,
   muxDisplaySize,
   muxDownloadStem,
-  MUX_INGEST_OVERNIGHT_REASON,
   MUX_SOURCE_RETRY_AFTER_SECONDS,
-  muxBackfillMayStart,
-  muxIngestAllowedAt,
-  muxIngestClosedRetryAfterSeconds,
   muxIngestDecision,
-  muxSourceIngestAllowed,
   muxPosterUrl,
   muxSourceDecision,
   muxSubmitBudget,
@@ -58,72 +53,49 @@ test("ingest skips non-video, unchanged ready files, and refreshes unfinished as
   assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: 10 }, true), "submit");
 });
 
-test("Mux NAS pulls stay behind a sync and only run overnight", () => {
-  const open = { ingestAllowed: true, closedRetryAfter: 0 };
+test("Mux NAS pulls stay behind a sync and copy one file at a time", () => {
   assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 0 }), 1);
   assert.equal(muxSubmitBudget({ preparing: 2, alreadySubmitted: 0 }), 0);
   assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 1 }), 0);
   assert.deepEqual(
-    muxSourceDecision({ ...open, syncActive: true, activePulls: 0, thisMediaAlreadyPulling: false }),
+    muxSourceDecision({ syncActive: true, activePulls: 0, thisMediaAlreadyPulling: false }),
     { allow: false, retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS },
   );
   assert.deepEqual(
-    muxSourceDecision({ ...open, syncActive: false, activePulls: 1, thisMediaAlreadyPulling: false }),
+    muxSourceDecision({ syncActive: false, activePulls: 1, thisMediaAlreadyPulling: false }),
     { allow: false, retryAfter: 30 },
   );
   assert.deepEqual(
-    muxSourceDecision({ ...open, syncActive: false, activePulls: 1, thisMediaAlreadyPulling: true }),
+    muxSourceDecision({ syncActive: false, activePulls: 1, thisMediaAlreadyPulling: true }),
     { allow: true },
   );
   assert.deepEqual(
-    muxSourceDecision({ ...open, syncActive: true, activePulls: 1, thisMediaAlreadyPulling: true }),
+    muxSourceDecision({ syncActive: true, activePulls: 1, thisMediaAlreadyPulling: true }),
     { allow: false, retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS },
   );
   assert.deepEqual(
-    muxSourceDecision({
-      syncActive: false,
-      ingestAllowed: false,
-      closedRetryAfter: 3600,
-      activePulls: 0,
-      thisMediaAlreadyPulling: true,
-    }),
-    { allow: false, retryAfter: 3600 },
+    muxSourceDecision({ syncActive: false, activePulls: 0, thisMediaAlreadyPulling: false }),
+    { allow: true },
   );
-  assert.equal(muxIngestAllowedAt(new Date("2026-10-16T02:59:00Z")), false);
-  assert.equal(muxIngestAllowedAt(new Date("2026-10-16T03:00:00Z")), true);
-  assert.equal(muxIngestAllowedAt(new Date("2026-10-15T09:59:00Z")), true);
-  assert.equal(muxIngestAllowedAt(new Date("2026-10-15T10:00:00Z")), false);
-  assert.equal(muxIngestAllowedAt(new Date("2026-10-15T19:42:00Z")), false);
-  assert.equal(muxIngestAllowedAt(new Date("2026-01-16T04:00:00Z")), true);
-  assert.equal(muxIngestAllowedAt(new Date("2026-01-15T10:59:00Z")), true);
-  assert.equal(muxIngestAllowedAt(new Date("2026-01-15T11:00:00Z")), false);
-  assert.equal(muxIngestClosedRetryAfterSeconds(new Date("2026-10-15T10:00:00Z")), 17 * 3600);
-  assert.equal(muxIngestClosedRetryAfterSeconds(new Date("2026-10-16T03:00:00Z")), 0);
-  assert.match(MUX_INGEST_OVERNIGHT_REASON, /11pm to 6am Eastern/);
   const source = readFileSync(new URL("../app/api/mux/source/[id]/route.ts", import.meta.url), "utf8");
   const sync = readFileSync(new URL("./nas-import.ts", import.meta.url), "utf8");
   const backfill = readFileSync(new URL("./mux-backfill.ts", import.meta.url), "utf8");
+  const policy = readFileSync(new URL("./mux-policy.ts", import.meta.url), "utf8");
   assert.match(source, /grantMuxNasPull/);
   assert.doesNotMatch(source, /nasDirectFetchWorks/);
   assert.match(source, /retry-after/);
   assert.doesNotMatch(sync, /submitMuxForImported/);
   assert.match(sync, /Left \$\{count\} finished/);
   assert.match(backfill, /nasSyncIsActive/);
-  assert.match(backfill, /muxIngestAllowedAt/);
-  assert.match(backfill, /allowDaytime/);
   assert.match(backfill, /status: "deferred"/);
+  assert.doesNotMatch(backfill, /allowDaytime|muxIngestAllowedAt|11pm/);
+  assert.doesNotMatch(policy, /11pm|allowDaytime|America\/New_York/);
   const ingest = readFileSync(new URL("./mux-ingest.ts", import.meta.url), "utf8");
   const gate = readFileSync(new URL("./mux-nas-gate.ts", import.meta.url), "utf8");
   assert.match(ingest, /muxIngestPause/);
-  assert.match(ingest, /noteDaytimeMuxPull/);
-  assert.match(gate, /mux_daytime_grants/);
-  assert.equal(muxBackfillMayStart({ syncActive: true, overnight: true, allowDaytime: true }), false);
-  assert.equal(muxBackfillMayStart({ syncActive: false, overnight: false, allowDaytime: false }), false);
-  assert.equal(muxBackfillMayStart({ syncActive: false, overnight: false, allowDaytime: true }), true);
-  assert.equal(muxBackfillMayStart({ syncActive: false, overnight: true, allowDaytime: false }), true);
-  assert.equal(muxSourceIngestAllowed({ overnight: false, daytimeGrant: false }), false);
-  assert.equal(muxSourceIngestAllowed({ overnight: false, daytimeGrant: true }), true);
-  assert.equal(muxSourceIngestAllowed({ overnight: true, daytimeGrant: false }), true);
+  assert.match(ingest, /nasSyncIsActive/);
+  assert.doesNotMatch(ingest, /noteDaytimeMuxPull|allowDaytime/);
+  assert.doesNotMatch(gate, /mux_daytime_grants|muxIngestAllowedAt/);
 });
 
 test("player and download modes fall back when Mux is missing or still working", () => {

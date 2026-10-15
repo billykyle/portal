@@ -9,7 +9,7 @@ import {
   toPublicMuxBackfillJob,
 } from "./mux-backfill-store";
 import { backfillMuxVideos, ensureMuxSetup, type MuxBackfillReport } from "./mux-ingest";
-import { MUX_INGEST_OVERNIGHT_REASON, MUX_INGEST_SYNC_REASON, muxBackfillMayStart, muxIngestAllowedAt } from "./mux-policy";
+import { MUX_INGEST_SYNC_REASON } from "./mux-policy";
 import { nasSyncIsActive } from "./nas-sync-store";
 
 export type MuxBackfillStart =
@@ -52,30 +52,22 @@ export async function startMuxBackfill(input: {
   shootId?: string;
   force?: boolean;
   reportOnly?: boolean;
-  allowDaytime?: boolean;
 }): Promise<MuxBackfillStart> {
   if (input.reportOnly) return readMuxBackfill();
-  const allowDaytime = input.allowDaytime === true;
-  const syncActive = await nasSyncIsActive();
-  if (!muxBackfillMayStart({ syncActive, overnight: muxIngestAllowedAt(new Date()), allowDaytime })) {
-    return {
-      status: "deferred",
-      job: null,
-      reason: syncActive ? MUX_INGEST_SYNC_REASON : MUX_INGEST_OVERNIGHT_REASON,
-    };
+  if (await nasSyncIsActive()) {
+    return { status: "deferred", job: null, reason: MUX_INGEST_SYNC_REASON };
   }
   const setup = await ensureMuxSetup();
   if (muxSetupBlocksIngest(setup)) return { status: "blocked", report: blockedReport(setup) };
   const claimed = await claimMuxBackfillJob({
     shootId: input.shootId ?? null,
     force: input.force === true,
-    allowDaytime,
   });
   if (claimed.kind === "already_running") {
     return { status: "already_running", job: toPublicMuxBackfillJob(claimed.job) };
   }
   const jobId = claimed.job.id;
-  const done = backfillMuxVideos({ shootId: input.shootId, force: input.force, allowDaytime }).then(
+  const done = backfillMuxVideos({ shootId: input.shootId, force: input.force }).then(
     (report) => completeMuxBackfillJob(jobId, report),
     (error) => failMuxBackfillJob(jobId, error instanceof Error ? error.message : "Mux backfill failed."),
   );

@@ -17,7 +17,6 @@ type JobRow = {
   status: MuxBackfillJobStatus;
   shoot_id: string | null;
   force: boolean;
-  allow_daytime: boolean;
   report: string | null;
   error: string | null;
   started_at: Date;
@@ -31,7 +30,6 @@ export type MuxBackfillJobRecord = {
   status: MuxBackfillJobStatus;
   shootId: string | null;
   force: boolean;
-  allowDaytime: boolean;
   report: MuxBackfillReport | null;
   error: string | null;
   startedAt: Date;
@@ -60,7 +58,6 @@ function mapJob(row: JobRow): MuxBackfillJobRecord {
     status: row.status,
     shootId: row.shoot_id,
     force: row.force,
-    allowDaytime: row.allow_daytime === true,
     report: parseReport(row.report),
     error: row.error,
     startedAt: asDate(row.started_at),
@@ -76,7 +73,6 @@ export function toPublicMuxBackfillJob(job: MuxBackfillJobRecord): MuxBackfillJo
     status: job.status,
     shootId: job.shootId,
     force: job.force,
-    allowDaytime: job.allowDaytime,
     report: job.report,
     error: job.error,
     startedAt: job.startedAt.toISOString(),
@@ -85,13 +81,13 @@ export function toPublicMuxBackfillJob(job: MuxBackfillJobRecord): MuxBackfillJo
   };
 }
 
-export async function claimMuxBackfillJob(input: { shootId: string | null; force: boolean; allowDaytime: boolean }) {
+export async function claimMuxBackfillJob(input: { shootId: string | null; force: boolean }) {
   await ensureDb();
   const id = randomUUID();
   return sql.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK})`;
     const running = await tx<JobRow[]>`
-      SELECT id, status, shoot_id, force, allow_daytime, report, error, started_at, updated_at, finished_at, now() AS db_now
+      SELECT id, status, shoot_id, force, report, error, started_at, updated_at, finished_at, now() AS db_now
       FROM mux_backfill_jobs
       WHERE status = 'running'
       ORDER BY started_at DESC
@@ -118,9 +114,9 @@ export async function claimMuxBackfillJob(input: { shootId: string | null; force
       if (current) return { kind: "already_running" as const, job: current };
     }
     const inserted = await tx<JobRow[]>`
-      INSERT INTO mux_backfill_jobs (id, status, shoot_id, force, allow_daytime, started_at, updated_at)
-      VALUES (${id}, 'running', ${input.shootId}, ${input.force}, ${input.allowDaytime}, now(), now())
-      RETURNING id, status, shoot_id, force, allow_daytime, report, error, started_at, updated_at, finished_at, now() AS db_now
+      INSERT INTO mux_backfill_jobs (id, status, shoot_id, force, started_at, updated_at)
+      VALUES (${id}, 'running', ${input.shootId}, ${input.force}, now(), now())
+      RETURNING id, status, shoot_id, force, report, error, started_at, updated_at, finished_at, now() AS db_now
     `;
     const job = inserted[0];
     if (!job) throw new Error("Mux backfill failed to start.");
@@ -131,7 +127,7 @@ export async function claimMuxBackfillJob(input: { shootId: string | null; force
 export async function latestMuxBackfillJob() {
   await ensureDb();
   const rows = await sql<JobRow[]>`
-    SELECT id, status, shoot_id, force, allow_daytime, report, error, started_at, updated_at, finished_at, now() AS db_now
+    SELECT id, status, shoot_id, force, report, error, started_at, updated_at, finished_at, now() AS db_now
     FROM mux_backfill_jobs
     ORDER BY started_at DESC
     LIMIT 1
