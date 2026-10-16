@@ -54,6 +54,8 @@ export async function startMuxBackfill(input: {
   shootId?: string;
   force?: boolean;
   reportOnly?: boolean;
+  /** Run the catalog in this call. The ready webhook uses this inside `after()`. */
+  wait?: boolean;
 }): Promise<MuxBackfillStart> {
   if (input.reportOnly) return readMuxBackfill();
   if (await nasSyncIsActive()) {
@@ -73,12 +75,17 @@ export async function startMuxBackfill(input: {
     (report) => completeMuxBackfillJob(jobId, report),
     (error) => failMuxBackfillJob(jobId, error instanceof Error ? error.message : "Mux backfill failed."),
   );
+  if (input.wait) {
+    await done;
+    return { status: "started", job: toPublicMuxBackfillJob(claimed.job) };
+  }
   try {
     after(async () => {
       await done;
     });
   } catch (error) {
     console.error("Mux backfill continue-after-response failed", error);
+    await done;
   }
   return { status: "started", job: toPublicMuxBackfillJob(claimed.job) };
 }

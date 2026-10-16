@@ -4,12 +4,18 @@ import { db } from "@/lib/db";
 import { ensureDb } from "@/lib/db/ensure";
 import { media } from "@/lib/db/schema";
 import { createNasShareDownloadUrl } from "@/lib/nas";
-import { grantMuxNasPull } from "@/lib/mux-nas-gate";
+import { isNasUnreachableError } from "@/lib/nas-connect";
+import { grantMuxNasPull, releaseMuxNasPull } from "@/lib/mux-nas-gate";
+import { MUX_SOURCE_REDIRECT_TIMEOUT_MS } from "@/lib/mux-policy";
 import { verifyMuxSource } from "@/lib/mux-sign";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+/**
+ * Backstop only. Minting the NAS URL aborts at MUX_SOURCE_REDIRECT_TIMEOUT_MS,
+ * so this handler returns a redirect or an error well before the old 60s kill.
+ */
+export const maxDuration = 30;
 
 async function redirectToNas(id: string, request: Request) {
   const url = new URL(request.url);
@@ -28,8 +34,21 @@ async function redirectToNas(id: string, request: Request) {
       { status: 503, headers: { "retry-after": String(grant.retryAfter), "cache-control": "no-store" } },
     );
   }
-  const target = await createNasShareDownloadUrl(item.nasRelativePath);
-  return NextResponse.redirect(target, { status: 302, headers: { "Cache-Control": "no-store" } });
+  try {
+    const target = await createNasShareDownloadUrl(item.nasRelativePath, {
+      timeoutMs: MUX_SOURCE_REDIRECT_TIMEOUT_MS,
+    });
+    return NextResponse.redirect(target, { status: 302, headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    await releaseMuxNasPull(item.id).catch(() => undefined);
+    if (isNasUnreachableError(error)) {
+      return NextResponse.json(
+        { error: "The NAS is busy. Mux can retry this file." },
+        { status: 503, headers: { "retry-after": "30", "cache-control": "no-store" } },
+      );
+    }
+    throw error;
+  }
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
