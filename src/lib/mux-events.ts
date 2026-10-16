@@ -15,7 +15,9 @@ export async function applyMuxEvent(event: MuxEvent) {
   if (type === "video.asset.ready" || type === "video.asset.errored" || type === "video.asset.created") {
     const status = data.status === "ready" || data.status === "errored" ? data.status : "preparing";
     const leaseId = muxUpgradeMediaId(data.passthrough) ?? data.passthrough;
-    if (status === "errored" && leaseId) await releaseMuxNasPull(leaseId).catch(() => undefined);
+    if (leaseId && (status === "ready" || status === "errored")) {
+      await releaseMuxNasPull(leaseId).catch(() => undefined);
+    }
     return applyMuxAssetUpdate({
       passthrough: data.passthrough,
       assetId: data.id,

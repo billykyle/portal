@@ -36,6 +36,11 @@ export const MUX_PREPARING_TIMEOUT_REASON =
   "Mux left this video preparing for more than 45 minutes, so the backfill marked it errored and moved on.";
 /** Ask Mux to wait this long when a NAS sync is using the share. */
 export const MUX_SOURCE_RETRY_AFTER_SECONDS = 60;
+/**
+ * How long the source route may wait while the NAS mints a download URL.
+ * The route only redirects. It must return before Vercel's function limit.
+ */
+export const MUX_SOURCE_REDIRECT_TIMEOUT_MS = 8_000;
 export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pull files until it finishes.";
 
 /**
@@ -46,6 +51,14 @@ export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pu
 export function muxSubmitBudget(input: { preparing: number; alreadySubmitted: number }) {
   if (input.preparing > 0 || input.alreadySubmitted > 0) return 0;
   return 1;
+}
+
+/**
+ * A ready asset has finished copying the original, so the next file can start.
+ * Created, errored, and static-rendition events must not start another NAS pull.
+ */
+export function muxEventContinuesQueue(type: string | null | undefined) {
+  return type === "video.asset.ready";
 }
 
 /** Mux `created_at` is unix seconds. Dates and millisecond numbers pass through. */

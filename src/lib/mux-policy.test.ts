@@ -6,6 +6,8 @@ import {
   isZipExcludedVideo,
   muxDisplaySize,
   muxDownloadStem,
+  muxEventContinuesQueue,
+  MUX_SOURCE_REDIRECT_TIMEOUT_MS,
   MUX_SOURCE_RETRY_AFTER_SECONDS,
   muxIngestDecision,
   muxInstantMs,
@@ -123,9 +125,29 @@ test("Mux NAS pulls stay behind a sync and copy one file at a time", () => {
   const sync = readFileSync(new URL("./nas-import.ts", import.meta.url), "utf8");
   const backfill = readFileSync(new URL("./mux-backfill.ts", import.meta.url), "utf8");
   const policy = readFileSync(new URL("./mux-policy.ts", import.meta.url), "utf8");
+  const nas = readFileSync(new URL("./nas.ts", import.meta.url), "utf8");
+  const webhook = readFileSync(new URL("../app/api/mux/webhook/route.ts", import.meta.url), "utf8");
+  const events = readFileSync(new URL("./mux-events.ts", import.meta.url), "utf8");
   assert.match(source, /grantMuxNasPull/);
-  assert.doesNotMatch(source, /nasDirectFetchWorks/);
+  assert.match(source, /releaseMuxNasPull/);
+  assert.match(source, /MUX_SOURCE_REDIRECT_TIMEOUT_MS/);
+  assert.match(source, /maxDuration = 30/);
+  assert.match(source, /new Response\(null/);
+  assert.doesNotMatch(source, /nasDirectFetchWorks|proxyNasFile|openNasDownload/);
   assert.match(source, /retry-after/);
+  assert.equal(MUX_SOURCE_REDIRECT_TIMEOUT_MS < 15_000, true);
+  assert.equal(muxEventContinuesQueue("video.asset.ready"), true);
+  assert.equal(muxEventContinuesQueue("video.asset.created"), false);
+  assert.equal(muxEventContinuesQueue("video.asset.errored"), false);
+  assert.equal(muxEventContinuesQueue("video.asset.static_rendition.ready"), false);
+  assert.match(webhook, /muxEventContinuesQueue/);
+  assert.match(webhook, /startMuxBackfill\(\{ force: false, wait: true \}\)/);
+  assert.match(webhook, /maxDuration = 120/);
+  assert.match(backfill, /input\.wait/);
+  assert.match(events, /status === "ready" \|\| status === "errored"/);
+  const task = nas.slice(nas.indexOf("async function shareDownloadTarget"));
+  assert.match(task.slice(0, task.indexOf("export async function createNasShareDownloadUrl")), /AbortSignal\.timeout/);
+  assert.doesNotMatch(task.slice(0, 1200), /res\.text\(\)/);
   assert.doesNotMatch(sync, /submitMuxForImported/);
   assert.match(sync, /Left \$\{count\} finished/);
   assert.match(backfill, /nasSyncIsActive/);

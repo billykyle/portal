@@ -684,14 +684,40 @@ async function withNasDownloadRetries<T>(run: () => Promise<T>): Promise<T> {
   throw lastError instanceof Error ? lastError : new Error("NAS download failed.");
 }
 
-async function shareDownloadTarget(config: NasConfig, cookie: string, nasPath: string) {
-  const taskRes = await fetch(`${apiBase(config)}/filemgr/addPathsByShareId`, {
-    method: "POST",
-    headers: jsonHeaders(config, cookie),
-    body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
-    cache: "no-store",
-  });
-  const taskBody = await readJson<UgosResponse<{ result?: string }>>(taskRes);
+/** A task id is a few hundred bytes. Anything larger is a file body, not a link. */
+const NAS_TASK_BODY_MAX = 16 * 1024;
+
+async function shareDownloadTarget(
+  config: NasConfig,
+  cookie: string,
+  nasPath: string,
+  timeoutMs = NAS_CONNECT_TIMEOUT_MS,
+) {
+  const taskRes = await fetch(
+    `${apiBase(config)}/filemgr/addPathsByShareId`,
+    nasConnectInit({
+      method: "POST",
+      headers: jsonHeaders(config, cookie),
+      body: JSON.stringify({ paths: [nasPath], share_id: config.shareId }),
+      signal: AbortSignal.timeout(timeoutMs),
+    }),
+  );
+  const type = taskRes.headers.get("content-type") ?? "";
+  if (type.startsWith("video/") || type.startsWith("audio/") || type === "application/octet-stream") {
+    await taskRes.body?.cancel().catch(() => undefined);
+    throw new Error("NAS returned the file instead of a download link.");
+  }
+  const bytes = await readAtMost(taskRes, NAS_TASK_BODY_MAX + 1);
+  if (bytes.length > NAS_TASK_BODY_MAX) {
+    throw new Error("NAS task response was too large to be a download link.");
+  }
+  const text = bytes.toString("utf8");
+  let taskBody: UgosResponse<{ result?: string }>;
+  try {
+    taskBody = JSON.parse(text) as UgosResponse<{ result?: string }>;
+  } catch {
+    throw new Error(`NAS returned non-JSON (${taskRes.status}): ${text.slice(0, 180)}`);
+  }
   if (taskBody.code !== 200 || !taskBody.data?.result) {
     throw new Error(taskBody.msg || "NAS download task failed.");
   }
@@ -704,11 +730,13 @@ async function shareDownloadTarget(config: NasConfig, cookie: string, nasPath: s
 }
 
 /**
- * A short-lived UGOS download URL. Mux fetches this itself after a redirect,
- * so the video bytes never pass through a Vercel function body.
+ * A short-lived UGOS download URL. Callers that redirect Mux here must pass a
+ * short timeout. The file bytes are not read.
  */
-export async function createNasShareDownloadUrl(nasPath: string) {
-  return withCookie((config, cookie) => shareDownloadTarget(config, cookie, nasPath));
+export async function createNasShareDownloadUrl(nasPath: string, options?: { timeoutMs?: number }) {
+  return withCookie((config, cookie) =>
+    shareDownloadTarget(config, cookie, nasPath, options?.timeoutMs ?? NAS_CONNECT_TIMEOUT_MS),
+  );
 }
 
 async function openNasDownload(nasPath: string, rangeHeader?: string | null) {
