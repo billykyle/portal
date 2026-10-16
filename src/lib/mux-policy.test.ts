@@ -8,9 +8,13 @@ import {
   muxDownloadStem,
   MUX_SOURCE_RETRY_AFTER_SECONDS,
   muxIngestDecision,
+  muxInstantMs,
   muxPosterUrl,
+  muxPreparingDisposition,
   muxSourceDecision,
   muxSubmitBudget,
+  MUX_PREPARING_TIMEOUT_MS,
+  redactMuxError,
   muxStaticDownloadUrl,
   nasDownloadLooksPublic,
   nasFallbackUrl,
@@ -37,6 +41,8 @@ test("ingest skips non-video, unchanged ready files, and refreshes unfinished as
     staticStatus: "ready",
     sourcePath: "/share/a.mov",
     sourceBytes: 10,
+    resolutionTier: "2160p",
+    pendingStatus: null,
   };
   assert.equal(muxIngestDecision({ ...current, type: "raw_video" }, { path: "/share/a.mov", bytes: 10 }), "skip");
   assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: 10 }), "skip");
@@ -50,13 +56,49 @@ test("ingest skips non-video, unchanged ready files, and refreshes unfinished as
     "refresh",
   );
   assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: null }), "skip");
-  assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: 10 }, true), "submit");
+  assert.equal(muxIngestDecision(current, { path: "/share/a.mov", bytes: 10 }, true), "upgrade");
+  assert.equal(muxIngestDecision({ ...current, assetId: null }, { path: "/share/a.mov", bytes: 10 }, true), "submit");
+  assert.equal(muxIngestDecision({ ...current, resolutionTier: null }, { path: "/share/a.mov", bytes: 10 }), "upgrade");
+  assert.equal(muxIngestDecision({ ...current, resolutionTier: "1080p" }, { path: "/share/a.mov", bytes: 10 }), "upgrade");
+  assert.equal(
+    muxIngestDecision({ ...current, resolutionTier: null, pendingStatus: "preparing" }, { path: "/share/a.mov", bytes: 10 }),
+    "refresh",
+  );
+  assert.equal(
+    muxIngestDecision({ ...current, resolutionTier: null, pendingStatus: "errored" }, { path: "/share/a.mov", bytes: 10 }),
+    "upgrade",
+  );
 });
 
 test("Mux NAS pulls stay behind a sync and copy one file at a time", () => {
   assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 0 }), 1);
   assert.equal(muxSubmitBudget({ preparing: 2, alreadySubmitted: 0 }), 0);
   assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 1 }), 0);
+  const now = Date.parse("2026-10-16T01:00:00.000Z");
+  assert.equal(muxInstantMs("1760000000"), 1760000000 * 1000);
+  assert.equal(
+    muxPreparingDisposition({ status: "preparing", startedAt: now - MUX_PREPARING_TIMEOUT_MS + 1, nowMs: now }),
+    "wait",
+  );
+  assert.equal(
+    muxPreparingDisposition({ status: "preparing", startedAt: now - MUX_PREPARING_TIMEOUT_MS, nowMs: now }),
+    "timeout",
+  );
+  assert.equal(
+    muxPreparingDisposition({
+      status: "preparing",
+      startedAt: String(Math.floor((now - 3 * 60 * 60 * 1000) / 1000)),
+      nowMs: now,
+    }),
+    "timeout",
+  );
+  assert.equal(muxPreparingDisposition({ status: "preparing", startedAt: null, nowMs: now }), "wait");
+  assert.equal(muxPreparingDisposition({ status: "errored", startedAt: now - MUX_PREPARING_TIMEOUT_MS, nowMs: now }), "errored");
+  assert.equal(muxPreparingDisposition({ status: "ready", startedAt: now, nowMs: now }), "ready");
+  assert.equal(
+    redactMuxError('The input file "https://portal.example/api/mux/source/x?exp=1&sig=abc" could not be downloaded.'),
+    "The input file \"the source URL\" could not be downloaded.",
+  );
   assert.deepEqual(
     muxSourceDecision({ syncActive: true, activePulls: 0, thisMediaAlreadyPulling: false }),
     { allow: false, retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS },
@@ -91,8 +133,16 @@ test("Mux NAS pulls stay behind a sync and copy one file at a time", () => {
   assert.doesNotMatch(backfill, /allowDaytime|muxIngestAllowedAt|11pm/);
   assert.doesNotMatch(policy, /11pm|allowDaytime|America\/New_York/);
   const ingest = readFileSync(new URL("./mux-ingest.ts", import.meta.url), "utf8");
+  const api = readFileSync(new URL("./mux-api.ts", import.meta.url), "utf8");
   const gate = readFileSync(new URL("./mux-nas-gate.ts", import.meta.url), "utf8");
   assert.match(ingest, /muxIngestPause/);
+  assert.match(ingest, /releaseExpiredPreparing/);
+  assert.match(ingest, /releaseMuxNasPull/);
+  assert.match(ingest, /MUX_PREPARING_TIMEOUT_REASON/);
+  assert.match(ingest, /promoteMuxUpgrade/);
+  assert.match(ingest, /muxUpgradePassthrough/);
+  assert.match(api, /MUX_MAX_RESOLUTION_TIER/);
+  assert.doesNotMatch(api, /1080p/);
   assert.match(ingest, /nasSyncIsActive/);
   assert.doesNotMatch(ingest, /noteDaytimeMuxPull|allowDaytime/);
   assert.doesNotMatch(gate, /mux_daytime_grants|muxIngestAllowedAt/);
@@ -111,7 +161,8 @@ test("player and download modes fall back when Mux is missing or still working",
   assert.equal(nasFallbackUrl("/api/media/clip?rendition=720"), "/api/media/clip?rendition=720&fallback=1");
   assert.equal(downloadMode(null), "native");
   assert.equal(downloadMode(ready), "mux");
-  assert.equal(downloadMode({ ...ready, downloadUrl: null, staticStatus: "preparing" }), "preparing");
+  assert.equal(downloadMode({ ...ready, downloadUrl: null, staticStatus: "preparing" }), "native");
+  assert.equal(downloadMode({ ...ready, downloadUrl: "https://stream.mux.com/play/highest.mp4", staticStatus: "preparing" }), "native");
   assert.equal(downloadMode({ ...ready, downloadUrl: null, staticStatus: "errored" }), "native");
   assert.equal(isZipExcludedVideo("video"), true);
   assert.equal(isZipExcludedVideo("raw_video"), true);
@@ -158,7 +209,7 @@ test("download names and the zip note stay short and do not claim the original",
   assert.equal(url.pathname, "/play/highest.mp4");
   assert.equal(url.searchParams.get("token"), "tok");
   assert.equal(url.searchParams.get("download"), "tour");
-  assert.match(videoOmissionNote(["a.mov"]), /up to 1080p/);
+  assert.match(videoOmissionNote(["a.mov"]), /up to 4K/);
   assert.match(videoOmissionNote(["a.mov"]), /a\.mov/);
   assert.equal(nasDownloadLooksPublic(206, "video/mp4"), true);
   assert.equal(nasDownloadLooksPublic(200, "application/json"), false);

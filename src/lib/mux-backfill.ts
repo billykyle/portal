@@ -25,6 +25,8 @@ function blockedReport(setup: Awaited<ReturnType<typeof ensureMuxSetup>>): MuxBa
     directNasFetch: null,
     considered: 0,
     submitted: 0,
+    upgraded: 0,
+    promoted: 0,
     refreshed: 0,
     skipped: 0,
     failed: 0,

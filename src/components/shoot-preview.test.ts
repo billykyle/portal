@@ -496,10 +496,10 @@ test("a ready Mux video plays from Mux and a processing video does not stream th
   const waiting = processing.slice(processing.indexOf('id="video"'));
   assert.match(waiting, /<video\b[^>]*preload="none"/);
   assert.match(waiting, /aria-label="Play 107 Louis Drive\.mov"/);
-  assert.match(waiting, /Preparing download/);
+  assert.match(waiting, /href="\/api\/media\/vid-wait\?download=1"/);
+  assert.doesNotMatch(waiting, /Preparing download/);
   assert.doesNotMatch(waiting, /data-mux-player|data-playback-id|<source /);
   assert.doesNotMatch(waiting, /\ssrc="\/api\/media\/vid-wait"/);
-  assert.doesNotMatch(waiting, /href="\/api\/media\/vid-wait"/);
 });
 
 test("an errored Mux video does not request the NAS file on the page", () => {

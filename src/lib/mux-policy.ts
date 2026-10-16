@@ -5,14 +5,35 @@
 
 export const MUX_PLAYBACK_TTL_SECONDS = 12 * 60 * 60;
 export const MUX_SOURCE_TTL_SECONDS = 12 * 60 * 60;
-/** Basic quality, free encode, capped at 1080p. One standard "highest" MP4. */
+/** Basic quality, free encode. Highest tier is 4K; Mux does not upscale a smaller source. */
 export const MUX_VIDEO_QUALITY = "basic";
+export const MUX_MAX_RESOLUTION_TIER = "2160p";
+/** Standard static rendition. `highest` is 4K when the source is 4K. */
 export const MUX_STATIC_NAME = "highest.mp4";
+export const MUX_UPGRADE_PASSTHROUGH_PREFIX = "upgrade:";
 
-export type MuxIngestAction = "skip" | "submit" | "refresh";
+export type MuxIngestAction = "skip" | "submit" | "refresh" | "upgrade";
+
+export function muxUpgradePassthrough(mediaId: string) {
+  return `${MUX_UPGRADE_PASSTHROUGH_PREFIX}${mediaId}`;
+}
+
+/** A 4K replacement uses this passthrough so a webhook cannot overwrite the live asset. */
+export function muxUpgradeMediaId(passthrough: string | null | undefined) {
+  if (!passthrough?.startsWith(MUX_UPGRADE_PASSTHROUGH_PREFIX)) return null;
+  const id = passthrough.slice(MUX_UPGRADE_PASSTHROUGH_PREFIX.length);
+  return id || null;
+}
 
 /** One granted Mux download keeps the NAS for this long before another file may start. */
 export const MUX_NAS_PULL_LEASE_MS = 8 * 60 * 1000;
+/**
+ * A preparing asset holds the one-at-a-time slot only this long.
+ * After that the backfill marks it errored, drops the NAS lease, and starts the next file.
+ */
+export const MUX_PREPARING_TIMEOUT_MS = 45 * 60 * 1000;
+export const MUX_PREPARING_TIMEOUT_REASON =
+  "Mux left this video preparing for more than 45 minutes, so the backfill marked it errored and moved on.";
 /** Ask Mux to wait this long when a NAS sync is using the share. */
 export const MUX_SOURCE_RETRY_AFTER_SECONDS = 60;
 export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pull files until it finishes.";
@@ -25,6 +46,54 @@ export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pu
 export function muxSubmitBudget(input: { preparing: number; alreadySubmitted: number }) {
   if (input.preparing > 0 || input.alreadySubmitted > 0) return 0;
   return 1;
+}
+
+/** Mux `created_at` is unix seconds. Dates and millisecond numbers pass through. */
+export function muxInstantMs(value: string | number | Date | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value < 1e12 ? value * 1000 : value;
+  }
+  const text = value.trim();
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const n = Number(text);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n < 1e12 ? n * 1000 : n;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function redactMuxError(message: string | null | undefined) {
+  if (!message) return null;
+  const cleaned = message.replace(/https?:\/\/[^\s"']+/g, "the source URL").replace(/\s+/g, " ").trim();
+  return cleaned.slice(0, 500) || null;
+}
+
+/**
+ * What a live Mux asset means for the one-at-a-time slot.
+ * `timeout` is still preparing, but older than the lease, so the queue moves on.
+ * Missing `startedAt` keeps waiting so a clock we cannot read does not abandon a new upload.
+ */
+export function muxPreparingDisposition(input: {
+  status?: string | null;
+  startedAt?: string | number | Date | null;
+  nowMs?: number;
+  limitMs?: number;
+}): "ready" | "errored" | "wait" | "timeout" {
+  if (input.status === "ready") return "ready";
+  if (input.status === "errored") return "errored";
+  if (input.status !== "preparing") return "wait";
+  const started = muxInstantMs(input.startedAt);
+  if (started == null) return "wait";
+  const now = input.nowMs ?? Date.now();
+  const limit = input.limitMs ?? MUX_PREPARING_TIMEOUT_MS;
+  return now - started >= limit ? "timeout" : "wait";
 }
 
 /**
@@ -62,20 +131,25 @@ export function muxIngestDecision(
     staticStatus: string | null;
     sourcePath: string | null;
     sourceBytes: number | null;
+    /** Null means the live asset was created before 4K. */
+    resolutionTier?: string | null;
+    pendingStatus?: string | null;
   },
   next: { path: string; bytes: number | null },
   force = false,
 ): MuxIngestAction {
   if (current.type !== "video") return "skip";
+  if (current.pendingStatus === "preparing" || current.pendingStatus === "ready") return "refresh";
+  if (force && current.assetId && current.status === "ready") return "upgrade";
   if (force) return "submit";
   const samePath = current.sourcePath === next.path;
   const sizeKnown = next.bytes != null && next.bytes > 0 && current.sourceBytes != null;
   const sameBytes = !sizeKnown || current.sourceBytes === next.bytes;
   const unchanged = Boolean(current.assetId) && samePath && sameBytes && current.status !== "errored";
   if (!unchanged) return "submit";
-  if (current.status === "preparing" || (current.status === "ready" && current.staticStatus !== "ready")) {
-    return "refresh";
-  }
+  if (current.status === "preparing") return "refresh";
+  if (current.status === "ready" && current.resolutionTier !== MUX_MAX_RESOLUTION_TIER) return "upgrade";
+  if (current.status === "ready" && current.staticStatus !== "ready") return "refresh";
   return "skip";
 }
 
@@ -132,13 +206,9 @@ export function muxDisplaySize(asset: {
   return { width: Math.round(width), height: Math.round(height) };
 }
 
+/** Mux highest MP4 once that rendition is ready. Anything else downloads from the NAS. */
 export function downloadMode(mux: MuxPlaybackView | null | undefined): "mux" | "preparing" | "native" {
-  if (mux?.downloadUrl) return "mux";
-  if (!mux?.status) return "native";
-  if (mux.status === "errored" || mux.staticStatus === "errored" || mux.staticStatus === "skipped") {
-    return "native";
-  }
-  if (mux.status === "preparing" || mux.status === "ready") return "preparing";
+  if (mux?.staticStatus === "ready" && mux.downloadUrl) return "mux";
   return "native";
 }
 
@@ -164,7 +234,7 @@ export function videoOmissionNote(filenames: readonly string[]) {
   return [
     "These videos are not in this zip.",
     "A full-length movie cannot finish inside the download, so each video downloads on its own from the shoot page.",
-    "That download is a web-quality MP4 (up to 1080p). The full-quality original stays on the NAS.",
+    "That download is a web-quality MP4 (up to 4K when the original is 4K). The full-quality original stays on the NAS.",
     "",
     ...filenames,
     "",

@@ -1,5 +1,6 @@
 import { muxAssetError, signedPlaybackId, staticRenditionStatus, type MuxAsset } from "./mux-api";
-import { muxDisplaySize } from "./mux-policy";
+import { releaseMuxNasPull } from "./mux-nas-gate";
+import { muxDisplaySize, muxUpgradeMediaId } from "./mux-policy";
 import { applyMuxAssetUpdate } from "./mux-store";
 
 type MuxEvent = {
@@ -13,6 +14,8 @@ export async function applyMuxEvent(event: MuxEvent) {
   if (!data) return 0;
   if (type === "video.asset.ready" || type === "video.asset.errored" || type === "video.asset.created") {
     const status = data.status === "ready" || data.status === "errored" ? data.status : "preparing";
+    const leaseId = muxUpgradeMediaId(data.passthrough) ?? data.passthrough;
+    if (status === "errored" && leaseId) await releaseMuxNasPull(leaseId).catch(() => undefined);
     return applyMuxAssetUpdate({
       passthrough: data.passthrough,
       assetId: data.id,

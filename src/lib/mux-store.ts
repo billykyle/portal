@@ -2,9 +2,16 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { ensureDb } from "./db/ensure";
 import { media, muxConfig } from "./db/schema";
-import { staticRenditionStatus, type MuxAsset } from "./mux-api";
+import { muxAssetError, muxDeleteAsset, staticRenditionStatus, type MuxAsset } from "./mux-api";
 import { muxPlaybackLinks } from "./mux-sign";
-import { muxDisplaySize, publicMuxStatus, type MuxPlaybackView } from "./mux-policy";
+import {
+  MUX_MAX_RESOLUTION_TIER,
+  muxDisplaySize,
+  muxUpgradeMediaId,
+  publicMuxStatus,
+  redactMuxError,
+  type MuxPlaybackView,
+} from "./mux-policy";
 import { saveDisplaySize } from "./video-store";
 
 export { publicMuxStatus };
@@ -23,8 +30,15 @@ export type MuxMediaRow = {
   muxStatus: string | null;
   muxStaticStatus: string | null;
   muxError: string | null;
+  muxResolutionTier: string | null;
+  muxPendingAssetId: string | null;
+  muxPendingPlaybackId: string | null;
+  muxPendingStatus: string | null;
+  muxPendingStaticStatus: string | null;
+  muxPendingUpdatedAt: Date | null;
   muxSourcePath: string | null;
   muxSourceBytes: number | null;
+  muxUpdatedAt: Date | null;
 };
 
 const muxColumns = {
@@ -39,8 +53,15 @@ const muxColumns = {
   muxStatus: media.muxStatus,
   muxStaticStatus: media.muxStaticStatus,
   muxError: media.muxError,
+  muxResolutionTier: media.muxResolutionTier,
+  muxPendingAssetId: media.muxPendingAssetId,
+  muxPendingPlaybackId: media.muxPendingPlaybackId,
+  muxPendingStatus: media.muxPendingStatus,
+  muxPendingStaticStatus: media.muxPendingStaticStatus,
+  muxPendingUpdatedAt: media.muxPendingUpdatedAt,
   muxSourcePath: media.muxSourcePath,
   muxSourceBytes: media.muxSourceBytes,
+  muxUpdatedAt: media.muxUpdatedAt,
 };
 
 export async function listMuxConfig() {
@@ -113,10 +134,10 @@ export async function listFinishedVideos(shootId?: string) {
 export async function muxAssetIdsForShoot(shootId: string) {
   await ensureDb();
   const rows = await db
-    .select({ muxAssetId: media.muxAssetId })
+    .select({ muxAssetId: media.muxAssetId, muxPendingAssetId: media.muxPendingAssetId })
     .from(media)
     .where(eq(media.shootId, shootId));
-  return rows.map((row) => row.muxAssetId).filter((id): id is string => Boolean(id));
+  return rows.flatMap((row) => [row.muxAssetId, row.muxPendingAssetId].filter((id): id is string => Boolean(id)));
 }
 
 export async function rememberMuxSubmit(
@@ -137,36 +158,172 @@ export async function rememberMuxSubmit(
     .where(eq(media.id, id));
 }
 
+function playbackIdOf(asset: MuxAsset) {
+  return asset.playback_ids?.find((item) => item.policy === "signed")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+}
+
+function tierFromAsset(asset: MuxAsset, explicit?: string | null) {
+  if (explicit === "1080p" || explicit === MUX_MAX_RESOLUTION_TIER) return explicit;
+  if (asset.max_resolution_tier === "1080p" || asset.max_resolution_tier === MUX_MAX_RESOLUTION_TIER) {
+    return asset.max_resolution_tier;
+  }
+  return null;
+}
+
 export async function rememberMuxAsset(
   id: string,
   asset: MuxAsset,
   source: { path: string; bytes: number | null },
+  options?: { resolutionTier?: string | null },
 ) {
   await ensureDb();
-  const playbackId = asset.playback_ids?.find((item) => item.policy === "signed")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+  const playbackId = playbackIdOf(asset);
+  const status = asset.status === "ready" || asset.status === "errored" ? asset.status : "preparing";
+  const tier = tierFromAsset(asset, options?.resolutionTier);
   await db
     .update(media)
     .set({
       muxAssetId: asset.id,
       muxPlaybackId: playbackId,
-      muxStatus: asset.status === "ready" || asset.status === "errored" ? asset.status : "preparing",
+      muxStatus: status,
       muxStaticStatus: staticRenditionStatus(asset) ?? "preparing",
-      muxError: null,
+      muxError: status === "errored" ? redactMuxError(muxAssetError(asset)) ?? "Mux reported this video as errored." : null,
       muxSourcePath: source.path,
       muxSourceBytes: source.bytes,
-      muxUpdatedAt: new Date(),
+      // A refresh of a still-preparing asset must not move the clock the timeout reads.
+      ...(status === "preparing" ? {} : { muxUpdatedAt: new Date() }),
+      ...(tier ? { muxResolutionTier: tier } : {}),
     })
     .where(eq(media.id, id));
   const size = muxDisplaySize(asset);
   if (size) await saveDisplaySize(id, size, "fill");
 }
 
+export async function rememberMuxPending(id: string, asset: MuxAsset) {
+  await ensureDb();
+  const status = asset.status === "ready" || asset.status === "errored" ? asset.status : "preparing";
+  await db
+    .update(media)
+    .set({
+      muxPendingAssetId: asset.id,
+      muxPendingPlaybackId: playbackIdOf(asset),
+      muxPendingStatus: status,
+      muxPendingStaticStatus: staticRenditionStatus(asset) ?? "preparing",
+      muxPendingUpdatedAt: new Date(),
+    })
+    .where(eq(media.id, id));
+}
+
+/** The 4K copy failed. The live asset stays in place and can be retried after the others. */
+export async function failMuxUpgrade(id: string) {
+  await ensureDb();
+  await db
+    .update(media)
+    .set({
+      muxPendingStatus: "errored",
+      muxPendingAssetId: null,
+      muxPendingPlaybackId: null,
+      muxPendingStaticStatus: null,
+      muxPendingUpdatedAt: new Date(),
+    })
+    .where(eq(media.id, id));
+}
+
+/**
+ * Point playback at a ready 4K asset, then delete the previous one.
+ * The delete happens only after the row is updated.
+ */
+export async function promoteMuxUpgrade(id: string, asset: MuxAsset) {
+  await ensureDb();
+  const [current] = await db.select({ muxAssetId: media.muxAssetId }).from(media).where(eq(media.id, id)).limit(1);
+  const previous = current?.muxAssetId ?? null;
+  await db
+    .update(media)
+    .set({
+      muxAssetId: asset.id,
+      muxPlaybackId: playbackIdOf(asset),
+      muxStatus: "ready",
+      muxStaticStatus: staticRenditionStatus(asset) ?? "preparing",
+      muxResolutionTier: MUX_MAX_RESOLUTION_TIER,
+      muxError: null,
+      muxPendingAssetId: null,
+      muxPendingPlaybackId: null,
+      muxPendingStatus: null,
+      muxPendingStaticStatus: null,
+      muxPendingUpdatedAt: null,
+      muxUpdatedAt: new Date(),
+    })
+    .where(eq(media.id, id));
+  if (previous && previous !== asset.id) await muxDeleteAsset(previous).catch(() => undefined);
+  const size = muxDisplaySize(asset);
+  if (size) await saveDisplaySize(id, size, "fill");
+  return previous;
+}
+
 export async function rememberMuxFailure(id: string, message: string) {
   await ensureDb();
   await db
     .update(media)
-    .set({ muxStatus: "errored", muxError: message.slice(0, 500), muxUpdatedAt: new Date() })
+    .set({ muxStatus: "errored", muxError: redactMuxError(message) ?? "Mux ingest failed.", muxUpdatedAt: new Date() })
     .where(eq(media.id, id));
+}
+
+async function applyUpgradeMuxUpdate(
+  mediaId: string,
+  input: {
+    assetId?: string | null;
+    status?: string | null;
+    playbackId?: string | null;
+    staticStatus?: string | null;
+    error?: string | null;
+    displaySize?: { width: number; height: number } | null;
+  },
+) {
+  const [row] = await db.select(muxColumns).from(media).where(eq(media.id, mediaId)).limit(1);
+  if (!row) return 0;
+  const assetId = input.assetId ?? null;
+  if (assetId && row.muxAssetId === assetId) {
+    const patch: {
+      muxStatus?: string;
+      muxPlaybackId?: string | null;
+      muxStaticStatus?: string | null;
+      muxError?: string | null;
+      muxUpdatedAt: Date;
+    } = { muxUpdatedAt: new Date() };
+    if (input.status === "ready" || input.status === "preparing" || input.status === "errored") patch.muxStatus = input.status;
+    if (input.playbackId) patch.muxPlaybackId = input.playbackId;
+    if (input.staticStatus) patch.muxStaticStatus = input.staticStatus;
+    if (input.error !== undefined) patch.muxError = redactMuxError(input.error);
+    await db.update(media).set(patch).where(eq(media.id, mediaId));
+    if (input.displaySize) await saveDisplaySize(mediaId, input.displaySize, "fill");
+    return 1;
+  }
+  if (input.status === "ready" && assetId) {
+    await promoteMuxUpgrade(mediaId, {
+      id: assetId,
+      status: "ready",
+      playback_ids: input.playbackId ? [{ id: input.playbackId, policy: "signed" }] : [],
+      static_renditions: input.staticStatus ? { files: [{ status: input.staticStatus, name: "highest.mp4" }] } : undefined,
+    });
+    if (input.displaySize) await saveDisplaySize(mediaId, input.displaySize, "fill");
+    return 1;
+  }
+  if (input.status === "errored") {
+    if (assetId) await muxDeleteAsset(assetId).catch(() => undefined);
+    await failMuxUpgrade(mediaId);
+    return 1;
+  }
+  await db
+    .update(media)
+    .set({
+      ...(assetId ? { muxPendingAssetId: assetId } : {}),
+      ...(input.playbackId ? { muxPendingPlaybackId: input.playbackId } : {}),
+      ...(input.status === "preparing" ? { muxPendingStatus: "preparing" } : {}),
+      ...(input.staticStatus ? { muxPendingStaticStatus: input.staticStatus } : {}),
+      muxPendingUpdatedAt: new Date(),
+    })
+    .where(eq(media.id, mediaId));
+  return 1;
 }
 
 export async function applyMuxAssetUpdate(input: {
@@ -179,6 +336,8 @@ export async function applyMuxAssetUpdate(input: {
   displaySize?: { width: number; height: number } | null;
 }) {
   await ensureDb();
+  const upgradeId = muxUpgradeMediaId(input.passthrough);
+  if (upgradeId) return applyUpgradeMuxUpdate(upgradeId, input);
   const patch: {
     muxStatus?: string;
     muxPlaybackId?: string | null;
@@ -193,7 +352,7 @@ export async function applyMuxAssetUpdate(input: {
   if (input.playbackId) patch.muxPlaybackId = input.playbackId;
   if (input.assetId) patch.muxAssetId = input.assetId;
   if (input.staticStatus) patch.muxStaticStatus = input.staticStatus;
-  if (input.error !== undefined) patch.muxError = input.error;
+  if (input.error !== undefined) patch.muxError = redactMuxError(input.error);
   const size = input.displaySize ?? null;
   const rememberSize = async (ids: string[]) => {
     if (!size) return;

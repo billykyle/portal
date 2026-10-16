@@ -68,3 +68,9 @@ export async function grantMuxNasPull(mediaId: string) {
     return decision;
   });
 }
+
+/** Drop one file's NAS lease so the next Mux download may start. */
+export async function releaseMuxNasPull(mediaId: string) {
+  await ensureMuxNasPulls();
+  await sql`DELETE FROM mux_nas_pulls WHERE media_id = ${mediaId}`;
+}
