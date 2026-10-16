@@ -15,6 +15,8 @@ type MuxData<T> = { data: T };
 export type MuxAsset = {
   id: string;
   status?: string;
+  /** Unix seconds, as Mux returns it. */
+  created_at?: string | number | null;
   passthrough?: string | null;
   errors?: { type?: string; messages?: string[] };
   playback_ids?: Array<{ id: string; policy: string }>;

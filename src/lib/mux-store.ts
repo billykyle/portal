@@ -2,9 +2,9 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { ensureDb } from "./db/ensure";
 import { media, muxConfig } from "./db/schema";
-import { staticRenditionStatus, type MuxAsset } from "./mux-api";
+import { muxAssetError, staticRenditionStatus, type MuxAsset } from "./mux-api";
 import { muxPlaybackLinks } from "./mux-sign";
-import { muxDisplaySize, publicMuxStatus, type MuxPlaybackView } from "./mux-policy";
+import { muxDisplaySize, publicMuxStatus, redactMuxError, type MuxPlaybackView } from "./mux-policy";
 import { saveDisplaySize } from "./video-store";
 
 export { publicMuxStatus };
@@ -25,6 +25,7 @@ export type MuxMediaRow = {
   muxError: string | null;
   muxSourcePath: string | null;
   muxSourceBytes: number | null;
+  muxUpdatedAt: Date | null;
 };
 
 const muxColumns = {
@@ -41,6 +42,7 @@ const muxColumns = {
   muxError: media.muxError,
   muxSourcePath: media.muxSourcePath,
   muxSourceBytes: media.muxSourceBytes,
+  muxUpdatedAt: media.muxUpdatedAt,
 };
 
 export async function listMuxConfig() {
@@ -144,17 +146,19 @@ export async function rememberMuxAsset(
 ) {
   await ensureDb();
   const playbackId = asset.playback_ids?.find((item) => item.policy === "signed")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+  const status = asset.status === "ready" || asset.status === "errored" ? asset.status : "preparing";
   await db
     .update(media)
     .set({
       muxAssetId: asset.id,
       muxPlaybackId: playbackId,
-      muxStatus: asset.status === "ready" || asset.status === "errored" ? asset.status : "preparing",
+      muxStatus: status,
       muxStaticStatus: staticRenditionStatus(asset) ?? "preparing",
-      muxError: null,
+      muxError: status === "errored" ? redactMuxError(muxAssetError(asset)) ?? "Mux reported this video as errored." : null,
       muxSourcePath: source.path,
       muxSourceBytes: source.bytes,
-      muxUpdatedAt: new Date(),
+      // A refresh of a still-preparing asset must not move the clock the timeout reads.
+      ...(status === "preparing" ? {} : { muxUpdatedAt: new Date() }),
     })
     .where(eq(media.id, id));
   const size = muxDisplaySize(asset);
@@ -165,7 +169,7 @@ export async function rememberMuxFailure(id: string, message: string) {
   await ensureDb();
   await db
     .update(media)
-    .set({ muxStatus: "errored", muxError: message.slice(0, 500), muxUpdatedAt: new Date() })
+    .set({ muxStatus: "errored", muxError: redactMuxError(message) ?? "Mux ingest failed.", muxUpdatedAt: new Date() })
     .where(eq(media.id, id));
 }
 
@@ -193,7 +197,7 @@ export async function applyMuxAssetUpdate(input: {
   if (input.playbackId) patch.muxPlaybackId = input.playbackId;
   if (input.assetId) patch.muxAssetId = input.assetId;
   if (input.staticStatus) patch.muxStaticStatus = input.staticStatus;
-  if (input.error !== undefined) patch.muxError = input.error;
+  if (input.error !== undefined) patch.muxError = redactMuxError(input.error);
   const size = input.displaySize ?? null;
   const rememberSize = async (ids: string[]) => {
     if (!size) return;

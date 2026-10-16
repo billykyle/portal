@@ -12,11 +12,15 @@ import {
   signedPlaybackId,
   staticRenditionStatus,
 } from "./mux-api";
+import { releaseMuxNasPull } from "./mux-nas-gate";
 import {
   MUX_INGEST_SYNC_REASON,
+  MUX_PREPARING_TIMEOUT_REASON,
   muxIngestDecision,
+  muxPreparingDisposition,
   muxSubmitBudget,
   nasDownloadLooksPublic,
+  redactMuxError,
   type MuxIngestAction,
 } from "./mux-policy";
 import { nasSyncIsActive } from "./nas-sync-store";
@@ -165,17 +169,16 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
     };
   }
   const setup = await ensureMuxSetup();
-  const rows = await listFinishedVideos(input.shootId);
+  const catalog = await listFinishedVideos();
+  const rows = input.shootId ? catalog.filter((row) => row.shootId === input.shootId) : catalog;
   const paused = await muxIngestPause();
   if (paused) {
     const videos = rows.map((row) => resultOf(row, "deferred", paused));
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
   }
-  const preparing = input.shootId
-    ? (await listFinishedVideos()).filter((row) => row.muxStatus === "preparing").length
-    : rows.filter((row) => row.muxStatus === "preparing").length;
-  if (preparing > 0) {
-    const videos = await runMuxRows(rows, input.force === true, preparing);
+  const settled = await releaseExpiredPreparing(catalog);
+  if (settled.preparing > 0) {
+    const videos = await runMuxRows(rows, input.force === true, settled.preparing, settled.abandoned);
     return { ...setup, directNasFetch: null, ...countVideos(videos), videos };
   }
   const pausedBeforeNas = await muxIngestPause();
@@ -218,7 +221,7 @@ export async function backfillMuxVideos(input: { shootId?: string; force?: boole
       videos: rows.map((row) => resultOf(row, "failed", message)),
     };
   }
-  const videos = await runMuxRows(rows, input.force === true, preparing);
+  const videos = await runMuxRows(rows, input.force === true, settled.preparing, settled.abandoned);
   return { ...setup, directNasFetch, ...countVideos(videos), videos };
 }
 
@@ -244,7 +247,71 @@ async function muxIngestPause() {
   return null;
 }
 
-async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number) {
+/**
+ * Ask Mux about every preparing asset before another file may start.
+ * Errored, and preparing older than 45 minutes, leave the slot. The same run can submit the next file.
+ * A file this pass gives up on is not submitted again until a later run.
+ */
+async function releaseExpiredPreparing(rows: MuxMediaRow[]) {
+  const abandoned = new Set<string>();
+  let preparing = 0;
+  for (const row of rows) {
+    if (row.muxStatus !== "preparing") continue;
+    if (!row.muxAssetId) {
+      const disposition = muxPreparingDisposition({ status: "preparing", startedAt: row.muxUpdatedAt });
+      if (disposition === "timeout" || row.muxUpdatedAt == null) {
+        await abandonPreparing(row, MUX_PREPARING_TIMEOUT_REASON, abandoned);
+      } else {
+        preparing += 1;
+      }
+      continue;
+    }
+    try {
+      const asset = await muxGetAsset(row.muxAssetId);
+      const disposition = muxPreparingDisposition({
+        status: asset.status ?? "preparing",
+        startedAt: asset.created_at ?? row.muxUpdatedAt,
+      });
+      if (disposition === "timeout") {
+        await abandonPreparing(row, MUX_PREPARING_TIMEOUT_REASON, abandoned);
+        await muxDeleteAsset(row.muxAssetId).catch(() => undefined);
+        continue;
+      }
+      if (disposition === "errored" || disposition === "ready") {
+        await rememberMuxAsset(row.id, asset, { path: row.muxSourcePath ?? row.nasRelativePath ?? "", bytes: row.muxSourceBytes });
+        await releaseMuxNasPull(row.id);
+        row.muxStatus = disposition;
+        row.muxStaticStatus = staticRenditionStatus(asset);
+        row.muxError = disposition === "errored" ? redactMuxError(muxAssetError(asset)) : null;
+        if (disposition === "errored") abandoned.add(row.id);
+        continue;
+      }
+      preparing += 1;
+    } catch (error) {
+      const missing = error instanceof MuxApiError && error.status === 404;
+      const stale = muxPreparingDisposition({ status: "preparing", startedAt: row.muxUpdatedAt }) === "timeout";
+      if (missing || stale) {
+        const message = missing
+          ? "Mux no longer has this asset, so the backfill released it and moved on."
+          : MUX_PREPARING_TIMEOUT_REASON;
+        await abandonPreparing(row, message, abandoned);
+        continue;
+      }
+      preparing += 1;
+    }
+  }
+  return { preparing, abandoned };
+}
+
+async function abandonPreparing(row: MuxMediaRow, message: string, abandoned: Set<string>) {
+  await rememberMuxFailure(row.id, message);
+  await releaseMuxNasPull(row.id);
+  row.muxStatus = "errored";
+  row.muxError = message;
+  abandoned.add(row.id);
+}
+
+async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number, abandoned: Set<string>) {
   const videos: MuxVideoResult[] = [];
   let submitted = 0;
   for (let index = 0; index < rows.length; index += 1) {
@@ -258,6 +325,10 @@ async function runMuxRows(rows: MuxMediaRow[], force: boolean, preparing: number
         videos[rest] = resultOf(pending, "deferred", pause);
       }
       return videos;
+    }
+    if (abandoned.has(row.id)) {
+      videos[index] = resultOf(row, "failed", row.muxError);
+      continue;
     }
     const decision = muxIngestDecision(
       {

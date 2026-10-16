@@ -13,6 +13,13 @@ export type MuxIngestAction = "skip" | "submit" | "refresh";
 
 /** One granted Mux download keeps the NAS for this long before another file may start. */
 export const MUX_NAS_PULL_LEASE_MS = 8 * 60 * 1000;
+/**
+ * A preparing asset holds the one-at-a-time slot only this long.
+ * After that the backfill marks it errored, drops the NAS lease, and starts the next file.
+ */
+export const MUX_PREPARING_TIMEOUT_MS = 45 * 60 * 1000;
+export const MUX_PREPARING_TIMEOUT_REASON =
+  "Mux left this video preparing for more than 45 minutes, so the backfill marked it errored and moved on.";
 /** Ask Mux to wait this long when a NAS sync is using the share. */
 export const MUX_SOURCE_RETRY_AFTER_SECONDS = 60;
 export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pull files until it finishes.";
@@ -25,6 +32,54 @@ export const MUX_INGEST_SYNC_REASON = "A NAS sync is running, so Mux will not pu
 export function muxSubmitBudget(input: { preparing: number; alreadySubmitted: number }) {
   if (input.preparing > 0 || input.alreadySubmitted > 0) return 0;
   return 1;
+}
+
+/** Mux `created_at` is unix seconds. Dates and millisecond numbers pass through. */
+export function muxInstantMs(value: string | number | Date | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value < 1e12 ? value * 1000 : value;
+  }
+  const text = value.trim();
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const n = Number(text);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n < 1e12 ? n * 1000 : n;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function redactMuxError(message: string | null | undefined) {
+  if (!message) return null;
+  const cleaned = message.replace(/https?:\/\/[^\s"']+/g, "the source URL").replace(/\s+/g, " ").trim();
+  return cleaned.slice(0, 500) || null;
+}
+
+/**
+ * What a live Mux asset means for the one-at-a-time slot.
+ * `timeout` is still preparing, but older than the lease, so the queue moves on.
+ * Missing `startedAt` keeps waiting so a clock we cannot read does not abandon a new upload.
+ */
+export function muxPreparingDisposition(input: {
+  status?: string | null;
+  startedAt?: string | number | Date | null;
+  nowMs?: number;
+  limitMs?: number;
+}): "ready" | "errored" | "wait" | "timeout" {
+  if (input.status === "ready") return "ready";
+  if (input.status === "errored") return "errored";
+  if (input.status !== "preparing") return "wait";
+  const started = muxInstantMs(input.startedAt);
+  if (started == null) return "wait";
+  const now = input.nowMs ?? Date.now();
+  const limit = input.limitMs ?? MUX_PREPARING_TIMEOUT_MS;
+  return now - started >= limit ? "timeout" : "wait";
 }
 
 /**

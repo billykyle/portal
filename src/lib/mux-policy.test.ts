@@ -8,9 +8,13 @@ import {
   muxDownloadStem,
   MUX_SOURCE_RETRY_AFTER_SECONDS,
   muxIngestDecision,
+  muxInstantMs,
   muxPosterUrl,
+  muxPreparingDisposition,
   muxSourceDecision,
   muxSubmitBudget,
+  MUX_PREPARING_TIMEOUT_MS,
+  redactMuxError,
   muxStaticDownloadUrl,
   nasDownloadLooksPublic,
   nasFallbackUrl,
@@ -57,6 +61,31 @@ test("Mux NAS pulls stay behind a sync and copy one file at a time", () => {
   assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 0 }), 1);
   assert.equal(muxSubmitBudget({ preparing: 2, alreadySubmitted: 0 }), 0);
   assert.equal(muxSubmitBudget({ preparing: 0, alreadySubmitted: 1 }), 0);
+  const now = Date.parse("2026-10-16T01:00:00.000Z");
+  assert.equal(muxInstantMs("1760000000"), 1760000000 * 1000);
+  assert.equal(
+    muxPreparingDisposition({ status: "preparing", startedAt: now - MUX_PREPARING_TIMEOUT_MS + 1, nowMs: now }),
+    "wait",
+  );
+  assert.equal(
+    muxPreparingDisposition({ status: "preparing", startedAt: now - MUX_PREPARING_TIMEOUT_MS, nowMs: now }),
+    "timeout",
+  );
+  assert.equal(
+    muxPreparingDisposition({
+      status: "preparing",
+      startedAt: String(Math.floor((now - 3 * 60 * 60 * 1000) / 1000)),
+      nowMs: now,
+    }),
+    "timeout",
+  );
+  assert.equal(muxPreparingDisposition({ status: "preparing", startedAt: null, nowMs: now }), "wait");
+  assert.equal(muxPreparingDisposition({ status: "errored", startedAt: now - MUX_PREPARING_TIMEOUT_MS, nowMs: now }), "errored");
+  assert.equal(muxPreparingDisposition({ status: "ready", startedAt: now, nowMs: now }), "ready");
+  assert.equal(
+    redactMuxError('The input file "https://portal.example/api/mux/source/x?exp=1&sig=abc" could not be downloaded.'),
+    "The input file \"the source URL\" could not be downloaded.",
+  );
   assert.deepEqual(
     muxSourceDecision({ syncActive: true, activePulls: 0, thisMediaAlreadyPulling: false }),
     { allow: false, retryAfter: MUX_SOURCE_RETRY_AFTER_SECONDS },
@@ -93,6 +122,9 @@ test("Mux NAS pulls stay behind a sync and copy one file at a time", () => {
   const ingest = readFileSync(new URL("./mux-ingest.ts", import.meta.url), "utf8");
   const gate = readFileSync(new URL("./mux-nas-gate.ts", import.meta.url), "utf8");
   assert.match(ingest, /muxIngestPause/);
+  assert.match(ingest, /releaseExpiredPreparing/);
+  assert.match(ingest, /releaseMuxNasPull/);
+  assert.match(ingest, /MUX_PREPARING_TIMEOUT_REASON/);
   assert.match(ingest, /nasSyncIsActive/);
   assert.doesNotMatch(ingest, /noteDaytimeMuxPull|allowDaytime/);
   assert.doesNotMatch(gate, /mux_daytime_grants|muxIngestAllowedAt/);
