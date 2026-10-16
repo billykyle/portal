@@ -1,4 +1,4 @@
-import { MUX_STATIC_NAME, MUX_VIDEO_QUALITY } from "./mux-policy";
+import { MUX_MAX_RESOLUTION_TIER, MUX_STATIC_NAME, MUX_VIDEO_QUALITY } from "./mux-policy";
 import { muxCredentials, muxWebhookAddress } from "./mux-sign";
 
 export class MuxApiError extends Error {
@@ -17,6 +17,7 @@ export type MuxAsset = {
   status?: string;
   /** Unix seconds, as Mux returns it. */
   created_at?: string | number | null;
+  max_resolution_tier?: string | null;
   passthrough?: string | null;
   errors?: { type?: string; messages?: string[] };
   playback_ids?: Array<{ id: string; policy: string }>;
@@ -100,7 +101,7 @@ export async function muxCreateAsset(input: { url: string; passthrough: string }
       inputs: [{ url: input.url }],
       playback_policies: ["signed"],
       video_quality: MUX_VIDEO_QUALITY,
-      max_resolution_tier: "1080p",
+      max_resolution_tier: MUX_MAX_RESOLUTION_TIER,
       static_renditions: [{ resolution: "highest" }],
       passthrough: input.passthrough,
       meta: { external_id: input.passthrough },

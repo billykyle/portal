@@ -168,6 +168,14 @@ export const media = pgTable("media", {
   /** preparing, ready, errored, or skipped. The MP4 download waits on ready. */
   muxStaticStatus: text("mux_static_status"),
   muxError: text("mux_error"),
+  /** 1080p for assets created before 4K. 2160p once the live asset was created at 4K. */
+  muxResolutionTier: text("mux_resolution_tier"),
+  /** 4K replacement. The live asset keeps playing until this one is ready. */
+  muxPendingAssetId: text("mux_pending_asset_id"),
+  muxPendingPlaybackId: text("mux_pending_playback_id"),
+  muxPendingStatus: text("mux_pending_status"),
+  muxPendingStaticStatus: text("mux_pending_static_status"),
+  muxPendingUpdatedAt: timestamp("mux_pending_updated_at", { withTimezone: true }),
   /** NAS path and size at the last successful ingest. Unchanged files are not sent again. */
   muxSourcePath: text("mux_source_path"),
   muxSourceBytes: bigint("mux_source_bytes", { mode: "number" }),

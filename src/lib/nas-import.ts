@@ -116,6 +116,7 @@ export async function importNasStills(
       filename: media.filename,
       type: media.type,
       muxAssetId: media.muxAssetId,
+      muxPendingAssetId: media.muxPendingAssetId,
       muxStatus: media.muxStatus,
       muxStaticStatus: media.muxStaticStatus,
       muxSourcePath: media.muxSourcePath,
@@ -124,7 +125,9 @@ export async function importNasStills(
     .from(media)
     .where(eq(media.shootId, shootId));
   if (files.length === 0) {
-    const removedMuxAssetIds = existing.flatMap((prev) => (prev.muxAssetId ? [prev.muxAssetId] : []));
+    const removedMuxAssetIds = existing.flatMap((prev) =>
+      [prev.muxAssetId, prev.muxPendingAssetId].filter((id): id is string => Boolean(id)),
+    );
     for (const prev of existing) {
       await db.delete(media).where(eq(media.id, prev.id));
     }
@@ -189,6 +192,7 @@ export async function importNasStills(
     const prev = byName.get(filename);
     if (!prev) continue;
     if (prev.muxAssetId) removedMuxAssetIds.push(prev.muxAssetId);
+    if (prev.muxPendingAssetId) removedMuxAssetIds.push(prev.muxPendingAssetId);
     await db.delete(media).where(eq(media.id, prev.id));
     removed += 1;
   }

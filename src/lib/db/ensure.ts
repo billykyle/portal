@@ -171,6 +171,12 @@ async function createTables() {
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_source_path text`;
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_source_bytes bigint`;
   await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_updated_at timestamptz`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_resolution_tier text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_pending_asset_id text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_pending_playback_id text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_pending_status text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_pending_static_status text`;
+  await sql`ALTER TABLE media ADD COLUMN IF NOT EXISTS mux_pending_updated_at timestamptz`;
   await sql`
     CREATE TABLE IF NOT EXISTS mux_config (
       id text PRIMARY KEY,
